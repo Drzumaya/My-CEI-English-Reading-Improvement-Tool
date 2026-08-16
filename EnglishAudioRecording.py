@@ -4,7 +4,6 @@
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 import streamlit as st
-from streamlit.runtime.scriptrunner import add_script_run_context
 import threading
 
 def my_background_task():
