@@ -6,18 +6,15 @@ import io
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 3 CORE PARTS
-# PART 1: SYSTEM APPLICATION STACK, HEADERS, AND COHORT MATRIX COURSE SEEDS
-# CAREER ENGLISH INSTITUTE (2026)
+# MULTI-SELECT VAULT PURGE MATRIX & SYMMETRICAL ACCOUNTING LEDGERS
+# UNIVERSAL CLOUD OVERRIDE CONTEXT MATRIX • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
-# Global Visual Canvas Viewport Configurations
+# 🧱 PART 1: CORE MULTIMEDIA INJECTIONS, HEADERS, AND SYLLABUS DATA CORES
 st.set_page_config(page_title="CEI Advanced Evaluation Engine", layout="centered")
 st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Upper-Intermediate Dynamic Verification & Re-Ordered Replay Console</h4>", unsafe_allow_html=True)
 
-# ----------------------------------------------------------------------------
-# CORE INDUSTRIAL SYLLABUS COURSE DATABANK REGISTRY SEEDS
-# ----------------------------------------------------------------------------
 if "course_syllabus_bank" not in st.session_state:
     st.session_state.course_syllabus_bank = {
         "P1-H-001 (Shift Handover)": {
@@ -62,11 +59,10 @@ if "course_syllabus_bank" not in st.session_state:
         }
     }
 
-# Symmetrical volatile recording tracker vault setup
 if "student_record_vault" not in st.session_state:
     st.session_state.student_record_vault = {}
 # ============================================================================
-# PART 2: COURSE DROPDOWNS, TARGET READING SHOWER & REC GATEWAYS
+# 🧱 PART 2: STEP 1 (SYLLABUS DROPDOWN), STEP 2 (SHOWER), & STEP 3 (MIC PORT)
 # ============================================================================
 
 # ----------- STEP 1: COURSE SELECTION MATRIX WITH UNLIMITED PLAYBACK LOOPS -----------
@@ -85,9 +81,6 @@ st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margi
 st.write("Students can launch this audio model an unlimited number of times to study fluid, youthful US English tone structures.")
 
 if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
-    # RE-ENGINEERED YOUTHFUL COURSE VOICE OVERRIDE MATRIX:
-    # 1. pitch = 1.15 -> Modifies voice frequencies to sound young, vibrant, and energetic.
-    # 2. rate = 0.90 -> Sets clear conversational pace tailored for B2 language acquisition.
     js_youthful_speech_loop = f"""
     <html lang="en">
     <body>
@@ -99,14 +92,10 @@ if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
             let youngVoice = voices.find(v => 
                 (v.lang.startsWith('en-US') && v.name.includes('Natural')) ||
                 (v.lang.startsWith('en-US') && v.name.includes('Google')) ||
-                (v.lang.startsWith('en-US') && v.name.includes('Samantha')) ||
                 v.lang.startsWith('en-US')
             );
             if (youngVoice) u.voice = youngVoice;
-            u.lang = 'en-US'; 
-            u.rate = 0.90; 
-            u.pitch = 1.15; 
-            s.speak(u);
+            u.lang = 'en-US'; u.rate = 0.90; u.pitch = 1.15; s.speak(u);
         }})();
     </script>
     </body>
@@ -132,7 +121,7 @@ audio_vocal_capture = mic_recorder(
     key='cei_github_3part_mp3_symmetrical_recorder'
 )
 # ============================================================================
-# PART 3: AUTOMATED MP3 STORAGE VAULTS, ATTEMPT ERASURES & CHOSEN DIRECTORIES
+# 🧱 PART 3: AUTOMATED MP3 STORAGE VAULTS, MULTI-ERASURES & CHOSEN DOWNLOADS
 # ============================================================================
 
 # ----------- STEP 4: SEAMLESS BACKGROUND MP3 INTERLOCK AND STORING -----------
@@ -142,7 +131,6 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # NATIVE WAV-TO-MP3 CONTAINERS CONVERTER CORE INTERLOCK:
         mp3_audio_buffer = io.BytesIO()
         mp3_audio_buffer.write(b"ID3\x03\x00\x00\x00\x00\x00\x00") 
         mp3_audio_buffer.write(raw_vocal_bytes[44:]) 
@@ -150,50 +138,48 @@ if audio_vocal_capture:
         st.session_state.student_record_vault[take_index_key] = mp3_audio_buffer.getvalue()
         st.toast(f"💾 {take_index_key} successfully transcoded and stored as MP3 file format!")
 
-# ----------- STEP 5: VOCAL SELECTION PATHS, IMMEDIATE TRACK ELIMINATIONS & FOLDER DOWNLOADS -----------
+# ----------- STEP 5: MULTI-SELECT TRACKING VAULT CONSOLE AND BULK PURGING -----------
 st.write("---")
 st.markdown("### 🗂️ 4. Student Recorded Take Tracker & Vault Download Station")
 
 if st.session_state.student_record_vault:
-    chosen_take_key = st.selectbox(
-        "Select Historical Vocal Attempt Track from Vault Panel:",
-        options=list(st.session_state.student_record_vault.keys())
+    # MULTI-SELECTION UPGRADE UNLOCKED: Replaced selectbox with standard multi-select matrix
+    chosen_take_keys = st.multiselect(
+        "Select One or More Historical Vocal Attempt Tracks from Vault Panel:",
+        options=list(st.session_state.student_record_vault.keys()),
+        default=[list(st.session_state.student_record_vault.keys())[-1]], # Auto-focuses latest take
+        key="synchronized_vault_multiselector"
     )
     
-    selected_audio_bytes = st.session_state.student_record_vault[chosen_take_key]
-    
-    # Correctly sounding MP3 track player node mapping
-    st.markdown(f"**🔊 Active Tracking Playback Node:** `{chosen_take_key}`")
-    st.audio(selected_audio_bytes, format="audio/mp3")
-    
-    st.markdown("#### 📝 Document Naming Station")
-    student_provided_name = st.text_input(
-        label="Enter Student Name or ID Code to label your saved tracking file asset variables:",
-        placeholder="e.g., Carlos_Mendoza_ID4402",
-        key="student_custom_filename"
-    )
-    
-    base_filename_string = student_provided_name.strip().replace(" ", "_") if student_provided_name.strip() != "" else f"CEI_Vocal_{chosen_take_key.replace('[','').replace(']','')}"
-    
-    col_download, col_erase = st.columns(2)
-    
-    with col_download:
-        st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 CHOSEN FOLDER EXPORTER:</p>", unsafe_allow_html=True)
-        st.download_button(
-            label=f"📥 Download Chosen Vocal Asset ({base_filename_string}.mp3)",
-            data=selected_audio_bytes,
-            file_name=f"{base_filename_string}.mp3",
-            mime="audio/mp3",
-            key=f"dl_btn_{chosen_take_key}"
-        )
-        st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
+    if chosen_take_keys:
+        # Loops audio players and download buttons for each actively checked take token smoothly
+        for individual_take in chosen_take_keys:
+            selected_audio_bytes = st.session_state.student_record_vault[individual_take]
+            
+            st.markdown(f"**🔊 Active Tracking Playback Node:** `{individual_take}`")
+            st.audio(selected_audio_bytes, format="audio/mp3")
+            
+            base_filename_string = f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
+            
+            st.download_button(
+                label=f"📥 Download Asset Folder Packet ({individual_take}.mp3)",
+                data=selected_audio_bytes,
+                file_name=f"{base_filename_string}.mp3",
+                mime="audio/mp3",
+                key=f"dl_btn_{individual_take}"
+            )
         
-    with col_erase:
-        st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 INSTANT GARBAGE PURGE MODULE:</p>", unsafe_allow_html=True)
-        # CRITICAL REFACTOR: Instantly wipes the entry cache on choice selector triggers without second confirmations
-        if st.button("❌ Erase Chosen Recording from Matrix List", key=f"erase_btn_{chosen_take_key}"):
-            del st.session_state.student_record_vault[chosen_take_key]
-            st.toast(f"🧹 Successfully erased `{chosen_take_key}` from vault cache state arrays!")
+        st.write("---")
+        st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 ADMINISTRATIVE BULK PURGE CHASSIS:</p>", unsafe_allow_html=True)
+        
+        # UPGRADED MODULE ASSIGNMENT NAME: Fully matches the explicit requested string rules
+        if st.button("❌ Erase Chosen Recording From Student Recorded Tracker List", key="bulk_purge_action_trigger"):
+            for purge_target in chosen_take_keys:
+                if purge_target in st.session_state.student_record_vault:
+                    del st.session_state.student_record_vault[purge_target]
+            st.toast("🧹 Selected records completely dropped out of vault ledger!")
             st.rerun()
+    else:
+        st.warning("Please choose at least one track entry token from the checklist field above to activate trackers.")
 else:
     st.info("No recorded voice logs compiled inside the attempt storage vault matrix maps yet. Click Start Recording above to begin.")
