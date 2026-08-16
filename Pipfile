@@ -1,0 +1,11 @@
+[[source]]
+url = "https://pypi.org"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+streamlit = "*"
+streamlit-mic-recorder = "*"
+
+[requires]
+python_version = "3.11"
