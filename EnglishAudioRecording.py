@@ -10,12 +10,12 @@ from datetime import datetime
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
-# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 12 Core PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES AND DATA STREAM INJECTIONS
+# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 12 CORE PARTS
+# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES AND BLOB SYSTEM INJECTIONS
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 # ============================================================================
-# PART 2: WEB CONTAINER SCREEN SETUP LAYOUT PARAMETERS
+# PART 2: GLOBAL SCREEN CONTEXT VIEWPORT CONFIGURATIONS
 # ============================================================================
 st.set_page_config(
     page_title="CEI Advanced Evaluation Engine", 
@@ -23,15 +23,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 # ============================================================================
-# PART 3: CORPORATE PRESENTATION LABELS & HEADER STYLING
+# PART 3: APPLICATION BRANDING LABELS & PRESENTATION BANNER PLOCKS
 # ============================================================================
 st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Level Upper-Intermediate Diagnostic Verification & Narration Evaluation Engine</h4>", unsafe_allow_html=True)
 # ============================================================================
-# PART 4: RELATIONAL DATABASE HOOKS AND TRANSACTION PROTOCOLS
+# PART 4: EMBEDDED ATOMIC SQLITE SCHEMAS AND CACHE CONTROL GATES
 # ============================================================================
 def get_database_connection():
-    """Establishes an atomic relational thread-safe link to the local database file."""
+    """Establishes an atomic thread-safe link to the local database file."""
     return sqlite3.connect("cei_multimedia_workspace.db", check_same_thread=False)
 
 def initialize_relational_database_tables():
@@ -47,7 +47,7 @@ def initialize_relational_database_tables():
         )
     """)
 # ============================================================================
-# PART 5: TRANSACTIONAL RECORD LEDGER CONFIGURATIONS & PRAGMA INTERLOCKS
+# PART 5: TRANSACTION RECORD LEDGER SCHEMA ALTERATION MANAGEMENT
 # ============================================================================
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS student_evaluations (
@@ -65,19 +65,18 @@ def initialize_relational_database_tables():
     conn.commit()
 
     cursor.execute("PRAGMA table_info(student_evaluations)")
-    columns = [col for col in cursor.fetchall()]
-    column_names = [c[1] for c in columns]
-    if "custom_filename" not in column_names:
+    columns = [col[1] for col in cursor.fetchall()]
+    if "custom_filename" not in columns:
         try:
             cursor.execute("ALTER TABLE student_evaluations ADD COLUMN custom_filename TEXT DEFAULT 'CEI_Vocal_Capture'")
             conn.commit()
         except sqlite3.OperationalError:
             pass
 # ============================================================================
-# PART 6: INITIAL AUDIO COURSE TRACKS LEDGER EXTRACTION MATRIX
+# PART 6: STEP 1 INTEGRATION - CORE SYLLABUS DATA EXPONENT SEEDING
 # ============================================================================
     cursor.execute("SELECT COUNT(*) FROM syllabus_tracks")
-    if cursor.fetchone() == 0:
+    if cursor.fetchone()[0] == 0:
         baseline_seeds = [
             ("P1-H-001 (Shift Handover)", "Good afternoon Carlos. Welcome to the Shift Two handover session. SMT Line Three is currently running part number ALC seven seven four two, active lot code alpha dash nine. The line layout is running at standard quota capacity, but we have intercepted a minor component misfeed at Station Four. A volume of fourteen non conforming pieces has been isolated via physical red tags and transferred directly into the temporary buffer bin.", "Prianti, J. Z. (2026). SMT shift changeover and line logistics. *Career English Institute Manuals*, 1(1), 12-15.", None, 0),
             ("P1-E-002 (ESD Compliance)", "Attention all floor personnel. A cleanroom compliance audit is currently active across the ESD Protected Area boundaries. Every operator must immediately verify their personal grounding infrastructure paths. Close your dual conductor wrist straps completely.", "Prianti, J. Z. (2026). Cleanroom gowning protocols and ESD limits. *Career English Institute Manuals*, 1(1), 16-20.", None, 0),
@@ -96,7 +95,7 @@ def initialize_relational_database_tables():
 
 initialize_relational_database_tables()
 # ============================================================================
-# PART 7: COORDINATOR SIDEBAR SYSTEM REGISTRY EXPOSURES
+# PART 7: COORDINATOR ADMINISTRATION INPUT FORM AND ARCHIVE MODULES
 # ============================================================================
 st.sidebar.markdown("## 🛠️ Coordinator Admin Panel")
 st.sidebar.write("Dynamically expand the relational track database and commit MP3 guide reference tracks.")
@@ -117,14 +116,14 @@ if submit_btn:
         audio_binary = uploaded_audio.read() if uploaded_audio is not None else None
         db_cursor.execute(
             "INSERT OR REPLACE INTO syllabus_tracks (track_id, script_text, apa_citation, audio_blob, is_custom) VALUES (?, ?, ?, ?, 1)",
-            (new_id, new_text, new_citation if new_citation.strip() != "" else "Custom Reference Asset Tracking Sheet.", sqlite3.Binary(audio_binary) if audio_binary else None)
+            (new_id, new_text, new_citation if new_citation.strip() != "" else "Custom Reference Asset.", sqlite3.Binary(audio_binary) if audio_binary else None)
         )
         db_conn.commit()
         db_conn.close()
         st.sidebar.success(f"🎉 Track {new_id} committed permanently into SQL database ledger!")
         st.rerun()
 # ============================================================================
-# PART 8: TEXT-TO-MP3 HIGH-FIDELITY SPEECH GENERATOR
+# PART 8: REVERSE PIPELINE - NATIVE CLIENT-SIDE TEXT-TO-MP3 ENG STATIONS
 # ============================================================================
 st.markdown("### 🔄 Text-To-MP3 Converter Engine")
 st.write("Convert any text script directly into an APA 7 standard, natural native USA speech output track.")
@@ -177,7 +176,7 @@ if st.button("🔊 Transcode Text into Playable MP3 File"):
         st.components.v1.html(js_tts_engine_script, height=1, width=1)
         st.success("🎉 Audio track compiled! The converted stereo MP3 audio asset has been downloaded to your device.")
 # ============================================================================
-# PART 9: STEP 1 & STEP 2 - COURSE AUDIO TRACK MONITOR RETRIEVALS
+# PART 9: STEP 2 - COURSE AUDIO TRACK COMPONENT PLAYBACK & SELECTION FILTERS
 # ============================================================================
 st.write("---")
 st.markdown("### 📋 1. Course Selection Matrix")
@@ -188,7 +187,14 @@ cursor.execute("SELECT track_id, script_text, apa_citation, audio_blob FROM syll
 query_rows = cursor.fetchall()
 conn.close()
 
-track_selection_map = {row: {"text": row, "citation": row, "audio": row} for row in query_rows}
+track_selection_map = {}
+for row in query_rows:
+    t_id = row[0]
+    track_selection_map[t_id] = {
+        "text": row[1],
+        "citation": row[2],
+        "audio": row[3]
+    }
 
 selected_track_id = st.selectbox("Select Target Course Audio Track Component:", options=list(track_selection_map.keys()), index=0)
 reference_text = track_selection_map[selected_track_id]["text"]
@@ -199,7 +205,7 @@ if audio_binary_payload is not None:
     st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 ACTIVE LESSON GUIDE SOUND COMPONENT PATH:</p>", unsafe_allow_html=True)
     st.audio(audio_binary_payload, format="audio/mp3")
 # ============================================================================
-# PART 10: STEP 3 - THE PASTE READING PANEL PRESENTATION SHOWERS
+# PART 10: STEP 3 - THE PRESENTATION READING SHOWER VIEWPORT DISPLAY
 # ============================================================================
 st.write("---")
 st.markdown("### 🔍 2. Reading Shower & Script Configuration")
@@ -218,13 +224,13 @@ if custom_pasted_reading.strip() != "":
     reference_text = custom_pasted_reading.strip()
     apa_citation = "Custom Training Session Manual Asset Override Script."
 # ============================================================================
-# PART 11: STEPS 4 & 5 - VOCAL REGISTRATION RECORDER & NAMING STATION
+# PART 11: STEP 4 & STEP 5 - VOCAL REGISTRATION RECORDER & RE-MAPPED FILENAMES
 # ============================================================================
 st.write("---")
 st.markdown("### 🎙️ 3. Student Vocal Registration Desk")
-st.write("Click Start Recording below, speak the target text into your mic, then click stop to compile sound files safely.")
+st.write("Click Start Recording below, speak the target text into your microphone, then click stop to compile sound files safely.")
 
-audio_asset_capture = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="🛑 Stop & Compile Audio", key='cei_github_6step_final_recorder_v20')
+audio_asset_capture = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="🛑 Stop & Compile Audio", key='cei_github_6step_final_recorder_v12_fixed')
 
 raw_audio_bytes = None
 if audio_asset_capture:
@@ -257,11 +263,11 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         
         st.markdown("#### 📋 CEI B2 Metric Grade Rubric Overlay Matrix")
         if fluency_percentage_score >= 95:
-            st.success("🥇 **CEI Grade: EXCELLENT / EXCELENTE (Level B2 Native Standard Passed)**\\n\\n* **Fluency Alignment / Fluidez:** Continuous delivery, natural breath phrasing groups.\\n* **Accuracy / Precisión Phonética:** Full vocabulary compliance mapped.")
+            st.success("🥇 **CEI Grade: EXCELLENT / EXCELENTE (Level B2 Native Standard Passed)**\n\n* **Fluency Alignment / Fluidez:** Continuous delivery, natural breath phrasing groups.\n* **Accuracy / Precisión Phonética:** Full vocabulary compliance mapped.")
         elif fluency_percentage_score >= 80:
-            st.info("🥈 **CEI Grade: ACCEPTABLE / ACEPTABLE (Level B2 Threshold Maintained)**\\n\\n* **Fluency Alignment / Fluidez:** Standard industrial rhythm, minor phoneme tracing shifts.\\n* **Accuracy / Precisión Phonética:** Minor isolated vowel errors.")
+            st.info("🥈 **CEI Grade: ACCEPTABLE / ACEPTABLE (Level B2 Threshold Maintained)**\n\n* **Fluency Alignment / Fluidez:** Standard industrial rhythm, minor phoneme tracing shifts.\n* **Accuracy / Precisión Phonética:** Minor isolated vowel errors.")
         else:
-            st.warning("🥉 **CEI Grade: TARGET IMPROVEMENT REQUIRED / REQUIERE MEJORA CONTÍNUA**\\n\\n* **Fluency Alignment / Fluidez:** Discontinuous cadence parameters, micro hesitation delay blocks found.\\n* **Accuracy / Precisión Phonética:** Use the Speak Target modeling tools below to realign vowel tracking errors.")
+            st.warning("🥉 **CEI Grade: TARGET IMPROVEMENT REQUIRED / REQUIERE MEJORA CONTÍNUA**\n\n* **Fluency Alignment / Fluidez:** Discontinuous cadence parameters, micro hesitation delay blocks found.\n* **Accuracy / Precisión Phonética:** Use the Speak Target modeling tools below to realign vowel tracking errors.")
 
         col_correct, col_wrong = st.columns(2)
         with col_correct:
@@ -282,6 +288,7 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
                     wrong_words_box.append(word)
                     st.write(f"✗ **{word}**")
                     
+                    # Localized Target USA Pronunciation Audio Modeling Loop Button
                     js_word_spelling_model = f"""
                     <html lang="en">
                     <body>
@@ -291,7 +298,7 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
                     <script>
                         document.getElementById("speak_{index}").addEventListener("click", () => {{
                             let s = window.speechSynthesis; s.cancel();
-                            let u = new SpeechSynthesisUtterance("{word}");
+                            let u = new SynthesisUtterance("{word}");
                             let voices = s.getVoices();
                             let targetVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US'));
                             if (targetVoice) u.voice = targetVoice;
@@ -303,7 +310,6 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
                     """
                     st.components.v1.html(js_word_spelling_model, height=34)
 
-        # Sync analytics strings into relational data frameworks
         conn = get_database_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -312,9 +318,9 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         )
         conn.commit()
         conn.close()
-        st.success("💾 New recording metrics successfully stored to internal relational database ledger!")
+        st.success("🎉 New recording metrics successfully stored to internal relational database ledger!")
 # ============================================================================
-# PART 12: LOG DEPLOYMENT EXPORTERS AND MASTER EXCEL SPREADSHEET COMPILERS
+# PART 12: NAMED ASSET EXPORTERS AND MASTER GRADEBOOK EXCEL SPREADSHEETS
 # ============================================================================
         st.write("---")
         st.markdown("### 📥 Download Portfolio Workspace Assets")
@@ -363,11 +369,11 @@ if st.checkbox("Reveal Stored Student Performance Evaluation History Data"):
     conn.close()
     
     if history_rows:
-        csv_string_buffer = "Timestamp Ledger,Syllabus Track ID,Fluency Score Ratio,Student Name File Label\\n"
+        csv_string_buffer = "Timestamp Ledger,Syllabus Track ID,Fluency Score Ratio,Student Name File Label\n"
         for row in history_rows:
-            st.markdown(f"📅 **{row}** | Track: `{row}` | 🎯 **Score: {row}%** | Label Reference: `{row}`")
+            st.markdown(f"📅 **{row[0]}** | Track: `{row[1]}` | 🎯 **Score: {row[2]}%** | Label Reference: `{row[3]}`")
             st.markdown("<hr style='margin:4px 0; border-top:1px dashed #BDC3C7;'>", unsafe_allow_html=True)
-            csv_string_buffer += f'"{row}","{row}",{row},"{row}"\\n'
+            csv_string_buffer += f'"{row[0]}","{row[1]}",{row[2]},"{row[3]}"\n'
             
         st.markdown("#### 📥 Administrative Spreadsheet Exporter Station")
         st.download_button(
