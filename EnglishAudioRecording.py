@@ -1,8 +1,8 @@
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 15 CORE PARTS
-# FIXED COMPILATION ENGINE FOR NATIVE STREAM SCRIPT AUDIO TRACK PLAYBACK LOOPS
-# UNIVERSAL CLOUD OVERRIDE MATRIX • CAREER ENGLISH INSTITUTE (2026)
+# STABLE RELEASE WITH MANUAL TRACK SOUNDING BUTTON MATRIX OVERLAYS
+# UNIVERSAL CLOUD OVERRIDE CONTEXT MATRIX • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # 🧱 PART 1: CORE APPLICATION STACK AND SYSTEM-LEVEL PACKAGE DEPENDENCY INJECTIONS
@@ -163,7 +163,7 @@ if st.button("🔊 Transcode Text into Playable MP3 File"):
         """
         st.components.v1.html(js_tts_engine_script, height=1, width=1)
         st.success("🎉 Audio track compiled! The converted stereo MP3 audio asset has been downloaded to your device.")
-# 🧱 PART 9: RECOVERY CHANNELS & PLAYBACK MONITORING (STEPS 1 & 2)
+# 🧱 PART 9: RECOVERY CHANNELS, SELECTION FILTERS & MANUAL SOUND BUTTONS (STEPS 1 & 2)
 st.write("---")
 st.markdown("### 📋 1. Course Selection Matrix")
 
@@ -173,8 +173,6 @@ cursor.execute("SELECT track_id, script_text, apa_citation, audio_blob FROM syll
 query_rows = cursor.fetchall()
 conn.close()
 
-# REENGINEERED TUPLE EXPONENT MAPPING INTERLOCK (SOUND STREAM COUPLING FIX):
-# Parses raw rows explicitly using the clean track_id string key to restore sound playback functions
 track_selection_map = {}
 for row in query_rows:
     clean_key_string = str(row[0])
@@ -189,9 +187,35 @@ reference_text = track_selection_map[selected_track_id]["text"]
 apa_citation = track_selection_map[selected_track_id]["citation"]
 audio_binary_payload = track_selection_map[selected_track_id]["audio"]
 
+# SYSTEM UPGRADE LAYER: FIXED TRACK ACTION BUTTON FOR SOUNDING ASSIGNED FILES
 if audio_binary_payload is not None:
-    st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 ACTIVE LESSON GUIDE SOUND COMPONENT PATH:</p>", unsafe_allow_html=True)
-    st.audio(audio_binary_payload, format="audio/mp3")
+    st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 AUDIO REFERENCE MONITOR STATUS: ASSIGNED</p>", unsafe_allow_html=True)
+    
+    # Creates an isolation trigger to sound the database file out loud manually on user clicks
+    if st.button("▶️ Sound Selected Reference Audio Track out Loud"):
+        st.audio(audio_binary_payload, format="audio/mp3")
+else:
+    # SYSTEM CONTEXT INTERLOCK: Native text-to-speech fallback modeling for default entries lacking BLOB bytes
+    st.markdown("<p style='font-size: 11px; font-weight: bold; color: #7F8C8D; margin-bottom: 2px;'>🔊 AUDIO REFERENCE MONITOR STATUS: GENERATING SYNTHESIS MODEL</p>", unsafe_allow_html=True)
+    if st.button("▶️ Sound Selected Reference Audio Track out Loud"):
+        js_fallback_synthesis = f"""
+        <html lang="en">
+        <body>
+        <script>
+            (function() {{
+                let s = window.speechSynthesis;
+                s.cancel();
+                let u = new SpeechSynthesisUtterance(`{reference_text.replace('`','\\`').replace('$','\\$')}`);
+                let voices = s.getVoices();
+                let targetVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US'));
+                if (targetVoice) u.voice = targetVoice;
+                u.lang = 'en-US'; u.rate = 0.92; s.speak(u);
+            }})();
+        </script>
+        </body>
+        </html>
+        """
+        st.components.v1.html(js_fallback_synthesis, height=1, width=1)
 # 🧱 PART 10: THE PASTE SHOWER DISPLAY OVERRIDES AREA (STEP 3)
 st.write("---")
 st.markdown("### 🔍 2. Reading Shower & Script Configuration")
@@ -214,7 +238,7 @@ st.write("---")
 st.markdown("### 🎙️ 3. Student Vocal Registration Desk")
 st.write("Click Start Recording below, speak the target text into your microphone, then click stop to compile sound files safely.")
 
-audio_asset_capture = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="🛑 Stop & Compile Audio", key='cei_github_6step_final_recorder_v22_linked')
+audio_asset_capture = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="🛑 Stop & Compile Audio", key='cei_github_6step_final_recorder_v23_linked')
 
 raw_audio_bytes = None
 if audio_asset_capture:
