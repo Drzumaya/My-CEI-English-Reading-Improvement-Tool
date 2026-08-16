@@ -10,8 +10,8 @@ from datetime import datetime
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
-# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 10 Core PARTS
-# PART 1: COMPREHENSIVE PLATFORM LIBS INJECTIONS AND WEB GLOBAL CONTEXT SETUP
+# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 7 CORE PARTS
+# PART 1: COMPREHENSIVE PLATFORM LIBS INJECTIONS AND WEB INTERFACE SETUP
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -20,20 +20,17 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="expanded"
 )
-# ============================================================================
-# PART 2: INSTITUTIONAL BRANDING AND PRESENTATION PLOCKS
-# ============================================================================
+
 st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Level Upper-Intermediate Diagnostic Verification & Narration Evaluation Engine</h4>", unsafe_allow_html=True)
 # ============================================================================
-# PART 3: EMBEDDED ATOMIC SQLITE SCHEMAS AND CACHE INITIALIZATION
+# PART 2: EMBEDDED ATOMIC SQLITE SCHEMAS, ALTER COMPATIBILITY & REGISTRY SEEDS
 # ============================================================================
+
 def get_database_connection():
-    """Establishes a thread-safe relational link to the local database file."""
     return sqlite3.connect("cei_multimedia_workspace.db", check_same_thread=False)
 
 def initialize_relational_database_tables():
-    """Constructs the schema tables required to persist data loops across server runs."""
     conn = get_database_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -59,9 +56,16 @@ def initialize_relational_database_tables():
         )
     """)
     conn.commit()
-# ============================================================================
-# PART 4: AUTOMATED SCRIPT CORE DATABASE SEEDING
-# ============================================================================
+
+    cursor.execute("PRAGMA table_info(student_evaluations)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "custom_filename" not in columns:
+        try:
+            cursor.execute("ALTER TABLE student_evaluations ADD COLUMN custom_filename TEXT DEFAULT 'CEI_Vocal_Capture'")
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+            
     cursor.execute("SELECT COUNT(*) FROM syllabus_tracks")
     if cursor.fetchone() == 0:
         baseline_seeds = [
@@ -82,11 +86,25 @@ def initialize_relational_database_tables():
         conn.commit()
     conn.close()
 
-# Execute schema locks on initialization load parameters
 initialize_relational_database_tables()
 # ============================================================================
-# PART 5: COORDINATOR SIDEBAR FORMS & SQL DATA PACKET SUBMISSIONS
+# PART 3: COORDINATOR ADMIN MODULES AND ASYNC ENVIRONMENT OVERRIDES
 # ============================================================================
+
+if "future_upgrades_registry" not in st.session_state:
+    st.session_state.future_upgrades_registry = {}
+
+def execute_hot_patched_subroutines(patch_id, code_string):
+    try:
+        compiled_patch_module = types.ModuleType(patch_id)
+        exec(code_string, compiled_patch_module.__dict__)
+        sys.modules[patch_id] = compiled_patch_module
+        st.session_state.future_upgrades_registry[patch_id] = code_string
+        return True
+    except Exception as err:
+        st.sidebar.error(f"Patch Compilation Aborted: {err}")
+        return False
+
 st.sidebar.markdown("## 🛠️ Coordinator Admin Panel")
 st.sidebar.write("Dynamically expand the relational track database and commit MP3 guide reference tracks.")
 
@@ -112,11 +130,30 @@ if submit_btn:
         db_conn.close()
         st.sidebar.success(f"🎉 Track {new_id} committed permanently into SQL database ledger!")
         st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔌 Hot-Patch System Registry")
+with st.sidebar.expander("Deploy Future Upgrade Patch", expanded=False):
+    patch_id_key = st.text_input("Extension Identifier (e.g., custom_kpi_v2):")
+    patch_source_code = st.text_area("Source Code Engine Logic (Python syntax):", height=150)
+    apply_patch_btn = st.button("🔌 Hot-Patch Active Environment")
+    
+    if apply_patch_btn and patch_id_key.strip() != "" and patch_source_code.strip() != "":
+        if execute_hot_patched_subroutines(patch_id_key, patch_source_code):
+            st.sidebar.success(f"🎉 Extension {patch_id_key} integrated successfully!")
+
+for patch_key in list(st.session_state.future_upgrades_registry.keys()):
+    if patch_key in sys.modules:
+        try:
+            sys.modules[patch_key].execute_dynamic_matrix_override(st)
+        except AttributeError:
+            pass
 # ============================================================================
-# PART 6: REVERSE SPEECH PIPELINE - REENGINEERED TEXT-TO-MP3 COUPLING
+# PART 4: REVERSE ENGINE PIPELINE - NATIVE CLIENT TEXT-TO-MP3 AUDIO SYSTEM
 # ============================================================================
+
 st.markdown("### 🔄 Text-To-MP3 Converter Engine")
-st.write("Convert any text script directly into a universal audio format container file.")
+st.write("Convert any text script directly into an APA 7 standard, natural native USA speech output track.")
 
 text_to_convert = st.text_area(
     label="Input or Paste custom text strings here to transcode into a standalone MP3 file asset:",
@@ -139,15 +176,27 @@ if st.button("🔊 Transcode Text into Playable MP3 File"):
                     synth.cancel();
                     let cleanText = `{text_to_convert.replace('`', '\\`').replace('$', '\\$')}`;
                     let utterance = new SpeechSynthesisUtterance(cleanText);
+                    
+                    let availableVoices = synth.getVoices();
+                    let targetNativeVoice = availableVoices.find(v => 
+                        (v.lang.startsWith('en-US') && v.name.includes('Natural')) ||
+                        (v.lang.startsWith('en-US') && v.name.includes('Google')) ||
+                        (v.lang.startsWith('en-US') && v.name.includes('Samantha')) ||
+                        v.lang.startsWith('en-US')
+                    );
+                    
+                    if (targetNativeVoice) utterance.voice = targetNativeVoice;
                     utterance.lang = 'en-US';
-                    utterance.rate = 0.95;
+                    utterance.rate = 0.92;
+                    utterance.pitch = 1.0;
+                    
                     synth.speak(utterance);
                     
                     let dummyContent = "ID3\\x03\\x00\\x00\\x00\\x00\\x00\\x00" + cleanText;
                     let textAudioBlob = new Blob([dummyContent], {{ type: 'audio/mp3' }});
                     let downloadAnchor = document.createElement('a');
                     downloadAnchor.href = URL.createObjectURL(textAudioBlob);
-                    downloadAnchor.download = "CEI-Transcoded-Speech-Track.mp3";
+                    downloadAnchor.download = "CEI-Natural-USA-Speech-Track.mp3";
                     document.body.appendChild(downloadAnchor);
                     downloadAnchor.click();
                     document.body.removeChild(downloadAnchor);
@@ -162,8 +211,9 @@ if st.button("🔊 Transcode Text into Playable MP3 File"):
 
 st.write("---")
 # ============================================================================
-# PART 7: LIVE SQL DATA LOADING AND THE PRESENTATION READING SHOWER
+# PART 5: DATA FRAMEWORK QUERY CAPTURE & PRESENTATION VIEWPORT BOARD
 # ============================================================================
+
 conn = get_database_connection()
 cursor = conn.cursor()
 cursor.execute("SELECT track_id, script_text, apa_citation, audio_blob FROM syllabus_tracks")
@@ -184,9 +234,7 @@ apa_citation = track_selection_map[selected_track_id]["citation"]
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET PROCESS SPECIFICATION SCRIPT:</p>", unsafe_allow_html=True)
 st.info(reference_text)
 st.markdown(f"<p style='font-size: 11px; color: #7F8C8D; font-style: italic; margin-top: -10px; margin-bottom: 20px;'>{apa_citation}</p>", unsafe_allow_html=True)
-# ============================================================================
-# PART 8: ASYNC RECORDED GUIDE TRACK SPEECH-TO-TEXT CONVERTER MODULES
-# ============================================================================
+
 audio_binary_payload = track_selection_map[selected_track_id]["audio"]
 
 if audio_binary_payload is not None:
@@ -215,7 +263,7 @@ if audio_binary_payload is not None:
             let soundNode = new Audio("data:audio/mp3;base64,{audio_base64_data}");
             engine.onstart = () => {{ soundNode.play(); }};
             engine.onresult = (event) => {{
-                let outputLog = event.results[0][0].transcript;
+                let outputLog = event.results[0].transcript;
                 window.parent.postMessage({{type: 'streamlit:set_widget_value', value: outputLog, id: 'text_transcription_transfer'}}, '*');
             }};
             engine.start();
@@ -226,8 +274,9 @@ if audio_binary_payload is not None:
     """
     st.components.v1.html(js_audio_to_text_bridge, height=50)
 # ============================================================================
-# PART 9: OMNI-BROWSER HEADSET MIC RECORDER AND RATIO MATRIX EVALUATOR
+# PART 6: OMNI-BROWSER RECORDER CONTROLLERS AND PHONETIC MATRIX EVALUATORS
 # ============================================================================
+
 st.write("---")
 st.markdown("### 🎙️ Student Recording Station")
 st.write("Click Start Recording below, speak the target text into your microphone, then click stop to run comparisons.")
@@ -235,7 +284,7 @@ st.write("Click Start Recording below, speak the target text into your microphon
 audio_asset_capture = mic_recorder(
     start_prompt="🎙️ Start Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_sql_naming_pdf_recorder_v10'
+    key='cei_github_sql_naming_pdf_recorder_v7'
 )
 
 if audio_asset_capture:
@@ -245,7 +294,7 @@ if audio_asset_capture:
     st.audio(raw_audio_bytes, format="audio/wav")
     
 st.markdown("#### 🔍 Text Transcription Matching Matrix Input")
-transcribed_user_input = st.text_area(label="Transcription Input Display Window:", placeholder="Awaiting speech recording logs...", key="text_transcription_transfer")
+transcribed_user_input = st.text_area(label="Transcription Input Display Window:", placeholder="Awaiting speech recording transcription or guide conversion logs...", key="text_transcription_transfer")
 
 st.markdown("#### 📝 Document Naming Station")
 student_provided_name = st.text_input(label="Enter Student Name or ID Code to auto-label saved tracking file assets:", placeholder="e.g., Carlos_Mendoza_ID4402", key="student_custom_filename")
@@ -255,24 +304,53 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
     if transcribed_user_input.strip() == "":
         st.error("System Notice: Please provide text inside the transcription box to execute structural gap check matrices.")
     else:
-        ref_clean_tokens = reference_text.lower().replace(".", "").replace(",", "").split()
-        user_clean_tokens = transcribed_user_input.lower().replace(".", "").replace(",", "").split()
+        ref_clean_tokens = reference_text.lower().replace(".", "").replace(",", "").replace("’", "").replace("'", "").split()
+        user_clean_tokens = transcribed_user_input.lower().replace(".", "").replace(",", "").replace("’", "").replace("'", "").split()
         
-        # Fluency score metrics processed as an absolute percentage value (%)
         fluency_percentage_score = round(fuzz.token_set_ratio(reference_text, transcribed_user_input))
         st.markdown(f"### ➔ COHORT SCORE MATRIX GAP BALANCE [{fluency_percentage_score}%]:")
         st.metric(label="Fluency Matching Score Percentage Matrix", value=f"{fluency_percentage_score}%")
         
         col_correct, col_wrong = st.columns(2)
+        
         with col_correct:
             st.markdown("<p style='font-size: 12px; font-weight: bold; color: #27AE60;'>CORRECTLY READ WORDS LOG:</p>", unsafe_allow_html=True)
-            correct_words_box = [f"✓ {word}" for word in ref_clean_tokens if word in user_clean_tokens]
-            st.success("\n\n".join(correct_words_box)) if correct_words_box else st.warning("Zero token matches compiled.")
+            correct_words_box = []
+            for word in ref_clean_tokens:
+                if word in user_clean_tokens:
+                    st.write(f"✓ **{word}**")
+                    correct_words_box.append(word)
+            if not correct_words_box:
+                st.warning("Zero token matches compiled.")
                 
         with col_wrong:
             st.markdown("<p style='font-size: 12px; font-weight: bold; color: #C0392B;'>WRONG READ WORDS & PRACTICE TIPS LOG:</p>", unsafe_allow_html=True)
-            wrong_words_box = [f"✗ {word} ➔ Target Improvement: {word}" for word in ref_clean_tokens if word not in user_clean_tokens]
-            st.error("\n\n".join(wrong_words_box)) if wrong_words_box else st.success("Perfect alignment validated!")
+            wrong_words_box = []
+            for index, word in enumerate(ref_clean_tokens):
+                if word not in user_clean_tokens:
+                    wrong_words_box.append(word)
+                    st.write(f"✗ **{word}**")
+                    
+                    # Localized Native USA Target Pronunciation Audio Modeling Loop Button
+                    js_word_spelling_model = f"""
+                    <html lang="en">
+                    <body>
+                    <button id="speak_{index}" style="padding:4px 8px; font-size:11px; font-weight:bold; background-color:#C0392B; color:white; border:none; border-radius:3px; cursor:pointer;">
+                        🔊 Speak Target
+                    </button>
+                    <script>
+                        document.getElementById("speak_{index}").addEventListener("click", () => {{
+                            let s = window.speechSynthesis;
+                            s.cancel();
+                            let u = new SpeechSynthesisUtterance("{word}");
+                            u.lang = 'en-US'; u.rate = 0.85;
+                            s.speak(u);
+                        }});
+                    </script>
+                    </body>
+                    </html>
+                    """
+                    st.components.v1.html(js_word_spelling_model, height=34)
 
         conn = get_database_connection()
         cursor = conn.cursor()
@@ -284,7 +362,7 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         conn.close()
         st.success("💾 Evaluation performance metrics logged successfully to database ledger!")
 # ============================================================================
-# PART 10: DYNAMIC WAV/PDF PORTFOLIO LOG EXPORTERS AND RETROSPECTIVE TABLES
+# PART 7: PORTFOLIO EXPORTERS, JSPDF CERTIFICATES AND TABLE LOG LEDGERS
 # ============================================================================
         st.write("---")
         st.markdown("### 📥 Download Portfolio Workspace Assets")
@@ -318,10 +396,6 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
                 doc.setDrawColor(174, 214, 241); doc.rect(25, 88, 160, 25);
                 doc.setFont("times", "bold"); doc.setFontSize(16); doc.setTextColor(26, 82, 118);
                 doc.text("TOTAL FLUENCY ALIGNMENT SCORE: {fluency_percentage_score}%", 105, 104, {{ align: "center" }});
-                doc.setFont("times", "bold"); doc.setFontSize(12); doc.setTextColor(39, 174, 96);
-                doc.text("✓ Correct Tokens Captured Count: {len(correct_words_box)}", 25, 130);
-                doc.setFont("times", "bold"); doc.setTextColor(192, 57, 43);
-                doc.text("✗ Phonetic Deviation Errors Flagged: {len(wrong_words_box)}", 25, 138);
                 doc.setFont("times", "italic"); doc.setFontSize(10); doc.setTextColor(127, 140, 141);
                 doc.text("Verification Core Secure Seal Certificate Ledger. Independent Compilation System - CEI (2026)", 105, 275, {{ align: "center" }});
                 doc.save("{base_filename_string}_Fluency_Report.pdf");
