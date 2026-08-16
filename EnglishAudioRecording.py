@@ -5,17 +5,17 @@ from datetime import datetime
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 3 CORE PARTS
-# PART 1: SYSTEM APPLICATION STACK, DATA CACHES, AND LAYOUT CONFIGURATIONS
+# PART 1: SYSTEM APPLICATION STACK, HEADERS, AND COHORT MATRIX COURSE SEEDS
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
-# Global Window Layout Configurations
+# Global Visual Canvas Viewport Configurations
 st.set_page_config(page_title="CEI Advanced Evaluation Engine", layout="centered")
 st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Upper-Intermediate Dynamic Verification & Re-Ordered Replay Console</h4>", unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------------
-# CORE SYLLABUS TECHNICAL DICTIONARY STORAGE SEEDS
+# CORE INDUSTRIAL SYLLABUS COURSE DATABANK REGISTRY SEEDS
 # ----------------------------------------------------------------------------
 if "course_syllabus_bank" not in st.session_state:
     st.session_state.course_syllabus_bank = {
@@ -61,14 +61,14 @@ if "course_syllabus_bank" not in st.session_state:
         }
     }
 
-# Persistent attempt recording data storage vault setup
+# Symmetrical volatile recording tracker vault setup
 if "student_record_vault" not in st.session_state:
     st.session_state.student_record_vault = {}
 # ============================================================================
-# PART 2: TARGET CHOICE DRAWER, VISUAL SCRIPTS BOARD, AND VOCAL CAPTURE PORT
+# PART 2: COURSE DROPDOWNS, TARGET READING SHOWER & REC GATEWAYS
 # ============================================================================
 
-# ----------- STEP 1: COURSE SELECTION MATRIX WITH UNLIMITED YOUTHFUL PLAYBACK -----------
+# ----------- STEP 1: COURSE SELECTION MATRIX WITH UNLIMITED PLAYBACK LOOPS -----------
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
 selected_track_id = st.selectbox(
@@ -80,11 +80,11 @@ selected_track_id = st.selectbox(
 active_target_text = st.session_state.course_syllabus_bank[selected_track_id]["text"]
 active_target_citation = st.session_state.course_syllabus_bank[selected_track_id]["citation"]
 
-st.markdown("<p style='font-size: 11px; font-weight: bold; color: #1A5276; margin-bottom: 2px;'>🔊 NATURAL NATIVE YOUNG SPEAKER REPLAY CORE:</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 NATURAL NATIVE YOUNG SPEAKER REPLAY CORE:</p>", unsafe_allow_html=True)
 st.write("Students can launch this audio model an unlimited number of times to study fluid, youthful US English tone structures.")
 
 if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
-    # YOUTHFUL NATIVE USA cadences OVERRIDE MATRIX:
+    # RE-ENGINEERED YOUTHFUL NATIVE USA OVERRIDE MATRIX:
     # 1. pitch = 1.15 -> Modifies voice frequencies to sound young, vibrant, and energetic.
     # 2. rate = 0.90 -> Sets clear conversational pace tailored for B2 language acquisition.
     js_youthful_speech_loop = f"""
@@ -123,15 +123,15 @@ st.markdown(f"<p style='font-size: 11px; color: #7F8C8D; font-style: italic; mar
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
 st.write("---")
 st.markdown("### 🎙️ 3. Student Playback Audio Registration Desk")
-st.write("Click Start Recording below, speak into your microphone, then click stop to compile wave audio containers safely.")
+st.write("Click Start Recording below, speak into your microphone, then click stop to assemble wave containers safely.")
 
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_3part_youth_recorder'
+    key='cei_github_3part_symmetrical_recorder'
 )
 # ============================================================================
-# PART 3: RE-MAPPED ATTEMPT RECORDINGS, GARBAGE COLLECTION & CHOSEN DIRECTORIES
+# PART 3: AUTOMATED STORAGE VAULTS, ATTEMPT ERASURES & CHOSEN DIRECTORIES
 # ============================================================================
 
 # ----------- STEP 4: SEAMLESS BACKGROUND VOICE SESSION STORING -----------
@@ -142,7 +142,7 @@ if audio_vocal_capture:
     
     if take_index_key not in st.session_state.student_record_vault:
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
-        st.toast(f"💾 {take_index_key} successfully stored inside the session database ledger!")
+        st.toast(f"💾 {take_index_key} successfully stored inside the session records!")
 
 # ----------- STEP 5: VOCAL SELECTION PATHS, TARGET ELIMINATIONS & FOLDER DOWNLOADS -----------
 st.write("---")
@@ -156,7 +156,6 @@ if st.session_state.student_record_vault:
     
     selected_audio_bytes = st.session_state.student_record_vault[chosen_take_key]
     
-    # Correctly sounding track layer player node mapping
     st.markdown(f"**🔊 Active Tracking Playback Node:** `{chosen_take_key}`")
     st.audio(selected_audio_bytes, format="audio/wav")
     
@@ -172,7 +171,7 @@ if st.session_state.student_record_vault:
     col_download, col_erase = st.columns(2)
     
     with col_download:
-        # FOLDER DIRECTIONS COMPLIANCE CORE NOTICE:
+        # CHOSEN FOLDER EXPORTER NOTICE:
         # Secure browser sandboxes do not allow web scripts to write directly to hard drive root directories to protect user security.
         # This module generates your custom filename variable; clicking download unlocks a standard system prompt box,
         # allowing the user to select their desired target storage folder directory path natively.
@@ -188,7 +187,6 @@ if st.session_state.student_record_vault:
         
     with col_erase:
         st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 GARBAGE COLLECTOR MODULE:</p>", unsafe_allow_html=True)
-        # Erasure logic loop to immediately clear incorrect, out-of-sync, or broken vocal attempts from the system map
         if st.button("❌ Erase Chosen Recording from Matrix List", key=f"erase_btn_{chosen_take_key}"):
             del st.session_state.student_record_vault[chosen_take_key]
             st.success(f"🧹 Successfully erased reference path row `{chosen_take_key}` from memory state arrays!")
