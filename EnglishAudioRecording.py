@@ -237,12 +237,12 @@ def evaluate_transcription_similarity_matrices(original_script, user_transcripti
 import streamlit as st
 import sys
 # Make sure to import all modular block functions from parts 1-6 above
-from part1_init import execute_system_page_configuration, render_institute_brand_headers
-from part2_database import verify_session_state_matrix_cache, enforce_database_matrix_coupling
-from part3_admin import render_coordinator_admin_panel, render_future_upgrades_deployment_station
-from part4_transcoder import render_text_to_mp3_converter_engine
-from part5_display import render_primary_syllabus_selector, execute_reading_shower_display_logic
-from part6_analytics import initialize_microphone_capture_station, evaluate_transcription_similarity_matrices
+#from part1_init import execute_system_page_configuration, render_institute_brand_headers
+#from part2_database import verify_session_state_matrix_cache, enforce_database_matrix_coupling
+#from part3_admin import render_coordinator_admin_panel, render_future_upgrades_deployment_station
+#from part4_transcoder import render_text_to_mp3_converter_engine
+#from part5_display import render_primary_syllabus_selector, execute_reading_shower_display_logic
+#from part6_analytics import initialize_microphone_capture_station, evaluate_transcription_similarity_matrices
 
 # ============================================================================
 # PART 7: MAIN EXECUTION CONTROLLER ROUTER & FILE DEPLOYMENT PIPELINE
