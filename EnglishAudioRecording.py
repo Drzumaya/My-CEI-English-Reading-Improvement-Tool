@@ -1,3 +1,11 @@
+# ============================================================================
+# TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
+# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 15 CORE PARTS
+# MASTER DUAL SPREADSHEET (CSV/XLSX) LOG ENGINE & LINKED RELATION LEDGERS
+# UNIVERSAL CLOUD OVERRIDE MATRIX • CAREER ENGLISH INSTITUTE (2026)
+# ============================================================================
+
+# 🧱 PART 1: CORE APPLICATION STACK AND SYSTEM-LEVEL PACKAGE DEPENDENCY INJECTIONS
 import streamlit as st
 from streamlit_mic_recorder import mic_recorder
 from rapidfuzz import fuzz
@@ -7,31 +15,18 @@ import sys
 import types
 import base64
 from datetime import datetime
-
-# ============================================================================
-# TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
-# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 12 CORE PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES AND BLOB SYSTEM INJECTIONS
-# CAREER ENGLISH INSTITUTE (2026)
-# ============================================================================
-# ============================================================================
-# PART 2: GLOBAL SCREEN CONTEXT VIEWPORT CONFIGURATIONS
-# ============================================================================
+# 🧱 PART 2: GLOBAL SCREEN CONTEXT VIEWPORT CONFIGURATIONS
 st.set_page_config(
     page_title="CEI Advanced Evaluation Engine", 
     layout="centered",
     initial_sidebar_state="expanded"
 )
-# ============================================================================
-# PART 3: APPLICATION BRANDING LABELS & PRESENTATION BANNER PLOCKS
-# ============================================================================
+# 🧱 PART 3: APPLICATION STYLED BRANDING HEADER LABELS
 st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Level Upper-Intermediate Diagnostic Verification & Narration Evaluation Engine</h4>", unsafe_allow_html=True)
-# ============================================================================
-# PART 4: EMBEDDED ATOMIC SQLITE SCHEMAS AND CACHE CONTROL GATES
-# ============================================================================
+# 🧱 PART 4: EMBEDDED RELATIONAL DATABASE ENGINE SCHEMA MANAGEMENT
 def get_database_connection():
-    """Establishes an atomic thread-safe link to the local database file."""
+    """Establishes an atomic relational thread-safe link to the local database file."""
     return sqlite3.connect("cei_multimedia_workspace.db", check_same_thread=False)
 
 def initialize_relational_database_tables():
@@ -46,9 +41,7 @@ def initialize_relational_database_tables():
             is_custom INTEGER DEFAULT 0
         )
     """)
-# ============================================================================
-# PART 5: TRANSACTION RECORD LEDGER SCHEMA ALTERATION MANAGEMENT
-# ============================================================================
+# 🧱 PART 5: TRANSACTION RECORD LEDGER ALTER COMPATIBILITY INTERLOCKS
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS student_evaluations (
             evaluation_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,31 +65,7 @@ def initialize_relational_database_tables():
             conn.commit()
         except sqlite3.OperationalError:
             pass
-# ============================================================================
-# PART 6: STEP 1 INTEGRATION - CORE SYLLABUS DATA EXPONENT SEEDING
-# ============================================================================
-    cursor.execute("SELECT COUNT(*) FROM syllabus_tracks")
-    if cursor.fetchone()[0] == 0:
-        baseline_seeds = [
-            ("P1-H-001 (Shift Handover)", "Good afternoon Carlos. Welcome to the Shift Two handover session. SMT Line Three is currently running part number ALC seven seven four two, active lot code alpha dash nine. The line layout is running at standard quota capacity, but we have intercepted a minor component misfeed at Station Four. A volume of fourteen non conforming pieces has been isolated via physical red tags and transferred directly into the temporary buffer bin.", "Prianti, J. Z. (2026). SMT shift changeover and line logistics. *Career English Institute Manuals*, 1(1), 12-15.", None, 0),
-            ("P1-E-002 (ESD Compliance)", "Attention all floor personnel. A cleanroom compliance audit is currently active across the ESD Protected Area boundaries. Every operator must immediately verify their personal grounding infrastructure paths. Close your dual conductor wrist straps completely.", "Prianti, J. Z. (2026). Cleanroom gowning protocols and ESD limits. *Career English Institute Manuals*, 1(1), 16-20.", None, 0),
-            ("P1-D-003 (5Ws/1H Logging)", "Master ledger database transaction log update. Operator ID forty four zero two discovered three pieces of part number ALC nine nine zero on Line One at zero eight thirty AM. Visual inspection revealed a fractured mounting boss feature.", "Prianti, J. Z. (2026). Traceability logging and 5Ws/1H framework tools. *Maquiladora Quality Review*, 4(2), 45-48.", None, 0),
-            ("P2-M-001 (Metrology Recitation)", "Lets review the critical engineering drawing blueprint specifications for the display casing assembly feature. The nominal dimension for the main mounting hole inner diameter is listed as twelve point five zero millimeters plus or minus zero point zero five millimeters.", "Prianti, J. Z. (2026). Metrology calibration and precision caliper recitation. *Metrology Quarterly*, 12(3), 102-105.", None, 0),
-            ("P2-I-002 (IPC Class 3 Criteria)", "Microscope inspection review of Surface Mount Technology board serial four four one is complete. Zooming in on integrated circuit U two reveals an unacceptable solder bridging failure mode across pins twelve and thirteen causing an electrical short circuit.", "Prianti, J. Z. (2026). IPC-A-610 Class 3 assembly joint acceptability. *Solder Junction Digests*, 8(1), 33-36.", None, 0),
-            ("P2-S-003 (SPC Chart Trends)", "Lets draw your attention directly to this active X bar statistical process control chart interface screen. As you can clearly see the variable data plots display non random distribution parameters over the last eight hours of operation.", "Prianti, J. Z. (2026). Statistical process control and trend line shift analyses. *Quality Engineering Systems*, 14(4), 89-94.", None, 0),
-            ("P3-A-001 (IATF Audit Protocols)", "Every suspect container matching raw material batch lot code alpha dash nine must be immediately isolated across all production line zones. We are executing a full loop downstream traceability tracking search to completely fence the material escape window.", "Prianti, J. Z. (2026). IATF 16949 audit isolation perimeters and lot freezes. *International Automotive Review*, 22(1), 14-19.", None, 0),
-            ("P3-F-002 (FMEA Calculations)", "The cross functional quality board has compiled the Process FMEA risk assessment tracking matrix updates for the molding cycle line. The failure mode statement is defined as short shots appearing on the display module mounting tab feature.", "Prianti, J. Z. (2026). Process FMEA matrices and risk priority suppression loops. *Risk Management Journals*, 19(2), 54-58.", None, 0),
-            ("P3-B-003 (8D Board Presentation)", "Good morning esteemed tier one customer audit board panel members. On behalf of our team thank you for your time. My name is Jacob Zumaya Prianti and today I am presenting our final eight D problem solving closure report for the alignment non conformance ticket.", "Prianti, J. Z. (2026). Executive 8D board presentation and customer de-escalation strategies. *High-Reliability Technical Communication Series*, 3(1), 40-45.", None, 0),
-            ("P3-C-004 (Continuous Improvement)", "We are executing a Kaizen event across the secondary sub assembly zone. Our time study analytics intercept an unacceptable micro balance bottleneck delay loop at workstation number six.", "Prianti, J. Z. (2026). Continuous lean assembly structures. *Syllabus Manuals Series*, 3(2), 14-18.", None, 0)
-        ]
-        cursor.executemany("INSERT INTO syllabus_tracks VALUES (?, ?, ?, ?, ?)", baseline_seeds)
-        conn.commit()
-    conn.close()
-
-initialize_relational_database_tables()
-# ============================================================================
-# PART 7: COORDINATOR ADMINISTRATION INPUT FORM AND ARCHIVE MODULES
-# ============================================================================
+# 🧱 PART 7: COORDINATOR ADMIN SECTIONS & SQL ENTRY HANDLERS
 st.sidebar.markdown("## 🛠️ Coordinator Admin Panel")
 st.sidebar.write("Dynamically expand the relational track database and commit MP3 guide reference tracks.")
 
@@ -116,15 +85,13 @@ if submit_btn:
         audio_binary = uploaded_audio.read() if uploaded_audio is not None else None
         db_cursor.execute(
             "INSERT OR REPLACE INTO syllabus_tracks (track_id, script_text, apa_citation, audio_blob, is_custom) VALUES (?, ?, ?, ?, 1)",
-            (new_id, new_text, new_citation if new_citation.strip() != "" else "Custom Reference Asset.", sqlite3.Binary(audio_binary) if audio_binary else None)
+            (new_id, new_text, new_citation if new_citation.strip() != "" else "Custom Reference Asset Tracking Sheet.", sqlite3.Binary(audio_binary) if audio_binary else None)
         )
         db_conn.commit()
         db_conn.close()
         st.sidebar.success(f"🎉 Track {new_id} committed permanently into SQL database ledger!")
         st.rerun()
-# ============================================================================
-# PART 8: REVERSE PIPELINE - NATIVE CLIENT-SIDE TEXT-TO-MP3 ENG STATIONS
-# ============================================================================
+# 🧱 PART 8: REVERSE ENGINE SPEECH-SYNTHESIS TEXT-TO-MP3 COMPILER
 st.markdown("### 🔄 Text-To-MP3 Converter Engine")
 st.write("Convert any text script directly into an APA 7 standard, natural native USA speech output track.")
 
@@ -175,9 +142,7 @@ if st.button("🔊 Transcode Text into Playable MP3 File"):
         """
         st.components.v1.html(js_tts_engine_script, height=1, width=1)
         st.success("🎉 Audio track compiled! The converted stereo MP3 audio asset has been downloaded to your device.")
-# ============================================================================
-# PART 9: STEP 2 - COURSE AUDIO TRACK COMPONENT PLAYBACK & SELECTION FILTERS
-# ============================================================================
+# 🧱 PART 9: RECOVERY CHANNELS & PLAYBACK MONITORING (STEPS 1 & 2)
 st.write("---")
 st.markdown("### 📋 1. Course Selection Matrix")
 
@@ -204,9 +169,7 @@ audio_binary_payload = track_selection_map[selected_track_id]["audio"]
 if audio_binary_payload is not None:
     st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 ACTIVE LESSON GUIDE SOUND COMPONENT PATH:</p>", unsafe_allow_html=True)
     st.audio(audio_binary_payload, format="audio/mp3")
-# ============================================================================
-# PART 10: STEP 3 - THE PRESENTATION READING SHOWER VIEWPORT DISPLAY
-# ============================================================================
+# 🧱 PART 10: THE PASTE SHOWER DISPLAY OVERRIDES AREA (STEP 3)
 st.write("---")
 st.markdown("### 🔍 2. Reading Shower & Script Configuration")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET PROCESS SPECIFICATION SCRIPT:</p>", unsafe_allow_html=True)
@@ -223,14 +186,12 @@ custom_pasted_reading = st.text_area(
 if custom_pasted_reading.strip() != "":
     reference_text = custom_pasted_reading.strip()
     apa_citation = "Custom Training Session Manual Asset Override Script."
-# ============================================================================
-# PART 11: STEP 4 & STEP 5 - VOCAL REGISTRATION RECORDER & RE-MAPPED FILENAMES
-# ============================================================================
+# 🧱 PART 11: OMNI MICROPHONE CONTROL GATES & HEADSET REGISTRATIONS (STEP 4)
 st.write("---")
 st.markdown("### 🎙️ 3. Student Vocal Registration Desk")
 st.write("Click Start Recording below, speak the target text into your microphone, then click stop to compile sound files safely.")
 
-audio_asset_capture = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="🛑 Stop & Compile Audio", key='cei_github_6step_final_recorder_v12_fixed')
+audio_asset_capture = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="🛑 Stop & Compile Audio", key='cei_github_6step_final_recorder_v21_linked')
 
 raw_audio_bytes = None
 if audio_asset_capture:
@@ -238,14 +199,11 @@ if audio_asset_capture:
     st.write("---")
     st.markdown("### 🔊 Student Playback & Sound Tracker")
     st.audio(raw_audio_bytes, format="audio/wav")
-
+# 🧱 PART 12: STUDENT DOCUMENT REGISTRATION STATIONS & FILENAMES (STEP 5)
 st.markdown("#### 📝 Document Registration Station")
 student_provided_name = st.text_input(label="Enter Student Name or ID Code to name your new files:", placeholder="e.g., Carlos_Mendoza_ID4402", key="student_custom_filename")
 base_filename_string = student_provided_name.strip().replace(" ", "_") if student_provided_name.strip() != "" else "CEI_Vocal_Capture"
-
-# ============================================================================
-# PART 11B: STEP 6 - COGNITIVE ALIGNMENT LOGS AND RUBRIC EVALUATIONS
-# ============================================================================
+# 🧱 PART 13: STRINGS ACCURACY SCORERS, BILINGUAL RUBRICS & SPEECH TIMERS (STEP 6)
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
 transcribed_user_input = st.text_area(label="Transcription Verification Pane:", placeholder="Awaiting manual transcript logs...", key="text_transcription_transfer")
@@ -268,7 +226,7 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
             st.info("🥈 **CEI Grade: ACCEPTABLE / ACEPTABLE (Level B2 Threshold Maintained)**\n\n* **Fluency Alignment / Fluidez:** Standard industrial rhythm, minor phoneme tracing shifts.\n* **Accuracy / Precisión Phonética:** Minor isolated vowel errors.")
         else:
             st.warning("🥉 **CEI Grade: TARGET IMPROVEMENT REQUIRED / REQUIERE MEJORA CONTÍNUA**\n\n* **Fluency Alignment / Fluidez:** Discontinuous cadence parameters, micro hesitation delay blocks found.\n* **Accuracy / Precisión Phonética:** Use the Speak Target modeling tools below to realign vowel tracking errors.")
-
+# 🧱 PART 14: TWIN ACCURACY FEEDBACK LOGS & LOCALIZED SPEAK TARGET BUTTON HOOKS
         col_correct, col_wrong = st.columns(2)
         with col_correct:
             st.markdown("<p style='font-size: 12px; font-weight: bold; color: #27AE60;'>CORRECTLY READ WORDS LOG:</p>", unsafe_allow_html=True)
@@ -288,7 +246,6 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
                     wrong_words_box.append(word)
                     st.write(f"✗ **{word}**")
                     
-                    # Localized Target USA Pronunciation Audio Modeling Loop Button
                     js_word_spelling_model = f"""
                     <html lang="en">
                     <body>
@@ -298,7 +255,7 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
                     <script>
                         document.getElementById("speak_{index}").addEventListener("click", () => {{
                             let s = window.speechSynthesis; s.cancel();
-                            let u = new SynthesisUtterance("{word}");
+                            let u = new SpeechSynthesisUtterance("{word}");
                             let voices = s.getVoices();
                             let targetVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US'));
                             if (targetVoice) u.voice = targetVoice;
@@ -310,6 +267,7 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
                     """
                     st.components.v1.html(js_word_spelling_model, height=34)
 
+        # Commit name parameters and records straight to the SQLite3 tables logs
         conn = get_database_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -318,10 +276,8 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         )
         conn.commit()
         conn.close()
-        st.success("🎉 New recording metrics successfully stored to internal relational database ledger!")
-# ============================================================================
-# PART 12: NAMED ASSET EXPORTERS AND MASTER GRADEBOOK EXCEL SPREADSHEETS
-# ============================================================================
+        st.success("💾 New recording metrics and student identifier successfully linked to database ledger!")
+# 🧱 PART 15: PORTFOLIO EXPORTERS, NATIVE jsPDF PAGE ENGINE & SPREADSHEET LEDGERS (CSV/XLSX)
         st.write("---")
         st.markdown("### 📥 Download Portfolio Workspace Assets")
         if raw_audio_bytes:
@@ -369,6 +325,7 @@ if st.checkbox("Reveal Stored Student Performance Evaluation History Data"):
     conn.close()
     
     if history_rows:
+        # Build the shared plain-text document table matrix rows
         csv_string_buffer = "Timestamp Ledger,Syllabus Track ID,Fluency Score Ratio,Student Name File Label\n"
         for row in history_rows:
             st.markdown(f"📅 **{row[0]}** | Track: `{row[1]}` | 🎯 **Score: {row[2]}%** | Label Reference: `{row[3]}`")
@@ -376,11 +333,22 @@ if st.checkbox("Reveal Stored Student Performance Evaluation History Data"):
             csv_string_buffer += f'"{row[0]}","{row[1]}",{row[2]},"{row[3]}"\n'
             
         st.markdown("#### 📥 Administrative Spreadsheet Exporter Station")
-        st.download_button(
-            label="📊 Download Complete Historical Evaluation Ledger (.xlsx)",
-            data=csv_string_buffer.encode('utf-8'),
-            file_name="CEI_Classroom_Gradebook_Master_Ledger.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        col_csv, col_xlsx = st.columns(2)
+        
+        with col_csv:
+            st.download_button(
+                label="📥 Download Database Ledger (.csv)",
+                data=csv_string_buffer.encode('utf-8'),
+                file_name="CEI_Master_Gradebook_Ledger.csv",
+                mime="text/csv"
+            )
+            
+        with col_xlsx:
+            st.download_button(
+                label="📊 Download Excel Gradebook (.xlsx)",
+                data=csv_string_buffer.encode('utf-8'),
+                file_name="CEI_Master_Gradebook_Ledger.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     else:
         st.info("No recorded score logs found inside the database schema yet.")
