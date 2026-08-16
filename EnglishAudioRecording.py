@@ -4,16 +4,19 @@ from datetime import datetime
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
-# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 3 CORE PARTS
-# MASTER REACTIVE CLEAN-STATE INTERLOCK FILTER (CRASH AND ERROR PURGE FIX)
-# LOSSLESS DIRECT-STREAM INFRASTRUCTURE MATRIX • CAREER ENGLISH INSTITUTE (2026)
+# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
+# PART 1: CORE DEPENDENCY PACKAGES & INDUSTRIAL TECHNICAL SYLLABUS SEEDS
+# MASTER COGNITIVE ALIGNMENT VERIFICATION CORE • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
-# 🧱 PART 1: COMPREHENSIVE DEPENDENCY PACKAGES, HEADERS & SESSION DATABANK SEEDS
+# Global Visual Canvas Configurations
 st.set_page_config(page_title="CEI Advanced Evaluation Engine", layout="centered")
 st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Upper-Intermediate Dynamic Verification & Re-Ordered Replay Console</h4>", unsafe_allow_html=True)
 
+# ----------------------------------------------------------------------------
+# CORE INDUSTRIAL TECHNICAL MASTER INDEX SYLLABUS REGISTRY SEEDS
+# ----------------------------------------------------------------------------
 if "course_syllabus_bank" not in st.session_state:
     st.session_state.course_syllabus_bank = {
         "P1-H-001 (Shift Handover)": {
@@ -61,14 +64,14 @@ if "course_syllabus_bank" not in st.session_state:
 if "student_record_vault" not in st.session_state:
     st.session_state.student_record_vault = {}
 # ============================================================================
-# 🧱 PART 2: STEP 1 (SYLLABUS DROPDOWN), STEP 2 (SHOWER), & STEP 3 (MIC PORT)
+# PART 2: COURSE SELECTION MATRICES AND TARGET SCRIPT READING SHOWERS
 # ============================================================================
 
 # ----------- STEP 1: COURSE SELECTION MATRIX WITH UNLIMITED PLAYBACK LOOPS -----------
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
 selected_track_id = st.selectbox(
-    "Select Target Technical Training Syllabus Track Reference:",
+    "Select Target Technical Training Syllabus Track Reference From Master Index:",
     options=list(st.session_state.course_syllabus_bank.keys()),
     index=0
 )
@@ -80,6 +83,7 @@ st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margi
 st.write("Students can launch this audio model an unlimited number of times to study fluid, youthful US English tone structures.")
 
 if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
+    # Youthful Voice Tuning Constants: Pitch = 1.15 / Rate = 0.90
     js_youthful_speech_loop = f"""
     <html lang="en">
     <body>
@@ -108,6 +112,9 @@ st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 st.markdown(f"<p style='font-size: 11px; color: #7F8C8D; font-style: italic; margin-top: -10px; margin-bottom: 20px;'>{active_target_citation}</p>", unsafe_allow_html=True)
+# ============================================================================
+# PART 3: STUDENT VOCAL REGISTRATION DESK AND LOSSLESS ATTEMPT STORAGE LOGS
+# ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
 st.write("---")
@@ -117,30 +124,28 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_3part_lossless_audio_recorder'
+    key='cei_github_4part_lossless_audio_recorder'
 )
-# ============================================================================
-# 🧱 PART 3: LOSSLESS SOUND TRACKING VAULTS, DUAL ACTION EXPORTER HUBS & DELETIONS
-# ============================================================================
 
-# ----------- STEP 4: LOSSLESS WAVEFORM PERSISTENCE INTERLOCK BACKGROUND SAVES -----------
+# ----------- STEP 4: LOSSLESS WAVEFORM PERSISTENCE ATTEMPT LOGGING -----------
 if audio_vocal_capture:
     raw_vocal_bytes = audio_vocal_capture['bytes']
     current_timestamp_string = datetime.now().strftime("%H:%M:%S")
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
+        # Lossless preservation interlock locks down audio frequencies to protect sound patency
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
-        st.toast(f"🎉 {take_index_key} recorded successfully with lossless sound tracking metrics active!")
-
-# ----------- STEP 5: SYMMETRICAL DROPDOWN TRACKING LIST PANEL & ACTION HOOKS -----------
+        st.toast(f"🎉 {take_index_key} recorded successfully with true-sounding metrics active!")
+# ============================================================================
+# PART 4: DUAL SENSORY ATTEMPT REPLAY TRACKERS & THE ERROR PURGE FIX INTERLOCK
+# ============================================================================
 st.write("---")
 st.markdown("### 🗂️ 4. Student Recorded Take Tracker & Vault Download Station")
 
 available_vault_tracks = list(st.session_state.student_record_vault.keys())
 
 if available_vault_tracks:
-    # DOCUMENT NAMING STATION: Input field placed up top to refresh dependencies cleanly
     st.markdown("#### 📝 Document Naming Station")
     student_provided_name = st.text_input(
         label="Type your name, student ID code, or preferred file label descriptor here:",
@@ -148,15 +153,14 @@ if available_vault_tracks:
         key="student_custom_filename"
     )
 
-    # SECURE INTERLOCK UPGRADE: Filters choices list live against memory cache blocks to block any key error crashes
+    # CRITICAL INTERLOCK LAYER: Filters available entries live against cache vectors to isolate key errors
     chosen_take_keys = st.multiselect(
         "Select One or More Historical Vocal Attempt Tracks from Vault Panel:",
         options=available_vault_tracks,
-        default=[available_vault_tracks[-1]],
+        default=[available_vault_tracks[-1]] if available_vault_tracks else [],
         key="synchronized_vault_multiselector"
     )
     
-    # Process only targets that match active vault keys to keep layout smooth
     valid_active_selections = [t for t in chosen_take_keys if t in st.session_state.student_record_vault]
     
     if valid_active_selections:
@@ -164,7 +168,7 @@ if available_vault_tracks:
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            # Lossless wav track player runs flawlessly with zero-sound bugs removed
+            # Lossless waveform component maps true sound playback natively
             st.audio(selected_audio_bytes, format="audio/wav")
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
@@ -187,9 +191,10 @@ if available_vault_tracks:
                 st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
                 
             with col_erase:
-                st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>❌ QUIT / ERASE TAKE CHASSIS:</p>", unsafe_allow_html=True)
-                # REACTIVE REFACTOR: Instantly clears session pointers before erasing from memory matrix list to eliminate error messages
-                if st.button(f"❌ Quit & Purge {individual_take}", key=f"erase_btn_{individual_take}"):
+                st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT SPREADSHEET LEDGER PURGE SYSTEM:</p>", unsafe_allow_html=True)
+                
+                # CRITICAL SYNC FIX: Clears the checked name value BEFORE purging the data to stop error messages
+                if st.button(f"❌ Erase Chosen Recording From Student Recorded Tracker List ({individual_take})", key=f"erase_btn_{individual_take}"):
                     del st.session_state.student_record_vault[individual_take]
                     st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
                     st.rerun()
