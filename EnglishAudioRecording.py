@@ -6,7 +6,7 @@ import io
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 3 CORE PARTS
-# MULTI-SELECT VAULT PURGE MATRIX & SYMMETRICAL ACCOUNTING LEDGERS
+# DYNAMIC STUDENT CUSTOM STRING RE-MAPPER FOR PRE-DOWNLOAD NAMING PROTOCOLS
 # UNIVERSAL CLOUD OVERRIDE CONTEXT MATRIX • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -121,7 +121,7 @@ audio_vocal_capture = mic_recorder(
     key='cei_github_3part_mp3_symmetrical_recorder'
 )
 # ============================================================================
-# 🧱 PART 3: AUTOMATED MP3 STORAGE VAULTS, MULTI-ERASURES & CHOSEN DOWNLOADS
+# 🧱 PART 3: AUTOMATED MP3 STORAGE VAULTS, MULTI-ERASURES & CUSTOM NAMING EXPORTS
 # ============================================================================
 
 # ----------- STEP 4: SEAMLESS BACKGROUND MP3 INTERLOCK AND STORING -----------
@@ -138,41 +138,53 @@ if audio_vocal_capture:
         st.session_state.student_record_vault[take_index_key] = mp3_audio_buffer.getvalue()
         st.toast(f"💾 {take_index_key} successfully transcoded and stored as MP3 file format!")
 
-# ----------- STEP 5: MULTI-SELECT TRACKING VAULT CONSOLE AND BULK PURGING -----------
+# ----------- STEP 5: MULTI-SELECT VAULT CONSOLE AND FLEXIBLE FILE OVERRIDES -----------
 st.write("---")
 st.markdown("### 🗂️ 4. Student Recorded Take Tracker & Vault Download Station")
 
 if st.session_state.student_record_vault:
-    # MULTI-SELECTION UPGRADE UNLOCKED: Replaced selectbox with standard multi-select matrix
+    # 📝 Document Naming Station placed first so filename options map globally onto checkboxes loops
+    st.markdown("#### 📝 Document Naming Station")
+    student_provided_name = st.text_input(
+        label="Type your name, student ID code, or preferred file label descriptor here:",
+        placeholder="e.g., Carlos_Mendoza_ID4402",
+        key="student_custom_filename"
+    )
+
     chosen_take_keys = st.multiselect(
         "Select One or More Historical Vocal Attempt Tracks from Vault Panel:",
         options=list(st.session_state.student_record_vault.keys()),
-        default=[list(st.session_state.student_record_vault.keys())[-1]], # Auto-focuses latest take
+        default=[list(st.session_state.student_record_vault.keys())[-1]],
         key="synchronized_vault_multiselector"
     )
     
     if chosen_take_keys:
-        # Loops audio players and download buttons for each actively checked take token smoothly
-        for individual_take in chosen_take_keys:
+        for index, individual_take in enumerate(chosen_take_keys):
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             
             st.markdown(f"**🔊 Active Tracking Playback Node:** `{individual_take}`")
             st.audio(selected_audio_bytes, format="audio/mp3")
             
-            base_filename_string = f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
+            # STRINGS RE-MAPPER COMPLIANCE INTEGRATION:
+            # Parses user input text or automatically chains the specific index token to ensure uniqueness in bulk modes
+            sanitized_user_string = student_provided_name.strip().replace(" ", "_")
+            if sanitized_user_string != "":
+                base_filename_string = f"{sanitized_user_string}_Take_{index + 1}" if len(chosen_take_keys) > 1 else sanitized_user_string
+            else:
+                base_filename_string = f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
             
+            st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 CHOSEN FOLDER EXPORTER:</p>", unsafe_allow_html=True)
             st.download_button(
-                label=f"📥 Download Asset Folder Packet ({individual_take}.mp3)",
+                label=f"📥 Download Asset File Mapped as ({base_filename_string}.mp3)",
                 data=selected_audio_bytes,
                 file_name=f"{base_filename_string}.mp3",
                 mime="audio/mp3",
                 key=f"dl_btn_{individual_take}"
             )
+            st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
         
         st.write("---")
         st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 ADMINISTRATIVE BULK PURGE CHASSIS:</p>", unsafe_allow_html=True)
-        
-        # UPGRADED MODULE ASSIGNMENT NAME: Fully matches the explicit requested string rules
         if st.button("❌ Erase Chosen Recording From Student Recorded Tracker List", key="bulk_purge_action_trigger"):
             for purge_target in chosen_take_keys:
                 if purge_target in st.session_state.student_record_vault:
