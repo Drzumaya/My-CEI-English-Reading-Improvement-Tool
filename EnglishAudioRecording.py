@@ -11,9 +11,6 @@ def my_background_task():
     pass
 
 # When you create your thread, attach the context to it:
-my_thread = threading.Thread(target=my_background_task)
-add_script_run_context(my_thread)  # This lines fixes the warning
-my_thread.start()
 from streamlit_mic_recorder import mic_recorder
 import streamlit as st
 import io
