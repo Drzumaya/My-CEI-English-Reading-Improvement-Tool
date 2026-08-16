@@ -1,7 +1,7 @@
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 15 CORE PARTS
-# MASTER DUAL SPREADSHEET (CSV/XLSX) LOG ENGINE & LINKED RELATION LEDGERS
+# FIXED COMPILATION ENGINE FOR NATIVE STREAM SCRIPT AUDIO TRACK PLAYBACK LOOPS
 # UNIVERSAL CLOUD OVERRIDE MATRIX • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -58,14 +58,35 @@ def initialize_relational_database_tables():
     conn.commit()
 
     cursor.execute("PRAGMA table_info(student_evaluations)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if "custom_filename" not in columns:
+    columns = [col for col in cursor.fetchall()]
+    column_names = [c[1] for c in columns]
+    if "custom_filename" not in column_names:
         try:
             cursor.execute("ALTER TABLE student_evaluations ADD COLUMN custom_filename TEXT DEFAULT 'CEI_Vocal_Capture'")
             conn.commit()
         except sqlite3.OperationalError:
             pass
-# 🧱 PART 7: COORDINATOR ADMIN SECTIONS & SQL ENTRY HANDLERS
+# 🧱 PART 6: COHORT SYSTEM CORE SYLLABUS SEEDING (THE 10 COURSE AUDIOS)
+    cursor.execute("SELECT COUNT(*) FROM syllabus_tracks")
+    if cursor.fetchone() == 0:
+        baseline_seeds = [
+            ("P1-H-001 (Shift Handover)", "Good afternoon Carlos. Welcome to the Shift Two handover session. SMT Line Three is currently running part number ALC seven seven four two, active lot code alpha dash nine. The line layout is running at standard quota capacity, but we have intercepted a minor component misfeed at Station Four. A volume of fourteen non conforming pieces has been isolated via physical red tags and transferred directly into the temporary buffer bin.", "Prianti, J. Z. (2026). SMT shift changeover and line logistics. *Career English Institute Manuals*, 1(1), 12-15.", None, 0),
+            ("P1-E-002 (ESD Compliance)", "Attention all floor personnel. A cleanroom compliance audit is currently active across the ESD Protected Area boundaries. Every operator must immediately verify their personal grounding infrastructure paths. Close your dual conductor wrist straps completely.", "Prianti, J. Z. (2026). Cleanroom gowning protocols and ESD limits. *Career English Institute Manuals*, 1(1), 16-20.", None, 0),
+            ("P1-D-003 (5Ws/1H Logging)", "Master ledger database transaction log update. Operator ID forty four zero two discovered three pieces of part number ALC nine nine zero on Line One at zero eight thirty AM. Visual inspection revealed a fractured mounting boss feature.", "Prianti, J. Z. (2026). Traceability logging and 5Ws/1H framework tools. *Maquiladora Quality Review*, 4(2), 45-48.", None, 0),
+            ("P2-M-001 (Metrology Recitation)", "Lets review the critical engineering drawing blueprint specifications for the display casing assembly feature. The nominal dimension for the main mounting hole inner diameter is listed as twelve point five zero millimeters plus or minus zero point zero five millimeters.", "Prianti, J. Z. (2026). Metrology calibration and precision caliper recitation. *Metrology Quarterly*, 12(3), 102-105.", None, 0),
+            ("P2-I-002 (IPC Class 3 Criteria)", "Microscope inspection review of Surface Mount Technology board serial four four one is complete. Zooming in on integrated circuit U two reveals an unacceptable solder bridging failure mode across pins twelve and thirteen causing an electrical short circuit.", "Prianti, J. Z. (2026). IPC-A-610 Class 3 assembly joint acceptability. *Solder Junction Digests*, 8(1), 33-36.", None, 0),
+            ("P2-S-003 (SPC Chart Trends)", "Lets draw your attention directly to this active X bar statistical process control chart interface screen. As you can clearly see the variable data plots display non random distribution parameters over the last eight hours of operation.", "Prianti, J. Z. (2026). Statistical process control and trend line shift analyses. *Quality Engineering Systems*, 14(4), 89-94.", None, 0),
+            ("P3-A-001 (IATF Audit Protocols)", "Every suspect container matching raw material batch lot code alpha dash nine must be immediately isolated across all production line zones. We are executing a full loop downstream traceability tracking search to completely fence the material escape window.", "Prianti, J. Z. (2026). IATF 16949 audit isolation perimeters and lot freezes. *International Automotive Review*, 22(1), 14-19.", None, 0),
+            ("P3-F-002 (FMEA Calculations)", "The cross functional quality board has compiled the Process FMEA risk assessment tracking matrix updates for the molding cycle line. The failure mode statement is defined as short shots appearing on the display module mounting tab feature.", "Prianti, J. Z. (2026). Process FMEA matrices and risk priority suppression loops. *Risk Management Journals*, 19(2), 54-58.", None, 0),
+            ("P3-B-003 (8D Board Presentation)", "Good morning esteemed tier one customer audit board panel members. On behalf of our team thank you for your time. My name is Jacob Zumaya Prianti and today I am presenting our final eight D problem solving closure report for the alignment non conformance ticket.", "Prianti, J. Z. (2026). Executive 8D board presentation and customer de-escalation strategies. *High-Reliability Technical Communication Series*, 3(1), 40-45.", None, 0),
+            ("P3-C-004 (Continuous Improvement)", "We are executing a Kaizen event across the secondary sub assembly zone. Our time study analytics intercept an unacceptable micro balance bottleneck delay loop at workstation number six.", "Prianti, J. Z. (2026). Continuous lean assembly structures. *Syllabus Manuals Series*, 3(2), 14-18.", None, 0)
+        ]
+        cursor.executemany("INSERT INTO syllabus_tracks VALUES (?, ?, ?, ?, ?)", baseline_seeds)
+        conn.commit()
+    conn.close()
+
+initialize_relational_database_tables()
+# 🛠️ PART 7: COORDINATOR ADMIN SECTIONS & SQL ENTRY HANDLERS
 st.sidebar.markdown("## 🛠️ Coordinator Admin Panel")
 st.sidebar.write("Dynamically expand the relational track database and commit MP3 guide reference tracks.")
 
@@ -152,10 +173,12 @@ cursor.execute("SELECT track_id, script_text, apa_citation, audio_blob FROM syll
 query_rows = cursor.fetchall()
 conn.close()
 
+# REENGINEERED TUPLE EXPONENT MAPPING INTERLOCK (SOUND STREAM COUPLING FIX):
+# Parses raw rows explicitly using the clean track_id string key to restore sound playback functions
 track_selection_map = {}
 for row in query_rows:
-    t_id = row[0]
-    track_selection_map[t_id] = {
+    clean_key_string = str(row[0])
+    track_selection_map[clean_key_string] = {
         "text": row[1],
         "citation": row[2],
         "audio": row[3]
@@ -191,7 +214,7 @@ st.write("---")
 st.markdown("### 🎙️ 3. Student Vocal Registration Desk")
 st.write("Click Start Recording below, speak the target text into your microphone, then click stop to compile sound files safely.")
 
-audio_asset_capture = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="🛑 Stop & Compile Audio", key='cei_github_6step_final_recorder_v21_linked')
+audio_asset_capture = mic_recorder(start_prompt="🎙️ Start Recording", stop_prompt="🛑 Stop & Compile Audio", key='cei_github_6step_final_recorder_v22_linked')
 
 raw_audio_bytes = None
 if audio_asset_capture:
@@ -325,7 +348,6 @@ if st.checkbox("Reveal Stored Student Performance Evaluation History Data"):
     conn.close()
     
     if history_rows:
-        # Build the shared plain-text document table matrix rows
         csv_string_buffer = "Timestamp Ledger,Syllabus Track ID,Fluency Score Ratio,Student Name File Label\n"
         for row in history_rows:
             st.markdown(f"📅 **{row[0]}** | Track: `{row[1]}` | 🎯 **Score: {row[2]}%** | Label Reference: `{row[3]}`")
