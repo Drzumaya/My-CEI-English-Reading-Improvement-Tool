@@ -143,16 +143,14 @@ if audio_vocal_capture:
     
     if take_index_key not in st.session_state.student_record_vault:
         # NATIVE WAV-TO-MP3 CONTAINERS CONVERTER CORE INTERLOCK:
-        # Strips out raw WAV file headers and packages payload packets securely into an MP3 layout structure
-        # to ensure universal cross-platform playback stability across mobile and web cloud networks.
         mp3_audio_buffer = io.BytesIO()
-        mp3_audio_buffer.write(b"ID3\x03\x00\x00\x00\x00\x00\x00") # Embeds custom streaming markers
-        mp3_audio_buffer.write(raw_vocal_bytes[44:]) # Truncates WAV headers to isolate sample tracks
+        mp3_audio_buffer.write(b"ID3\x03\x00\x00\x00\x00\x00\x00") 
+        mp3_audio_buffer.write(raw_vocal_bytes[44:]) 
         
         st.session_state.student_record_vault[take_index_key] = mp3_audio_buffer.getvalue()
         st.toast(f"💾 {take_index_key} successfully transcoded and stored as MP3 file format!")
 
-# ----------- STEP 5: VOCAL SELECTION PATHS, TARGET ELIMINATIONS & FOLDER DOWNLOADS -----------
+# ----------- STEP 5: VOCAL SELECTION PATHS, IMMEDIATE TRACK ELIMINATIONS & FOLDER DOWNLOADS -----------
 st.write("---")
 st.markdown("### 🗂️ 4. Student Recorded Take Tracker & Vault Download Station")
 
@@ -180,10 +178,6 @@ if st.session_state.student_record_vault:
     col_download, col_erase = st.columns(2)
     
     with col_download:
-        # CHOSEN FOLDER EXPORTER NOTICE:
-        # Secure browser sandboxes do not allow web scripts to write directly to hard drive root directories to protect user security.
-        # This module generates your custom filename variable; clicking download unlocks a standard system prompt box,
-        # allowing the user to select their desired target storage folder directory path natively.
         st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 CHOSEN FOLDER EXPORTER:</p>", unsafe_allow_html=True)
         st.download_button(
             label=f"📥 Download Chosen Vocal Asset ({base_filename_string}.mp3)",
@@ -195,10 +189,11 @@ if st.session_state.student_record_vault:
         st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
         
     with col_erase:
-        st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 GARBAGE COLLECTOR MODULE:</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 INSTANT GARBAGE PURGE MODULE:</p>", unsafe_allow_html=True)
+        # CRITICAL REFACTOR: Instantly wipes the entry cache on choice selector triggers without second confirmations
         if st.button("❌ Erase Chosen Recording from Matrix List", key=f"erase_btn_{chosen_take_key}"):
             del st.session_state.student_record_vault[chosen_take_key]
-            st.success(f"🧹 Successfully erased reference path row `{chosen_take_key}` from memory state arrays!")
+            st.toast(f"🧹 Successfully erased `{chosen_take_key}` from vault cache state arrays!")
             st.rerun()
 else:
     st.info("No recorded voice logs compiled inside the attempt storage vault matrix maps yet. Click Start Recording above to begin.")
