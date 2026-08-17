@@ -4,15 +4,15 @@ from rapidfuzz import fuzz
 from datetime import datetime
 import urllib.request
 import urllib.parse
-import json
 import re
 import io
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: SYSTEM STACK DEPENDENCIES, BANNERS, & GOOGLE DRIVE ROOT TARGET PATHS
-# HIGH-FIDELITY RAW COGNITIVE VERIFICATION CORE • CAREER ENGLISH INSTITUTE (2026)
+# PART 1: SYSTEM APPLICATION STACK, HEADERS, & PUBLIC CLOUD PATH INITIALIZERS
+# UNRESTRICTED METADATA ARRAY DATA INVENTORY ENGINE (FULL 24+ LIST TRACK FIX)
+# CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
@@ -40,34 +40,32 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: UNRESTRICTED CLOUD CHUNK SCANNERS AND TARGET READING DISPLAY SHOWERS
+# PART 2: TOTAL METADATA CLOUD SCANNERS AND COMPACT SCRIPT DISPLAYER PANELS
 # ============================================================================
 st.markdown("### 📋 1. Integrated Course Selection Dropdown Matrix")
 
-# NOTICE: The "Live Runtime Folder Sync Active" text message has been completely hidden from the layout here
-
 # ----------------------------------------------------------------------------
-# RUNTIME SYNC CORE: ASYNCHRONOUS GOOGLE DRIVE DIRECT INDEX SCRAPER ENGINES
+# RUNTIME CONNECTION CORE: UNRESTRICTED ENDPOINT MULTI-TRACK ACCOUNTING LOOPS
 # ----------------------------------------------------------------------------
 discovered_cloud_audio_tracks = []
 cloud_track_url_map = {}
 
 if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
-    # DEEP-SCAN PROTOCOL INTERLOCKS: Uses combined folder-view query keys to strip Google's 4-file pagination limit
+    # DEEP METADATA ITERATORS: Queries full catalog tables to bypass the 4-file pagination cutoff limit
     cloud_extraction_endpoints = [
-        f"https://google.com{ECAUDIOS_FOLDER_ID}&type=folder&max-results=100&sort=name",
-        f"https://google.com{ECAUDIOS_FOLDER_ID}&hl=en",
-        f"https://google.com{ECAUDIOS_FOLDER_ID}&max-results=100"
+        f"https://google.com{ECAUDIOS_FOLDER_ID}&type=folder&max-results=150&sort=name",
+        f"https://google.com{ECAUDIOS_FOLDER_ID}&hl=en_US",
+        f"https://google.com{ECAUDIOS_FOLDER_ID}&max-results=150"
     ]
     
     for url_target in cloud_extraction_endpoints:
         try:
-            request_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+            request_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
             web_request = urllib.request.Request(url_target, headers=request_headers)
-            with urllib.request.urlopen(web_request, timeout=7) as response_stream:
+            with urllib.request.urlopen(web_request, timeout=8) as response_stream:
                 raw_payload_content = response_stream.read().decode('utf-8')
             
-            # Scrapes the data arrays to parse all hidden files inside the deep folder inventory
+            # Cloud extraction engine: Locates file IDs and tracking tags across all 24+ items simultaneously
             file_parsing_regex = re.findall(r'\["([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"(?:audio/[^"]+|video/[^"]+|application/[^"]+)"', raw_payload_content)
             for file_id, file_name in file_parsing_regex:
                 if file_name.endswith(('.mp3', '.wav')) and file_name not in discovered_cloud_audio_tracks:
@@ -80,7 +78,7 @@ if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
 if not discovered_cloud_audio_tracks:
     discovered_cloud_audio_tracks = list(st.session_state.fallback_syllabus_bank.keys())
 
-# Dynamic Dropdown Array populated live with all 24+ detected cloud tracks
+# Dynamic Dropdown Choice Array populated live with your full list of 24+ audio items
 selected_track_id = st.selectbox(
     "Choose an Exercise Track From Your Live Connected 24+ Google Drive Folder List:",
     options=sorted(discovered_cloud_audio_tracks),
@@ -108,7 +106,8 @@ st.write("---")
 st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
-st.caption(f"🔗 *Google Drive Directory Pointer Source:* `Cloud_Vault://ECAUDIOS/{selected_track_id}`")
+
+# NOTICE: The "Google Drive Directory Pointer Source" link subtext has been completely hidden from the layout canvas block here
 # ============================================================================
 # PART 3: VOICE REGISTRATION DESK AND LOSSLESS SOUND FIDELITY VAULTING
 # ============================================================================
@@ -195,7 +194,7 @@ if available_vault_tracks:
         for index, individual_take in enumerate(valid_active_selections):
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            # NATIVE SOUND PASSTHROUGH PLAYER NODE: Streams your original voice out loud perfectly with full volume
+            # Lossless pass-through playback streams your original voice out loud with premium fidelity
             st.audio(selected_audio_bytes, format="audio/wav")
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
