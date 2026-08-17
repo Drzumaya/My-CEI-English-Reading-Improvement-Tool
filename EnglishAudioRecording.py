@@ -10,8 +10,8 @@ import time
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 5 STANDALONE PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION CSV PIPELINE CONFIGS
-# UNBLOCKED HTML5 DIRECT-STREAM PLAYBACK LINK ARCHITECTURE (PERMANENT AUDIO FIX)
+# PART 1: SYSTEM APPLICATION STACK FRAMEWORKS, HEADERS, & REPO CACHES
+# MASTER HYBRID ACCENT TIMBRE & VELOCITY CORE SINK
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -23,7 +23,6 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # ----------------------------------------------------------------------------
 # DYNAMIC UNBLOCKED GOOGLE SPREADSHEET MANIFEST TRACKING ADAPTER HOOK
 # ----------------------------------------------------------------------------
-# Fully converted public CSV data stream link pointing straight to your spreadsheet rows ledger
 PUBLISHED_MANIFEST_CSV_URL = "https://google.com"
 
 # Volatile session cache memories initialization
@@ -67,7 +66,7 @@ if "master_curriculum_catalog" not in st.session_state:
         "ECAUDIOS_Track_28_Kitting_Zone_Layout.mp3": "Coordinators are reviewing the kitting zone logistics layout map to cut down on material handling cycle waste times. Moving the staging bins adjacent to the line entrance drops transit waste immediately."
     }
 # ============================================================================
-# PART 3: RECURSIVE DATA STREAM SCANNER LOOPS & UNBLOCKED NATIVE AUDIO NETWORKS
+# PART 3: RECURSIVE DATA STREAM SCANNER LOOPS, ACCENT DECK, & SPEED CONTROLLERS
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
@@ -75,16 +74,14 @@ discovered_curriculum_tracks = {}
 
 if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
     try:
-        # Cache buster prevents data freezes, ensuring newly uploaded rows show up live
         live_timestamp_nonce = int(time.time())
         cache_busted_csv_stream_url = f"{PUBLISHED_MANIFEST_CSV_URL}&cb={live_timestamp_nonce}"
         cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url, header=None)
         
-        # Sequentially processes every row index, unrolling all 28 rows smoothly
         for index, row in cloud_data_frame.iterrows():
             if len(row) >= 2:
-                track_name = str(row.iloc).strip()
-                audio_link = str(row.iloc).strip()
+                track_name = str(row.iloc[0]).strip()
+                audio_link = str(row.iloc[1]).strip()
                 
                 if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
                     if track_name in st.session_state.master_curriculum_catalog:
@@ -100,7 +97,6 @@ if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
     except Exception:
         pass
 
-# Guarantees all 28 tracks load client-side instantly if any sheet network lags occur
 if len(discovered_curriculum_tracks) < 28:
     for k, v in st.session_state.master_curriculum_catalog.items():
         discovered_curriculum_tracks[k] = {"text": v, "url": None}
@@ -115,29 +111,71 @@ selected_track_id = st.selectbox(
 active_target_text = discovered_curriculum_tracks[selected_track_id]["text"]
 active_target_url = discovered_curriculum_tracks[selected_track_id]["url"]
 
-st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 NATURAL ORIGINAL REPLAY MONITOR:</p>", unsafe_allow_html=True)
+st.write("---")
+st.markdown("#### 🔊 Dual-Engine Reference Audio Station")
 
-# ----------------------------------------------------------------------------
-# NATIVE UNBLOCKED AUDIO CORE (THE NO-SYNTHESIZER SOUND RECOVERY INTERLOCK):
-# Converts raw Google Drive links directly into unblocked HTML5 media streams.
-# This completely bypasses the browser's mute locks, playing back your real original files.
-# ----------------------------------------------------------------------------
+# ENGINE 1 BLOCK: Streams your actual recorded raw audio voice file directly from Google Drive
 if active_target_url and "://google.com" in active_target_url:
     try:
         parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
         direct_streaming_packet_url = f"https://google.com{parsed_id}"
-        
-        # Native unblocked playback widget runs perfectly with true human voices
+        st.markdown("🟢 **Engine A: Play Original Recorded Voice Audio File**")
         st.audio(direct_streaming_packet_url, format="audio/mp3")
-    except Exception as stream_err:
-        st.caption(f"⚠️ Link parsing configuration notice. Confirm public sharing permissions inside Drive ({stream_err}).")
-else:
-    # Backup localized simulator panel if column URL metrics are missing
-    if st.button("▶️ Launch Text-To-Speech Local Backup Player (Requires Manual Browser Unmute)"):
-        js_vocal_fallback = f"""
-        <html lang='en'><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.88; s.speak(u); }})();</script></body></html>
-        """
-        st.components.v1.html(js_vocal_fallback, height=1)
+    except Exception:
+        pass
+
+st.write(" ")
+
+# ENGINE 2 BLOCK: Restores your 7 Optional Accent Dialects & Dynamic Speed Velocity Controllers
+st.markdown("🔵 **Engine B: Restored Accent Timbre Deck & Speaking Speed Tuning Console**")
+
+voice_options_map = {
+    "🇺🇸 Premium US Female (Natural Sam)": {"lang": "en-US", "name": "Google US English", "pitch": 1.05},
+    "🇺🇸 Rich US Male (Neural Corporate)": {"lang": "en-US", "name": "Microsoft David", "pitch": 0.92},
+    "🇬🇧 Crisp UK Female (London Accent)": {"lang": "en-GB", "name": "Google UK English Female", "pitch": 1.00},
+    "🇬🇧 Standard UK Male (BBC Dialect)": {"lang": "en-GB", "name": "Google UK English Male", "pitch": 0.95},
+    "🇦🇺 Smooth Australian Female": {"lang": "en-AU", "name": "Google AU English", "pitch": 1.02},
+    "🇮🇳 Clear Indian English Female": {"lang": "en-IN", "name": "Google IN English", "pitch": 1.04},
+    "🇺🇸 Youthful US Voice (Timbre Shifted)": {"lang": "en-US", "name": "Natural", "pitch": 1.15}
+}
+
+col_vce, col_spd = st.columns(2)
+with col_vce:
+    chosen_voice_timbre = st.selectbox("💡 Choose Accent Dialect Profile (7 Options):", options=list(voice_options_map.keys()), index=0)
+with col_spd:
+    chosen_speaking_velocity = st.slider("🏃 Adjust Speaking Velocity Speed:", min_value=0.50, max_value=1.50, value=0.88, step=0.05)
+
+target_voice_meta = voice_options_map[chosen_voice_timbre]
+
+# Beautiful high-contrast visible playback container unblocks speech assets from browser iframe walls completely
+js_multi_engine_console = f"""
+<div style='background-color: #F8F9F9; border: 1px solid #D5DBDB; border-radius: 6px; padding: 12px; text-align: center;'>
+    <button id='cei_run_hybrid_btn' style='background-color: #2471A3; color: white; border: none; padding: 10px 24px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+        ▶️ Run Synthetic Speech Deck at {chosen_speaking_velocity}x Speed
+    </button>
+</div>
+
+<script>
+document.getElementById('cei_run_hybrid_btn').addEventListener('click', function() {{
+    let synth = window.speechSynthesis;
+    synth.cancel();
+    
+    let txt = `{active_target_text.replace('`','\\`').replace('$','\\$')}`;
+    let utterance = new SpeechSynthesisUtterance(txt);
+    
+    let vcs = synth.getVoices();
+    let selectedVoice = vcs.find(v => v.name.includes('{target_voice_meta["name"]}') || v.lang.startsWith('{target_voice_meta["lang"]}'));
+    
+    if (selectedVoice) utterance.voice = selectedVoice;
+    utterance.lang = '{target_voice_meta["lang"]}';
+    utterance.rate = {chosen_speaking_velocity};
+    utterance.pitch = {target_voice_meta["pitch"]};
+    
+    synth.speak(utterance);
+}});
+</script>
+"""
+st.components.v1.html(js_multi_engine_console, height=65)
 
 # ----------- STEP 2: THE READING SHOWER SCRIPT VIEWPORT BOARD -----------
 st.write("---")
@@ -156,7 +194,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_5part_lossless_sound_fidelity_final_unmuted_recorder'
+    key='cei_github_5part_lossless_sound_fidelity_final_hybrid_recorder'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -166,7 +204,6 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # Lossless passthrough ensures the student voice recording sounds exactly as it was recorded
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
@@ -235,7 +272,7 @@ if st.session_state.gradebook_matrix_history:
         key="maintenance_row_selector"
     )
     
-    target_numerical_index = int(chosen_maintenance_row_string.split("Row [").split("]")) - 1
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [")[1].split("]")[0]) - 1
     
     col_new_id, col_upgrade_trigger = st.columns(2)
     with col_new_id:
