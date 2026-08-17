@@ -23,7 +23,7 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # PUBLIC GOOGLE DRIVE "ECAUDIOS" FOLDER REGISTRY CONFIGURATION HOOK
 # ----------------------------------------------------------------------------
 # STEP A: Paste your public shared Google Drive Folder ID code string token here:
-ECAUDIOS_FOLDER_ID = "1o8HXOO6hQIXzlr6iVOmqdzuxa5Zm7gmB?usp=share_link"
+ECAUDIOS_FOLDER_ID = "1o8HXOO6hQIXzlr6iVOmqdzuxa5Zm7gmB"
 
 # Symmetrical fallback data dictionary matrix representing your core training syllabus baseline
 if "fallback_syllabus_bank" not in st.session_state:
