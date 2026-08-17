@@ -2,17 +2,14 @@ import streamlit as st
 from streamlit_mic_recorder import mic_recorder
 from rapidfuzz import fuzz
 from datetime import datetime
-import urllib.request
-import urllib.parse
-import json
-import re
+import pandas as pd
 import io
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: SYSTEM STACK DEPENDENCIES, BANNERS, & GOOGLE DRIVE ROOT TARGET PATHS
-# ADMINISTRATIVE ID CODE MAINTENANCE UPGRADE CONSOLE INTEGRATION
+# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION CSV CLOUD INITIALIZERS
+# LIVE SYNCHRONIZED RECURSIVE GOOGLE SHEETS DATA STREAM MATRIX
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -22,11 +19,10 @@ st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; fon
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Upper-Intermediate Dynamic Verification & Re-Ordered Replay Console</h4>", unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------------
-# PUBLIC GOOGLE DRIVE "ECAUDIOS" DIRECT FOLDER ID CONFIGURATION HOOK
+# DYNAMIC UNBLOCKED GOOGLE SPREADSHEET MANIFEST TRACKING ADAPTER HOOK
 # ----------------------------------------------------------------------------
-# STEP A: Paste your public shared Google Drive Folder ID code string token here:
-# (Ensure your folder is shared as 'Anyone with the link can view')
-ECAUDIOS_FOLDER_ID = "1o8HXOO6hQIXzlr6iVOmqdzuxa5Zm7gmB?"
+# CONVERTED TARGET URL: Swapped /pubhtml to /pub?output=csv to pipe raw data
+PUBLISHED_MANIFEST_CSV_URL = "https://google.com"
 
 # Symmetrical local fallback records matching your baseline training manual exercises
 if "fallback_syllabus_bank" not in st.session_state:
@@ -42,85 +38,66 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: UNRESTRICTED CLOUD CHUNK SCANNERS AND TARGET READING DISPLAY SHOWERS
+# PART 2: UNBLOCKED CLOUD DIRECTORY ACCOUNTING & COMPACT DISPLAY SHOWERS
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
-# ----------------------------------------------------------------------------
-# RUNTIME SYNC CORE: ASYNCHRONOUS GOOGLE API INVENTORY METADATA STREAM PARSER
-# ----------------------------------------------------------------------------
-discovered_cloud_audio_tracks = []
-cloud_track_url_map = {}
+discovered_curriculum_tracks = {}
 
-if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
-    # CRITICAL SECURITY BYPASS INTERLOCK: Targets the public Drive Resource API layout layer
-    # This force-returns the full array directory inventory block up to 100+ files in a single pass
-    drive_api_endpoint = f"https://google.com{ECAUDIOS_FOLDER_ID}"
-    
+if PUBLISHED_MANIFEST_CSV_URL != "YOUR_PUBLISHED_GOOGLE_SHEETS_CSV_URL_HERE":
     try:
-        request_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        web_request = urllib.request.Request(drive_api_endpoint, headers=request_headers)
+        # Stream down row data tables natively from your published web sheet link
+        cloud_data_frame = pd.read_csv(PUBLISHED_MANIFEST_CSV_URL)
         
-        with urllib.request.urlopen(web_request, timeout=8) as response_stream:
-            raw_payload_content = response_stream.read().decode('utf-8')
+        # Iterates across all 24+ rows dynamically to unroll your entire file list instantly
+        for index, row in cloud_data_frame.iterrows():
+            # Looks for column headers: Audio_Track_Name and Drive_Share_URL
+            track_name = str(row['Audio_Track_Name']).strip()
+            audio_link = str(row['Drive_Share_URL']).strip()
             
-        # Recursive regex compiler captures all hidden file IDs and name strings simultaneously
-        file_parsing_regex = re.findall(r'\["([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"(?:audio/[^"]+|video/[^"]+|application/[^"]+)"', raw_payload_content)
-        
-        # If the direct list endpoint is blocked, query the deep asset chunk manifest layer automatically
-        if not file_parsing_regex:
-            deep_chunk_url = f"https://google.com{ECAUDIOS_FOLDER_ID}&max-results=100"
-            web_request_deep = urllib.request.Request(deep_chunk_url, headers=request_headers)
-            with urllib.request.urlopen(web_request_deep, timeout=5) as deep_stream:
-                raw_payload_content = deep_stream.read().decode('utf-8')
-            file_parsing_regex = re.findall(r'\["([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"(?:audio/[^"]+|video/[^"]+|application/[^"]+)"', raw_payload_content)
+            # Simulated training text generated from the track labels automatically
+            clean_title_label = track_name.replace('.mp3','').replace('.wav','').replace('_',' ')
+            simulated_text = f"Technical language standard training module passage matching cloud file asset: '{clean_title_label}'. Practice pronunciation flow and vocal tracking loops using your workbook guidelines."
+            
+            discovered_curriculum_tracks[track_name] = {
+                "text": simulated_text,
+                "url": audio_link
+            }
+    except Exception as spreadsheet_sync_error:
+        st.sidebar.caption(f"ℹ️ Cloud Sheet Sync Status: Running fallback backup mode ({spreadsheet_sync_error}).")
 
-        for file_id, file_name in file_parsing_regex:
-            if file_name.endswith(('.mp3', '.wav')) and file_name not in discovered_cloud_audio_tracks:
-                discovered_cloud_audio_tracks.append(file_name)
-                # Map the file name directly to its direct-stream download URL node
-                cloud_track_url_map[file_name] = f"https://google.com{file_id}"
-                
-    except Exception as api_exception:
-        # Fallback to structural web layout scraper if API endpoints timeout
-        try:
-            embedded_drive_url = f"https://google.com{ECAUDIOS_FOLDER_ID}"
-            web_request_alt = urllib.request.Request(embedded_drive_url, headers=request_headers)
-            with urllib.request.urlopen(web_request_alt, timeout=5) as alt_stream:
-                html_data = alt_stream.read().decode('utf-8')
-            file_parsing_regex = re.findall(r'\["([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"(?:audio/[^"]+|video/[^"]+|application/[^"]+)"', html_data)
-            for file_id, file_name in file_parsing_regex:
-                if file_name.endswith(('.mp3', '.wav')) and file_name not in discovered_cloud_audio_tracks:
-                    discovered_cloud_audio_tracks.append(file_name)
-                    cloud_track_url_map[file_name] = f"https://google.com{file_id}"
-        except Exception:
-            pass
+# Fall back to base syllabus tokens if sheet link is unconfigured
+if not discovered_curriculum_tracks:
+    for k, v in st.session_state.fallback_syllabus_bank.items():
+        discovered_curriculum_tracks[k] = {"text": v, "url": None}
 
-# If no custom folder link is active or verified, fallback to internal textbook seeds seamlessly
-if not discovered_cloud_audio_tracks:
-    discovered_cloud_audio_tracks = list(st.session_state.fallback_syllabus_bank.keys())
-
-# EXACT PROMPT SPECIFICATION ENFORCED
+# EXACT USER COMPLIANCE DROPDOWN PROMPT ENFORCED
 selected_track_id = st.selectbox(
     "Choose an Exercise track:",
-    options=sorted(discovered_cloud_audio_tracks),
+    options=sorted(list(discovered_curriculum_tracks.keys())),
     index=0
 )
 
-if selected_track_id in st.session_state.fallback_syllabus_bank:
-    active_target_text = st.session_state.fallback_syllabus_bank[selected_track_id]
-else:
-    clean_title_label = selected_track_id.replace('.mp3','').replace('.wav','').replace('_',' ')
-    active_target_text = f"Custom Technical Training Reading Passage matched to Cloud File Asset: {clean_title_label}. Open your printed training manual reference sheets to practice vocabulary."
+active_target_text = discovered_curriculum_tracks[selected_track_id]["text"]
+active_target_url = discovered_curriculum_tracks[selected_track_id]["url"]
 
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 NATURAL NATIVE YOUNG SPEAKER REPLAY CORE:</p>", unsafe_allow_html=True)
-st.write("Students can launch this reference model an unlimited number of times to study fluid, youthful US English tone structures.")
 
-if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
-    js_youthful_speech_loop = f"""
-    <html lang="en"><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Natural')) || (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.90; u.pitch = 1.15; s.speak(u); }})();</script></body></html>
-    """
-    st.components.v1.html(js_youthful_speech_loop, height=1, width=1)
+# Direct browser link true sound player or youthful acoustic speaker guide fallback logic node
+if active_target_url and "drive.google.com" in active_target_url:
+    try:
+        # Extracts raw shared link structures into direct browser audio streaming packets natively
+        parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
+        direct_streaming_node = f"https://google.com{parsed_id}"
+        st.audio(direct_streaming_node, format="audio/mp3")
+    except Exception:
+        st.write("Awaiting public sharing link permissions verification...")
+else:
+    if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
+        js_youthful_speech_loop = f"""
+        <html lang="en"><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Natural')) || (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.90; u.pitch = 1.15; s.speak(u); }})();</script></body></html>
+        """
+        st.components.v1.html(js_youthful_speech_loop, height=1, width=1)
 
 # ----------- STEP 2: THE READING SHOWER SCRIPT VIEWPORT BOARD -----------
 st.write("---")
@@ -139,7 +116,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_sound_fidelity_recorder_v49'
+    key='cei_github_4part_lossless_sound_fidelity_recorder_v50'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -149,6 +126,7 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
+        # Lossless passthrough ensures the student voice recording sounds exactly as it was recorded
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
@@ -176,6 +154,12 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         st.markdown(f"### ➔ COHORT SCORE MATRIX GAP BALANCE [{fluency_percentage_score}%]:")
         st.metric(label="Fluency Matching Score Percentage Matrix", value=f"{fluency_percentage_score}%")
         
+        st.markdown("#### 📋 CEI B2 Metric Grade Rubric Overlay Matrix")
+        if fluency_percentage_score >= 85:
+            st.success("🥇 **CEI Grade: EXCELLENT / EXCELENTE (Level B2 Native Standard Passed)**")
+        else:
+            st.warning("🥉 **CEI Grade: TARGET IMPROVEMENT REQUIRED / REQUIERE MEJORA CONTÍNUA**")
+
         col_correct, col_wrong = st.columns(2)
         with col_correct:
             st.markdown("<p style='font-size: 12px; font-weight: bold; color: #27AE60;'>CORRECTLY READ WORDS LOG:</p>", unsafe_allow_html=True)
@@ -217,16 +201,11 @@ if st.session_state.gradebook_matrix_history:
         key="maintenance_row_selector"
     )
     
-    # Secure split interlock parses the numerical location token safely
-    target_numerical_index = int(chosen_maintenance_row_string.split("Row [")[1].split("]")[0]) - 1
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [").split("]")) - 1
     
     col_new_id, col_upgrade_trigger = st.columns(2)
     with col_new_id:
-        new_upgraded_id_string = st.text_input(
-            label="Type New Corrected Student ID Code String:",
-            placeholder="e.g., OFFICIAL-CEI-4402",
-            key=f"upgrade_field_{target_numerical_index}"
-        )
+        new_upgraded_id_string = st.text_input(label="Type New Corrected Student ID Code String:", placeholder="e.g., OFFICIAL-CEI-4402", key=f"upgrade_field_{target_numerical_index}")
     with col_upgrade_trigger:
         st.write("<br>", unsafe_allow_html=True)
         if st.button("⚡ Execute Administrative ID Code Upgrade", key="run_id_maintenance_upgrade"):
