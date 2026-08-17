@@ -12,7 +12,8 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# ARCHITECTURE BLUEPRINT DESIGN • CAREER ENGLISH INSTITUTE (2026)
+# VISIBLE TOUCH-UNMUTE MEDIA GATEWAY CONSOLE OBJECT (PERMANENT MUTED FIX)
+# CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
@@ -80,8 +81,8 @@ if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
         
         for index, row in cloud_data_frame.iterrows():
             if len(row) >= 2:
-                track_name = str(row.iloc[0]).strip()
-                audio_link = str(row.iloc[1]).strip()
+                track_name = str(row.iloc).strip()
+                audio_link = str(row.iloc).strip()
                 
                 if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
                     if track_name in st.session_state.master_curriculum_catalog:
@@ -161,7 +162,7 @@ document.getElementById('cei_run_hybrid_btn').addEventListener('click', function
     synth.cancel();
     
     let txt = `{active_target_text.replace('`','\\`').replace('$','\\$')}`;
-    let utterance = new SpeechSynthesisUtterance(txt);
+    let utterance = new SynthesisUtterance(txt);
     
     utterance.lang = 'en-US';
     let vcs = synth.getVoices();
@@ -198,7 +199,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_v2'
+    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_v3'
 )
 
 # ----------- STEP 4: TRACKING DATA BUFFER VALIDATION DESK -----------
@@ -211,12 +212,11 @@ if audio_vocal_capture:
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with full uncompressed voice parameters active!")
 # ============================================================================
-# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & UNBLOCKED HTML5 REPLAY MONITOR
+# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & TOUCH-UNMUTE PLAYBACK DESK
 # ============================================================================
 st.write("---")
 st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Station")
 
-# REFACTOR INTERLOCK LOCATION: Fields initialized before player reads variables names
 col_id_p5, col_name_p5 = st.columns(2)
 with col_id_p5:
     student_id_code = st.text_input(label="📋 Enter Student ID Code:", placeholder="e.g., CEI-2026-4402", key="student_custom_id_code")
@@ -240,17 +240,54 @@ if available_vault_tracks:
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
             
-            # HTML5 Audio-URI conversion structure ensures sound compatibility across all device networks unmuted
-            b64_string = base64.b64encode(selected_audio_bytes).decode('utf-8')
-            html5_audio_uri_player = f"""
-            <div style='margin-bottom: 15px;'>
-                <audio controls style='width: 100%; max-width: 500px;'>
-                    <source src='data:audio/wav;base64,{b64_string}' type='audio/wav'>
-                    Your browser does not support unblocked local element audio vectors.
+            # ----------------------------------------------------------------------------
+            # TOUCH-ACTIVATION USER INTERACTION FRAMEWORK INTERLOCK REFACTOR:
+            # Compiles a high-contrast console row containing a custom user interaction button.
+            # Clicking it directly kicks the browser's hardware audio element awake (audioCtx.resume),
+            # forcing your recording to sound out loud with unblocked crisp volume lines.
+            # ----------------------------------------------------------------------------
+            b64_data_payload_string = base64.b64encode(selected_audio_bytes).decode('utf-8')
+            unique_dom_element_hash_id = f"cei_sound_node_{index}_{int(time.time())}"
+            
+            html5_unmuted_touch_console_bar = f"""
+            <div style='background-color: #EBF5FB; border: 1px solid #AED6F1; border-radius: 6px; padding: 12px; margin-bottom: 12px; max-width: 500px;'>
+                <button id='btn_{unique_dom_element_hash_id}' style='background-color: #2980B9; color: white; border: none; padding: 8px 16px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; width: 100%; box-shadow: 0 1px 3px rgba(0,0,0,0.15);'>
+                    ▶️ Wake Audio Engine & Play Student Take
+                </button>
+                <audio id='aud_{unique_dom_element_hash_id}' style='display: none;'>
+                    <source src='data:audio/wav;base64,{b64_data_payload_string}' type='audio/wav'>
                 </audio>
             </div>
+            
+            <script>
+            document.getElementById('btn_{unique_dom_element_hash_id}').addEventListener('click', function() {{
+                let audio_element = document.getElementById('aud_{unique_dom_element_hash_id}');
+                let target_button = document.getElementById('btn_{unique_dom_element_hash_id}');
+                
+                // AudioContext wake lock handshake blocks browser iframe security filters
+                if (window.AudioContext || window.webkitAudioContext) {{
+                    let context = new (window.AudioContext || window.webkitAudioContext)();
+                    context.resume();
+                }}
+                
+                if (audio_element.paused) {{
+                    audio_element.play();
+                    target_button.innerHTML = "⏸️ Pause Student Vocal Take Audio Stream";
+                    target_button.style.backgroundColor = "#E67E22";
+                }} else {{
+                    audio_element.pause();
+                    target_button.innerHTML = "▶️ Wake Audio Engine & Play Student Take";
+                    target_button.style.backgroundColor = "#2980B9";
+                }}
+                
+                audio_element.onended = function() {{
+                    target_button.innerHTML = "▶️ Wake Audio Engine & Play Student Take";
+                    target_button.style.backgroundColor = "#2980B9";
+                }}
+            }});
+            </script>
             """
-            st.components.v1.html(html5_audio_uri_player, height=54)
+            st.components.v1.html(html5_unmuted_touch_console_bar, height=72)
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
             base_filename_string = f"{sanitized_user_string}_Take_{index + 1}" if sanitized_user_string != "" else f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
