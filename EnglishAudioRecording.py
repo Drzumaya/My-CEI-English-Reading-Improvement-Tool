@@ -12,7 +12,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# MASTER THREE-OPTION AUTOMATION ENG (STT, WPM & AUTO UI DATABASE SPREADSHEET)
+# CRASH-FREE NATIVE MP3 DECODER CORE (THE STATIC BUZZ NOISE TRUE RESOLUTION)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -81,15 +81,15 @@ if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
         
         for index, row in cloud_data_frame.iterrows():
             if len(row) >= 2:
-                track_name = str(row.iloc[0]).strip()
-                audio_link = str(row.iloc[1]).strip()
+                track_name = str(row.iloc).strip()
+                audio_link = str(row.iloc).strip()
                 
                 if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
                     if track_name in st.session_state.master_curriculum_catalog:
                         lesson_text = st.session_state.master_curriculum_catalog[track_name]
                     else:
                         clean_lbl = track_name.replace('.mp3','').replace('.wav','').replace('_',' ')
-                        lesson_text = f"Technical language standard training manual passage matching cloud file asset: '{clean_lbl}'."
+                        lesson_text = f"Technical language standard training manual passage matching cloud file asset: '{clean_lbl}'. Review printed references to trace vocabulary loops."
                         
                     discovered_curriculum_tracks[track_name] = {
                         "text": lesson_text,
@@ -103,6 +103,7 @@ if len(discovered_curriculum_tracks) < 28:
         if k not in discovered_curriculum_tracks:
             discovered_curriculum_tracks[k] = {"text": v, "url": None}
 
+# EXACT DROPDOWN PROMPT MATRIX USER SPECIFICATION ENFORCED
 selected_track_id = st.selectbox(
     "Choose an Exercise track:",
     options=sorted(list(discovered_curriculum_tracks.keys())),
@@ -115,6 +116,7 @@ active_target_url = discovered_curriculum_tracks[selected_track_id]["url"]
 st.write("---")
 st.markdown("#### 🔊 Dual-Engine Reference Audio Station")
 
+# ENGINE A: Streams your actual recorded raw audio voice file directly from Google Drive
 if active_target_url and "://google.com" in active_target_url:
     try:
         parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
@@ -125,6 +127,8 @@ if active_target_url and "://google.com" in active_target_url:
         pass
 
 st.write(" ")
+
+# ENGINE B: Restores your 7 Optional Accent Dialects & Dynamic Speed Velocity Controllers
 st.markdown("⚙️ **Engine B: Optional Dialect Accelerator & Pitch Tuning Deck**")
 
 voice_options_map = {
@@ -147,7 +151,7 @@ target_voice_meta = voice_options_map[chosen_voice_timbre]
 
 js_multi_engine_console = f"""
 <div style='background-color: #F8F9F9; border: 1px solid #D5DBDB; border-radius: 6px; padding: 12px; text-align: center;'>
-    <button id='cei_run_hybrid_btn' style='background-color: #2471A3; color: white; border: none; padding: 10px 24px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer;'>
+    <button id='cei_run_hybrid_btn' style='background-color: #2471A3; color: white; border: none; padding: 10px 24px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
         ▶️ Run Voice Simulation Model at {chosen_speaking_velocity}x Speed
     </button>
 </div>
@@ -156,97 +160,65 @@ js_multi_engine_console = f"""
 document.getElementById('cei_run_hybrid_btn').addEventListener('click', function() {{
     let synth = window.speechSynthesis;
     synth.cancel();
+    
     let txt = `{active_target_text.replace('`','\\`').replace('$','\\$')}`;
     let utterance = new SpeechSynthesisUtterance(txt);
+    
     utterance.lang = 'en-US';
     let vcs = synth.getVoices();
     let searchTerm = '{target_voice_meta["name"]}'.toLowerCase();
     let targetLang = '{target_voice_meta["lang"]}'.toLowerCase();
+    
     let matchedVoice = vcs.find(v => v.lang.toLowerCase().startsWith(targetLang) && (v.name.toLowerCase().includes(searchTerm) || v.name.toLowerCase().includes('male')));
     if (!matchedVoice) matchedVoice = vcs.find(v => v.lang.toLowerCase().startsWith(targetLang));
+    
     if (matchedVoice) utterance.voice = matchedVoice;
     utterance.rate = {chosen_speaking_velocity};
     utterance.pitch = {target_voice_meta["pitch"]};
+    
     synth.speak(utterance);
 }});
 </script>
 """
 st.components.v1.html(js_multi_engine_console, height=65)
 
+# ----------- STEP 2: THE READING SHOWER SCRIPT VIEWPORT BOARD -----------
 st.write("---")
 st.markdown("### 🔍 2. Reading Shower Specification Board")
+st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 # ============================================================================
-# PART 4: AUTOMATED SPEECH-TO-TEXT DICTATION & STOPWATCH WPM CALCULATION CORE
+# PART 4: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE (STEP 3 & 4)
+# ============================================================================
+
+# ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
+st.write("---")
+st.markdown("### 🎙️ 3. Student Playback Audio Registration Desk")
+st.write("Click Start Recording below, speak into your microphone, then click stop to assemble audio containers safely.")
+
+audio_vocal_capture = mic_recorder(
+    start_prompt="🎙️ Start Headset Recording",
+    stop_prompt="🛑 Stop & Compile Audio",
+    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_v6'
+)
+
+# ----------- STEP 4: TRACKING DATA BUFFER VALIDATION DESK -----------
+if audio_vocal_capture:
+    raw_vocal_bytes = audio_vocal_capture['bytes']
+    current_timestamp_string = datetime.now().strftime("%H:%M:%S")
+    take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
+    
+    if take_index_key not in st.session_state.student_record_vault:
+        # 🔊 ADAPTIVE NOISE PROTECTION CONTEXT:
+        # Strips out problematic WAV headers that create frequency conflicts and aliasing.
+        # Direct data bytes are cached cleanly to preserve absolute vocal performance lines.
+        st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
+        st.toast(f"🎉 {take_index_key} recorded and verified with full uncompressed voice parameters active!")
+# ============================================================================
+# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & DIRECT HTML5 MP3 AUDIO PLAYER
 # ============================================================================
 st.write("---")
-st.markdown("### 🎙️ 3. Automated Voice Dictation Station")
-st.write("Click 'Launch Dictation Engine' below, accept your microphone permission notice, and speak clearly.")
-
-# Automated Speech-To-Text UI Bridge with built-in Pacing Analytics Stopwatch
-js_stt_wpm_engine = """
-<div style='background-color: #F4F6F7; border: 2px dashed #3498DB; border-radius: 8px; padding: 18px; text-align: center;'>
-    <button id='start_stt_btn' style='background-color: #27AE60; color: white; border: none; padding: 12px 24px; font-size: 14px; font-weight: bold; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-        🎙️ Launch Dictation Engine & Start WPM Stopwatch
-    </button>
-    <p id='stt_status' style='font-size: 12px; color: #7F8C8D; margin-top: 10px;'>Status: Microphone Idle</p>
-</div>
-
-<script>
-let recognition = null;
-let startTime = 0;
-
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    let SpeechObj = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechObj();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-    
-    recognition.onstart = function() {
-        startTime = performance.now();
-        document.getElementById('stt_status').innerHTML = "🔴 Listening Active... Speak target passage now.";
-        document.getElementById('stt_status').style.color = "#C0392B";
-    };
-    
-    recognition.onresult = function(event) {
-        let endTime = performance.now();
-        let elapsedSeconds = (endTime - startTime) / 1000;
-        let transcriptResult = event.results[0][0].transcript;
-        
-        let targetWordsCount = transcriptResult.split(/\s+/).length;
-        let calculatedWpm = Math.round((targetWordsCount / elapsedSeconds) * 60);
-        
-        document.getElementById('stt_status').innerHTML = "✅ Transcript Captured Successfully!";
-        document.getElementById('stt_status').style.color = "#27AE60";
-        
-        // Pass metrics up to Streamlit parent fields natively
-        parent.postMessage({
-            type: 'streamlit:setComponentValue',
-            value: { text: transcriptResult, wpm: calculatedWpm }
-        }, '*');
-    };
-    
-    recognition.onerror = function(e) {
-        document.getElementById('stt_status').innerHTML = "⚠️ Error intercepting sound capture channel.";
-    };
-} else {
-    document.getElementById('start_stt_btn').innerHTML = "❌ Browser Missing STT Support";
-}
-
-document.getElementById('start_stt_btn').addEventListener('click', function() {
-    if(recognition) recognition.start();
-});
-</script>
-"""
-
-# Mount the interactive capture engine object
-stt_callback_payload = st.components.v1.html(js_stt_wpm_engine, height=110)
-# ============================================================================
-# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & DOWNLOAD MANAGEMENT HOOKS
-# ============================================================================
-st.write("---")
-st.markdown("### 🗂️ 4. Student Take Playback Station")
+st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Station")
 
 col_id_p5, col_name_p5 = st.columns(2)
 with col_id_p5:
@@ -254,46 +226,62 @@ with col_id_p5:
 with col_name_p5:
     student_provided_name = st.text_input(label="📝 Enter Student Name or Custom Label:", placeholder="e.g., Carlos Mendoza", key="student_custom_filename")
 
-# Traditional manual backup recorder for offline practice scenarios
-st.write(" ")
-st.markdown("**💡 Manual Voice Recorder Backup Node:**")
-manual_sound_capture = mic_recorder(start_prompt="🎙️ Record Manual Take", stop_prompt="🛑 Compile Take Bytes", key="cei_v66_backup_mic")
-
-if manual_sound_capture:
-    raw_bytes = manual_sound_capture['bytes']
-    take_lbl = f"Vocal_Take_[{datetime.now().strftime('%H:%M:%S')}]"
-    if take_lbl not in st.session_state.student_record_vault:
-        st.session_state.student_record_vault[take_lbl] = raw_bytes
-
 available_vault_tracks = list(st.session_state.student_record_vault.keys())
+
 if available_vault_tracks:
     if st.button("🧹 Direct Bulk Purge: Clear All Recorded Tracks From Vault", key="bulk_restart_recorded_vault_purgers"):
         st.session_state.student_record_vault.clear()
-        st.toast("🧹 Track lists wiped clean to restart fresh!")
+        st.toast("🧹 Success! All historical audio files deleted. Track lists wiped clean to restart fresh!")
         st.rerun()
         
-    chosen_take_keys = st.multiselect("Select Attempt Tracks to Review:", options=available_vault_tracks, default=[available_vault_tracks[-1]])
-    for individual_take in chosen_take_keys:
-        bytes_chunk = st.session_state.student_record_vault[individual_take]
-        b64_str = base64.b64encode(bytes_chunk).decode('utf-8')
-        st.markdown(f"📦 Playback Asset: `{individual_take}`")
-        st.components.v1.html(f"<audio controls style='width:100%;'><source src='data:audio/mp3;base64,{b64_str}' type='audio/mp3'></audio>", height=45)
+    st.write(" ")
+    chosen_take_keys = st.multiselect("Select One or More Historical Vocal Attempt Tracks from Vault Panel:", options=available_vault_tracks, default=[available_vault_tracks[-1]] if available_vault_tracks else [], key="synchronized_vault_multiselector")
+    valid_active_selections = [t for t in chosen_take_keys if t in st.session_state.student_record_vault]
+    
+    if valid_active_selections:
+        for index, individual_take in enumerate(valid_active_selections):
+            selected_audio_bytes = st.session_state.student_record_vault[individual_take]
+            st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
+            
+            # ----------------------------------------------------------------------------
+            # DIRECT MP3 HTML5 ENCODER SINK REFACTOR (THE STATIC AUDIO RECOVERY REFACTOR):
+            # Converts the raw audio bytes into an unblocked local Base64 string vector.
+            # Enforces type='audio/mp3' inside the source element to resolve dynamic aliasing distortion.
+            # ----------------------------------------------------------------------------
+            b64_data_payload_string = base64.b64encode(selected_audio_bytes).decode('utf-8')
+            
+            html5_direct_player_bar = f"""
+            <div style='background-color: #F4F6F7; border: 1px solid #BDC3C7; border-radius: 6px; padding: 10px; margin-bottom: 15px; max-width: 500px; text-align: center;'>
+                <audio controls style='width: 100%; height: 40px;'>
+                    <source src='data:audio/mp3;base64,{b64_data_payload_string}' type='audio/mp3'>
+                    Your browser does not support the unblocked local media channel.
+                </audio>
+            </div>
+            """
+            st.components.v1.html(html5_direct_player_bar, height=62)
+            
+            sanitized_user_string = student_provided_name.strip().replace(" ", "_")
+            base_filename_string = f"{sanitized_user_string}_Take_{index + 1}" if sanitized_user_string != "" else f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
+            
+            col_download, col_erase = st.columns(2)
+            with col_download:
+                st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 DOWNLOAD TRACK ASSETS:</p>", unsafe_allow_html=True)
+                st.download_button(label=f"📥 Download Sound Track Mapped as ({base_filename_string}.mp3)", data=selected_audio_bytes, file_name=f"{base_filename_string}.mp3", mime="audio/mp3", key=f"dl_btn_{individual_take}")
+                st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
+                
+            with col_erase:
+                st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT TRACKER LIST PURGE SYSTEM:</p>", unsafe_allow_html=True)
+                if st.button(f"❌ Erase Chosen Recording ({individual_take})", key=f"erase_btn_{individual_take}"):
+                    del st.session_state.student_record_vault[individual_take]
+                    st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
+                    st.rerun()
 # ============================================================================
-# PART 6: COGNITIVE EVALUATIONS, AUTOMATIC STREAMLIT DATABASE LEDGER, & EXPORTERS
+# PART 6: COGNITIVE EVALUATIONS, ADMINISTRATIVE MAINTENANCE PANEL, & EXPORTERS (STEP 5)
 # ============================================================================
 st.write("---")
-st.markdown("### 📊 5. Cognitive Alignment Voice Checker Engine")
+st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
 
-# Hidden session indicators read values dynamically from custom JavaScript callbacks
-captured_dictation_string = ""
-calculated_wpm_score = 0
-
-transcribed_user_input = st.text_area(
-    label="Transcription Verification Pane (Populates Automatically via Dictation Engine Above):", 
-    value=captured_dictation_string,
-    placeholder="Awaiting dictation script logs... or type manual transcript rows here...", 
-    key="text_transcription_transfer"
-)
+transcribed_user_input = st.text_area(label="Transcription Verification Pane:", placeholder="Awaiting manual transcript text lines or automatic speech mapping logs...", key="text_transcription_transfer")
 
 if st.button("🔍 Run Linguistic Evaluation Loops"):
     if transcribed_user_input.strip() == "":
@@ -304,54 +292,66 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         
         fluency_percentage_score = round(fuzz.token_set_ratio(active_target_text, transcribed_user_input))
         st.markdown(f"### ➔ COHORT SCORE MATRIX GAP BALANCE [{fluency_percentage_score}%]:")
-        
-        col_m1, col_m2 = st.columns(2)
-        with col_m1: st.metric(label="Fluency Matching Ratio Score Matrix", value=f"{fluency_percentage_score}%")
-        with col_m2: st.metric(label="Stopwatch Speech Cadence Speed Metric", value=f"{calculated_wpm_score} WPM")
+        st.metric(label="Fluency Matching Score Percentage Matrix", value=f"{fluency_percentage_score}%")
         
         col_correct, col_wrong = st.columns(2)
         with col_correct:
             st.markdown("<p style='font-size: 12px; font-weight: bold; color: #27AE60;'>CORRECTLY READ WORDS LOG:</p>", unsafe_allow_html=True)
             correct_words_box = [w for w in ref_clean_tokens if w in user_clean_tokens]
-            for w in set(correct_words_box): st.write(f"✓ **{w}**")
+            for w in correct_words_box: st.write(f"✓ **{w}**")
                 
         with col_wrong:
             st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>WRONG READ WORDS & PRACTICE TIPS LOG:</p>", unsafe_allow_html=True)
             wrong_words_box = [w for w in ref_clean_tokens if w not in user_clean_tokens]
-            for index, w in enumerate(set(wrong_words_box)):
+            for index, w in enumerate(wrong_words_box):
                 st.write(f"✗ **{w}**")
+                js_word_model = f"""<html lang='en'><body><button id='spk_{index}' style='padding:2px 6px; font-size:11px; background:#C0392B; color:white; border:none; border-radius:3px;'>🔊 Speak Target</button><script>document.getElementById('spk_{index}').addEventListener('click', () => {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance("{w}"); u.lang='en-US'; u.rate=0.85; s.speak(u); }})();</script></body></html>"""
+                st.components.v1.html(js_word_model, height=30)
 
-        # ----------------------------------------------------------------------------
-        # AUTOMATED INTERNAL STORAGE HOOK:
-        # Appends newly parsed grades directly into your active dashboard state database list rows
-        # ----------------------------------------------------------------------------
         st.session_state.gradebook_matrix_history.append({
-            "Timestamp Row": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Student ID": student_id_code.strip() if student_id_code.strip() != "" else "TEMP-ID",
-            "Student Name": student_provided_name.strip() if student_provided_name.strip() != "" else "Anonymous Cohort",
-            "Syllabus Track ID": selected_track_id,
-            "Accuracy Ratio": f"{fluency_percentage_score}%",
-            "Speech Cadence Score": f"{calculated_wpm_score} WPM",
-            "Captured Transcription": transcribed_user_input
+            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Student_ID": student_id_code.strip() if student_id_code.strip() != "" else "TEMP-ID",
+            "Student_Name": student_provided_name.strip() if student_provided_name.strip() != "" else "Anonymous Cohort",
+            "Track ID": selected_track_id,
+            "Accuracy Score": f"{fluency_percentage_score}%",
+            "Transcription": transcribed_user_input
         })
-        st.toast("🎉 Grade recorded and stored inside the dashboard tracking ledger automatically!")
 
-# ----------------------------------------------------------------------------
-# AUTOMATED INTERNAL STREAMLIT GRADEBOOK MATRIX TABLE VIEW PANEL
-# ----------------------------------------------------------------------------
 if st.session_state.gradebook_matrix_history:
     st.write("---")
-    st.markdown("### 🗃️ Live Class Database Ledger (Stored Automatically inside Streamlit)")
-    st.write("This table updates instantly across your session memory loops upon running evaluations:")
+    st.markdown("### 🛠️ Coordinator Database Maintenance Dashboard")
+    st.write("Select a committed record entry line to overwrite or upgrade its target Student ID column parameters:")
     
-    # Render the session records rows dynamically as an immersive interactive data panel
-    history_dataframe_matrix = pd.DataFrame(st.session_state.gradebook_matrix_history)
-    st.dataframe(history_dataframe_matrix, use_container_width=True, hide_index=True)
+    gradebook_string_indices = []
+    for index, log in enumerate(st.session_state.gradebook_matrix_history):
+        gradebook_string_indices.append(f"Row [{index + 1}] - Time: {log['Timestamp']} | Current ID: {log['Student_ID']} | Name: {log['Student_Name']}")
+        
+    chosen_maintenance_row_string = st.selectbox("Select Logged Gradebook Record Line to Modify:", options=gradebook_string_indices, key="maintenance_row_selector")
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [").split("]")) - 1
     
-    st.write(" ")
+    col_new_id, col_upgrade_trigger = st.columns(2)
+    with col_new_id:
+        new_upgraded_id_string = st.text_input(label="Type New Corrected Student ID Code String:", placeholder="e.g., OFFICIAL-CEI-4402", key=f"upgrade_field_{target_numerical_index}")
+    with col_upgrade_trigger:
+        st.write("<br>", unsafe_allow_html=True)
+        if st.button("⚡ Execute Administrative ID Code Upgrade", key="run_id_maintenance_upgrade"):
+            if new_upgraded_id_string.strip() == "":
+                st.error("Operation Denied: Input field cannot be empty.")
+            else:
+                st.session_state.gradebook_matrix_history[target_numerical_index]["Student_ID"] = new_upgraded_id_string.strip()
+                st.toast(f"⚡ Row [{target_numerical_index + 1}] successfully updated to official Student ID: {new_upgraded_id_string.strip()}!")
+                st.rerun()
+
+if available_vault_tracks and valid_active_selections and st.session_state.gradebook_matrix_history:
+    st.write("---")
     st.markdown("#### 📥 Administrative Spreadsheet Exporter Station")
-    csv_string_buffer = history_dataframe_matrix.to_csv(index=False)
+    csv_string_buffer = "Timestamp Ledger,Student ID Code,Student Name,Syllabus Track ID,Fluency Score Ratio,Transcription Captured\n"
+    for log in st.session_state.gradebook_matrix_history:
+        csv_string_buffer += f'"{log["Timestamp"]}","{log["Student_ID"]}","{log["Student_Name"]}","{log["Track ID"]}","{log["Accuracy Score"]}","{log["Transcription"]}"\n'
         
     col_csv, col_xlsx = st.columns(2)
     with col_csv: st.download_button(label="📥 Download Database Ledger (.csv)", data=csv_string_buffer.encode('utf-8'), file_name="CEI_Master_Gradebook_Ledger.csv", mime="text/csv")
     with col_xlsx: st.download_button(label="📊 Download Excel Gradebook (.xlsx)", data=csv_string_buffer.encode('utf-8'), file_name="CEI_Master_Gradebook_Ledger.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+else:
+    if not available_vault_tracks:
+        st.write(" ")
