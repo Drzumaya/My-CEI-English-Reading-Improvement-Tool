@@ -3,16 +3,16 @@ from streamlit_mic_recorder import mic_recorder
 from rapidfuzz import fuzz
 from datetime import datetime
 import pandas as pd
+import base64
 import io
 import re
 import time
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
-# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 5 STANDALONE PARTS
-# PART 1: SYSTEM APPLICATION STACK, BANNERS, & GLOBAL WORKSPACE REPO SINK
-# ADAPTIVE CROSS-BROWSER MULTIMEDIA OBJECT INJECTOR (THE PLAYBACK ERROR FIX)
-# CAREER ENGLISH INSTITUTE (2026)
+# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
+# PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
+# ARCHITECTURE BLUEPRINT DESIGN • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
@@ -44,7 +44,7 @@ if "master_curriculum_catalog" not in st.session_state:
         "ECAUDIOS_Track_06_SPC_Trend_Lines.mp3": "Lets draw your attention directly to this active X bar statistical process control chart interface screen. As you can clearly see the variable data plots display non random distribution parameters over the last eight hours of operation.",
         "ECAUDIOS_Track_07_IATF_Containment.mp3": "Every suspect container matching raw material batch lot code alpha dash nine must be immediately isolated across all production line zones. We are executing a full loop downstream traceability tracking search to completely fence the window.",
         "ECAUDIOS_Track_08_PFMEA_Calculations.mp3": "The cross functional quality board has compiled the Process FMEA risk assessment tracking matrix updates for the molding cycle line. The failure mode statement is defined as short shots appearing on the display module mounting tab feature.",
-        "ECAUDIOS_Track_09_8D_Presentation.mp3": "Good morning esteemed tier one customer audit board panel members. On behalf of our team thank you for your time. My name is Jacob Zumaya Prianti and today I am presenting our final eight D problem solving closure report for the alignment.",
+        "ECAUDIOS_Track_09_8D_Presentation.mp3": "Good morning esteemed tier one customer audit board panel members. On behalf of our team thank you for your time. My name be Jacob Zumaya Prianti and today I am presenting our final eight D problem solving closure report for the alignment.",
         "ECAUDIOS_Track_10_Kaizen_Event_Flow.mp3": "We are executing a Kaizen event across the secondary sub assembly zone. Our time study analytics intercept an unacceptable micro balance bottleneck delay loop at workstation number six to optimize production flow matrix parameters.",
         "ECAUDIOS_Track_11_Material_Receiving.mp3": "Perform a strict incoming statistical lot sampling verification loop across all units in pallet tier number three. If the visual boss fracture margin ratio exceeds our acceptable quality limit threshold value, reject the container.",
         "ECAUDIOS_Track_12_Five_Whys_Analysis.mp3": "The five why investigative methodology was applied to isolate the source of the electrical short circuit. The team discovered that the main wiring branch layout insulation layer had rubbed against a sharp metal structural mounting column edge.",
@@ -66,7 +66,7 @@ if "master_curriculum_catalog" not in st.session_state:
         "ECAUDIOS_Track_28_Kitting_Zone_Layout.mp3": "Coordinators are reviewing the kitting zone logistics layout map to cut down on material handling cycle waste times. Moving the staging bins adjacent to the line entrance drops transit waste immediately."
     }
 # ============================================================================
-# PART 3: CLOUD DIRECTORY ACCOUNTING, 7-VOICE TIMBRES, & PACING VELOCITY SLIDERS
+# PART 3: CLOUD DATA SYNC MATRIX, REFERENCE AUDIOS, & SPEECH SLIDERS (STEP 1 & 2)
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
@@ -80,8 +80,8 @@ if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
         
         for index, row in cloud_data_frame.iterrows():
             if len(row) >= 2:
-                track_name = str(row.iloc[0]).strip()
-                audio_link = str(row.iloc[1]).strip()
+                track_name = str(row.iloc).strip()
+                audio_link = str(row.iloc).strip()
                 
                 if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
                     if track_name in st.session_state.master_curriculum_catalog:
@@ -187,7 +187,7 @@ st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 # ============================================================================
-# PART 4: STUDENT VOCAL REGISTRATION DESK AND NATIVE COMPRESSED DATA CHASSIS
+# PART 4: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE (STEP 3 & 4)
 # ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
@@ -198,7 +198,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_5part_crash_free_unmuted_recorder_v64'
+    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_v1'
 )
 
 # ----------- STEP 4: TRACKING DATA BUFFER VALIDATION DESK -----------
@@ -208,11 +208,63 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # Keeps raw data fragments exactly as generated by the browser recorder widget without crushing down waveforms.
+        # Passes raw browser fragments straight into the session vault without data truncation.
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with full uncompressed voice parameters active!")
 # ============================================================================
-# PART 5: COGNITIVE EVALUATIONS, DATABASE MANAGEMENT, & RESTART BULK PURGER
+# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & UNBLOCKED HTML5 REPLAY MONITOR
+# ============================================================================
+st.write("---")
+st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Station")
+available_vault_tracks = list(st.session_state.student_record_vault.keys())
+
+if available_vault_tracks:
+    # Restarter system clears the active session cache dictionary instantly to allow a clean reboot
+    if st.button("🧹 Direct Bulk Purge: Clear All Recorded Tracks From Vault", key="bulk_restart_recorded_vault_purgers"):
+        st.session_state.student_record_vault.clear()
+        st.toast("🧹 Success! All historical audio files deleted. Track lists wiped clean to restart fresh!")
+        st.rerun()
+        
+    st.write(" ")
+    chosen_take_keys = st.multiselect("Select One or More Historical Vocal Attempt Tracks from Vault Panel:", options=available_vault_tracks, default=[available_vault_tracks[-1]] if available_vault_tracks else [], key="synchronized_vault_multiselector")
+    valid_active_selections = [t for t in chosen_take_keys if t in st.session_state.student_record_vault]
+    
+    if valid_active_selections:
+        for index, individual_take in enumerate(valid_active_selections):
+            selected_audio_bytes = st.session_state.student_record_vault[individual_take]
+            st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
+            
+            # UNBLOCKED HTML5 AUDIO INJECTOR INTERLOCK MATRIX (THE CHANNELS MONITOR PATCH):
+            # We convert binary voice payloads into an unblocked Base64 Data URI block and pipe it 
+            # straight into a visible web-browser component. This removes sandbox locks and sounds recordings out loud.
+            b64_string = base64.b64encode(selected_audio_bytes).decode('utf-8')
+            html5_audio_uri_player = f"""
+            <div style='margin-bottom: 15px;'>
+                <audio controls style='width: 100%; max-width: 500px;'>
+                    <source src='data:audio/wav;base64,{b64_string}' type='audio/wav'>
+                    Your browser does not support unblocked local element audio vectors.
+                </audio>
+            </div>
+            """
+            st.components.v1.html(html5_audio_uri_player, height=54)
+            
+            sanitized_user_string = student_provided_name.strip().replace(" ", "_")
+            base_filename_string = f"{sanitized_user_string}_Take_{index + 1}" if sanitized_user_string != "" else f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
+            
+            col_download, col_erase = st.columns(2)
+            with col_download:
+                st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 DOWNLOAD TRACK ASSETS:</p>", unsafe_allow_html=True)
+                st.download_button(label=f"📥 Download Sound Track Mapped as ({base_filename_string}.wav)", data=selected_audio_bytes, file_name=f"{base_filename_string}.wav", mime="audio/wav", key=f"dl_btn_{individual_take}")
+                st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
+                
+            with col_erase:
+                st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT TRACKER LIST PURGE SYSTEM:</p>", unsafe_allow_html=True)
+                if st.button(f"❌ Erase Chosen Recording ({individual_take})", key=f"erase_btn_{individual_take}"):
+                    del st.session_state.student_record_vault[individual_take]
+                    st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
+                    st.rerun()
+# ============================================================================
+# PART 6: COGNITIVE EVALUATIONS, ADMINISTRATIVE MAINTENANCE PANEL, & EXPORTERS (STEP 5)
 # ============================================================================
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
@@ -284,59 +336,16 @@ if st.session_state.gradebook_matrix_history:
                 st.toast(f"⚡ Row [{target_numerical_index + 1}] successfully updated to official Student ID: {new_upgraded_id_string.strip()}!")
                 st.rerun()
 
-st.write("---")
-st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Station")
-available_vault_tracks = list(st.session_state.student_record_vault.keys())
-
-if available_vault_tracks:
-    if st.button("🧹 Direct Bulk Purge: Clear All Recorded Tracks From Vault", key="bulk_restart_recorded_vault_purgers"):
-        st.session_state.student_record_vault.clear()
-        st.toast("🧹 Success! All historical audio files deleted. Track lists wiped clean to restart fresh!")
-        st.rerun()
+if available_vault_tracks and valid_active_selections and st.session_state.gradebook_matrix_history:
+    st.write("---")
+    st.markdown("#### 📥 Administrative Spreadsheet Exporter Station")
+    csv_string_buffer = "Timestamp Ledger,Student ID Code,Student Name,Syllabus Track ID,Fluency Score Ratio,Transcription Captured\n"
+    for log in st.session_state.gradebook_matrix_history:
+        csv_string_buffer += f'"{log["Timestamp"]}","{log["Student_ID"]}","{log["Student_Name"]}","{log["Track ID"]}","{log["Accuracy Score"]}","{log["Transcription"]}"\n'
         
-    st.write(" ")
-    chosen_take_keys = st.multiselect("Select One or More Historical Vocal Attempt Tracks from Vault Panel:", options=available_vault_tracks, default=[available_vault_tracks[-1]] if available_vault_tracks else [], key="synchronized_vault_multiselector")
-    valid_active_selections = [t for t in chosen_take_keys if t in st.session_state.student_record_vault]
-    
-    if valid_active_selections:
-        for index, individual_take in enumerate(valid_active_selections):
-            selected_audio_bytes = st.session_state.student_record_vault[individual_take]
-            st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            
-            # ----------------------------------------------------------------------------
-            # ADAPTIVE CROSS-BROWSER MULTIMEDIA OBJECT INJECTOR INTERLOCK REFACTOR:
-            # Replaces the restrictive native player with a standard browser HTML5 player widget.
-            # This completely bypasses the media layout container error, playing back your audio track.
-            # ----------------------------------------------------------------------------
-            st.audio(selected_audio_bytes, format="audio/wav")
-            
-            sanitized_user_string = student_provided_name.strip().replace(" ", "_")
-            base_filename_string = f"{sanitized_user_string}_Take_{index + 1}" if sanitized_user_string != "" else f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
-            
-            col_download, col_erase = st.columns(2)
-            with col_download:
-                st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 DOWNLOAD TRACK ASSETS:</p>", unsafe_allow_html=True)
-                st.download_button(label=f"📥 Download Sound Track Mapped as ({base_filename_string}.wav)", data=selected_audio_bytes, file_name=f"{base_filename_string}.wav", mime="audio/wav", key=f"dl_btn_{individual_take}")
-                st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
-                
-            with col_erase:
-                st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT TRACKER LIST PURGE SYSTEM:</p>", unsafe_allow_html=True)
-                if st.button(f"❌ Erase Chosen Recording ({individual_take})", key=f"erase_btn_{individual_take}"):
-                    del st.session_state.student_record_vault[individual_take]
-                    st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
-                    st.rerun()
-                    
-        if st.session_state.gradebook_matrix_history:
-            st.write("---")
-            st.markdown("#### 📥 Administrative Spreadsheet Exporter Station")
-            csv_string_buffer = "Timestamp Ledger,Student ID Code,Student Name,Syllabus Track ID,Fluency Score Ratio,Transcription Captured\n"
-            for log in st.session_state.gradebook_matrix_history:
-                csv_string_buffer += f'"{log["Timestamp"]}","{log["Student_ID"]}","{log["Student_Name"]}","{log["Track ID"]}","{log["Accuracy Score"]}","{log["Transcription"]}"\n'
-                
-            col_csv, col_xlsx = st.columns(2)
-            with col_csv: st.download_button(label="📥 Download Database Ledger (.csv)", data=csv_string_buffer.encode('utf-8'), file_name="CEI_Master_Gradebook_Ledger.csv", mime="text/csv")
-            with col_xlsx: st.download_button(label="📊 Download Excel Gradebook (.xlsx)", data=csv_string_buffer.encode('utf-8'), file_name="CEI_Master_Gradebook_Ledger.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    else:
-        st.warning("Please choose at least one track entry token from the checklist field above to activate trackers.")
+    col_csv, col_xlsx = st.columns(2)
+    with col_csv: st.download_button(label="📥 Download Database Ledger (.csv)", data=csv_string_buffer.encode('utf-8'), file_name="CEI_Master_Gradebook_Ledger.csv", mime="text/csv")
+    with col_xlsx: st.download_button(label="📊 Download Excel Gradebook (.xlsx)", data=csv_string_buffer.encode('utf-8'), file_name="CEI_Master_Gradebook_Ledger.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 else:
-    st.info("Awaiting headset recording audio tracks data... Click Start Recording above to begin.")
+    if not available_vault_tracks:
+        st.write(" ")
