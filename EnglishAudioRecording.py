@@ -11,7 +11,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 5 STANDALONE PARTS
 # PART 1: SYSTEM APPLICATION STACK FRAMEWORKS, HEADERS, & REPO CACHES
-# STRICT USA NATIVE LOCALE PROFILER ENGINE (SPANISH PHONETIC BLOCK FIX)
+# DEEP POSITIONAL VOICE FINDER MATRIX CORE (THE ALL-FEMALE VOICE PROFILE FIX)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -120,7 +120,7 @@ if active_target_url and "://google.com" in active_target_url:
     try:
         parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
         direct_streaming_packet_url = f"https://google.com{parsed_id}"
-        st.markdown(" crumbs 🥇 **Engine A: Play Original Recorded Human Voice Audio File**")
+        st.markdown("🥇 **Engine A: Play Original Recorded Human Voice Audio File**")
         st.audio(direct_streaming_packet_url, format="audio/mp3")
     except Exception:
         pass
@@ -130,16 +130,15 @@ st.write(" ")
 # ENGINE B: Restores your 7 Optional Accent Dialects & Dynamic Speed Velocity Controllers
 st.markdown("⚙️ **Engine B: Optional Dialect Accelerator & Pitch Tuning Deck**")
 
-# 🛠️ USA PHONETIC INJECTION CODE MATRIX:
-# This custom configuration maps localized pitch offsets fields to keep pronunciation structures locked into native en-US profiles
+# Upgraded Multi-Accent parameters block mapping targeted pitch transformations
 voice_options_map = {
-    "🇺🇸 USA Female Standard (Natural Curve)": {"lang": "en-US", "name": "Google US English", "pitch": 1.10},
-    "🇺🇸 USA Male Bold (Neural Engineering Style)": {"lang": "en-US", "name": "Microsoft David", "pitch": 0.82},
-    "🇺🇸 USA Female Soft (Pacing Cadence standard)": {"lang": "en-US", "name": "Zira", "pitch": 1.15},
-    "🇺🇸 USA Male Rich (Deep Resonance profile)": {"lang": "en-US", "name": "Google US English Male", "pitch": 0.76},
-    "🇺🇸 USA Female Bright (Fluency Drift Standard)": {"lang": "en-US", "name": "Samantha", "pitch": 1.25},
-    "🇺🇸 USA Male Corporate (Precision Metric Team)": {"lang": "en-US", "name": "Desktop", "pitch": 0.90},
-    "🇺🇸 USA Youthful Mix (Conversational Flow)": {"lang": "en-US", "name": "Natural", "pitch": 1.05}
+    "🇺🇸 USA Female Standard (Natural Curve)": {"lang": "en-US", "match": "female", "pitch": 1.10, "gender": "female"},
+    "🇺🇸 USA Male Bold (Neural Engineering Style)": {"lang": "en-US", "match": "male", "pitch": 0.78, "gender": "male"},
+    "🇺🇸 USA Female Soft (Pacing Cadence standard)": {"lang": "en-US", "match": "zira", "pitch": 1.15, "gender": "female"},
+    "🇺🇸 USA Male Rich (Deep Resonance profile)": {"lang": "en-US", "match": "david", "pitch": 0.74, "gender": "male"},
+    "🇬🇧 UK English Female (London Dialect)": {"lang": "en-GB", "match": "female", "pitch": 1.05, "gender": "female"},
+    "🇬🇧 UK English Male (BBC Standard)": {"lang": "en-GB", "match": "male", "pitch": 0.80, "gender": "male"},
+    "🇦🇺 Australian Accent Mix (Sydney Timbre)": {"lang": "en-AU", "match": "english", "pitch": 1.00, "gender": "neutral"}
 }
 
 col_vce, col_spd = st.columns(2)
@@ -166,21 +165,30 @@ document.getElementById('cei_run_hybrid_btn').addEventListener('click', function
     let txt = `{active_target_text.replace('`','\\`').replace('$','\\$')}`;
     let utterance = new SpeechSynthesisUtterance(txt);
     
-    // CRITICAL PHONETIC REALIGNMENT INJECTION (THE SPANISH LITERAL BLOCKER):
-    // Force-locks the speech engine to use the en-US language profile, blocking local browsers 
-    // from reading English text using Spanish phonetics. This preserves fluid, native USA pronunciation tracking.
-    utterance.lang = 'en-US';
-    
-    let vcs = synth.getVoices();
-    let selectedVoice = vcs.find(v => 
-        (v.lang.startsWith('en-US') && v.name.includes('{target_voice_meta["name"]}')) ||
-        v.lang.startsWith('en-US')
-    );
-    
-    if (selectedVoice) utterance.voice = selectedVoice;
+    // Strict locale token lock prevents Spanish phonetic conversion overrides
+    utterance.lang = '{target_voice_meta["lang"]}';
     utterance.rate = {chosen_speaking_velocity};
+    
+    // DYNAMIC PITCH SHIFT INJECTION MATRIX (THE ALL-FEMALE FALLBACK PATCH):
+    // If the browser doesn't have an native male voice file downloaded, this lines up a strict
+    // acoustic pitch subtraction coefficient. It drops the frequency range into a deep corporate profile tone dynamically.
     utterance.pitch = {target_voice_meta["pitch"]};
     
+    let vcs = synth.getVoices();
+    let searchTerm = '{target_voice_meta["match"]}'.toLowerCase();
+    let targetLang = '{target_voice_meta["lang"]}'.toLowerCase();
+    
+    // Advanced positional finder maps components dynamically
+    let matchedVoice = vcs.find(v => 
+        v.lang.toLowerCase().startsWith(targetLang) && 
+        (v.name.toLowerCase().includes(searchTerm) || v.name.toLowerCase().includes('guy') || v.name.toLowerCase().includes('male'))
+    );
+    
+    if (!matchedVoice) {{
+        matchedVoice = vcs.find(v => v.lang.toLowerCase().startsWith(targetLang));
+    }}
+    
+    if (matchedVoice) utterance.voice = matchedVoice;
     synth.speak(utterance);
 }});
 </script>
