@@ -21,7 +21,7 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
 # Replace this token with your exact long Google Spreadsheet alphanumeric ID string.
-TARGET_GOOGLE_SHEET_ID = "1-2BcRqA0typAluQO2F8snEfwyCWaHgOEhp0x0YiiTo9xnsKbreEibH0hSUE6EigvFg"
+TARGET_GOOGLE_SHEET_ID = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
 # Derived unblocked public streaming links points straight to your spreadsheet rows data matrix
 PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_ID}/pub?output=csv"
