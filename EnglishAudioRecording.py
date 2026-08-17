@@ -23,7 +23,7 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # PUBLIC GOOGLE DRIVE "ECAUDIOS" FOLDER REGISTRY CONFIGURATION HOOK
 # ----------------------------------------------------------------------------
 # STEP A: Paste your public shared Google Drive Folder ID code string token here:
-ECAUDIOS_FOLDER_ID = "1o8HXOO6hQIXzlr6iVOmqdzuxa5Zm7gmB"
+ECAUDIOS_FOLDER_ID = "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE"
 
 # Symmetrical fallback data dictionary matrix representing your core training syllabus baseline
 if "fallback_syllabus_bank" not in st.session_state:
@@ -69,7 +69,7 @@ if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
                 # Map the filename to its matching direct-stream download URL node
                 cloud_track_url_map[file_name] = f"https://google.com{file_id}"
     except Exception as network_error:
-        st.sidebar.caption(f"ℹ️ Cloud Sync Notice: Bypassing raw scraping constraints. Running standalone mode ({network_error}).")
+        st.sidebar.caption(f"ℹ️ Cloud Sync Notice: Running fallback backup mode ({network_error}).")
 
 # If no custom folder link is linked or active, fallback to internal textbook seeds seamlessly
 if not discovered_cloud_audio_tracks:
