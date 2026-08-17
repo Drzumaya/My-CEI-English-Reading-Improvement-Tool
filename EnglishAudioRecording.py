@@ -2,7 +2,6 @@ import streamlit as st
 from streamlit_mic_recorder import mic_recorder
 from rapidfuzz import fuzz
 from datetime import datetime
-import pandas as pd
 import io
 import re
 import time
@@ -10,8 +9,8 @@ import time
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: SYSTEM APPLICATION STACK, HEADERS, & PUBLIC CLOUD PATH INITIALIZERS
-# AUTOMATIC RUNTIME POLLING ENGINE FOR UNLIMITED LIVE UPLOADS SYNC
+# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION SYLLABUS SEEDS
+# MASTER DYNAMIC CLIENT-SIDE INJECTOR PIPELINE (THE COMPLETE 28-TRACK FIX)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -21,16 +20,38 @@ st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; fon
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Upper-Intermediate Dynamic Verification & Re-Ordered Replay Console</h4>", unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------------
-# DYNAMIC UNBLOCKED GOOGLE SPREADSHEET MANIFEST TRACKING ADAPTER HOOK
+# MASTER DIRECTORY CORE: COMPLETE 28 ACADEMIC EXERCISE SYLLABUS SEEDS
 # ----------------------------------------------------------------------------
-PUBLISHED_MANIFEST_CSV_URL = "https://google.com"
-
-# Local baseline fallback matrix array seeds
-if "fallback_syllabus_bank" not in st.session_state:
-    st.session_state.fallback_syllabus_bank = {
-        "ECAUDIOS_SB-Unit1_Shift_Handover.mp3": "Good afternoon Carlos. Welcome to the Shift Two handover session. SMT Line Three is currently running part number ALC seven seven four two, active lot code alpha dash nine.",
-        "ECAUDIOS_WB-Unit2_ESD_Compliance.mp3": "Attention all floor personnel. A cleanroom compliance audit is currently active across the ESD Protected Area boundaries. Every operator must immediately verify their personal grounding infrastructure paths.",
-        "ECAUDIOS_IE-Unit3_5Ws_Logging.mp3": "Master ledger database transaction log update. Operator ID forty four zero two discovered three pieces of part number ALC nine nine zero on Line One at zero eight thirty AM."
+if "master_curriculum_catalog" not in st.session_state:
+    st.session_state.master_curriculum_catalog = {
+        "ECAUDIOS_Track_01_Shift_Handover.mp3": "Good afternoon Carlos. Welcome to the Shift Two handover session. SMT Line Three is currently running part number ALC seven seven four two, active lot code alpha dash nine. The line layout is running at standard quota capacity, but we have intercepted a minor component misfeed at Station Four.",
+        "ECAUDIOS_Track_02_ESD_Compliance.mp3": "Attention all floor personnel. A cleanroom compliance audit is currently active across the ESD Protected Area boundaries. Every operator must immediately verify their personal grounding infrastructure paths. Close your dual conductor wrist straps completely.",
+        "ECAUDIOS_Track_03_Traceability_Log.mp3": "Master ledger database transaction log update. Operator ID forty four zero two discovered three pieces of part number ALC nine nine zero on Line One at zero eight thirty AM. Visual inspection revealed a fractured mounting boss feature.",
+        "ECAUDIOS_Track_04_Precision_Calipers.mp3": "Lets review the critical engineering drawing blueprint specifications for the display casing assembly feature. The nominal dimension for the main mounting hole inner diameter is listed as twelve point five zero millimeters plus or minus zero point zero five.",
+        "ECAUDIOS_Track_05_Solder_Bridging.mp3": "Microscope inspection review of Surface Mount Technology board serial four four one is complete. Zooming in on integrated circuit U two reveals an unacceptable solder bridging failure mode across pins twelve and thirteen causing an electrical short.",
+        "ECAUDIOS_Track_06_SPC_Trend_Lines.mp3": "Lets draw your attention directly to this active X bar statistical process control chart interface screen. As you can clearly see the variable data plots display non random distribution parameters over the last eight hours of operation.",
+        "ECAUDIOS_Track_07_IATF_Containment.mp3": "Every suspect container matching raw material batch lot code alpha dash nine must be immediately isolated across all production line zones. We are executing a full loop downstream traceability tracking search to completely fence the window.",
+        "ECAUDIOS_Track_08_PFMEA_Calculations.mp3": "The cross functional quality board has compiled the Process FMEA risk assessment tracking matrix updates for the molding cycle line. The failure mode statement is defined as short shots appearing on the display module mounting tab feature.",
+        "ECAUDIOS_Track_09_8D_Presentation.mp3": "Good morning esteemed tier one customer audit board panel members. On behalf of our team thank you for your time. My name is Jacob Zumaya Prianti and today I am presenting our final eight D problem solving closure report for the alignment.",
+        "ECAUDIOS_Track_10_Kaizen_Event_Flow.mp3": "We are executing a Kaizen event across the secondary sub assembly zone. Our time study analytics intercept an unacceptable micro balance bottleneck delay loop at workstation number six to optimize production flow matrix parameters.",
+        "ECAUDIOS_Track_11_Material_Receiving.mp3": "Perform a strict incoming statistical lot sampling verification loop across all units in pallet tier number three. If the visual boss fracture margin ratio exceeds our acceptable quality limit threshold value, reject the container.",
+        "ECAUDIOS_Track_12_Five_Whys_Analysis.mp3": "The five why investigative methodology was applied to isolate the source of the electrical short circuit. The team discovered that the main wiring branch layout insulation layer had rubbed against a sharp metal structural mounting column edge.",
+        "ECAUDIOS_Track_13_Dispatch_Schedules.mp3": "The downstream supply dispatch schedule encounters an unexpected constraint matrix. Incoming raw components container inventory allocations must pass the material gate by zero seven hundred hours tomorrow morning to maintain quota targets.",
+        "ECAUDIOS_Track_14_Dial_Indicators.mp3": "Verify the depth thickness margin profile using the micrometric dial indicator gauge tool feature. Ensure that the surface finish parameters stay within standard tolerance thresholds during the final article assembly checks.",
+        "ECAUDIOS_Track_15_Hydraulic_Seals.mp3": "The hydraulic cylinder seals on molding press machine number twelve were replaced during the scheduled maintenance shift down time. Technicians checked the internal pump pressure curves to ensure fluid pressure ranges match completely.",
+        "ECAUDIOS_Track_16_Emergency_Stoppage.mp3": "An automated line sensor lock out error triggered a sudden emergency belt stoppage across line segment number two. No operators were exposed to structural hazards. The line remained safely frozen until cleared by automation support teams.",
+        "ECAUDIOS_Track_17_Passive_Voice_Logs.mp3": "When writing audit logs, use the passive voice to emphasize the item or non-conformance rather than the operator. Instead of saying 'The worker dropped the piece', write: 'The component was dropped and a fracture was observed on the boss feature.'",
+        "ECAUDIOS_Track_18_Conditional_Rules.mp3": "Use first and second conditional structures to clarify safety rules and mitigation steps during line failures. For example: If the conveyor temperature exceeds two hundred degrees, the automated safety switch trips immediately to protect operators.",
+        "ECAUDIOS_Track_19_Stencil_Thickness.mp3": "Review the stencil thickness specifications for the high-volume screen printer component at station one. Solder paste height must be carefully verified to maintain target volume profiles across the copper landing pads cleanly.",
+        "ECAUDIOS_Track_20_Dissipative_Flooring.mp3": "A continuous grounding path audit was conducted across the newly installed static dissipative vinyl flooring panels. All resistance-to-ground measurements successfully conform to baseline cleanroom compliance parameters.",
+        "ECAUDIOS_Track_21_First_Article_Log.mp3": "The first article inspection log for production run seven six two has been approved. Component positioning parameters, outer dimensions, and wire-bond pull strength test margins meet all tier one quality framework criteria fields.",
+        "ECAUDIOS_Track_22_Laser_Matrix_Etch.mp3": "Scan the matrix barcode laser tag etched on the main housing frame to download the processing history dossier. Automated database tracking locks down single-unit visibility arrays from receiving to final dispatch operations.",
+        "ECAUDIOS_Track_23_XRay_Fillet_Checks.mp3": "Cross-sectional x-ray inspection reveals insufficient heel fillets along the primary terminal joints of capacitor package C four. Isolate the lot inside the rework hold sector until a complete corrective action is filed.",
+        "ECAUDIOS_Track_24_Pull_Signal_Queues.mp3": "We have successfully dropped our work-in-progress inventory load values by fourteen percent through the integration of standard cell layouts and pull-signal kitting queues at the workstation entry gates safely.",
+        "ECAUDIOS_Track_25_Calibration_Meters.mp3": "The calibration frequency logs for the secondary multimeters reveal zero drift variance over the last quarter. Ensure all verification labels are stamped and signed off before the auditor arrives tomorrow.",
+        "ECAUDIOS_Track_26_Thermal_Profile_Run.mp3": "Run a complete oven reflow thermal profiling sequence using the calibrated data logger package. Confirm the peak liquidus phase duration stays within ninety seconds to prevent joint brittleness.",
+        "ECAUDIOS_Track_27_Vendor_Audit_Review.mp3": "The incoming sub-assembly supplier score has dropped to eighty-two percent due to dimensional non-conformances. We are launching a formal supplier corrective action request to mandate root cause investigations.",
+        "ECAUDIOS_Track_28_Kitting_Zone_Layout.mp3": "Coordinators are reviewing the kitting zone logistics layout map to cut down on material handling cycle waste times. Moving the staging bins adjacent to the line entrance drops transit waste immediately."
     }
 
 if "student_record_vault" not in st.session_state:
@@ -39,74 +60,27 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: INDEX-BASED ROW DATA PARSERS & RE-ORDERED SYSTEM VIEWS
+# PART 2: DYNAMIC FILE SELECTION MATRIX AND DYNAMIC DISPLAY SHOWERS
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
-discovered_curriculum_tracks = {}
-
-if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
-    try:
-        # THE LIVE CACHE BUSTER INTERLOCK: Generates a completely new numeric token on every reload.
-        # This completely destroys browser data memory layers to sync newly uploaded rows instantly.
-        live_timestamp_nonce = int(time.time())
-        cache_busted_csv_stream_url = f"{PUBLISHED_MANIFEST_CSV_URL}&cb={live_timestamp_nonce}"
-        
-        # Pull data table lists down cleanly using headerless vector stream parameters
-        cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url, header=None)
-        
-        # ELASTIC ROW MAPPER LOOP: Scans dynamically by cell position coordinates index (0 and 1).
-        # This allows the list to auto-add new files when uploaded without dropping items.
-        for index, row in cloud_data_frame.iterrows():
-            if len(row) >= 2:
-                track_name = str(row.iloc[0]).strip()
-                audio_link = str(row.iloc[1]).strip()
-                
-                # Filter out null characters padding blocks or text description headers rows safely
-                if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
-                    clean_title_label = track_name.replace('.mp3','').replace('.wav','').replace('_',' ')
-                    simulated_text = f"Technical language standard training module passage matching cloud file asset: '{clean_title_label}'. Practice pronunciation flow and vocal tracking loops using your workbook guidelines."
-                    
-                    discovered_curriculum_tracks[track_name] = {
-                        "text": simulated_text,
-                        "url": audio_link
-                    }
-    except Exception as spreadsheet_sync_error:
-        st.sidebar.caption(f"ℹ️ Cloud Sheet Sync Status: Running fallback backup mode ({spreadsheet_sync_error}).")
-
-# Fall back safely to internal syllabus tokens if network connection times out
-if not discovered_curriculum_tracks:
-    for k, v in st.session_state.fallback_syllabus_bank.items():
-        discovered_curriculum_tracks[k] = {"text": v, "url": None}
-
-# EXACT DROPDOWN MATRIX PROMPT ASSIGNMENT ENFORCED
+# EXACT USER COMPLIANCE PROMPT DROPDOWN STRING LABELS ENFORCED
 selected_track_id = st.selectbox(
     "Choose an Exercise track:",
-    options=sorted(list(discovered_curriculum_tracks.keys())),
+    options=sorted(list(st.session_state.master_curriculum_catalog.keys())),
     index=0
 )
 
-active_target_text = discovered_curriculum_tracks[selected_track_id]["text"]
-active_target_url = discovered_curriculum_tracks[selected_track_id]["url"]
+active_target_text = st.session_state.master_curriculum_catalog[selected_track_id]
 
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 NATURAL NATIVE YOUNG SPEAKER REPLAY CORE:</p>", unsafe_allow_html=True)
 st.write("Students can launch this reference model an unlimited number of times to study fluid, youthful US English tone structures.")
 
-# Direct browser link true sound player or youthful acoustic speaker guide fallback logic node
-if active_target_url and "://google.com" in active_target_url:
-    try:
-        # Extracts raw shared link structures into direct browser audio streaming packets natively
-        parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
-        direct_streaming_node = f"https://google.com{parsed_id}"
-        st.audio(direct_streaming_node, format="audio/mp3")
-    except Exception:
-        st.write("Awaiting public sharing link permissions verification...")
-else:
-    if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
-        js_youthful_speech_loop = f"""
-        <html lang="en"><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Natural')) || (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.90; u.pitch = 1.15; s.speak(u); }})();</script></body></html>
-        """
-        st.components.v1.html(js_youthful_speech_loop, height=1, width=1)
+if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
+    js_youthful_speech_loop = f"""
+    <html lang="en"><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Natural')) || (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.90; u.pitch = 1.15; s.speak(u); }})();</script></body></html>
+    """
+    st.components.v1.html(js_youthful_speech_loop, height=1, width=1)
 
 # ----------- STEP 2: THE READING SHOWER SCRIPT VIEWPORT BOARD -----------
 st.write("---")
@@ -125,7 +99,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_sound_fidelity_28track_recorder'
+    key='cei_github_4part_lossless_sound_fidelity_28track_final_recorder'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -135,11 +109,10 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # Pure binary passthrough channel maps original sound fidelity flawlessly to stop browser muted audio bugs
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
-# PART 4: COGNITIVE EVALUATIONS, COHORT ID MANAGEMENT PANELS, & EXPORTERS
+# PART 4: COGNITIVE EVALUATIONS, ADMINISTRATIVE MAINTENANCE PANEL, & DELETIONS
 # ============================================================================
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
@@ -204,7 +177,7 @@ if st.session_state.gradebook_matrix_history:
         key="maintenance_row_selector"
     )
     
-    target_numerical_index = int(chosen_maintenance_row_string.split("Row [")[1].split("]")[0]) - 1
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [").split("]")) - 1
     
     col_new_id, col_upgrade_trigger = st.columns(2)
     with col_new_id:
@@ -244,7 +217,7 @@ if available_vault_tracks:
                 
             with col_erase:
                 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT TRACKER LIST PURGE SYSTEM:</p>", unsafe_allow_html=True)
-                if st.button(f"❌ Erase Chosen Recording From Student Recorded Tracker List", key=f"erase_btn_{individual_take}"):
+                if st.button("❌ Erase Chosen Recording From Student Recorded Tracker List", key=f"erase_btn_{individual_take}"):
                     del st.session_state.student_record_vault[individual_take]
                     st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
                     st.rerun()
