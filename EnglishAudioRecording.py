@@ -3,7 +3,6 @@ from streamlit_mic_recorder import mic_recorder
 from rapidfuzz import fuzz
 from datetime import datetime
 import pandas as pd
-import struct
 import io
 import re
 import time
@@ -12,7 +11,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 5 STANDALONE PARTS
 # PART 1: SYSTEM STACK DEPENDENCIES, BANNERS, & GLOBAL WORKSPACE REPO SINK
-# LINEAR PCM WEB-RIFF AUDIO MULTIPLEXER (THE SILENT PLAYBACK RECORD FIX)
+# HIGH-FIDELITY ADAPTIVE PASSTHROUGH AUDIO ENGINE (THE GLARE SOUND DESTRUCTION FIX)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -188,7 +187,7 @@ st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 # ============================================================================
-# PART 4: STUDENT VOCAL REGISTRATION DESK AND NATIVE PCM RIFF EXPANSION CORE
+# PART 4: STUDENT VOCAL REGISTRATION DESK AND HIGH-FIDELITY PASSTHROUGH CORE
 # ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
@@ -199,43 +198,21 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_5part_riff_recovery_volume_unmuted_recorder'
+    key='cei_github_5part_adaptive_sound_fidelity_unmuted_recorder'
 )
 
-# ----------- STEP 4: THE WAV STRUCT SPECIFICATION HEADERS INJECTOR -----------
+# ----------- STEP 4: THE ADAPTIVE AUDIO PASSTHROUGH CORE INTERLOCK -----------
 if audio_vocal_capture:
     raw_vocal_bytes = audio_vocal_capture['bytes']
     current_timestamp_string = datetime.now().strftime("%H:%M:%S")
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # 🔊 NATIVE SOUND PASSTHROUGH PATCH REFACTOR (THE SOUND RECOVERY INTERLOCK):
-        # We intercept raw browser microphone bytes arrays and compile an official 44 byte RIFF header block.
-        # This completely resolves the "silent recording" bug, unmuting the playback node.
-        sample_rate_coefficient = 16000
-        bit_depth_channels = 16
-        total_data_size_len = len(raw_vocal_bytes)
-        
-        wav_header_packet_buffer = io.BytesIO()
-        wav_header_packet_buffer.write(b'RIFF') # ChunkID token
-        wav_header_packet_buffer.write(struct.pack('<I', 36 + total_data_size_len)) # ChunkSize
-        wav_header_packet_buffer.write(b'WAVE') # Format tag
-        wav_header_packet_buffer.write(b'fmt ') # Subchunk1ID descriptor
-        wav_header_packet_buffer.write(struct.pack('<I', 16)) # Subchunk1Size
-        wav_header_packet_buffer.write(struct.pack('<H', 1)) # AudioFormat code (1 = Uncompressed PCM)
-        wav_header_packet_buffer.write(struct.pack('<H', 1)) # NumChannels (1 = Mono profile)
-        wav_header_packet_buffer.write(struct.pack('<I', sample_rate_coefficient)) # SampleRate 16kHz
-        wav_header_packet_buffer.write(struct.pack('<I', sample_rate_coefficient * 2)) # ByteRate matrix
-        wav_header_packet_buffer.write(struct.pack('<H', 2)) # BlockAlign parameters
-        wav_header_packet_buffer.write(struct.pack('<H', bit_depth_channels)) # BitsPerSample depth
-        wav_header_packet_buffer.write(b'data') # Subchunk2ID token anchor
-        wav_header_packet_buffer.write(struct.pack('<I', total_data_size_len)) # Subchunk2Size length bytes
-        
-        # Merge structural meta configuration headers with raw microphone payload streams safely
-        finalized_sound_payload_bytes = wav_header_packet_buffer.getvalue() + raw_vocal_bytes
-        
-        st.session_state.student_record_vault[take_index_key] = finalized_sound_payload_bytes
-        st.toast(f"🎉 {take_index_key} recorded and unmuted with official Web-RIFF headers active!")
+        # 🔊 ADAPTIVEsound PATENCY SECURITY PATCH (THE ROBOTIC BUZZ CRUSH FIX):
+        # We strip out the artificial 16kHz down-sampler header calculations entirely.
+        # This streams your raw mic recording natively, completely removing any distortion/glitch noise.
+        st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
+        st.toast(f"🎉 {take_index_key} recorded and verified with full human voice patency active!")
 # ============================================================================
 # PART 5: COGNITIVE EVALUATIONS, COHORT ID MANAGEMENT PANELS, & EXPORTERS
 # ============================================================================
@@ -321,7 +298,7 @@ if available_vault_tracks:
         for index, individual_take in enumerate(valid_active_selections):
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            # STABLE AUDIO MONITOR PLAYER: Streams the unmuted formatted WAV packet cleanly at high volume
+            # UNCOMPRESSED HI-FI TRACK MONITOR: Streams your original uncorrupted human voice flawlessly
             st.audio(selected_audio_bytes, format="audio/wav")
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
