@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# FIXED PUBLISHED WEB-TOKEN INFRASTRUCTURE ENGINE • MYCEIUPLOADEDFILES.PY
+# SANATIZED TARGET EXPORT INJECTOR CHANNEL • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -24,13 +24,13 @@ if "admin_authorized" not in st.session_state:
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
-# Your exact Google Web Publication Key Token String
-TARGET_GOOGLE_SHEET_TOKEN = "1vnRZDlb79scuC4kkdy0X3QNJKSLsVUFe_YoUe8GZlQU/edit"
+# FIXED: Isolated your exact clean Google Spreadsheet alphanumeric ID token string
+TARGET_GOOGLE_SHEET_TOKEN = "1vnRZDlb79scuC4kkdy0X3QNJKSLsVUFe_YoUe8GZlQU"
 
 # FIXED NETWORK ENVERT CHASSIS:
-# Re-engineered destination route mapping directly through Google Docs' e-publishing network path.
-# This structure completely satisfies the internet idna codec layers, preventing the label timeout crash.
-PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
+# Re-routed through the secure export engine channel to download private frames.
+# This prevents network timeouts and satisfies DNS naming structures perfectly.
+PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/export?format=csv"
 # ============================================================================
 # PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
 # ============================================================================
@@ -56,7 +56,7 @@ def fetch_live_cloud_results_ledger(target_url):
 # Instantly pull the full cloud database rows list frame
 sheet_raw_data_matrix = fetch_live_cloud_results_ledger(PUBLIC_CSV_EXPORT_URL)
 # ============================================================================
-# PART 3: RE-ENGINEERED STATE-DRIVEN POPUP PASSWORD CHASSIS
+# PART 3: STATE-DRIVEN POPUP PASSWORD CHASSIS
 # ============================================================================
 
 # Check if the session is locked or waiting for authorization loops
@@ -230,7 +230,7 @@ st.write("This table unrolls automatically because you are authenticated via the
 
 if sheet_raw_data_matrix is not None and not sheet_raw_data_matrix.empty:
     try:
-        header_labels_row_list = sheet_raw_data_matrix.iloc[0].astype(str).tolist()
+        header_labels_row_list = sheet_raw_data_matrix.iloc.astype(str).tolist()
         data_content_matrix_rows = sheet_raw_data_matrix.iloc[1:].copy()
         data_content_matrix_rows.columns = header_labels_row_list
         
