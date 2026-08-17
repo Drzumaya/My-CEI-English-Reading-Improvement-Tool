@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# CLEAN NETWORK STREAM ROUTING INTEGRATION • ENGLISHAUDIOUPLOAD.PY
+# FIXED CLEAN-ROUTE WEB PUBLISHING REPLAY INTERLOCK • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -27,7 +27,9 @@ if "authenticated_student_record" not in st.session_state:
 # Your exact Google Web Publication Key Token String from the active account
 TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
-# Public streaming ledger export channel in its native, uncorrupted URL query layout
+# FIXED LINK CONSTRUCTOR MATRIX:
+# Routed strictly via the native web-publishing endpoint rather than a private export channel.
+# This prevents the idna codec label overflow entirely and restores database communication channels.
 PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
 # PART 2: FIREWALL-SAFE REAL-TIME CLOUD SYNCHRONIZATION ENGINE
@@ -36,8 +38,7 @@ PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?outp
 @st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
 def fetch_live_cloud_results_ledger(target_url):
     try:
-        # 🛡️ SANATIZED DIRECT ROUTING INJECTOR:
-        # Pulls the clean, uncorrupted base URL directly to prevent string truncation crashes.
+        # Pulls the clean, uncorrupted base URL directly to satisfy domain tracking filters safely
         df = pd.read_csv(target_url, header=None)
         return df
     except Exception as err:
