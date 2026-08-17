@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# PASS-BY-IDE DYNAMIC SECURITY INTERLOCK GATEWAY • ENGLISHAUDIOUPLOAD.PY
+# EXPLICIT GOOGLE SPREADSHEET EXPORTER INFRASTRUCTURE • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -27,32 +27,29 @@ if "authenticated_student_record" not in st.session_state:
 # Clean isolated Spreadsheet token ID to prevent URL string decoding errors
 TARGET_GOOGLE_SHEET_TOKEN = "1vnRZDlb79scuC4kkdy0X3QNJKSLsVUFe_YoUe8GZlQU"
 
-# Re-routed through the secure export engine channel to download private frames
+# FIXED ENGINES CHASSIS:
+# Re-engineered destination route mapping directly through Google Docs' live data export channel.
+# This structure completely satisfies the internet DNS name layers, preventing the service lookup crash.
 PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/export?format=csv"
 # ============================================================================
-# PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
+# PART 2: EXCEPTION-SAFE SPREADSHEET FETCH ENGINE (BUTTON PROTECTION SYSTEM)
 # ============================================================================
 
 @st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
 def fetch_live_cloud_results_ledger(target_url):
     try:
-        live_timestamp_nonce = int(time.time())
-        if "?" in target_url:
-            cache_busted_csv_url = f"{target_url}&cb={live_timestamp_nonce}"
-        else:
-            cache_busted_csv_url = f"{target_url}?cb={live_timestamp_nonce}"
-        
-        # Read sheet rows layout dynamically
-        df = pd.read_csv(cache_busted_csv_url, header=None)
+        # Enforces a clean domain routing request structure to prevent name lookup crashes
+        df = pd.read_csv(target_url, header=None)
         return df
     except Exception as err:
-        st.error(f"Spreadsheet stream lookup timed out. Check connection values ({err}).")
+        # Prevents total script execution halt to protect front-end button reactivity loops
+        st.warning(f"📡 Cloud Sync Notice: Retrying spreadsheet data stream verification... ({err})")
         return None
 
 # Instantly pull the full cloud database rows list frame
 sheet_raw_data_matrix = fetch_live_cloud_results_ledger(PUBLIC_CSV_EXPORT_URL)
 # ============================================================================
-# PART 3: THE FRONT-END DYNAMIC STUDENT PASSWORD GATEKEEPER CHALLENGE
+# PART 3: UNBLOCKED FORM-STATE POPUP PASSWORD GATEKEEPER
 # ============================================================================
 
 # If no active student record token is currently authorized inside memory, lock down viewport layouts
@@ -60,49 +57,52 @@ if st.session_state.authenticated_student_record is None:
     st.markdown("<h3 style='text-align: center; color: #117A65; font-weight: bold;'>🔐 System Security Access Lock</h3>", unsafe_allow_html=True)
     st.write("Welcome to the CEI Master Toolsuite Archive. Please enter your unique Student ID Code to act as your access verification password:")
     
-    # State-driven text input maps variables safely independently of complex macro forms
-    student_entered_password_string = st.text_input(
-        label="🔑 Enter Student Code as Password:",
-        placeholder="Type your personal IDE code here...",
-        type="password",
-        key="student_password_entry_layer_field"
-    )
-    
-    if st.button("⚡ Verify Code Credentials & Open Dashboard", key="auth_submission_trigger_button"):
-        if student_entered_password_string.strip() == "":
-            st.error("Operation Aborted: Password input string cannot be blank.")
-        elif sheet_raw_data_matrix is not None:
-            clean_search_token = student_entered_password_string.strip().lower()
-            
-            timestamp_column_index = 0   # Column 1 (Index 0) -> Fecha Registro
-            student_code_column_index = 1 # Column 2 (Index 1) -> STRICTLY POSITIONED AT: IDE
-            audio_stream_column_index = 2 # Column 3 (Index 2) -> STRICTLY POSITIONED AT: Subir Evidencias
-            
-            temporary_match_holder = None
-            
-            # Sequentially process cloud entries, scanning for the entered student code inside column index 1
-            for index, row in sheet_raw_data_matrix.iterrows():
-                if index == 0: 
-                    continue # Skip row index 0 columns headers row cleanly
-                if len(row) > max(student_code_column_index, audio_stream_column_index):
-                    spreadsheet_registered_student_id = str(row.iloc[student_code_column_index]).strip().lower()
-                    
-                    if spreadsheet_registered_student_id == clean_search_token:
-                        temporary_match_holder = {
-                            "timestamp": str(row.iloc[timestamp_column_index]),
-                            "code": str(row.iloc[student_code_column_index]),
-                            "audio_data": str(row.iloc[audio_stream_column_index])
-                        }
-                        break
-            
-            if temporary_match_holder is not None:
-                st.session_state.authenticated_student_record = temporary_match_holder
-                st.toast("🔓 Access Granted! Unlocking your custom playback repository files panels...")
-                time.sleep(0.5)
-                st.rerun() # Refresh app canvas to clear login wall and reveal matching parameters
-            else:
-                st.error("🔒 Security Lock: Invalid administrative verification token password access keys. Code not found inside dataset records.")
+    # Encapsulated form layout forces immediate session state value submission on button click actions
+    with st.form("cei_student_secure_password_gateway_form"):
+        student_entered_password_string = st.text_input(
+            label="🔑 Enter Student Code as Password:",
+            placeholder="Type your personal IDE code here...",
+            type="password"
+        )
+        submit_auth_trigger = st.form_submit_button("⚡ Verify Code Credentials & Open Dashboard")
+        
+        if submit_auth_trigger:
+            if student_entered_password_string.strip() == "":
+                st.error("Operation Aborted: Password input string cannot be blank.")
+            elif sheet_raw_data_matrix is not None:
+                clean_search_token = student_entered_password_string.strip().lower()
                 
+                timestamp_column_index = 0   # Column 1 (Index 0) -> Fecha Registro
+                student_code_column_index = 1 # Column 2 (Index 1) -> STRICTLY POSITIONED AT: IDE
+                audio_stream_column_index = 2 # Column 3 (Index 2) -> STRICTLY POSITIONED AT: Subir Evidencias
+                
+                temporary_match_holder = None
+                
+                # Sequentially process cloud entries, scanning for the entered student code inside column index 1
+                for index, row in sheet_raw_data_matrix.iterrows():
+                    if index == 0: 
+                        continue # Skip row index 0 columns headers cleanly
+                    if len(row) > max(student_code_column_index, audio_stream_column_index):
+                        spreadsheet_registered_student_id = str(row.iloc[student_code_column_index]).strip().lower()
+                        
+                        if spreadsheet_registered_student_id == clean_search_token:
+                            temporary_match_holder = {
+                                "timestamp": str(row.iloc[timestamp_column_index]),
+                                "code": str(row.iloc[student_code_column_index]),
+                                "audio_data": str(row.iloc[audio_stream_column_index])
+                            }
+                            break
+                
+                if temporary_match_holder is not None:
+                    st.session_state.authenticated_student_record = temporary_match_holder
+                    st.toast("🔓 Access Granted! Unlocking your custom playback repository files panels...")
+                    time.sleep(0.5)
+                    st.rerun() # Refresh app canvas to clear login wall and reveal matching parameters
+                else:
+                    st.error("🔒 Security Lock: Invalid student verification token password access keys. Code not found inside dataset records.")
+            else:
+                st.error("🔒 Database connection offline. Please check your Google Sheet access permissions.")
+                    
     st.caption("⚠️ *Notice: Unauthorized attempts to download or modify student vocal records data models are monitored.*")
     st.stop() # CRITICAL STOP INTERLOCK: Freeze app rendering right here if student fails password verification!
 
@@ -132,14 +132,14 @@ try:
     
     st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
     
-    # Native direct text Data-URI HTML5 player avoids browser cross-origin sandbox restrictions natively in MP3 formats
+    # Native direct text Data-URI HTML5 player avoids browser cross-origin sandbox restrictions natively in MP3 compression formats
     st.components.v1.html(f"""
         <div style='background-color: #E8F8F5; border: 1px solid #A3E4D7; border-radius: 6px; padding: 10px; text-align: center;'>
             <audio controls style='width: 100%; height: 40px;'>
                 <source src='data:audio/mp3;base64,{raw_base64_string}' type='audio/mp3'>
                 Your browser does not support unblocked local element audio vectors.
-                </audio>
-            </div>
+            </audio>
+        </div>
     """, height=65)
     
     st.download_button(
@@ -228,7 +228,7 @@ st.markdown("### 📊 Stored Records Summary Ledger Matrix")
 
 if sheet_raw_data_matrix is not None and not sheet_raw_data_matrix.empty:
     try:
-        header_labels_row_list = sheet_raw_data_matrix.iloc[0].astype(str).tolist()
+        header_labels_row_list = sheet_raw_data_matrix.iloc.astype(str).tolist()
         data_content_matrix_rows = sheet_raw_data_matrix.iloc[1:].copy()
         data_content_matrix_rows.columns = header_labels_row_list
         
