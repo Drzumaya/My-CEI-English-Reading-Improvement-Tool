@@ -11,7 +11,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
 # PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION CSV CLOUD INITIALIZERS
-# INDEX-BASED AUTOMATED ROW INTERLOCK MAPPINGS (COLUMN HEADER CRASH FIX)
+# LIVE SYNCHRONIZED RECURSIVE GOOGLE SHEETS DATA STREAM MATRIX
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -23,7 +23,8 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # ----------------------------------------------------------------------------
 # DYNAMIC UNBLOCKED GOOGLE SPREADSHEET MANIFEST TRACKING ADAPTER HOOK
 # ----------------------------------------------------------------------------
-BASE_SHEET_CSV_URL = "https://google.com"
+# CONVERTED LIVE DATA PACKET TARGET URL: Swapped /pubhtml to /pub?output=csv to pipe raw rows streams
+PUBLISHED_MANIFEST_CSV_URL = "https://google.com"
 
 # Symmetrical local hardcoded data records fallback matrix representing your baseline syllabus
 if "fallback_syllabus_bank" not in st.session_state:
@@ -39,30 +40,29 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: INDEX-BASED ROW DATA PARSERS & RE-ORDERED SYSTEM VIEWS
+# PART 2: INDEX-BASED CLOUD DATA STREAM MAPPINGS & DIRECT REPLAY MONITOR LOOPS
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
 discovered_curriculum_tracks = {}
 
-if "pub?output=csv" in BASE_SHEET_CSV_URL:
+if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
     try:
-        # THE CACHE BUSTER INTERLOCK: Forces an unrestricted runtime download loop
+        # THE CACHE BUSTER INTERLOCK: Appends a dynamic clock query token to bypass server memory freezes
         live_timestamp_nonce = int(time.time())
-        cache_busted_csv_stream_url = f"{BASE_SHEET_CSV_URL}&cb={live_timestamp_nonce}"
+        cache_busted_csv_stream_url = f"{PUBLISHED_MANIFEST_CSV_URL}&cb={live_timestamp_nonce}"
         
-        # Pull down raw data framework table rows live from your link
-        cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url)
+        # Stream raw dataset tables natively down from the web link parameters
+        cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url, header=None) # Forces headerless raw vector scan
         
-        # REFACTOR INTERLOCK: Reads spreadsheet columns by index position instead of text keys
-        # Column Index 0 (A) = Audio Track Title / Column Index 1 (B) = Drive Audio Shared URL link
+        # REFACTOR INTERLOCK: Reads spreadsheet columns strictly by index position instead of text keys
         for index, row in cloud_data_frame.iterrows():
             if len(row) >= 2:
                 track_name = str(row.iloc[0]).strip()
                 audio_link = str(row.iloc[1]).strip()
                 
-                # Check for empty cells or padding artifacts securely
-                if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "":
+                # Check for empty cells or padding artifacts securely, skipping column text headers rows
+                if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
                     clean_title_label = track_name.replace('.mp3','').replace('.wav','').replace('_',' ')
                     simulated_text = f"Technical language standard training module passage matching cloud file asset: '{clean_title_label}'. Practice pronunciation flow and vocal tracking loops using your workbook guidelines."
                     
@@ -71,7 +71,7 @@ if "pub?output=csv" in BASE_SHEET_CSV_URL:
                         "url": audio_link
                     }
     except Exception as spreadsheet_sync_error:
-        st.sidebar.caption(f"ℹ️ Cloud Sheet Sync Status: Running fallback backup mode ({spreadsheet_sync_error}).")
+        st.sidebar.caption(f"ℹ nighttime Cloud Sheet Status: Running standalone engine fallback mode ({spreadsheet_sync_error}).")
 
 # Fall back to base syllabus tokens if sheet link returns empty data fields
 if not discovered_curriculum_tracks:
@@ -92,7 +92,7 @@ st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margi
 st.write("Students can launch this reference model an unlimited number of times to study fluid, youthful US English tone structures.")
 
 # Direct browser link true sound player or youthful acoustic speaker guide fallback logic node
-if active_target_url and "://google.com" in active_target_url:
+if active_target_url and "drive.google.com" in active_target_url:
     try:
         # Extracts raw shared link structures into direct browser audio streaming packets natively
         parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
@@ -124,7 +124,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_sound_fidelity_index_mapped_recorder'
+    key='cei_github_4part_lossless_sound_fidelity_cache_busted_recorder_v51'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -203,7 +203,7 @@ if st.session_state.gradebook_matrix_history:
         key="maintenance_row_selector"
     )
     
-    target_numerical_index = int(chosen_maintenance_row_string.split("Row [").split("]")) - 1
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [")[1].split("]")[0]) - 1
     
     col_new_id, col_upgrade_trigger = st.columns(2)
     with col_new_id:
