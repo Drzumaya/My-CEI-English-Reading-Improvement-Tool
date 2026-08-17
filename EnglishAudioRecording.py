@@ -11,7 +11,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 5 STANDALONE PARTS
 # PART 1: SYSTEM APPLICATION STACK FRAMEWORKS, HEADERS, & REPO CACHES
-# MASTER HYBRID ACCENT TIMBRE & VELOCITY CORE SINK
+# MASTER HYBRID ACCENT TIMBRE & VELOCITY DUAL ENGINE SINK
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -99,7 +99,8 @@ if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
 
 if len(discovered_curriculum_tracks) < 28:
     for k, v in st.session_state.master_curriculum_catalog.items():
-        discovered_curriculum_tracks[k] = {"text": v, "url": None}
+        if k not in discovered_curriculum_tracks:
+            discovered_curriculum_tracks[k] = {"text": v, "url": None}
 
 # EXACT DROPDOWN PROMPT MATRIX USER SPECIFICATION ENFORCED
 selected_track_id = st.selectbox(
@@ -114,29 +115,29 @@ active_target_url = discovered_curriculum_tracks[selected_track_id]["url"]
 st.write("---")
 st.markdown("#### 🔊 Dual-Engine Reference Audio Station")
 
-# ENGINE 1 BLOCK: Streams your actual recorded raw audio voice file directly from Google Drive
+# ENGINE A: STREAMS YOUR ORIGINAL AUDIO FILES DIRECTLY (ZERO ROBOT ALTERATIONS)
 if active_target_url and "://google.com" in active_target_url:
     try:
         parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
         direct_streaming_packet_url = f"https://google.com{parsed_id}"
-        st.markdown("🟢 **Engine A: Play Original Recorded Voice Audio File**")
+        st.markdown("🟢 **Engine A: Play Original Human Recording (Plays Your Real Audio File)**")
         st.audio(direct_streaming_packet_url, format="audio/mp3")
     except Exception:
-        pass
+        st.caption("Awaiting Google Sheet URL link verification variables...")
 
 st.write(" ")
 
-# ENGINE 2 BLOCK: Restores your 7 Optional Accent Dialects & Dynamic Speed Velocity Controllers
-st.markdown("🔵 **Engine B: Restored Accent Timbre Deck & Speaking Speed Tuning Console**")
+# ENGINE B: THE ACCENT AND PACING VELOCITY SLIDER INTERFACE
+st.markdown("临 **Engine B: Optional Dialect Accelerator & Pitch Tuning Deck**")
 
 voice_options_map = {
-    "🇺🇸 Premium US Female (Natural Sam)": {"lang": "en-US", "name": "Google US English", "pitch": 1.05},
-    "🇺🇸 Rich US Male (Neural Corporate)": {"lang": "en-US", "name": "Microsoft David", "pitch": 0.92},
-    "🇬🇧 Crisp UK Female (London Accent)": {"lang": "en-GB", "name": "Google UK English Female", "pitch": 1.00},
-    "🇬🇧 Standard UK Male (BBC Dialect)": {"lang": "en-GB", "name": "Google UK English Male", "pitch": 0.95},
-    "🇦🇺 Smooth Australian Female": {"lang": "en-AU", "name": "Google AU English", "pitch": 1.02},
-    "🇮🇳 Clear Indian English Female": {"lang": "en-IN", "name": "Google IN English", "pitch": 1.04},
-    "🇺🇸 Youthful US Voice (Timbre Shifted)": {"lang": "en-US", "name": "Natural", "pitch": 1.15}
+    "🇺🇸 Premium US Female (Natural Accent)": {"lang": "en-US", "pitch": 1.05},
+    "🇺🇸 Deep US Male (Corporate Profile)": {"lang": "en-US", "pitch": 0.85},
+    "🇬🇧 Crisp UK Female (London Dialect)": {"lang": "en-GB", "pitch": 1.00},
+    "🇬🇧 BBC UK Male (Standard Phrasing)": {"lang": "en-GB", "pitch": 0.90},
+    "🇦🇺 Australian Accent (Sydney Timbre)": {"lang": "en-AU", "pitch": 1.02},
+    "🇮🇳 Clear Indian English Accent": {"lang": "en-IN", "pitch": 1.04},
+    "🇪🇸 Spanish Accent English Simulator": {"lang": "es-ES", "pitch": 1.00}
 }
 
 col_vce, col_spd = st.columns(2)
@@ -147,11 +148,10 @@ with col_spd:
 
 target_voice_meta = voice_options_map[chosen_voice_timbre]
 
-# Beautiful high-contrast visible playback container unblocks speech assets from browser iframe walls completely
 js_multi_engine_console = f"""
 <div style='background-color: #F8F9F9; border: 1px solid #D5DBDB; border-radius: 6px; padding: 12px; text-align: center;'>
-    <button id='cei_run_hybrid_btn' style='background-color: #2471A3; color: white; border: none; padding: 10px 24px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-        ▶️ Run Synthetic Speech Deck at {chosen_speaking_velocity}x Speed
+    <button id='cei_run_hybrid_btn' style='background-color: #2471A3; color: white; border: none; padding: 10px 24px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer;'>
+        ▶️ Run Voice Simulation Model at {chosen_speaking_velocity}x Speed
     </button>
 </div>
 
@@ -163,10 +163,7 @@ document.getElementById('cei_run_hybrid_btn').addEventListener('click', function
     let txt = `{active_target_text.replace('`','\\`').replace('$','\\$')}`;
     let utterance = new SpeechSynthesisUtterance(txt);
     
-    let vcs = synth.getVoices();
-    let selectedVoice = vcs.find(v => v.name.includes('{target_voice_meta["name"]}') || v.lang.startsWith('{target_voice_meta["lang"]}'));
-    
-    if (selectedVoice) utterance.voice = selectedVoice;
+    // Dynamic locale vector assignments force browsers to apply dialect codes seamlessly
     utterance.lang = '{target_voice_meta["lang"]}';
     utterance.rate = {chosen_speaking_velocity};
     utterance.pitch = {target_voice_meta["pitch"]};
@@ -254,9 +251,6 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
             "Transcription": transcribed_user_input
         })
 
-# ----------------------------------------------------------------------------
-# 🛠️ SYSTEM MAINTENANCE UPGRADE AREA: THE STUDENT ID CODES MAINTENANCE DASHBOARD
-# ----------------------------------------------------------------------------
 if st.session_state.gradebook_matrix_history:
     st.write("---")
     st.markdown("### 🛠️ Coordinator Database Maintenance Dashboard")
@@ -266,13 +260,8 @@ if st.session_state.gradebook_matrix_history:
     for index, log in enumerate(st.session_state.gradebook_matrix_history):
         gradebook_string_indices.append(f"Row [{index + 1}] - Time: {log['Timestamp']} | Current ID: {log['Student_ID']} | Name: {log['Student_Name']}")
         
-    chosen_maintenance_row_string = st.selectbox(
-        "Select Logged Gradebook Record Line to Modify:",
-        options=gradebook_string_indices,
-        key="maintenance_row_selector"
-    )
-    
-    target_numerical_index = int(chosen_maintenance_row_string.split("Row [")[1].split("]")[0]) - 1
+    chosen_maintenance_row_string = st.selectbox("Select Logged Gradebook Record Line to Modify:", options=gradebook_string_indices, key="maintenance_row_selector")
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [").split("]")) - 1
     
     col_new_id, col_upgrade_trigger = st.columns(2)
     with col_new_id:
