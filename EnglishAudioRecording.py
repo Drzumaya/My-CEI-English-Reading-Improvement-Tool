@@ -10,8 +10,8 @@ import time
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION CSV CLOUD INITIALIZERS
-# LIVE SYNCHRONIZED RECURSIVE GOOGLE SHEETS DATA STREAM MATRIX
+# PART 1: SYSTEM APPLICATION STACK, HEADERS, & PUBLIC CLOUD PATH INITIALIZERS
+# AUTOMATIC RUNTIME POLLING ENGINE FOR UNLIMITED LIVE UPLOADS SYNC
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -23,15 +23,14 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # ----------------------------------------------------------------------------
 # DYNAMIC UNBLOCKED GOOGLE SPREADSHEET MANIFEST TRACKING ADAPTER HOOK
 # ----------------------------------------------------------------------------
-# CONVERTED LIVE DATA PACKET TARGET URL: Swapped /pubhtml to /pub?output=csv to pipe raw rows streams
 PUBLISHED_MANIFEST_CSV_URL = "https://google.com"
 
-# Symmetrical local hardcoded data records fallback matrix representing your baseline syllabus
+# Local baseline fallback matrix array seeds
 if "fallback_syllabus_bank" not in st.session_state:
     st.session_state.fallback_syllabus_bank = {
         "ECAUDIOS_SB-Unit1_Shift_Handover.mp3": "Good afternoon Carlos. Welcome to the Shift Two handover session. SMT Line Three is currently running part number ALC seven seven four two, active lot code alpha dash nine.",
         "ECAUDIOS_WB-Unit2_ESD_Compliance.mp3": "Attention all floor personnel. A cleanroom compliance audit is currently active across the ESD Protected Area boundaries. Every operator must immediately verify their personal grounding infrastructure paths.",
-        "ECAUDIOS_IE-Unit3_5Ws_Logging.mp3": "Master ledger database transaction log update. Operator ID forty four zero two discovered three pieces of part number ALC nine nine zero on Line One at zero eight thirty AM. Visual inspection revealed a fractured mounting boss feature."
+        "ECAUDIOS_IE-Unit3_5Ws_Logging.mp3": "Master ledger database transaction log update. Operator ID forty four zero two discovered three pieces of part number ALC nine nine zero on Line One at zero eight thirty AM."
     }
 
 if "student_record_vault" not in st.session_state:
@@ -40,7 +39,7 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: INDEX-BASED CLOUD DATA STREAM MAPPINGS & DIRECT REPLAY MONITOR LOOPS
+# PART 2: INDEX-BASED ROW DATA PARSERS & RE-ORDERED SYSTEM VIEWS
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
@@ -48,20 +47,22 @@ discovered_curriculum_tracks = {}
 
 if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
     try:
-        # THE CACHE BUSTER INTERLOCK: Appends a dynamic clock query token to bypass server memory freezes
+        # THE LIVE CACHE BUSTER INTERLOCK: Generates a completely new numeric token on every reload.
+        # This completely destroys browser data memory layers to sync newly uploaded rows instantly.
         live_timestamp_nonce = int(time.time())
         cache_busted_csv_stream_url = f"{PUBLISHED_MANIFEST_CSV_URL}&cb={live_timestamp_nonce}"
         
-        # Stream raw dataset tables natively down from the web link parameters
-        cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url, header=None) # Forces headerless raw vector scan
+        # Pull data table lists down cleanly using headerless vector stream parameters
+        cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url, header=None)
         
-        # REFACTOR INTERLOCK: Reads spreadsheet columns strictly by index position instead of text keys
+        # ELASTIC ROW MAPPER LOOP: Scans dynamically by cell position coordinates index (0 and 1).
+        # This allows the list to auto-add new files when uploaded without dropping items.
         for index, row in cloud_data_frame.iterrows():
             if len(row) >= 2:
                 track_name = str(row.iloc[0]).strip()
                 audio_link = str(row.iloc[1]).strip()
                 
-                # Check for empty cells or padding artifacts securely, skipping column text headers rows
+                # Filter out null characters padding blocks or text description headers rows safely
                 if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
                     clean_title_label = track_name.replace('.mp3','').replace('.wav','').replace('_',' ')
                     simulated_text = f"Technical language standard training module passage matching cloud file asset: '{clean_title_label}'. Practice pronunciation flow and vocal tracking loops using your workbook guidelines."
@@ -71,14 +72,14 @@ if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
                         "url": audio_link
                     }
     except Exception as spreadsheet_sync_error:
-        st.sidebar.caption(f"ℹ nighttime Cloud Sheet Status: Running standalone engine fallback mode ({spreadsheet_sync_error}).")
+        st.sidebar.caption(f"ℹ️ Cloud Sheet Sync Status: Running fallback backup mode ({spreadsheet_sync_error}).")
 
-# Fall back to base syllabus tokens if sheet link returns empty data fields
+# Fall back safely to internal syllabus tokens if network connection times out
 if not discovered_curriculum_tracks:
     for k, v in st.session_state.fallback_syllabus_bank.items():
         discovered_curriculum_tracks[k] = {"text": v, "url": None}
 
-# EXACT USER COMPLIANCE PROMPT DROPDOWN STRING LABELS ENFORCED
+# EXACT DROPDOWN MATRIX PROMPT ASSIGNMENT ENFORCED
 selected_track_id = st.selectbox(
     "Choose an Exercise track:",
     options=sorted(list(discovered_curriculum_tracks.keys())),
@@ -92,7 +93,7 @@ st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margi
 st.write("Students can launch this reference model an unlimited number of times to study fluid, youthful US English tone structures.")
 
 # Direct browser link true sound player or youthful acoustic speaker guide fallback logic node
-if active_target_url and "drive.google.com" in active_target_url:
+if active_target_url and "://google.com" in active_target_url:
     try:
         # Extracts raw shared link structures into direct browser audio streaming packets natively
         parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
@@ -113,7 +114,7 @@ st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 # ============================================================================
-# PART 3: STUDENT VOCAL REGISTRATION DESK AND LOSSLESS SOUND CHANNEL SAVES
+# PART 3: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE
 # ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
@@ -124,7 +125,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_sound_fidelity_cache_busted_recorder_v51'
+    key='cei_github_4part_lossless_sound_fidelity_28track_recorder'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -134,7 +135,7 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # Lossless passthrough leaves raw binary blocks uncorrupted to ensure your playback audio has sound
+        # Pure binary passthrough channel maps original sound fidelity flawlessly to stop browser muted audio bugs
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
@@ -243,7 +244,7 @@ if available_vault_tracks:
                 
             with col_erase:
                 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT TRACKER LIST PURGE SYSTEM:</p>", unsafe_allow_html=True)
-                if st.button("❌ Erase Chosen Recording From Student Recorded Tracker List", key=f"erase_btn_{individual_take}"):
+                if st.button(f"❌ Erase Chosen Recording From Student Recorded Tracker List", key=f"erase_btn_{individual_take}"):
                     del st.session_state.student_record_vault[individual_take]
                     st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
                     st.rerun()
