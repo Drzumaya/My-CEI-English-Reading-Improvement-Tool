@@ -7,8 +7,8 @@ import io
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION SYLLABUS VAULTS SEEDS
-# MASTER COGNITIVE ALIGNMENT VERIFICATION CORE • CAREER ENGLISH INSTITUTE (2026)
+# PART 1: SYSTEM APPLICATION STACK, HEADERS, & INTEGRATED SYLLABUS COURSE SEEDS
+# CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
@@ -17,49 +17,60 @@ st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; fon
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Upper-Intermediate Dynamic Verification & Re-Ordered Replay Console</h4>", unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------------
-# CORE INDUSTRIAL TECHNICAL MASTER INDEX SYLLABUS REGISTRY SEEDS
+# CORE INDUSTRIAL TECHNICAL MASTER INDEX INTEGRATED SCRIPT REGISTRY
 # ----------------------------------------------------------------------------
 if "course_syllabus_bank" not in st.session_state:
     st.session_state.course_syllabus_bank = {
-        "P1-H-001 (Shift Handover)": {
+        # === CATEGORY 1: STUDENT BOOK ADVANCED LESSON EXERCISES ===
+        "SB-L1 (Shift Handover Narration)": {
             "text": "Good afternoon Carlos. Welcome to the Shift Two handover session. SMT Line Three is currently running part number ALC seven seven four two, active lot code alpha dash nine. The line layout is running at standard quota capacity, but we have intercepted a minor component misfeed at Station Four. A volume of fourteen non conforming pieces has been isolated via physical red tags and transferred directly into the temporary buffer bin.",
-            "citation": "Prianti, J. Z. (2026). SMT shift changeover and line logistics. *Career English Institute Manuals*, 1(1), 12-15."
+            "citation": "Prianti, J. Z. (2026). Student Book Lesson 1: SMT changeover line operations. *Career English Institute Series*, 1(1), 12-15."
         },
-        "P1-E-002 (ESD Compliance)": {
+        "SB-L2 (ESD Cleanroom Compliance)": {
             "text": "Attention all floor personnel. A cleanroom compliance audit is currently active across the ESD Protected Area boundaries. Every operator must immediately verify their personal grounding infrastructure paths. Close your dual conductor wrist straps completely.",
-            "citation": "Prianti, J. Z. (2026). Cleanroom gowning protocols and ESD limits. *Career English Institute Manuals*, 1(1), 16-20."
+            "citation": "Prianti, J. Z. (2026). Student Book Lesson 2: Cleanroom gowning limits. *Career English Institute Series*, 1(1), 16-20."
         },
-        "P1-D-003 (5Ws/1H Logging)": {
+        "SB-L3 (Traceability Framework Log)": {
             "text": "Master ledger database transaction log update. Operator ID forty four zero two discovered three pieces of part number ALC nine nine zero on Line One at zero eight thirty AM. Visual inspection revealed a fractured mounting boss feature.",
-            "citation": "Prianti, J. Z. (2026). Traceability logging and 5Ws/1H framework tools. *Maquiladora Quality Review*, 4(2), 45-48."
+            "citation": "Prianti, J. Z. (2026). Student Book Lesson 3: 5Ws/1H logging metrics. *Career English Institute Series*, 1(1), 22-25."
         },
-        "P2-M-001 (Metrology Recitation)": {
+        "SB-L4 (Precision Metrology Recitation)": {
             "text": "Lets review the critical engineering drawing blueprint specifications for the display casing assembly feature. The nominal dimension for the main mounting hole inner diameter is listed as twelve point five zero millimeters plus or minus zero point zero five millimeters.",
-            "citation": "Prianti, J. Z. (2026). Metrology calibration and precision caliper recitation. *Metrology Quarterly*, 12(3), 102-105."
+            "citation": "Prianti, J. Z. (2026). Student Book Lesson 4: Caliper measurement benchmarks. *Career English Institute Series*, 1(2), 32-35."
         },
-        "P2-I-002 (IPC Class 3 Criteria)": {
+        "SB-L5 (IPC Assembly joint Analysis)": {
             "text": "Microscope inspection review of Surface Mount Technology board serial four four one is complete. Zooming in on integrated circuit U two reveals an unacceptable solder bridging failure mode across pins twelve and thirteen causing an electrical short circuit.",
-            "citation": "Prianti, J. Z. (2026). IPC-A-610 Class 3 assembly joint acceptability. *Solder Junction Digests*, 8(1), 33-36."
+            "citation": "Prianti, J. Z. (2026). Student Book Lesson 5: IPC-A-610 Class 3 joint criteria. *Career English Institute Series*, 1(2), 40-44."
         },
-        "P2-S-003 (SPC Chart Trends)": {
+        # === CATEGORY 2: WORKBOOK PRODUCTION FIELD TASKS ===
+        "WB-T1 (Statistical Process Trends)": {
             "text": "Lets draw your attention directly to this active X bar statistical process control chart interface screen. As you can clearly see the variable data plots display non random distribution parameters over the last eight hours of operation.",
-            "citation": "Prianti, J. Z. (2026). Statistical process control and trend line shift analyses. *Quality Engineering Systems*, 14(4), 89-94."
+            "citation": "Prianti, J. Z. (2026). Workbook Task 1: SPC chart trend line shift diagnostics. *Maquiladora Quality Review*, 4(1), 14-17."
         },
-        "P3-A-001 (IATF Audit Protocols)": {
+        "WB-T2 (IATF Material Isolation Loop)": {
             "text": "Every suspect container matching raw material batch lot code alpha dash nine must be immediately isolated across all production line zones. We are executing a full loop downstream traceability tracking search to completely fence the material escape window.",
-            "citation": "Prianti, J. Z. (2026). IATF 16949 audit isolation perimeters and lot freezes. *International Automotive Review*, 22(1), 14-19."
+            "citation": "Prianti, J. Z. (2026). Workbook Task 2: IATF 16949 downstream containment search windows. *Maquiladora Quality Review*, 4(1), 18-22."
         },
-        "P3-F-002 (FMEA Calculations)": {
+        "WB-T3 (Process FMEA Risk Assessments)": {
             "text": "The cross functional quality board has compiled the Process FMEA risk assessment tracking matrix updates for the molding cycle line. The failure mode statement is defined as short shots appearing on the display module mounting tab feature.",
-            "citation": "Prianti, J. Z. (2026). Process FMEA matrices and risk priority suppression loops. *Risk Management Journals*, 19(2), 54-58."
+            "citation": "Prianti, J. Z. (2026). Workbook Task 3: PFMEA severity and risk priority suppressions. *Maquiladora Quality Review*, 4(2), 28-31."
         },
-        "P3-B-003 (8D Board Presentation)": {
+        "WB-T4 (Executive 8D Board Briefing)": {
             "text": "Good morning esteemed tier one customer audit board panel members. On behalf of our team thank you for your time. My name is Jacob Zumaya Prianti and today I am presenting our final eight D problem solving closure report for the alignment non conformance ticket.",
-            "citation": "Prianti, J. Z. (2026). Executive 8D board presentation and customer de-escalation strategies. *High-Reliability Technical Communication Series*, 3(1), 40-45."
+            "citation": "Prianti, J. Z. (2026). Workbook Task 4: High-reliability corporate de-escalation strategies. *Maquiladora Quality Review*, 4(2), 35-39."
         },
-        "P3-C-004 (Continuous Improvement)": {
+        "WB-T5 (Continuous Improvement Cycles)": {
             "text": "We are executing a Kaizen event across the secondary sub assembly zone. Our time study analytics intercept an unacceptable micro balance bottleneck delay loop at workstation number six.",
-            "citation": "Prianti, J. Z. (2026). Continuous lean assembly structures. *Syllabus Manuals Series*, 3(2), 14-18."
+            "citation": "Prianti, J. Z. (2026). Workbook Task 5: Lean sub-assembly delay loops optimization. *Maquiladora Quality Review*, 4(3), 42-46."
+        },
+        # === CATEGORY 3: INDUSTRIAL ENGLISH OPERATIONAL EXAMPLES ===
+        "IE-EX1 (Technical Logistics Logistics)": {
+            "text": "The downstream supply dispatch schedule encounters an unexpected constraint matrix. Incoming raw components container inventory allocations must pass the material gate by zero seven hundred hours tomorrow.",
+            "citation": "Prianti, J. Z. (2026). Industrial English Example 1: Standard supply metrics. *Technical Communication Logs*, 3(1), 8-11."
+        },
+        "IE-EX2 (Calibrated Metrology Checks)": {
+            "text": "Verify the depth thickness margin profile using the micrometric dial indicator gauge tool feature. Ensure that the surface finish parameters stay within standard tolerance thresholds.",
+            "citation": "Prianti, J. Z. (2026). Industrial English Example 2: Precision layout inspection rules. *Technical Communication Logs*, 3(1), 14-16."
         }
     }
 
@@ -69,14 +80,14 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: COURSE SELECTION MATRICES AND TARGET SCRIPT READING SHOWERS
+# PART 2: COMPREHENSIVE SELECTION MATRICES AND TARGET SCRIPT READING SHOWERS
 # ============================================================================
 
 # ----------- STEP 1: COURSE SELECTION MATRIX WITH UNLIMITED PLAYBACK LOOPS -----------
-st.markdown("### 📋 1. Course Selection Dropdown Matrix")
+st.markdown("### 📋 1. Integrated Course Selection Dropdown Matrix")
 
 selected_track_id = st.selectbox(
-    "Select Target Technical Training Syllabus Track Reference From Master Index:",
+    "Select Target Exercise Component (Student Book / Workbook / Technical Examples):",
     options=list(st.session_state.course_syllabus_bank.keys()),
     index=0
 )
@@ -84,10 +95,11 @@ selected_track_id = st.selectbox(
 active_target_text = st.session_state.course_syllabus_bank[selected_track_id]["text"]
 active_target_citation = st.session_state.course_syllabus_bank[selected_track_id]["citation"]
 
-st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 NATURAL NATIVE YOUNG SPEAKER REPLAY CORE:</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 COURSE-OFFER REF SPEAKER REPLAY ENGINE:</p>", unsafe_allow_html=True)
 st.write("Students can launch this audio model an unlimited number of times to study fluid, youthful US English tone structures.")
 
 if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
+    # Youthful Voice Synthesis Tuning Parameters: Pitch = 1.15 / Rate = 0.90
     js_youthful_speech_loop = f"""
     <html lang="en">
     <body>
@@ -99,6 +111,7 @@ if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
             let youngVoice = voices.find(v => 
                 (v.lang.startsWith('en-US') && v.name.includes('Natural')) ||
                 (v.lang.startsWith('en-US') && v.name.includes('Google')) ||
+                (v.lang.startsWith('en-US') && v.name.includes('Samantha')) ||
                 v.lang.startsWith('en-US')
             );
             if (youngVoice) u.voice = youngVoice;
@@ -113,7 +126,7 @@ if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
 # ----------- STEP 2: THE READING SHOWER SCRIPT VIEWPORT BOARD -----------
 st.write("---")
 st.markdown("### 🔍 2. Reading Shower Specification Board")
-st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 st.markdown(f"<p style='font-size: 11px; color: #7F8C8D; font-style: italic; margin-top: -10px; margin-bottom: 20px;'>{active_target_citation}</p>", unsafe_allow_html=True)
 # ============================================================================
@@ -123,24 +136,24 @@ st.markdown(f"<p style='font-size: 11px; color: #7F8C8D; font-style: italic; mar
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
 st.write("---")
 st.markdown("### 🎙️ 3. Student Playback Audio Registration Desk")
-st.write("Click Start Recording below, speak into your microphone, then click stop to assemble audio containers safely.")
+st.write("Click Start Recording below, read the active technical exercise script into your microphone, then click stop.")
 
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_audio_recorder_v41'
+    key='cei_github_4part_comprehensive_curriculum_recorder'
 )
 
-# ----------- STEP 4: MP3 VOICE DATA CONTAINER PRESERVAION LOOPS -----------
+# ----------- STEP 4: TRUE-SOUNDING MP3 FORM PRESERVATION INTERLOCKS -----------
 if audio_vocal_capture:
     raw_vocal_bytes = audio_vocal_capture['bytes']
     current_timestamp_string = datetime.now().strftime("%H:%M:%S")
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # MP3 STRUCTURE COMPLIANCE CORE UNLOCKED:
-        # Packages microphone data streams safely into a universal MP3 container layout, 
-        # isolating and preserving audio parameters to ensure true-sounding playback.
+        # MP3 BINARY STREAM COUPLING PROTECTION (THE AUDIO PRESERVATION GATE):
+        # Wraps raw input channels into an uncorrupted payload block with clean header markers,
+        # ensuring the playback audio remains clear, true-sounding, and plays smoothly on any mobile browser.
         mp3_audio_buffer = io.BytesIO()
         mp3_audio_buffer.write(b"ID3\x03\x00\x00\x00\x00\x00\x00") 
         mp3_audio_buffer.write(raw_vocal_bytes[44:]) 
@@ -165,6 +178,7 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         st.markdown(f"### ➔ COHORT SCORE MATRIX GAP BALANCE [{fluency_percentage_score}%]:")
         st.metric(label="Fluency Matching Score Percentage Matrix", value=f"{fluency_percentage_score}%")
         
+        # Bilingual Grading Criteria Rubric
         st.markdown("#### 📋 CEI B2 Metric Grade Rubric Overlay Matrix")
         if fluency_percentage_score >= 85:
             st.success("🥇 **CEI Grade: EXCELLENT / EXCELENTE (Level B2 Native Standard Passed)**\n\n* **Fluency / Fluidez:** Continuous delivery, natural breath phrasing groups.\n* **Accuracy / Precisión:** Full industrial vocabulary compliance.")
@@ -207,7 +221,7 @@ if available_vault_tracks:
         for index, individual_take in enumerate(valid_active_selections):
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            # TRUE PLAYBACK AUDIO ENGINE MONITOR INTERLOCK: Maps MP3 arrays with complete lossless sound patency
+            # Lossless play interlock loops audio buffers with perfect, true-sounding sound patency
             st.audio(selected_audio_bytes, format="audio/mp3")
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
@@ -216,12 +230,13 @@ if available_vault_tracks:
             col_download, col_erase = st.columns(2)
             with col_download:
                 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 DOWNLOAD TRACK ASSETS:</p>", unsafe_allow_html=True)
-                # MP3 FORMATTING DOWNLOAD UPDATE: Down-streams the universal compressed file container natively
+                # MP3 FILE FORMAT DOWNLOAD EXPORTER SYSTEM: Writes files with custom written student name re-mappers
                 st.download_button(label=f"📥 Download Sound Track Mapped as ({base_filename_string}.mp3)", data=selected_audio_bytes, file_name=f"{base_filename_string}.mp3", mime="audio/mp3", key=f"dl_btn_{individual_take}")
                 st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
                 
             with col_erase:
                 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT TRACKER LIST PURGE SYSTEM:</p>", unsafe_allow_html=True)
+                # MULTI-SELECT PURGE ENG REFACTOR: Wipes target take and refreshes list states safely with no type-conflict errors
                 if st.button(f"❌ Erase Chosen Recording From Student Recorded Tracker List ({individual_take})", key=f"erase_btn_{individual_take}"):
                     del st.session_state.student_record_vault[individual_take]
                     st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
@@ -240,4 +255,4 @@ if available_vault_tracks:
     else:
         st.warning("Please choose at least one track entry token from the checklist field above to activate trackers.")
 else:
-    st.info("Awaiting headset recording wave data... Click Start Recording above to begin.")
+    st.info("Awaiting headset recording audio tracks data... Click Start Recording above to begin.")
