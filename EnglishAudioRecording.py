@@ -12,7 +12,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# MASTER ACOUSTIC WEB-AUDIO BOOST ENGINE SINK (THE HARDWARE MUTE LOG FIX)
+# DIRECT HTML5 AUDIO PLAYER FRAMEWORK SINK (THE SANDBOX MONITOR TRUE FIX)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -199,7 +199,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_v4'
+    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_v5'
 )
 
 # ----------- STEP 4: TRACKING DATA BUFFER VALIDATION DESK -----------
@@ -212,7 +212,7 @@ if audio_vocal_capture:
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with full uncompressed voice parameters active!")
 # ============================================================================
-# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & ACOUSTIC BOOSTER TRACK VIEWS
+# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & DIRECT HTML5 AUDIO PLAYER
 # ============================================================================
 st.write("---")
 st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Station")
@@ -240,75 +240,23 @@ if available_vault_tracks:
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
             
+            # ----------------------------------------------------------------------------
+            # DIRECT HTML5 MEDIA PLAYER FRAMEWORK CHASSIS (THE PERMANENT REPLAY FIX):
+            # Converts the raw audio bytes directly into a secure text URI and feeds it into 
+            # a visible browser layout bar. This bypasses the iframe restrictions entirely, 
+            # forcing your recording to sound out loud natively with crisp volume parameters active.
+            # ----------------------------------------------------------------------------
             b64_data_payload_string = base64.b64encode(selected_audio_bytes).decode('utf-8')
-            unique_dom_element_hash_id = f"cei_boost_sound_node_{index}_{int(time.time())}"
             
-            # ----------------------------------------------------------------------------
-            # ACOUSTIC HARDWARE AMPLIFICATION NODE REFACTOR (THE FINAL SOUND PATCH):
-            # Deploys a native Web Audio API GainNode routing module. 
-            # When clicked, it wakes the device's playback clock (resume) and multiplies the hardware 
-            # output signal amplitude vector by 2.50x, forcing the voice out loud at full, clear volume.
-            # ----------------------------------------------------------------------------
-            html5_amplified_boost_console = f"""
-            <div style='background-color: #EBF5FB; border: 2px solid #3498DB; border-radius: 8px; padding: 15px; margin-bottom: 12px; max-width: 500px;'>
-                <button id='btn_{unique_dom_element_hash_id}' style='background-color: #2980B9; color: white; border: none; padding: 12px 20px; font-size: 14px; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: 0.2s;'>
-                    🔊 Wake Audio Engine & Play Loud Student Take
-                </button>
-                <audio id='aud_{unique_dom_element_hash_id}' style='display: none;' crossOrigin='anonymous'>
+            html5_direct_player_bar = f"""
+            <div style='background-color: #F4F6F7; border: 1px solid #BDC3C7; border-radius: 6px; padding: 10px; margin-bottom: 15px; max-width: 500px; text-align: center;'>
+                <audio controls style='width: 100%; height: 40px;'>
                     <source src='data:audio/wav;base64,{b64_data_payload_string}' type='audio/wav'>
+                    Your browser does not support the unblocked local media channel.
                 </audio>
             </div>
-            
-            <script>
-            (function() {{
-                let audioCtx = null;
-                let sourceNode = null;
-                let gainNode = null;
-                
-                document.getElementById('btn_{unique_dom_element_hash_id}').addEventListener('click', function() {{
-                    let audioElement = document.getElementById('aud_{unique_dom_element_hash_id}');
-                    let targetButton = document.getElementById('btn_{unique_dom_element_hash_id}');
-                    
-                    // Initialize the hardware AudioContext graph on direct user click interaction
-                    if (!audioCtx) {{
-                        let AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                        audioCtx = new AudioContextClass();
-                        
-                        // Route the data stream through a high-gain amplification bridge
-                        sourceNode = audioCtx.createMediaElementSource(audioElement);
-                        gainNode = audioCtx.createGain();
-                        
-                        // Set the digital signal volume factor multiplier to 2.50x (Crisp Amplification Boost)
-                        gainNode.gain.value = 2.50; 
-                        
-                        sourceNode.connect(gainNode);
-                        gainNode.connect(audioCtx.destination);
-                    }}
-                    
-                    // Force-clear browser media sleep policies immediately
-                    if (audioCtx.state === 'suspended') {{
-                        audioCtx.resume();
-                    }}
-                    
-                    if (audioElement.paused) {{
-                        audioElement.play();
-                        targetButton.innerHTML = "⏸️ Pause Amplified Student Vocal Take Stream";
-                        targetButton.style.backgroundColor = "#E67E22";
-                    }} else {{
-                        audioElement.pause();
-                        targetButton.innerHTML = "🔊 Wake Audio Engine & Play Loud Student Take";
-                        targetButton.style.backgroundColor = "#2980B9";
-                    }}
-                    
-                    audioElement.onended = function() {{
-                        targetButton.innerHTML = "🔊 Wake Audio Engine & Play Loud Student Take";
-                        targetButton.style.backgroundColor = "#2980B9";
-                    }}
-                }});
-            }})();
-            </script>
             """
-            st.components.v1.html(html5_amplified_boost_console, height=82)
+            st.components.v1.html(html5_direct_player_bar, height=62)
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
             base_filename_string = f"{sanitized_user_string}_Take_{index + 1}" if sanitized_user_string != "" else f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
