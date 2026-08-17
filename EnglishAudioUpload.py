@@ -8,8 +8,8 @@ import time
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & SECURE GOOGLE SHEET KEY ANCHORS
-# CAREER ENGLISH INSTITUTE (2026) - ENGLISH_AUDIO_UPLOAD.PY
+# PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
+# STRICT SECOND-COLUMN POSITIONAL LOCK • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
@@ -21,22 +21,21 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
 # Replace this token with your exact long Google Spreadsheet alphanumeric ID string.
-# Example: "1vSFahpcYiFBA1-2BcRqA0typAluQO2F8snEfwyCWaHgOEhp0x0YiiTo9xnsKbreEibH0h"
-TARGET_GOOGLE_SHEET_ID = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
+TARGET_GOOGLE_SHEET_ID = "1-2BcRqA0typAluQO2F8snEfwyCWaHgOEhp0x0YiiTo9xnsKbreEibH0hSUE6EigvFg"
 
-# Derived unblocked public streaming links points straight to your spreadsheet rows data matrix
+# Public streaming ledger export channel
 PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_ID}/pub?output=csv"
 # ============================================================================
 # PART 2: DYNAMIC SPREADSHEET LEDGER ROW CONVERTERS AND MEMORY MATRICES
 # ============================================================================
 
-@st.cache_data(ttl=5) # Cache buster forces a 5-second automatic data fresh look matrix loop
+@st.cache_data(ttl=3) # Short cache validation window checks for incoming row updates quickly
 def fetch_cloud_upload_ledger(target_url):
     try:
-        # Cache buster nonce prevents data freezes, ensuring newly uploaded rows show up live
-        live_nonce = int(time.time())
-        busted_url = f"{target_url}&cb={live_nonce}"
-        df = pd.read_csv(busted_url, header=None)
+        live_timestamp_nonce = int(time.time())
+        cache_busted_url = f"{target_url}&cb={live_timestamp_nonce}"
+        # Read the sheet raw layout without assuming default numeric header assignments
+        df = pd.read_csv(cache_busted_url, header=None)
         return df
     except Exception as err:
         st.error(f"Spreadsheet connection timed out. Verify your Sheet ID sharing configurations ({err}).")
@@ -55,7 +54,7 @@ st.write("Please type your official Student ID Code below to act as your verific
 typed_student_code_password = st.text_input(
     label="🔑 Enter Student Code to Unlock Recording Access:",
     placeholder="e.g., CEI-2026-4402",
-    type="password" # Obfuscates input strings for data privacy security compliance rules
+    type="password"  # Obfuscates input strings for data privacy security compliance rules
 )
 
 student_matching_record = None
@@ -63,16 +62,27 @@ student_matching_record = None
 if typed_student_code_password.strip() != "" and sheet_raw_data_matrix is not None:
     search_token = typed_student_code_password.strip().lower()
     
-    # Sequentially processes every row index, scanning for a matching Student Code token
+    # ----------------------------------------------------------------------------
+    # STRICT SECOND-COLUMN POSITIONAL INTERLOCK (CÓDIGO ESTUDIANTE TARGETS):
+    # Force-binds the password checker loop directly into the 2nd column (index 1)
+    # ----------------------------------------------------------------------------
+    timestamp_column_index = 0   # Column 1 (Index 0) -> Fecha Registro
+    student_code_column_index = 1 # Column 2 (Index 1) -> STRICT: Código Estudiante
+    audio_stream_column_index = 2 # Column 3 (Index 2) -> Datos Audio
+
+    # Loop through the spreadsheet rows starting past the header cell titles row index
     for index, row in sheet_raw_data_matrix.iterrows():
-        if len(row) >= 3:
-            # Assuming Column A: Timestamp, Column B: Student Code, Column C: Audio/Base64 Data Stream
-            spreadsheet_student_id = str(row.iloc[1]).strip().lower()
+        if index == 0: 
+            continue # Skip row index 0 labels row cleanly
+        if len(row) > max(student_code_column_index, audio_stream_column_index):
+            spreadsheet_student_id = str(row.iloc[student_code_column_index]).strip().lower()
+            
+            # Match current row token directly with typed password criteria vectors
             if spreadsheet_student_id == search_token:
                 student_matching_record = {
-                    "timestamp": str(row.iloc[0]),
-                    "code": str(row.iloc[1]),
-                    "audio_data": str(row.iloc[2])
+                    "timestamp": str(row.iloc[timestamp_column_index]),
+                    "code": str(row.iloc[student_code_column_index]),
+                    "audio_data": str(row.iloc[audio_stream_column_index])
                 }
                 break
 
@@ -80,17 +90,14 @@ if student_matching_record:
     st.success(f"🔓 Access Granted for Student Code: {student_matching_record['code']} (Recorded on {student_matching_record['timestamp']})")
     
     try:
-        raw_base64_string = student_matching_record['audio_data']
-        
-        # Strip potential Data-URI descriptor headers if present
-        if "," in raw_base64_string:
+        raw_base64_string = student_matching_record['audio_data'].strip()
+        if "," in raw_base64_string: 
             raw_base64_string = raw_base64_string.split(",")[1]
             
         decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
+        st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
         
-        st.markdown("<p style='font-size: 12px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
-        
-        # Native direct text Data-URI HTML5 player avoids browser cross-origin sandbox restrictions
+        # HTML5 web container player bypasses dynamic platform cross-origin mutes cleanly
         st.components.v1.html(f"""
             <div style='background-color: #E8F8F5; border: 1px solid #A3E4D7; border-radius: 6px; padding: 10px; text-align: center;'>
                 <audio controls style='width: 100%; height: 40px;'>
@@ -100,7 +107,6 @@ if student_matching_record:
             </div>
         """, height=65)
         
-        # Activate direct localized file download capability
         st.download_button(
             label=f"📥 Download Verified Sound Take ({student_matching_record['code']}.mp3)",
             data=decoded_audio_bytes_payload,
@@ -126,7 +132,6 @@ compiled_base64_string_payload = ""
 if uploaded_student_file_asset is not None:
     try:
         raw_uploaded_bytes_block = uploaded_student_file_asset.read()
-        # Convert binary data packets to a standard Base64 string payload to prevent formatting loss across Google Sheet columns
         compiled_base64_string_payload = base64.b64encode(raw_uploaded_bytes_block).decode('utf-8')
         st.info(f"✨ File asset '{uploaded_student_file_asset.name}' loaded and compressed successfully inside local browser memory.")
     except Exception as file_err:
@@ -137,7 +142,6 @@ if uploaded_student_file_asset is not None:
 st.markdown("#### 🛠️ Direct Spreadsheet Append Form Hub")
 st.write("Provide your public Google Apps Script deployment URL link to send rows data down to the master sheet:")
 
-# Secure operational form posting hook
 APPS_SCRIPT_DEPLOYMENT_WEB_APP_URL = st.text_input(
     label="🔗 Paste Google Apps Script Web App URL Link:", 
     placeholder="https://google.com",
@@ -154,7 +158,6 @@ if st.button("⚡ Process Audio Upload Ledger Insertion Loop"):
     else:
         current_time_marker_string = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Package data row objects ledger packet arrays 
         form_payload_packet = {
             "timestamp": current_time_marker_string,
             "student_id": admin_target_student_id.strip(),
@@ -183,33 +186,37 @@ if st.button("⚡ Process Audio Upload Ledger Insertion Loop"):
 # ============================================================================
 st.write("---")
 st.markdown("### 📝 6. Required Google Apps Script Backend Setup Manual")
-st.write("To handle row writing requests using only your Spreadsheet ID, set up this backend macro:")
+st.write("To handle row writing requests matching your exact column layouts, deploy this custom code block:")
 
 apps_script_instructions_manual_text = """
-1. Open your Google Spreadsheet matching your ID.
-2. Click **Extensions** inside top dashboard menu bar rows -> Open **Apps Script** window.
-3. Delete all code text content inside the editor panel completely and paste this exact macro block script:
+1. Open your target Google Spreadsheet layout window.
+2. Confirm row 1 header structures match column assignments: 
+   * Cell **A1** -> `Fecha Registro`
+   * Cell **B1** -> Exactly **`Código Estudiante`** (Your specified matching password anchor column)
+   * Cell **C1** -> `Datos Audio`
+3. Click **Extensions** inside top dashboard menu bar rows -> Open **Apps Script** window.
+4. Delete all existing code text content inside the editor panel completely and paste this exact macro block script:
 
 ```javascript
 function doPost(e) {
   var targetSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var masterSheetLedger = targetSpreadsheet.getSheets()[0]; // Targets first worksheet tab index
+  var masterSheetLedger = targetSpreadsheet.getSheets()[0]; // Targets first worksheet tab index row channels
   
   var timestampValue = e.parameter.timestamp;
   var studentIdCode   = e.parameter.student_id;
   var audioBase64Data = e.parameter.audio_data;
   
-  // Appends variables straight into a newly locked row vector block ledger line safely
+  // Appends fields straight into columns under your exact matching tracking header cells rows labels!
   masterSheetLedger.appendRow([timestampValue, studentIdCode, audioBase64Data]);
   
   return ContentService.createTextOutput(JSON.stringify({"result": "success"}))
                        .setMimeType(ContentService.MimeType.JSON);
 }
 ```
-4. Click **Deploy** -> **New Deployment**.
-5. Select type: **Web App**.
-6. Set **Execute as**: *Me (Your account)*.
-7. Set **Who has access**: Change to **Anyone**. (Crucial for Streamlit cloud scripts communication).
-8. Click **Deploy**, authorize permissions, copy the generated **Web App URL**, and paste it into the panel input window above.
+5. Click **Deploy** -> **New Deployment**.
+6. Select type: **Web App**.
+7. Set **Execute as**: *Me (Your account)*.
+8. Set **Who has access**: Change to **Anyone**. (Crucial for Streamlit cloud scripts communication).
+9. Click **Deploy**, authorize permissions, copy the generated **Web App URL**, and paste it into the panel input window above.
 """
 st.markdown(apps_script_instructions_manual_text)
