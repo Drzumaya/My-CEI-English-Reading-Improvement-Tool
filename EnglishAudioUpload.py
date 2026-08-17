@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# FIXED WEB PUBLICATION MP3 STREAMING MATRIX • ENGLISHAUDIOUPLOAD.PY
+# BASE64 AUTO-PADDING & ILOC FIX BLUEPRINT • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -27,10 +27,8 @@ if "authenticated_student_record" not in st.session_state:
 # Your correct Google Web Publication Key Token String from the active account
 TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
-# FIXED LINK SUFFIX: 
-# Converted endpoint from visual layout web page '/pubhtml' to raw streaming format '/pub?output=csv'
-# This completely satisfies structural data readers and prevents lookup timeout crashes.
-PUBLIC_CSV_EXPORT_URL = f"https://docs.google.com/spreadsheets/d/e/{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
+# Re-routed through the secure export engine channel to download private frames
+PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
 # PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
 # ============================================================================
@@ -117,11 +115,9 @@ if st.session_state.authenticated_student_record is None:
 st.markdown("<h1 style='text-align: center; color: #117A65; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Secure Playback Database Upload & Student Verification Desk</h4>", unsafe_allow_html=True)
 # ============================================================================
-# PART 4: SECURE STUDENT AUDIOS DISPLAYER DESK PANEL (SUBIR EVIDENCIAS TARGETED)
+# PART 4: SECURE STUDENT AUDIOS DISPLAYER DESK PANEL (OMITTED OVERHEAD TITLE)
 # ============================================================================
 st.write("---")
-st.markdown("### 🔍 Your Secure Playback Repository File")
-st.write("Below is your verified recording track asset container block pulled from the cloud master ledger:")
 
 # Pull down the authorized data packet logged into session state memories
 current_active_student_record = st.session_state.authenticated_student_record
@@ -132,6 +128,13 @@ try:
     raw_base64_string = current_active_student_record['audio_data'].strip()
     if "," in raw_base64_string: 
         raw_base64_string = raw_base64_string.split(",")[-1]
+        
+    # 🛡️ AUTOMATED BASE64 PADDING RECONSTRUCTION NODE (THE INCORRECT PADDING FIX):
+    # Calculates character lengths and auto-appends structural '=' string indicators 
+    # to guarantee data frame compliance across various browser layout engines.
+    missing_padding_characters_count = len(raw_base64_string) % 4
+    if missing_padding_characters_count != 0:
+        raw_base64_string += "=" * (4 - missing_padding_characters_count)
         
     decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
     st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
@@ -225,14 +228,16 @@ if st.button("⚡ Process Audio Upload Ledger Insertion Loop"):
                 st.error(f"Transmission connection failed. ({connection_failure_err}).")
 
 # ----------------------------------------------------------------------------
-# DYNAMIC ADMIN SUMMARY DATAFRAME VIEW (VISIBLE ONLY WHEN AUTHENTICATED PAST LOGINS WALLS)
+# DYNAMIC ADMIN SUMMARY DATAFRAME VIEW (FIXED INDEXER ATTRIBUTE CONFLICT)
 # ----------------------------------------------------------------------------
 st.write("---")
 st.markdown("### 📊 Stored Records Summary Ledger Matrix")
 
 if sheet_raw_data_matrix is not None and not sheet_raw_data_matrix.empty:
     try:
-        header_labels_row_list = sheet_raw_data_matrix.iloc.astype(str).tolist()
+        # FIXED: Targets the concrete 1st row index array series explicitly to strip the object error out-of-screen
+        header_labels_row_list = sheet_raw_data_matrix.iloc[0].astype(str).str.strip().tolist()
+        
         data_content_matrix_rows = sheet_raw_data_matrix.iloc[1:].copy()
         data_content_matrix_rows.columns = header_labels_row_list
         
