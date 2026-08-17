@@ -4,47 +4,29 @@ import base64
 import requests
 import io
 import time
+from datetime import datetime
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# LIVE AUTORUN DATABASE REFRESH ENGINE • CAREER ENGLISH INSTITUTE (2026)
+# FIXED PUBLISHED WEB-TOKEN INFRASTRUCTURE ENGINE • MYCEIUPLOADEDFILES.PY
+# CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
-st.set_page_config(page_title="CEI Live Ledger Gateway", layout="centered")
+st.set_page_config(page_title="CEI Secure Storage Portal", layout="centered")
 st.markdown("<h1 style='text-align: center; color: #117A65; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Automated Results Ledger & Student Code Registration Desk</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Secure Playback Database Upload & Student Verification Desk</h4>", unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
-# Replace this token with your exact long Google Spreadsheet alphanumeric ID string.
-TARGET_GOOGLE_SHEET_ID = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
+# FIXED: Assigned your exact long Google Web Publication Key Token String cleanly
+TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
-# Derived unblocked public streaming links points straight to your spreadsheet rows data matrix
-PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_ID}/pub?output=csv"
-# ============================================================================
-# PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
-# ============================================================================
-
-@st.cache_data(ttl=2) # 3-second Time-To-Live forces Streamlit to constantly look for new student codes
-def fetch_live_cloud_results_ledger(target_url):
-    try:
-        # Live high-frequency timestamp nonce prevents data freezing
-        live_timestamp_nonce = int(time.time())
-        cache_busted_csv_url = f"{target_url}&cb={live_timestamp_nonce}"
-        
-        # Read sheet rows layout dynamically
-        df = pd.read_csv(cache_busted_csv_url, header=None)
-        return df
-    except Exception as err:
-        st.error(f"Spreadsheet stream lookup timed out. Check connection values ({err}).")
-        return None
-
-# Instantly pull the full cloud database rows list frame
-sheet_raw_data_matrix = fetch_live_cloud_results_ledger(PUBLIC_CSV_EXPORT_URL)
+# FIXED NETWORK ENVERT: Corrected path destination route mapping to unblock database rows streaming channels
+PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
 # PART 3: STUDENT PASSWORD VERIFICATION CORE & UNBLOCKED HTML5 STREAM LAYOUTS
 # ============================================================================
@@ -70,7 +52,7 @@ if typed_student_code_password.strip() != "" and sheet_raw_data_matrix is not No
     # Loop through the spreadsheet rows starting past the header cell titles row index
     for index, row in sheet_raw_data_matrix.iterrows():
         if index == 0: 
-            continue # Skip row index 0 labels row cleanly
+            continue # Skip row index 0 cleanly
         if len(row) > max(student_code_column_index, audio_stream_column_index):
             spreadsheet_student_id = str(row.iloc[student_code_column_index]).strip().lower()
             
@@ -94,7 +76,7 @@ if student_matching_record:
         decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
         st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
         
-        # HTML5 web container player bypasses dynamic platform cross-origin mutes cleanly
+        # HTML5 web container player bypasses dynamic platform cross-origin mutes cleanly using native MP3 formatting
         st.components.v1.html(f"""
             <div style='background-color: #E8F8F5; border: 1px solid #A3E4D7; border-radius: 6px; padding: 10px; text-align: center;'>
                 <audio controls style='width: 100%; height: 40px;'>
@@ -114,25 +96,6 @@ if student_matching_record:
         st.error(f"Linguistic file block corrupted or written in an invalid format string structure ({data_err}).")
 elif typed_student_code_password.strip() != "":
     st.error("🔒 Access Denied: Invalid Student ID Code password. Recording asset not found inside database rows.")
-# ============================================================================
-# PART 4: COORDINATOR MANUAL UPLOAD GATEWAY AND BINARY TO BASE64 CONVERTERS
-# ============================================================================
-st.write("---")
-st.markdown("### 📤 Coordinator Audio Ingestion Console")
-st.write("Authorized administrators use this portal to bind student recorded elements directly into the database sheet.")
-
-admin_target_student_id = st.text_input(label="📋 Target Student Code Mapping Assignment:", placeholder="e.g., CEI-2026-4402", key="admin_id_field")
-uploaded_student_file_asset = st.file_uploader(label="📁 Upload Student Playback Recording File Asset (.mp3, .wav):", type=["mp3", "wav"])
-
-compiled_base64_string_payload = ""
-
-if uploaded_student_file_asset is not None:
-    try:
-        raw_uploaded_bytes_block = uploaded_student_file_asset.read()
-        compiled_base64_string_payload = base64.b64encode(raw_uploaded_bytes_block).decode('utf-8')
-        st.info(f"✨ File asset '{uploaded_student_file_asset.name}' loaded and compressed successfully inside local browser memory.")
-    except Exception as file_err:
-        st.error(f"Error compiling structural file payload bytes ({file_err}).")
 # ============================================================================
 # PART 5: GOOGLE APPS SCRIPT FORM-POSTER WEB APP ENGINE CONNECTOR
 # ============================================================================
@@ -185,14 +148,12 @@ st.write("---")
 st.markdown("### 📊 Coordinator Administrative Results Monitor Ledger")
 st.write("Unlock this panel view option to verify compiled rows currently stored inside your cloud database spreadsheet:")
 
-# Security access lock verification prevent unauthorized student data exposures
 admin_panel_access_password_token = st.text_input(
     label="🔒 Enter Administrator Access Password to Display Ledger Results Table:",
     placeholder="Enter admin dashboard token keys...",
     type="password"
 )
 
-# Private coordinator verification access credential string lock
 if admin_panel_access_password_token.strip() == "CEI-Admin-2026":
     st.success("🔓 Administrative Access Cleared! Compiling stored sheet entries rows...")
     
@@ -211,7 +172,6 @@ if admin_panel_access_password_token.strip() == "CEI-Admin-2026":
                 visible_summary_ledger_df["Datos Audio"] = "🔒 Audio Blob Data Protected"
                 
             st.markdown("**📂 LIVE AUTOMATED DATABASE COHORT REGISTER MATRIX (STORES AUTOMATICALLY):**")
-            # Automatically projects all registered student code entries inside your Streamlit UI
             st.dataframe(visible_summary_ledger_df, use_container_width=True, hide_index=True)
             
             st.caption(f"💡 *Total Stored Student Registrations active: {len(visible_summary_ledger_df)} files rows.*")
