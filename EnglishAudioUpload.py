@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# EXPLICIT GOOGLE SPREADSHEET EXPORTER INFRASTRUCTURE • ENGLISHAUDIOUPLOAD.PY
+# FIXED WEB PUBLICATION MP3 STREAMING MATRIX • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -24,26 +24,31 @@ if "authenticated_student_record" not in st.session_state:
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
-# Clean isolated Spreadsheet token ID to prevent URL string decoding errors
-TARGET_GOOGLE_SHEET_TOKEN = "1vnRZDlb79scuC4kkdy0X3QNJKSLsVUFe_YoUe8GZlQU"
+# Your correct Google Web Publication Key Token String from the active account
+TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
-# FIXED ENGINES CHASSIS:
-# Re-engineered destination route mapping directly through Google Docs' live data export channel.
-# This structure completely satisfies the internet DNS name layers, preventing the service lookup crash.
-PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/export?format=csv"
+# FIXED LINK SUFFIX: 
+# Converted endpoint from visual layout web page '/pubhtml' to raw streaming format '/pub?output=csv'
+# This completely satisfies structural data readers and prevents lookup timeout crashes.
+PUBLIC_CSV_EXPORT_URL = f"https://docs.google.com/spreadsheets/d/e/{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
-# PART 2: EXCEPTION-SAFE SPREADSHEET FETCH ENGINE (BUTTON PROTECTION SYSTEM)
+# PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
 # ============================================================================
 
 @st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
 def fetch_live_cloud_results_ledger(target_url):
     try:
-        # Enforces a clean domain routing request structure to prevent name lookup crashes
-        df = pd.read_csv(target_url, header=None)
+        live_timestamp_nonce = int(time.time())
+        if "?" in target_url:
+            cache_busted_csv_url = f"{target_url}&cb={live_timestamp_nonce}"
+        else:
+            cache_busted_csv_url = f"{target_url}?cb={live_timestamp_nonce}"
+        
+        # Read sheet rows layout dynamically
+        df = pd.read_csv(cache_busted_csv_url, header=None)
         return df
     except Exception as err:
-        # Prevents total script execution halt to protect front-end button reactivity loops
-        st.warning(f"📡 Cloud Sync Notice: Retrying spreadsheet data stream verification... ({err})")
+        st.error(f"Spreadsheet stream lookup timed out. Check connection values ({err}).")
         return None
 
 # Instantly pull the full cloud database rows list frame
@@ -129,10 +134,9 @@ try:
         raw_base64_string = raw_base64_string.split(",")[-1]
         
     decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
-    
     st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
     
-    # Native direct text Data-URI HTML5 player avoids browser cross-origin sandbox restrictions natively in MP3 compression formats
+    # Native direct text Data-URI HTML5 player avoids browser cross-origin sandbox mutes natively in MP3 compression formats
     st.components.v1.html(f"""
         <div style='background-color: #E8F8F5; border: 1px solid #A3E4D7; border-radius: 6px; padding: 10px; text-align: center;'>
             <audio controls style='width: 100%; height: 40px;'>
