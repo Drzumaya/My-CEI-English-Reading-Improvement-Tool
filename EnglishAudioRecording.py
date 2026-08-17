@@ -10,8 +10,8 @@ import time
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: SYSTEM APPLICATION STACK, HEADERS, & DYNAMIC DATA STREAM PACKETS
-# GOOGLE SHEETS UNLIMITED AUDIO TRANSFERRED LEDGER SINK (TIMESTAMP CACHE BUSTER)
+# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION CSV CLOUD INITIALIZERS
+# INDEX-BASED AUTOMATED ROW INTERLOCK MAPPINGS (COLUMN HEADER CRASH FIX)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -23,7 +23,6 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # ----------------------------------------------------------------------------
 # DYNAMIC UNBLOCKED GOOGLE SPREADSHEET MANIFEST TRACKING ADAPTER HOOK
 # ----------------------------------------------------------------------------
-# Base spreadsheet token configuration pointing to your public shared ledger map
 BASE_SHEET_CSV_URL = "https://google.com"
 
 # Symmetrical local hardcoded data records fallback matrix representing your baseline syllabus
@@ -40,7 +39,7 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: CACHE-BUSTED DIRECTORY MAPPINGS & RE-ORDERED SYSTEM VIEWS
+# PART 2: INDEX-BASED ROW DATA PARSERS & RE-ORDERED SYSTEM VIEWS
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
@@ -48,25 +47,25 @@ discovered_curriculum_tracks = {}
 
 if "pub?output=csv" in BASE_SHEET_CSV_URL:
     try:
-        # THE CACHE BUSTER INTERLOCK: Appends a dynamic timestamp integer onto the web link query.
-        # This completely destroys the server-side memory lock and force-loads your full list of 24+ items.
+        # THE CACHE BUSTER INTERLOCK: Forces an unrestricted runtime download loop
         live_timestamp_nonce = int(time.time())
         cache_busted_csv_stream_url = f"{BASE_SHEET_CSV_URL}&cb={live_timestamp_nonce}"
         
-        # Pull from the public data matrix table live on runtime
+        # Pull down raw data framework table rows live from your link
         cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url)
         
-        # Iterates across all rows inside the spreadsheet to pull data tokens
+        # REFACTOR INTERLOCK: Reads spreadsheet columns by index position instead of text keys
+        # Column Index 0 (A) = Audio Track Title / Column Index 1 (B) = Drive Audio Shared URL link
         for index, row in cloud_data_frame.iterrows():
-            if 'Audio_Track_Name' in row and 'Drive_Share_URL' in row:
-                track_name = str(row['Audio_Track_Name']).strip()
-                audio_link = str(row['Drive_Share_URL']).strip()
+            if len(row) >= 2:
+                track_name = str(row.iloc[0]).strip()
+                audio_link = str(row.iloc[1]).strip()
                 
-                # Automatically creates standard training texts matching your file tokens
-                clean_title_label = track_name.replace('.mp3','').replace('.wav','').replace('_',' ')
-                simulated_text = f"Technical language standard training module passage matching cloud file asset: '{clean_title_label}'. Practice pronunciation flow and vocal tracking loops using your workbook guidelines."
-                
-                if track_name != "nan" and audio_link != "nan":
+                # Check for empty cells or padding artifacts securely
+                if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "":
+                    clean_title_label = track_name.replace('.mp3','').replace('.wav','').replace('_',' ')
+                    simulated_text = f"Technical language standard training module passage matching cloud file asset: '{clean_title_label}'. Practice pronunciation flow and vocal tracking loops using your workbook guidelines."
+                    
                     discovered_curriculum_tracks[track_name] = {
                         "text": simulated_text,
                         "url": audio_link
@@ -74,12 +73,12 @@ if "pub?output=csv" in BASE_SHEET_CSV_URL:
     except Exception as spreadsheet_sync_error:
         st.sidebar.caption(f"ℹ️ Cloud Sheet Sync Status: Running fallback backup mode ({spreadsheet_sync_error}).")
 
-# Fall back to base syllabus tokens if sheet link is unconfigured or returns empty vectors
+# Fall back to base syllabus tokens if sheet link returns empty data fields
 if not discovered_curriculum_tracks:
     for k, v in st.session_state.fallback_syllabus_bank.items():
         discovered_curriculum_tracks[k] = {"text": v, "url": None}
 
-# EXACT PROMPT TEXT SPECIFICATION ENFORCED
+# EXACT USER COMPLIANCE PROMPT DROPDOWN STRING LABELS ENFORCED
 selected_track_id = st.selectbox(
     "Choose an Exercise track:",
     options=sorted(list(discovered_curriculum_tracks.keys())),
@@ -93,7 +92,7 @@ st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margi
 st.write("Students can launch this reference model an unlimited number of times to study fluid, youthful US English tone structures.")
 
 # Direct browser link true sound player or youthful acoustic speaker guide fallback logic node
-if active_target_url and "drive.google.com" in active_target_url:
+if active_target_url and "://google.com" in active_target_url:
     try:
         # Extracts raw shared link structures into direct browser audio streaming packets natively
         parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
@@ -104,7 +103,7 @@ if active_target_url and "drive.google.com" in active_target_url:
 else:
     if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
         js_youthful_speech_loop = f"""
-        <html lang="en'><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Natural')) || (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.90; u.pitch = 1.15; s.speak(u); }})();</script></body></html>
+        <html lang="en"><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Natural')) || (v.lang.startsWith('en-US') && v.name.includes('Google')) || v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.90; u.pitch = 1.15; s.speak(u); }})();</script></body></html>
         """
         st.components.v1.html(js_youthful_speech_loop, height=1, width=1)
 
@@ -125,7 +124,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_sound_fidelity_cache_busted_recorder'
+    key='cei_github_4part_lossless_sound_fidelity_index_mapped_recorder'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -135,7 +134,7 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # Lossless pass-through leaves raw binary blocks uncorrupted to ensure your playback audio has sound
+        # Lossless passthrough leaves raw binary blocks uncorrupted to ensure your playback audio has sound
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
@@ -231,7 +230,6 @@ if available_vault_tracks:
         for index, individual_take in enumerate(valid_active_selections):
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            # Lossless audio playback node ensures your recorded voice track sounds out loud flawlessly
             st.audio(selected_audio_bytes, format="audio/wav")
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
