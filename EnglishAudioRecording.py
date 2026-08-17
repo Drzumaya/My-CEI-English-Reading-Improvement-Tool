@@ -4,14 +4,15 @@ from rapidfuzz import fuzz
 from datetime import datetime
 import urllib.request
 import urllib.parse
+import json
 import re
 import io
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: SYSTEM APPLICATION STACK, HEADERS, & PUBLIC CLOUD PATH INITIALIZERS
-# COMPREHENSIVE GOOGLE CLOUD INVENTORY MATRIX FOR UNBLOCKED TRACK FEEDS
+# PART 1: SYSTEM STACK DEPENDENCIES, BANNERS, & GOOGLE DRIVE ROOT TARGET PATHS
+# ADMINISTRATIVE ID CODE MAINTENANCE UPGRADE CONSOLE INTEGRATION
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -40,18 +41,21 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: DYNAMIC FILE SELECTION MATRIX AND DYNAMIC DISPLAY SHOWERS
+# PART 2: UNRESTRICTED CLOUD CHUNK SCANNERS AND TARGET READING DISPLAY SHOWERS
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
+# ----------------------------------------------------------------------------
+# RUNTIME SYNC CORE: RECURSIVE CHUNK PARSER FOR UNBLOCKED TRACK FEEDS (ALL ITEMS)
+# ----------------------------------------------------------------------------
 discovered_cloud_audio_tracks = []
 cloud_track_url_map = {}
 
 if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
-    # DEEP-SCAN CHANNELS: Targets multi-tiered backend arrays to bypass Google's 4-file display limits
+    # DEEP-SCAN INTEGRATION: Targets combined embedded endpoints to force-list all 24+ items cleanly
     cloud_extraction_endpoints = [
-        f"https://google.com{ECAUDIOS_FOLDER_ID}&type=folder&max-results=150&sort=name",
         f"https://google.com{ECAUDIOS_FOLDER_ID}&hl=en_US",
+        f"https://google.com{ECAUDIOS_FOLDER_ID}&type=folder&max-results=150",
         f"https://google.com{ECAUDIOS_FOLDER_ID}&max-results=150"
     ]
     
@@ -74,7 +78,7 @@ if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
 if not discovered_cloud_audio_tracks:
     discovered_cloud_audio_tracks = list(st.session_state.fallback_syllabus_bank.keys())
 
-# EXACT USER SPECIFICATION PROMPT ASSIGNMENT ENFORCED HERE:
+# EXACT PROMPT SPECIFICATION ENFORCED
 selected_track_id = st.selectbox(
     "Choose an Exercise track:",
     options=sorted(discovered_cloud_audio_tracks),
@@ -102,7 +106,7 @@ st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 # ============================================================================
-# PART 3: VOICE REGISTRATION DESK AND LOSSLESS SOUND FIDELITY VAULTING
+# PART 3: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE
 # ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
@@ -113,24 +117,30 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_unrestricted_lossless_sound_fidelity_recorder'
+    key='cei_github_4part_lossless_sound_fidelity_recorder_v48'
 )
 
-# ----------- STEP 4: LOSSLESS SOUND DATA STORAGE VAULTS INTERLOCK -----------
+# ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
 if audio_vocal_capture:
     raw_vocal_bytes = audio_vocal_capture['bytes']
     current_timestamp_string = datetime.now().strftime("%H:%M:%S")
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # Raw byte loop channels pass full microphone waveforms to ensure exact sounding tracking
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
-# PART 4: COGNITIVE EVALUATIONS, LOSSLESS PLAYBACK MONITOR, AND BULK PURGING
+# PART 4: COGNITIVE EVALUATIONS, ADMINISTRATIVE MAINTENANCE PANEL, & DELETIONS
 # ============================================================================
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
+
+col_id, col_name = st.columns(2)
+with col_id:
+    student_id_code = st.text_input(label="📋 Enter Student ID Code:", placeholder="e.g., CEI-2026-4402", key="student_custom_id_code")
+with col_name:
+    student_provided_name = st.text_input(label="📝 Enter Student Name or Custom Label:", placeholder="e.g., Carlos Mendoza", key="student_custom_filename")
+
 transcribed_user_input = st.text_area(label="Transcription Verification Pane:", placeholder="Awaiting manual transcript text lines or automatic speech mapping logs...", key="text_transcription_transfer")
 
 if st.button("🔍 Run Linguistic Evaluation Loops"):
@@ -138,18 +148,12 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         st.error("System Notice: Please provide text content inside the container to execute structural gap check matrices.")
     else:
         ref_clean_tokens = active_target_text.lower().replace(".", "").replace(",", "").replace("’", "").replace("'", "").split()
-        user_clean_tokens = transcribed_user_input.lower().replace(".", "").replace(",", "").replace("2", "").replace("’", "").replace("'", "").split()
+        user_clean_tokens = transcribed_user_input.lower().replace(".", "").replace(",", "").replace("’", "").replace("'", "").split()
         
         fluency_percentage_score = round(fuzz.token_set_ratio(active_target_text, transcribed_user_input))
         st.markdown(f"### ➔ COHORT SCORE MATRIX GAP BALANCE [{fluency_percentage_score}%]:")
         st.metric(label="Fluency Matching Score Percentage Matrix", value=f"{fluency_percentage_score}%")
         
-        st.markdown("#### 📋 CEI B2 Metric Grade Rubric Overlay Matrix")
-        if fluency_percentage_score >= 85:
-            st.success("🥇 **CEI Grade: EXCELLENT / EXCELENTE (Level B2 Native Standard Passed)**\n\n* **Fluency / Fluidez:** Continuous delivery, natural breath phrasing groups.\n* **Accuracy / Precisión:** Full industrial vocabulary compliance.")
-        else:
-            st.warning("🥉 **CEI Grade: TARGET IMPROVEMENT REQUIRED / REQUIERE MEJORA CONTÍNUA**\n\n* **Fluency / Fluidez:** Micro hesitation bottleneck cycles observed.\n* **Accuracy / Precisión:** Review wrong words logs below to realign vowel tracks.")
-
         col_correct, col_wrong = st.columns(2)
         with col_correct:
             st.markdown("<p style='font-size: 12px; font-weight: bold; color: #27AE60;'>CORRECTLY READ WORDS LOG:</p>", unsafe_allow_html=True)
@@ -166,19 +170,58 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
 
         st.session_state.gradebook_matrix_history.append({
             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Student_ID": student_id_code.strip() if student_id_code.strip() != "" else "TEMP-ID",
+            "Student_Name": student_provided_name.strip() if student_provided_name.strip() != "" else "Anonymous Cohort",
             "Track ID": selected_track_id,
             "Accuracy Score": f"{fluency_percentage_score}%",
             "Transcription": transcribed_user_input
         })
+
+# ----------------------------------------------------------------------------
+# 🛠️ SYSTEM MAINTENANCE UPGRADE AREA: THE STUDENT ID CODES MAINTENANCE DASHBOARD
+# ----------------------------------------------------------------------------
+if st.session_state.gradebook_matrix_history:
+    st.write("---")
+    st.markdown("### 🛠️ Coordinator Database Maintenance Dashboard")
+    st.write("Select a committed record entry line to overwrite or upgrade its target Student ID column parameters:")
+    
+    # Generate legible selector string descriptors for each logged row entry
+    gradebook_string_indices = []
+    for index, log in enumerate(st.session_state.gradebook_matrix_history):
+        gradebook_string_indices.append(f"Row [{index + 1}] - Time: {log['Timestamp']} | Current ID: {log['Student_ID']} | Name: {log['Student_Name']}")
+        
+    chosen_maintenance_row_string = st.selectbox(
+        "Select Logged Gradebook Record Line to Modify:",
+        options=gradebook_string_indices,
+        key="maintenance_row_selector"
+    )
+    
+    # Isolate the exact selected numerical position key from the text label token
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [")[1].split("]")[0]) - 1
+    
+    col_new_id, col_upgrade_trigger = st.columns([2, 1])
+    with col_new_id:
+        new_upgraded_id_string = st.text_input(
+            label="Type New Corrected Student ID Code String:",
+            placeholder="e.g., OFFICIAL-CEI-4402",
+            key=f"upgrade_field_{target_numerical_index}"
+        )
+    with col_upgrade_trigger:
+        st.write("<br>", unsafe_allow_html=True)
+        if st.button("⚡ Execute Administrative ID Code Upgrade", key="run_id_maintenance_upgrade"):
+            if new_upgraded_id_string.strip() == "":
+                st.error("Operation Denied: Input field cannot be empty.")
+            else:
+                # Overwrite the ledger value directly inside the active memory cell
+                st.session_state.gradebook_matrix_history[target_numerical_index]["student_id"] = new_upgraded_id_string.strip()
+                st.toast(f"⚡ Row [{target_numerical_index + 1}] successfully updated to official Student ID: {new_upgraded_id_string.strip()}!")
+                st.rerun()
 
 st.write("---")
 st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Station")
 available_vault_tracks = list(st.session_state.student_record_vault.keys())
 
 if available_vault_tracks:
-    st.markdown("#### 📝 Document Naming Station")
-    student_provided_name = st.text_input(label="Type your name, student ID code, or preferred file label descriptor here:", placeholder="e.g., Carlos_Mendoza_ID4402", key="student_custom_filename")
-
     chosen_take_keys = st.multiselect("Select One or More Historical Vocal Attempt Tracks from Vault Panel:", options=available_vault_tracks, default=[available_vault_tracks[-1]] if available_vault_tracks else [], key="synchronized_vault_multiselector")
     valid_active_selections = [t for t in chosen_take_keys if t in st.session_state.student_record_vault]
     
@@ -207,9 +250,10 @@ if available_vault_tracks:
         if st.session_state.gradebook_matrix_history:
             st.write("---")
             st.markdown("#### 📥 Administrative Spreadsheet Exporter Station")
-            csv_string_buffer = "Timestamp Ledger,Syllabus Track ID,Fluency Score Ratio,Transcription Captured\n"
+            csv_string_buffer = "Timestamp Ledger,Student ID Code,Student Name,Syllabus Track ID,Fluency Score Ratio,Transcription Captured\n"
             for log in st.session_state.gradebook_matrix_history:
-                csv_string_buffer += f'"{log["Timestamp"]}","{log["Track ID"]}","{log["Accuracy Score"]}","{log["Transcription"]}"\n'
+                # Direct downstream integration pulls upgraded parameters live on request
+                csv_string_buffer += f'"{log["Timestamp"]}","{log["Student_ID"]}","{log["Student_Name"]}","{log["Track ID"]}","{log["Accuracy Score"]}","{log["Transcription"]}"\n'
                 
             col_csv, col_xlsx = st.columns(2)
             with col_csv: st.download_button(label="📥 Download Database Ledger (.csv)", data=csv_string_buffer.encode('utf-8'), file_name="CEI_Master_Gradebook_Ledger.csv", mime="text/csv")
