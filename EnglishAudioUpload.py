@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# BASE64 AUTO-PADDING & ILOC FIX BLUEPRINT • ENGLISHAUDIOUPLOAD.PY
+# CLEAN NETWORK STREAM ROUTING INTEGRATION • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -24,26 +24,21 @@ if "authenticated_student_record" not in st.session_state:
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
-# Your correct Google Web Publication Key Token String from the active account
+# Your exact Google Web Publication Key Token String from the active account
 TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
-# Re-routed through the secure export engine channel to download private frames
+# Public streaming ledger export channel in its native, uncorrupted URL query layout
 PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
-# PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
+# PART 2: FIREWALL-SAFE REAL-TIME CLOUD SYNCHRONIZATION ENGINE
 # ============================================================================
 
 @st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
 def fetch_live_cloud_results_ledger(target_url):
     try:
-        live_timestamp_nonce = int(time.time())
-        if "?" in target_url:
-            cache_busted_csv_url = f"{target_url}&cb={live_timestamp_nonce}"
-        else:
-            cache_busted_csv_url = f"{target_url}?cb={live_timestamp_nonce}"
-        
-        # Read sheet rows layout dynamically
-        df = pd.read_csv(cache_busted_csv_url, header=None)
+        # 🛡️ SANATIZED DIRECT ROUTING INJECTOR:
+        # Pulls the clean, uncorrupted base URL directly to prevent string truncation crashes.
+        df = pd.read_csv(target_url, header=None)
         return df
     except Exception as err:
         st.error(f"Spreadsheet stream lookup timed out. Check connection values ({err}).")
@@ -129,9 +124,7 @@ try:
     if "," in raw_base64_string: 
         raw_base64_string = raw_base64_string.split(",")[-1]
         
-    # 🛡️ AUTOMATED BASE64 PADDING RECONSTRUCTION NODE (THE INCORRECT PADDING FIX):
     # Calculates character lengths and auto-appends structural '=' string indicators 
-    # to guarantee data frame compliance across various browser layout engines.
     missing_padding_characters_count = len(raw_base64_string) % 4
     if missing_padding_characters_count != 0:
         raw_base64_string += "=" * (4 - missing_padding_characters_count)
@@ -228,16 +221,14 @@ if st.button("⚡ Process Audio Upload Ledger Insertion Loop"):
                 st.error(f"Transmission connection failed. ({connection_failure_err}).")
 
 # ----------------------------------------------------------------------------
-# DYNAMIC ADMIN SUMMARY DATAFRAME VIEW (FIXED INDEXER ATTRIBUTE CONFLICT)
+# DYNAMIC ADMIN SUMMARY DATAFRAME VIEW (VISIBLE ONLY WHEN AUTHENTICATED PAST LOGINS WALLS)
 # ----------------------------------------------------------------------------
 st.write("---")
 st.markdown("### 📊 Stored Records Summary Ledger Matrix")
 
 if sheet_raw_data_matrix is not None and not sheet_raw_data_matrix.empty:
     try:
-        # FIXED: Targets the concrete 1st row index array series explicitly to strip the object error out-of-screen
         header_labels_row_list = sheet_raw_data_matrix.iloc[0].astype(str).str.strip().tolist()
-        
         data_content_matrix_rows = sheet_raw_data_matrix.iloc[1:].copy()
         data_content_matrix_rows.columns = header_labels_row_list
         
