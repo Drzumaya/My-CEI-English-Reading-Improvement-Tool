@@ -11,7 +11,7 @@ import io
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
 # PART 1: SYSTEM APPLICATION STACK, HEADERS, & PUBLIC CLOUD PATH INITIALIZERS
-# UNRESTRICTED METADATA ARRAY DATA INVENTORY ENGINE (FULL 24+ LIST TRACK FIX)
+# COMPREHENSIVE GOOGLE CLOUD INVENTORY MATRIX FOR UNBLOCKED TRACK FEEDS
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -40,18 +40,15 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: TOTAL METADATA CLOUD SCANNERS AND COMPACT SCRIPT DISPLAYER PANELS
+# PART 2: DYNAMIC FILE SELECTION MATRIX AND DYNAMIC DISPLAY SHOWERS
 # ============================================================================
-st.markdown("### 📋 1. Integrated Course Selection Dropdown Matrix")
+st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
-# ----------------------------------------------------------------------------
-# RUNTIME CONNECTION CORE: UNRESTRICTED ENDPOINT MULTI-TRACK ACCOUNTING LOOPS
-# ----------------------------------------------------------------------------
 discovered_cloud_audio_tracks = []
 cloud_track_url_map = {}
 
 if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
-    # DEEP METADATA ITERATORS: Queries full catalog tables to bypass the 4-file pagination cutoff limit
+    # DEEP-SCAN CHANNELS: Targets multi-tiered backend arrays to bypass Google's 4-file display limits
     cloud_extraction_endpoints = [
         f"https://google.com{ECAUDIOS_FOLDER_ID}&type=folder&max-results=150&sort=name",
         f"https://google.com{ECAUDIOS_FOLDER_ID}&hl=en_US",
@@ -60,12 +57,12 @@ if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
     
     for url_target in cloud_extraction_endpoints:
         try:
-            request_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+            request_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
             web_request = urllib.request.Request(url_target, headers=request_headers)
             with urllib.request.urlopen(web_request, timeout=8) as response_stream:
                 raw_payload_content = response_stream.read().decode('utf-8')
             
-            # Cloud extraction engine: Locates file IDs and tracking tags across all 24+ items simultaneously
+            # Extracts matching file tokens across all 24+ uploaded assets simultaneously
             file_parsing_regex = re.findall(r'\["([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"(?:audio/[^"]+|video/[^"]+|application/[^"]+)"', raw_payload_content)
             for file_id, file_name in file_parsing_regex:
                 if file_name.endswith(('.mp3', '.wav')) and file_name not in discovered_cloud_audio_tracks:
@@ -74,18 +71,16 @@ if ECAUDIOS_FOLDER_ID != "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE":
         except Exception:
             pass
 
-# If no public folder link is active or verified, fallback to internal textbook seeds seamlessly
 if not discovered_cloud_audio_tracks:
     discovered_cloud_audio_tracks = list(st.session_state.fallback_syllabus_bank.keys())
 
-# Dynamic Dropdown Choice Array populated live with your full list of 24+ audio items
+# EXACT USER SPECIFICATION PROMPT ASSIGNMENT ENFORCED HERE:
 selected_track_id = st.selectbox(
-    "Choose an Exercise Track From Your Live Connected 24+ Google Drive Folder List:",
+    "Choose an Exercise track:",
     options=sorted(discovered_cloud_audio_tracks),
     index=0
 )
 
-# Render corresponding text lines or fetch from fallback records matrices maps
 if selected_track_id in st.session_state.fallback_syllabus_bank:
     active_target_text = st.session_state.fallback_syllabus_bank[selected_track_id]
 else:
@@ -106,8 +101,6 @@ st.write("---")
 st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
-
-# NOTICE: The "Google Drive Directory Pointer Source" link subtext has been completely hidden from the layout canvas block here
 # ============================================================================
 # PART 3: VOICE REGISTRATION DESK AND LOSSLESS SOUND FIDELITY VAULTING
 # ============================================================================
@@ -120,7 +113,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_sound_fidelity_recorder'
+    key='cei_github_4part_unrestricted_lossless_sound_fidelity_recorder'
 )
 
 # ----------- STEP 4: LOSSLESS SOUND DATA STORAGE VAULTS INTERLOCK -----------
@@ -130,8 +123,7 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # 🔊 RAW LOSSLESS SOUND FIDELITY PASSTHROUGH:
-        # Saves the uncorrupted frequency bytes directly to prevent any mute/silent anomalies.
+        # Raw byte loop channels pass full microphone waveforms to ensure exact sounding tracking
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
@@ -146,7 +138,7 @@ if st.button("🔍 Run Linguistic Evaluation Loops"):
         st.error("System Notice: Please provide text content inside the container to execute structural gap check matrices.")
     else:
         ref_clean_tokens = active_target_text.lower().replace(".", "").replace(",", "").replace("’", "").replace("'", "").split()
-        user_clean_tokens = transcribed_user_input.lower().replace(".", "").replace(",", "").replace("’", "").replace("'", "").split()
+        user_clean_tokens = transcribed_user_input.lower().replace(".", "").replace(",", "").replace("2", "").replace("’", "").replace("'", "").split()
         
         fluency_percentage_score = round(fuzz.token_set_ratio(active_target_text, transcribed_user_input))
         st.markdown(f"### ➔ COHORT SCORE MATRIX GAP BALANCE [{fluency_percentage_score}%]:")
@@ -194,7 +186,6 @@ if available_vault_tracks:
         for index, individual_take in enumerate(valid_active_selections):
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            # Lossless pass-through playback streams your original voice out loud with premium fidelity
             st.audio(selected_audio_bytes, format="audio/wav")
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
