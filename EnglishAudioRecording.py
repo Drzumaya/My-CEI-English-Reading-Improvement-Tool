@@ -10,8 +10,8 @@ import time
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 5 STANDALONE PARTS
-# PART 1: SYSTEM APPLICATION STACK FRAMEWORKS, HEADERS, & SESSION CORE CACHES
-# MASTER PRODUCTION ARCHITECTURE • CAREER ENGLISH INSTITUTE (2026)
+# PART 1: SYSTEM STACK DEPENDENCIES, BANNERS, & GLOBAL WORKSPACE REPO SINK
+# CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
@@ -65,7 +65,7 @@ if "master_curriculum_catalog" not in st.session_state:
         "ECAUDIOS_Track_28_Kitting_Zone_Layout.mp3": "Coordinators are reviewing the kitting zone logistics layout map to cut down on material handling cycle waste times. Moving the staging bins adjacent to the line entrance drops transit waste immediately."
     }
 # ============================================================================
-# PART 3: CLOUD SYNC MATRICES AND TARGET SCRIPT READING SHOWERS (STEP 1 & 2)
+# PART 3: CLOUD DIRECTORY ACCOUNTING, 7-VOICE TIMBRES, & PACING VELOCITY SLIDERS
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
@@ -73,17 +73,14 @@ discovered_curriculum_tracks = {}
 
 if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
     try:
-        # THE RUNTIME CACHE BUSTER: Appends a dynamic timestamp onto the streaming request link
-        # This completely skips browser cache blocks and force-loads all 28 rows from your sheet.
         live_timestamp_nonce = int(time.time())
         cache_busted_csv_stream_url = f"{PUBLISHED_MANIFEST_CSV_URL}&cb={live_timestamp_nonce}"
         cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url, header=None)
         
-        # Positional index unroller scans column A (0) and column B (1) sequentially
         for index, row in cloud_data_frame.iterrows():
             if len(row) >= 2:
-                track_name = str(row.iloc[0]).strip()
-                audio_link = str(row.iloc[1]).strip()
+                track_name = str(row.iloc).strip()
+                audio_link = str(row.iloc).strip()
                 
                 if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
                     if track_name in st.session_state.master_curriculum_catalog:
@@ -99,7 +96,6 @@ if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
     except Exception:
         pass
 
-# Failsafe protection: injects the complete 28-track internal catalog if a network lag occurs
 if len(discovered_curriculum_tracks) < 28:
     for k, v in st.session_state.master_curriculum_catalog.items():
         discovered_curriculum_tracks[k] = {"text": v, "url": None}
@@ -114,23 +110,82 @@ selected_track_id = st.selectbox(
 active_target_text = discovered_curriculum_tracks[selected_track_id]["text"]
 active_target_url = discovered_curriculum_tracks[selected_track_id]["url"]
 
-st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 NATURAL NATIVE SPEAKER PLAYER REPLAY CORE:</p>", unsafe_allow_html=True)
+st.write("---")
+st.markdown("#### 🔊 Reference Track Playback Station")
 
-# UNBLOCKED HTML5 CONTAINER REF PLAYBACK:
-# Reads direct streaming links from your spreadsheet rows to bypass all muted browser limits.
+# 🛠️ MULTI-TIMBRE OPTION DECK: 7 different workplace accent matrix profiles
+voice_options_map = {
+    "🇺🇸 Premium US Female (Natural Sam)": {"lang": "en-US", "name": "Google US English", "pitch": 1.05},
+    "🇺🇸 Rich US Male (Neural Corporate)": {"lang": "en-US", "name": "Microsoft David", "pitch": 0.92},
+    "🇬🇧 Crisp UK Female (London Accent)": {"lang": "en-GB", "name": "Google UK English Female", "pitch": 1.00},
+    "🇬🇧 Standard UK Male (BBC Dialect)": {"lang": "en-GB", "name": "Google UK English Male", "pitch": 0.95},
+    "🇦🇺 Smooth Australian Female": {"lang": "en-AU", "name": "Google AU English", "pitch": 1.02},
+    "🇮🇳 Clear Indian English Female": {"lang": "en-IN", "name": "Google IN English", "pitch": 1.04},
+    "🇺🇸 Youthful US Voice (Timbre Shifted)": {"lang": "en-US", "name": "Natural", "pitch": 1.15}
+}
+
+col_vce, col_spd = st.columns(2)
+with col_vce:
+    chosen_voice_timbre = st.selectbox(
+        "💡 Choose Dialect Timbre (7 Options):",
+        options=list(voice_options_map.keys()),
+        index=0
+    )
+with col_spd:
+    # 🛠️ VELOCITY MODIFICATION DECK: Custom speaking pace slider integration
+    chosen_speaking_velocity = st.slider(
+        "🏃 Adjust Speaking Velocity Speed:",
+        min_value=0.50,
+        max_value=1.50,
+        value=0.88,
+        step=0.05,
+        format="%f"
+    )
+
+target_voice_meta = voice_options_map[chosen_voice_timbre]
+
 if active_target_url and "://google.com" in active_target_url:
     try:
         parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
         direct_streaming_packet_url = f"https://google.com{parsed_id}"
+        st.write("🎵 *Playing original recording asset directly from public cloud link:*")
         st.audio(direct_streaming_packet_url, format="audio/mp3")
-    except Exception as stream_err:
-        st.caption(f"⚠️ Link parsing configuration notice. Confirm public sharing permissions inside Drive ({stream_err}).")
-else:
-    if st.button("▶️ Sound Selected Reference Course Track (Local Backup Synthesizer Mode)"):
-        js_vocal_fallback = f"""
-        <html lang='en'><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Natural')) || v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.88; s.speak(u); }})();</script></body></html>
-        """
-        st.components.v1.html(js_vocal_fallback, height=1)
+    except Exception:
+        pass
+
+st.write(" ")
+# Renders a visible control bar component to completely unblock browser audio pipelines
+js_multi_voice_velocity_console = f"""
+<div style='background-color: #F8F9F9; border: 1px solid #D5DBDB; border-radius: 6px; padding: 12px; text-align: center;'>
+    <button id='cei_run_timbre_spd_btn' style='background-color: #2471A3; color: white; border: none; padding: 10px 24px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer;'>
+        ▶️ Play Text Asset at {chosen_speaking_velocity}x Speed
+    </button>
+</div>
+
+<script>
+document.getElementById('cei_run_timbre_spd_btn').addEventListener('click', function() {{
+    let synth = window.speechSynthesis;
+    synth.cancel();
+    
+    let txt = `{active_target_text.replace('`','\\`').replace('$','\\$')}`;
+    let utterance = new SpeechSynthesisUtterance(txt);
+    
+    let vcs = synth.getVoices();
+    let selectedVoice = vcs.find(v => 
+        v.name.includes('{target_voice_meta["name"]}') || 
+        v.lang.startsWith('{target_voice_meta["lang"]}')
+    );
+    
+    if (selectedVoice) utterance.voice = selectedVoice;
+    utterance.lang = '{target_voice_meta["lang"]}';
+    utterance.rate = {chosen_speaking_velocity}; # Live velocity modifier injection
+    utterance.pitch = {target_voice_meta["pitch"]};
+    
+    synth.speak(utterance);
+}});
+</script>
+"""
+st.components.v1.html(js_multi_voice_velocity_console, height=65)
 
 # ----------- STEP 2: THE READING SHOWER SCRIPT VIEWPORT BOARD -----------
 st.write("---")
@@ -138,7 +193,7 @@ st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 # ============================================================================
-# PART 4: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE (STEP 3 & 4)
+# PART 4: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE
 # ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
@@ -149,7 +204,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_5part_lossless_sound_fidelity_unmuted_recorder'
+    key='cei_github_5part_lossless_sound_fidelity_multitimbre_velocity_recorder'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -159,11 +214,10 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # Lossless passthrough ensures the student voice recording sounds exactly as it was recorded
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
-# PART 5: COGNITIVE EVALUATIONS, ADMINISTRATIVE MAINTENANCE PANEL, & EXPORTERS
+# PART 5: COGNITIVE EVALUATIONS, COHORT ID MANAGEMENT PANELS, & EXPORTERS
 # ============================================================================
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
@@ -228,7 +282,7 @@ if st.session_state.gradebook_matrix_history:
         key="maintenance_row_selector"
     )
     
-    target_numerical_index = int(chosen_maintenance_row_string.split("Row [")[1].split("]")[0]) - 1
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [").split("]")) - 1
     
     col_new_id, col_upgrade_trigger = st.columns(2)
     with col_new_id:
