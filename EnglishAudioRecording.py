@@ -80,8 +80,8 @@ if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
         
         for index, row in cloud_data_frame.iterrows():
             if len(row) >= 2:
-                track_name = str(row.iloc).strip()
-                audio_link = str(row.iloc).strip()
+                track_name = str(row.iloc[0]).strip()
+                audio_link = str(row.iloc[1]).strip()
                 
                 if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
                     if track_name in st.session_state.master_curriculum_catalog:
@@ -198,7 +198,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_v1'
+    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_v2'
 )
 
 # ----------- STEP 4: TRACKING DATA BUFFER VALIDATION DESK -----------
@@ -208,7 +208,6 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # Passes raw browser fragments straight into the session vault without data truncation.
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with full uncompressed voice parameters active!")
 # ============================================================================
@@ -216,10 +215,17 @@ if audio_vocal_capture:
 # ============================================================================
 st.write("---")
 st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Station")
+
+# REFACTOR INTERLOCK LOCATION: Fields initialized before player reads variables names
+col_id_p5, col_name_p5 = st.columns(2)
+with col_id_p5:
+    student_id_code = st.text_input(label="📋 Enter Student ID Code:", placeholder="e.g., CEI-2026-4402", key="student_custom_id_code")
+with col_name_p5:
+    student_provided_name = st.text_input(label="📝 Enter Student Name or Custom Label:", placeholder="e.g., Carlos Mendoza", key="student_custom_filename")
+
 available_vault_tracks = list(st.session_state.student_record_vault.keys())
 
 if available_vault_tracks:
-    # Restarter system clears the active session cache dictionary instantly to allow a clean reboot
     if st.button("🧹 Direct Bulk Purge: Clear All Recorded Tracks From Vault", key="bulk_restart_recorded_vault_purgers"):
         st.session_state.student_record_vault.clear()
         st.toast("🧹 Success! All historical audio files deleted. Track lists wiped clean to restart fresh!")
@@ -234,9 +240,7 @@ if available_vault_tracks:
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
             
-            # UNBLOCKED HTML5 AUDIO INJECTOR INTERLOCK MATRIX (THE CHANNELS MONITOR PATCH):
-            # We convert binary voice payloads into an unblocked Base64 Data URI block and pipe it 
-            # straight into a visible web-browser component. This removes sandbox locks and sounds recordings out loud.
+            # HTML5 Audio-URI conversion structure ensures sound compatibility across all device networks unmuted
             b64_string = base64.b64encode(selected_audio_bytes).decode('utf-8')
             html5_audio_uri_player = f"""
             <div style='margin-bottom: 15px;'>
@@ -268,12 +272,6 @@ if available_vault_tracks:
 # ============================================================================
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
-
-col_id, col_name = st.columns(2)
-with col_id:
-    student_id_code = st.text_input(label="📋 Enter Student ID Code:", placeholder="e.g., CEI-2026-4402", key="student_custom_id_code")
-with col_name:
-    student_provided_name = st.text_input(label="📝 Enter Student Name or Custom Label:", placeholder="e.g., Carlos Mendoza", key="student_custom_filename")
 
 transcribed_user_input = st.text_area(label="Transcription Verification Pane:", placeholder="Awaiting manual transcript text lines or automatic speech mapping logs...", key="text_transcription_transfer")
 
