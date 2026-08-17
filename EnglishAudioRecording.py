@@ -12,7 +12,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 5 STANDALONE PARTS
 # PART 1: SYSTEM APPLICATION STACK, BANNERS, & GLOBAL WORKSPACE REPO SINK
-# ON-BOARD BASE64 WAVEFORM PACKET ENCODER CORE (THE SILENT MIC PLAYBACK FIX)
+# SYMMETRICAL RESTART PURGER CHASSIS (BULK PLAYBACK TRACKS ERASE TOOL)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -45,7 +45,7 @@ if "master_curriculum_catalog" not in st.session_state:
         "ECAUDIOS_Track_06_SPC_Trend_Lines.mp3": "Lets draw your attention directly to this active X bar statistical process control chart interface screen. As you can clearly see the variable data plots display non random distribution parameters over the last eight hours of operation.",
         "ECAUDIOS_Track_07_IATF_Containment.mp3": "Every suspect container matching raw material batch lot code alpha dash nine must be immediately isolated across all production line zones. We are executing a full loop downstream traceability tracking search to completely fence the window.",
         "ECAUDIOS_Track_08_PFMEA_Calculations.mp3": "The cross functional quality board has compiled the Process FMEA risk assessment tracking matrix updates for the molding cycle line. The failure mode statement is defined as short shots appearing on the display module mounting tab feature.",
-        "ECAUDIOS_Track_09_8D_Presentation.mp3": "Good morning esteemed tier one customer audit board panel members. On behalf of our team thank you for your time. My name is Jacob Zumaya Prianti and today I am presenting our final eight D problem solving closure report for the alignment.",
+        "ECAUDIOS_Track_09_8D_Presentation.mp3": "Good morning esteemed tier one customer audit board panel members. On behalf of our team thank you for your time. My name be Jacob Zumaya Prianti and today I am presenting our final eight D problem solving closure report for the alignment.",
         "ECAUDIOS_Track_10_Kaizen_Event_Flow.mp3": "We are executing a Kaizen event across the secondary sub assembly zone. Our time study analytics intercept an unacceptable micro balance bottleneck delay loop at workstation number six to optimize production flow matrix parameters.",
         "ECAUDIOS_Track_11_Material_Receiving.mp3": "Perform a strict incoming statistical lot sampling verification loop across all units in pallet tier number three. If the visual boss fracture margin ratio exceeds our acceptable quality limit threshold value, reject the container.",
         "ECAUDIOS_Track_12_Five_Whys_Analysis.mp3": "The five why investigative methodology was applied to isolate the source of the electrical short circuit. The team discovered that the main wiring branch layout insulation layer had rubbed against a sharp metal structural mounting column edge.",
@@ -199,7 +199,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_5part_base64_sound_unmuted_recorder_v60'
+    key='cei_github_5part_base64_sound_unmuted_recorder_v61'
 )
 
 # ----------- STEP 4: THE BASE64 PACKET STREAM INJECTOR INTERLOCK -----------
@@ -209,16 +209,12 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # 🔊 BASE64 STREAM INJECTOR (THE SANDBOX AUDIO MATRIX PATCH):
-        # We transform raw browser bytes arrays natively into standard Base64 text vectors.
-        # This strips out cross-origin iframe security mutes, playing your real voice at high volume.
+        # Transforms raw byte blocks into unblocked local text stream arrays
         base64_encoded_audio_string = base64.b64encode(raw_vocal_bytes).decode('utf-8')
-        
-        # Save compiled structural base64 maps straight into active container slots
         st.session_state.student_record_vault[take_index_key] = base64_encoded_audio_string
         st.toast(f"🎉 {take_index_key} compiled and unblocked with 100% original sound active!")
 # ============================================================================
-# PART 5: COGNITIVE EVALUATIONS, COHORT ID MANAGEMENT PANELS, & EXPORTERS
+# PART 5: COGNITIVE EVALUATIONS, DATABASE MANAGEMENT, & RESTART BULK PURGER
 # ============================================================================
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
@@ -295,6 +291,16 @@ st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Stati
 available_vault_tracks = list(st.session_state.student_record_vault.keys())
 
 if available_vault_tracks:
+    # ----------------------------------------------------------------------------
+    # 🧹 RESTARTER INTERLOCK SYSTEM: THE SYMMETRICAL RECORDED TRACK CHASSIS PURGER
+    # ----------------------------------------------------------------------------
+    # Drops all active file records from session memory cache, instantly preparing an empty slate
+    if st.button("🧹 Direct Bulk Purge: Clear All Recorded Tracks From Vault", key="bulk_restart_recorded_vault_purgers"):
+        st.session_state.student_record_vault.clear()
+        st.toast("🧹 Success! All historical audio files deleted. Track lists wiped clean to restart fresh!")
+        st.rerun()
+        
+    st.write(" ")
     chosen_take_keys = st.multiselect("Select One or More Historical Vocal Attempt Tracks from Vault Panel:", options=available_vault_tracks, default=[available_vault_tracks[-1]] if available_vault_tracks else [], key="synchronized_vault_multiselector")
     valid_active_selections = [t for t in chosen_take_keys if t in st.session_state.student_record_vault]
     
@@ -303,13 +309,10 @@ if available_vault_tracks:
             selected_base64_string = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
             
-            # UNBLOCKED DATA-URI INJECTION INTERLOCK: Streams the unmuted Base64 data string cleanly at high voice volume
             direct_base64_data_uri = f"data:audio/wav;base64,{selected_base64_string}"
             st.audio(direct_base64_data_uri, format="audio/wav")
             
-            # Reconvert Base64 string back into binary blocks layout for clean downloads management
             recovered_binary_bytes_block = base64.b64decode(selected_base64_string)
-            
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
             base_filename_string = f"{sanitized_user_string}_Take_{index + 1}" if sanitized_user_string != "" else f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
             
@@ -321,7 +324,7 @@ if available_vault_tracks:
                 
             with col_erase:
                 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT TRACKER LIST PURGE SYSTEM:</p>", unsafe_allow_html=True)
-                if st.button("❌ Erase Chosen Recording From Student Recorded Tracker List", key=f"erase_btn_{individual_take}"):
+                if st.button(f"❌ Erase Chosen Recording ({individual_take})", key=f"erase_btn_{individual_take}"):
                     del st.session_state.student_record_vault[individual_take]
                     st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
                     st.rerun()
