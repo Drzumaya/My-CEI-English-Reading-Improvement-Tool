@@ -9,13 +9,13 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# STRICT SECOND-COLUMN POSITIONAL LOCK • CAREER ENGLISH INSTITUTE (2026)
+# LIVE AUTORUN DATABASE REFRESH ENGINE • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
-st.set_page_config(page_title="CEI Secure Upload Gateway", layout="centered")
+st.set_page_config(page_title="CEI Live Ledger Gateway", layout="centered")
 st.markdown("<h1 style='text-align: center; color: #117A65; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Secure Playback Database Upload & Student Verification Desk</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Automated Results Ledger & Student Code Registration Desk</h4>", unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
@@ -23,26 +23,28 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # Replace this token with your exact long Google Spreadsheet alphanumeric ID string.
 TARGET_GOOGLE_SHEET_ID = "1-2BcRqA0typAluQO2F8snEfwyCWaHgOEhp0x0YiiTo9xnsKbreEibH0hSUE6EigvFg"
 
-# Public streaming ledger export channel
+# Derived unblocked public streaming links points straight to your spreadsheet rows data matrix
 PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_ID}/pub?output=csv"
 # ============================================================================
-# PART 2: DYNAMIC SPREADSHEET LEDGER ROW CONVERTERS AND MEMORY MATRICES
+# PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
 # ============================================================================
 
-@st.cache_data(ttl=3) # Short cache validation window checks for incoming row updates quickly
-def fetch_cloud_upload_ledger(target_url):
+@st.cache_data(ttl=2) # 3-second Time-To-Live forces Streamlit to constantly look for new student codes
+def fetch_live_cloud_results_ledger(target_url):
     try:
+        # Live high-frequency timestamp nonce prevents data freezing
         live_timestamp_nonce = int(time.time())
-        cache_busted_url = f"{target_url}&cb={live_timestamp_nonce}"
-        # Read the sheet raw layout without assuming default numeric header assignments
-        df = pd.read_csv(cache_busted_url, header=None)
+        cache_busted_csv_url = f"{target_url}&cb={live_timestamp_nonce}"
+        
+        # Read sheet rows layout dynamically
+        df = pd.read_csv(cache_busted_csv_url, header=None)
         return df
     except Exception as err:
-        st.error(f"Spreadsheet connection timed out. Verify your Sheet ID sharing configurations ({err}).")
+        st.error(f"Spreadsheet stream lookup timed out. Check connection values ({err}).")
         return None
 
-# Load the dynamic dataset from your active sheet infrastructure
-sheet_raw_data_matrix = fetch_cloud_upload_ledger(PUBLIC_CSV_EXPORT_URL)
+# Instantly pull the full cloud database rows list frame
+sheet_raw_data_matrix = fetch_live_cloud_results_ledger(PUBLIC_CSV_EXPORT_URL)
 # ============================================================================
 # PART 3: STUDENT PASSWORD VERIFICATION CORE & UNBLOCKED HTML5 STREAM LAYOUTS
 # ============================================================================
@@ -50,11 +52,10 @@ st.write("---")
 st.markdown("### 🔐 Student Playback Security Portal")
 st.write("Please type your official Student ID Code below to act as your verification password:")
 
-# EXACT TARGET PASSING PROMPT SPECIFICATION ENFORCED
 typed_student_code_password = st.text_input(
     label="🔑 Enter Student Code to Unlock Recording Access:",
     placeholder="e.g., CEI-2026-4402",
-    type="password"  # Obfuscates input strings for data privacy security compliance rules
+    type="password"
 )
 
 student_matching_record = None
@@ -62,10 +63,6 @@ student_matching_record = None
 if typed_student_code_password.strip() != "" and sheet_raw_data_matrix is not None:
     search_token = typed_student_code_password.strip().lower()
     
-    # ----------------------------------------------------------------------------
-    # STRICT SECOND-COLUMN POSITIONAL INTERLOCK (CÓDIGO ESTUDIANTE TARGETS):
-    # Force-binds the password checker loop directly into the 2nd column (index 1)
-    # ----------------------------------------------------------------------------
     timestamp_column_index = 0   # Column 1 (Index 0) -> Fecha Registro
     student_code_column_index = 1 # Column 2 (Index 1) -> STRICT: Código Estudiante
     audio_stream_column_index = 2 # Column 3 (Index 2) -> Datos Audio
@@ -92,7 +89,7 @@ if student_matching_record:
     try:
         raw_base64_string = student_matching_record['audio_data'].strip()
         if "," in raw_base64_string: 
-            raw_base64_string = raw_base64_string.split(",")[1]
+            raw_base64_string = raw_base64_string.split(",")
             
         decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
         st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
@@ -182,41 +179,50 @@ if st.button("⚡ Process Audio Upload Ledger Insertion Loop"):
             except Exception as connection_failure_err:
                 st.error(f"Transmission connection failed. Confirm Web App permissions parameters are deployed to 'Anyone' ({connection_failure_err}).")
 # ============================================================================
-# PART 6: COMPREHENSIVE GOOGLE APPS SCRIPT MACRO BLUEPRINT SPECIFICATION CODE
+# PART 6: LIVE SPREADSHEET MONITOR GRID TABLE AND ACCESS KEYS INTERLOCK
 # ============================================================================
 st.write("---")
-st.markdown("### 📝 6. Required Google Apps Script Backend Setup Manual")
-st.write("To handle row writing requests matching your exact column layouts, deploy this custom code block:")
+st.markdown("### 📊 Coordinator Administrative Results Monitor Ledger")
+st.write("Unlock this panel view option to verify compiled rows currently stored inside your cloud database spreadsheet:")
 
-apps_script_instructions_manual_text = """
-1. Open your target Google Spreadsheet layout window.
-2. Confirm row 1 header structures match column assignments: 
-   * Cell **A1** -> `Fecha Registro`
-   * Cell **B1** -> Exactly **`Código Estudiante`** (Your specified matching password anchor column)
-   * Cell **C1** -> `Datos Audio`
-3. Click **Extensions** inside top dashboard menu bar rows -> Open **Apps Script** window.
-4. Delete all existing code text content inside the editor panel completely and paste this exact macro block script:
+# Security access lock verification prevent unauthorized student data exposures
+admin_panel_access_password_token = st.text_input(
+    label="🔒 Enter Administrator Access Password to Display Ledger Results Table:",
+    placeholder="Enter admin dashboard token keys...",
+    type="password"
+)
 
-```javascript
-function doPost(e) {
-  var targetSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var masterSheetLedger = targetSpreadsheet.getSheets()[0]; // Targets first worksheet tab index row channels
-  
-  var timestampValue = e.parameter.timestamp;
-  var studentIdCode   = e.parameter.student_id;
-  var audioBase64Data = e.parameter.audio_data;
-  
-  // Appends fields straight into columns under your exact matching tracking header cells rows labels!
-  masterSheetLedger.appendRow([timestampValue, studentIdCode, audioBase64Data]);
-  
-  return ContentService.createTextOutput(JSON.stringify({"result": "success"}))
-                       .setMimeType(ContentService.MimeType.JSON);
-}
-```
-5. Click **Deploy** -> **New Deployment**.
-6. Select type: **Web App**.
-7. Set **Execute as**: *Me (Your account)*.
-8. Set **Who has access**: Change to **Anyone**. (Crucial for Streamlit cloud scripts communication).
-9. Click **Deploy**, authorize permissions, copy the generated **Web App URL**, and paste it into the panel input window above.
-"""
-st.markdown(apps_script_instructions_manual_text)
+# Private coordinator verification access credential string lock
+if admin_panel_access_password_token.strip() == "CEI-Admin-2026":
+    st.success("🔓 Administrative Access Cleared! Compiling stored sheet entries rows...")
+    
+    if sheet_raw_data_matrix is not None and not sheet_raw_data_matrix.empty:
+        try:
+            # Reconstruct columns structures using row index 0 names mappings labels
+            header_labels_row_list = sheet_raw_data_matrix.iloc[0].astype(str).tolist()
+            
+            # Slice row arrays past indices boundary fields 
+            data_content_matrix_rows = sheet_raw_data_matrix.iloc[1:].copy()
+            data_content_matrix_rows.columns = header_labels_row_list
+            
+            # Formats clean output grids by stripping raw base64 column string blocks text out-of-screen
+            visible_summary_ledger_df = data_content_matrix_rows.copy()
+            if "Datos Audio" in visible_summary_ledger_df.columns:
+                visible_summary_ledger_df["Datos Audio"] = "🔒 Audio Blob Data Protected"
+                
+            st.markdown("**📂 LIVE AUTOMATED DATABASE COHORT REGISTER MATRIX (STORES AUTOMATICALLY):**")
+            # Automatically projects all registered student code entries inside your Streamlit UI
+            st.dataframe(visible_summary_ledger_df, use_container_width=True, hide_index=True)
+            
+            st.caption(f"💡 *Total Stored Student Registrations active: {len(visible_summary_ledger_df)} files rows.*")
+            
+            # Provide direct download ledger backup channel option
+            csv_ledger_buffer = visible_summary_ledger_df.to_csv(index=False)
+            st.download_button(label="📥 Download Clean Student Logs Overview (.csv)", data=csv_ledger_buffer.encode('utf-8'), file_name="CEI_Registered_Students_Report.csv", mime="text/csv")
+            
+        except Exception as display_err:
+            st.error(f"Error mapping spreadsheet layout columns variables arrays ({display_err}).")
+    else:
+        st.info("Awaiting active sheet row entries database packets updates data models...")
+elif admin_panel_access_password_token.strip() != "":
+    st.error("🔒 Security Lock: Invalid administrative verification token password access keys.")
