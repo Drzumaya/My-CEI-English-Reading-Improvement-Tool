@@ -4,6 +4,7 @@ from rapidfuzz import fuzz
 from datetime import datetime
 import pandas as pd
 import struct
+import base64
 import io
 import re
 import time
@@ -12,8 +13,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# MASTER LINEAR PCM RIFF WAVEFORM MULTIPLEXER (THE PERMANENT AUDIO UNMUTE FIX)
-# CAREER ENGLISH INSTITUTE (2026)
+# CRASH-FREE CORE EMBED MATRIX • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
@@ -209,32 +209,28 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # 🔊 DIRECT MULTIPLEXER AUDIO PACKET CHASSIS INTEGRATION (THE PLAYBACK MUTE SOLUTION):
         # Intercepts raw browser chunks and compiles an official 44-byte WAV header packet vector.
-        # This gives the file structural media anchors, ensuring it plays perfectly at full volume.
-        sampling_frequency_clock = 44100  # High-Fidelity CD Audio Quality Standard
+        sampling_frequency_clock = 44100  
         audio_depth_bits = 16
         total_audio_payload_len = len(raw_vocal_bytes)
         
         wav_header_packet_buffer = io.BytesIO()
-        wav_header_packet_buffer.write(b'RIFF') # ChunkID
-        wav_header_packet_buffer.write(struct.pack('<I', 36 + total_audio_payload_len)) # ChunkSize
-        wav_header_packet_buffer.write(b'WAVE') # Format descriptor tag
-        wav_header_packet_buffer.write(b'fmt ') # Subchunk1ID
-        wav_header_packet_buffer.write(struct.pack('<I', 16)) # Subchunk1Size
-        wav_header_packet_buffer.write(struct.pack('<H', 1)) # AudioFormat (1 = Linear Uncompressed PCM)
-        wav_header_packet_buffer.write(struct.pack('<H', 1)) # NumChannels (1 = Mono profile track)
-        wav_header_packet_buffer.write(struct.pack('<I', sampling_frequency_clock)) # SampleRate
-        wav_header_packet_buffer.write(struct.pack('<I', sampling_frequency_clock * 2)) # ByteRate
-        wav_header_packet_buffer.write(struct.pack('<H', 2)) # BlockAlign parameters field
-        wav_header_packet_buffer.write(struct.pack('<H', audio_depth_bits)) # BitsPerSample depth mapping
-        wav_header_packet_buffer.write(b'data') # Subchunk2ID token anchor field
-        wav_header_packet_buffer.write(struct.pack('<I', total_audio_payload_len)) # Subchunk2Size length bytes
+        wav_header_packet_buffer.write(b'RIFF') 
+        wav_header_packet_buffer.write(struct.pack('<I', 36 + total_audio_payload_len)) 
+        wav_header_packet_buffer.write(b'WAVE') 
+        wav_header_packet_buffer.write(b'fmt ') 
+        wav_header_packet_buffer.write(struct.pack('<I', 16)) 
+        wav_header_packet_buffer.write(struct.pack('<H', 1)) 
+        wav_header_packet_buffer.write(struct.pack('<H', 1)) 
+        wav_header_packet_buffer.write(struct.pack('<I', sampling_frequency_clock)) 
+        wav_header_packet_buffer.write(struct.pack('<I', sampling_frequency_clock * 2)) 
+        wav_header_packet_buffer.write(struct.pack('<H', 2)) 
+        wav_header_packet_buffer.write(struct.pack('<H', audio_depth_bits)) 
+        wav_header_packet_buffer.write(b'data') 
+        wav_header_packet_buffer.write(struct.pack('<I', total_audio_payload_len)) 
         
         # Merge compiled structural metadata headers directly with raw microphone payload streams safely
         finalized_sound_payload_bytes = wav_header_packet_buffer.getvalue() + raw_vocal_bytes
-        
-        # Store unblocked binary chunk into your vault panel container memory matrix maps
         st.session_state.student_record_vault[take_index_key] = finalized_sound_payload_bytes
         st.toast(f"🎉 {take_index_key} recorded and unmuted with official structural RIFF headers active!")
 # ============================================================================
@@ -266,12 +262,7 @@ if available_vault_tracks:
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
             
-            # ----------------------------------------------------------------------------
-            # DIRECT DIRECT TEXT DATA-URI STREAM INJECTOR INTERLOCK CHASSIS REFACTOR:
-            # Converts the now fully multiplexed structured WAV bytes cleanly into a local text URI 
-            # and injects it into a visible browser player bar. This strips out remaining sandbox locks,
-            # forcing your recording to sound out loud natively with clear volume parameters active.
-            # ----------------------------------------------------------------------------
+            # Converts bytes into standard data strings with zero formatting losses
             b64_data_payload_string = base64.b64encode(selected_audio_bytes).decode('utf-8')
             
             html5_direct_player_bar = f"""
