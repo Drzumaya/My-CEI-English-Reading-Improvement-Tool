@@ -26,7 +26,7 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # ----------------------------------------------------------------------------
 # STEP A: Paste your public shared Google Drive Folder ID code string token here:
 # (Example folder ID looks like: 1A2b3C4d5E6f7G8h9I0jK_lM_nO_pQ_rS)
-ECAUDIOS_FOLDER_ID = "YOUR_PUBLIC_GOOGLE_DRIVE_FOLDER_ID_HERE"
+ECAUDIOS_FOLDER_ID = "1o8HXOO6hQIXzlr6iVOmqdzuxa5Zm7gmB"
 
 # Symmetrical local fallback records matching your baseline training manual exercises
 if "fallback_syllabus_bank" not in st.session_state:
