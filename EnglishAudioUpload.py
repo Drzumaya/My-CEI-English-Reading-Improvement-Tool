@@ -10,26 +10,24 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# SANATIZED TARGET EXPORT INJECTOR CHANNEL • ENGLISHAUDIOUPLOAD.PY
+# PASS-BY-IDE DYNAMIC SECURITY INTERLOCK GATEWAY • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
-st.set_page_config(page_title="CEI Secure Storage Portal", layout="centered")
+st.set_page_config(page_title="CEI Secure Portal", layout="centered")
 
-# Initialize secure modal gatekeeper cache parameters to prevent public bypasses
-if "admin_authorized" not in st.session_state:
-    st.session_state.admin_authorized = False
+# Initialize global authentication session tracking variables if not present in short-term memory
+if "authenticated_student_record" not in st.session_state:
+    st.session_state.authenticated_student_record = None
 
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
-# FIXED: Isolated your exact clean Google Spreadsheet alphanumeric ID token string
+# Clean isolated Spreadsheet token ID to prevent URL string decoding errors
 TARGET_GOOGLE_SHEET_TOKEN = "1vnRZDlb79scuC4kkdy0X3QNJKSLsVUFe_YoUe8GZlQU"
 
-# FIXED NETWORK ENVERT CHASSIS:
-# Re-routed through the secure export engine channel to download private frames.
-# This prevents network timeouts and satisfies DNS naming structures perfectly.
+# Re-routed through the secure export engine channel to download private frames
 PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/export?format=csv"
 # ============================================================================
 # PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
@@ -39,8 +37,6 @@ PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/export?f
 def fetch_live_cloud_results_ledger(target_url):
     try:
         live_timestamp_nonce = int(time.time())
-        
-        # Validates query parameters structure before binding cache buster values
         if "?" in target_url:
             cache_busted_csv_url = f"{target_url}&cb={live_timestamp_nonce}"
         else:
@@ -56,34 +52,59 @@ def fetch_live_cloud_results_ledger(target_url):
 # Instantly pull the full cloud database rows list frame
 sheet_raw_data_matrix = fetch_live_cloud_results_ledger(PUBLIC_CSV_EXPORT_URL)
 # ============================================================================
-# PART 3: STATE-DRIVEN POPUP PASSWORD CHASSIS
+# PART 3: THE FRONT-END DYNAMIC STUDENT PASSWORD GATEKEEPER CHALLENGE
 # ============================================================================
 
-# Check if the session is locked or waiting for authorization loops
-if not st.session_state.admin_authorized:
+# If no active student record token is currently authorized inside memory, lock down viewport layouts
+if st.session_state.authenticated_student_record is None:
     st.markdown("<h3 style='text-align: center; color: #117A65; font-weight: bold;'>🔐 System Security Access Lock</h3>", unsafe_allow_html=True)
-    st.write("Welcome to the CEI Master Toolsuite Archive. Please authenticate below to access student playback repositories and administration panels:")
+    st.write("Welcome to the CEI Master Toolsuite Archive. Please enter your unique Student ID Code to act as your access verification password:")
     
-    # State-driven input fields map parameter tracking strings independently of form nodes
-    inputted_portal_password = st.text_input(
-        label="🔑 Enter Administrator Master Access Password:",
-        placeholder="Type your security credential string token...",
+    # State-driven text input maps variables safely independently of complex macro forms
+    student_entered_password_string = st.text_input(
+        label="🔑 Enter Student Code as Password:",
+        placeholder="Type your personal IDE code here...",
         type="password",
-        key="master_portal_gatekeeper_password_input"
+        key="student_password_entry_layer_field"
     )
     
-    # Fixed operational execution block fires callbacks immediately upon mouse click actions
-    if st.button("⚡ Unlock Operational Toolsuite Portal", key="auth_submission_trigger_button"):
-        if inputted_portal_password.strip() == "CEI-Admin-2026":
-            st.session_state.admin_authorized = True
-            st.toast("🔓 Access Granted! Initializing CEI workspace panels components...")
-            time.sleep(0.5)
-            st.rerun() # Hard page re-render wipes screen canvas and unrolls full app rows
-        elif inputted_portal_password.strip() != "":
-            st.error("🔒 Security Lock: Invalid administrative verification token password access keys.")
+    if st.button("⚡ Verify Code Credentials & Open Dashboard", key="auth_submission_trigger_button"):
+        if student_entered_password_string.strip() == "":
+            st.error("Operation Aborted: Password input string cannot be blank.")
+        elif sheet_raw_data_matrix is not None:
+            clean_search_token = student_entered_password_string.strip().lower()
+            
+            timestamp_column_index = 0   # Column 1 (Index 0) -> Fecha Registro
+            student_code_column_index = 1 # Column 2 (Index 1) -> STRICTLY POSITIONED AT: IDE
+            audio_stream_column_index = 2 # Column 3 (Index 2) -> STRICTLY POSITIONED AT: Subir Evidencias
+            
+            temporary_match_holder = None
+            
+            # Sequentially process cloud entries, scanning for the entered student code inside column index 1
+            for index, row in sheet_raw_data_matrix.iterrows():
+                if index == 0: 
+                    continue # Skip row index 0 columns headers row cleanly
+                if len(row) > max(student_code_column_index, audio_stream_column_index):
+                    spreadsheet_registered_student_id = str(row.iloc[student_code_column_index]).strip().lower()
+                    
+                    if spreadsheet_registered_student_id == clean_search_token:
+                        temporary_match_holder = {
+                            "timestamp": str(row.iloc[timestamp_column_index]),
+                            "code": str(row.iloc[student_code_column_index]),
+                            "audio_data": str(row.iloc[audio_stream_column_index])
+                        }
+                        break
+            
+            if temporary_match_holder is not None:
+                st.session_state.authenticated_student_record = temporary_match_holder
+                st.toast("🔓 Access Granted! Unlocking your custom playback repository files panels...")
+                time.sleep(0.5)
+                st.rerun() # Refresh app canvas to clear login wall and reveal matching parameters
+            else:
+                st.error("🔒 Security Lock: Invalid administrative verification token password access keys. Code not found inside dataset records.")
                 
     st.caption("⚠️ *Notice: Unauthorized attempts to download or modify student vocal records data models are monitored.*")
-    st.stop() # CRITICAL STOP INTERLOCK: Prevents Streamlit from drawing another pixel if auth fails!
+    st.stop() # CRITICAL STOP INTERLOCK: Freeze app rendering right here if student fails password verification!
 
 # ============================================================================
 # APPS LAYOUT AREA (UNLOCKED ONLY PAST THE GATEKEEPER AUTHORIZATION MATRICES)
@@ -91,72 +112,50 @@ if not st.session_state.admin_authorized:
 st.markdown("<h1 style='text-align: center; color: #117A65; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Secure Playback Database Upload & Student Verification Desk</h4>", unsafe_allow_html=True)
 # ============================================================================
-# PART 4: STUDENT ID QUERY MANAGEMENT DESK PORTAL SINK (IDE COLUMN ASSIGNED)
+# PART 4: SECURE STUDENT AUDIOS DISPLAYER DESK PANEL (SUBIR EVIDENCIAS TARGETED)
 # ============================================================================
 st.write("---")
-st.markdown("### 🔍 Student Playback Retrieval Section")
-st.write("Type your target Student ID Code below to retrieve its corresponding recording asset container block:")
+st.markdown("### 🔍 Your Secure Playback Repository File")
+st.write("Below is your verified recording track asset container block pulled from the cloud master ledger:")
 
-typed_student_code_password = st.text_input(
-    label="🔑 Enter Student Code to Unlock Recording Access:",
-    placeholder="e.g., CEI-2026-4402",
-    key="student_search_lookup_field"
-)
+# Pull down the authorized data packet logged into session state memories
+current_active_student_record = st.session_state.authenticated_student_record
 
-student_matching_record = None
+st.info(f"👤 **Student Code Profile Locked:** `{current_active_student_record['code']}` | **Logged On:** {current_active_student_record['timestamp']}")
 
-if typed_student_code_password.strip() != "" and sheet_raw_data_matrix is not None:
-    search_token = typed_student_code_password.strip().lower()
-    
-    timestamp_column_index = 0   # Column 1 (Index 0) -> Fecha Registro
-    student_code_column_index = 1 # Column 2 (Index 1) -> STRICTLY TARGETS YOUR COLUMN LABEL: IDE
-    audio_stream_column_index = 2 # Column 3 (Index 2) -> Datos Audio
-
-    for index, row in sheet_raw_data_matrix.iterrows():
-        if index == 0: 
-            continue # Skip row index 0 columns headers row layout definitions cleanly
-        if len(row) > max(student_code_column_index, audio_stream_column_index):
-            spreadsheet_student_id = str(row.iloc[student_code_column_index]).strip().lower()
-            
-            if spreadsheet_student_id == search_token:
-                student_matching_record = {
-                    "timestamp": str(row.iloc[timestamp_column_index]),
-                    "code": str(row.iloc[student_code_column_index]),
-                    "audio_data": str(row.iloc[audio_stream_column_index])
-                }
-                break
-
-if student_matching_record:
-    st.success(f"🔓 Access Granted for Student Code: {student_matching_record['code']} (Recorded on {student_matching_record['timestamp']})")
-    
-    try:
-        raw_base64_string = student_matching_record['audio_data'].strip()
-        if "," in raw_base64_string: 
-            raw_base64_string = raw_base64_string.split(",")
-            
-        decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
-        st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
+try:
+    raw_base64_string = current_active_student_record['audio_data'].strip()
+    if "," in raw_base64_string: 
+        raw_base64_string = raw_base64_string.split(",")[-1]
         
-        # Native direct text Data-URI HTML5 player avoids browser cross-origin sandbox restrictions natively in MP3 compression formats
-        st.components.v1.html(f"""
-            <div style='background-color: #E8F8F5; border: 1px solid #A3E4D7; border-radius: 6px; padding: 10px; text-align: center;'>
-                <audio controls style='width: 100%; height: 40px;'>
-                    <source src='data:audio/mp3;base64,{raw_base64_string}' type='audio/mp3'>
-                    Your browser does not support unblocked local element audio vectors.
+    decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
+    
+    st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
+    
+    # Native direct text Data-URI HTML5 player avoids browser cross-origin sandbox restrictions natively in MP3 formats
+    st.components.v1.html(f"""
+        <div style='background-color: #E8F8F5; border: 1px solid #A3E4D7; border-radius: 6px; padding: 10px; text-align: center;'>
+            <audio controls style='width: 100%; height: 40px;'>
+                <source src='data:audio/mp3;base64,{raw_base64_string}' type='audio/mp3'>
+                Your browser does not support unblocked local element audio vectors.
                 </audio>
             </div>
-        """, height=65)
-        
-        st.download_button(
-            label=f"📥 Download Verified Sound Take ({student_matching_record['code']}.mp3)",
-            data=decoded_audio_bytes_payload,
-            file_name=f"{student_matching_record['code']}_Verified_Take.mp3",
-            mime="audio/mp3"
-        )
-    except Exception as data_err:
-        st.error(f"Linguistic file block corrupted or written in an invalid format string structure ({data_err}).")
-elif typed_student_code_password.strip() != "":
-    st.error("🔒 Access Denied: Invalid Student ID Code search token criteria mappings.")
+    """, height=65)
+    
+    st.download_button(
+        label=f"📥 Download Your Verified Sound Take ({current_active_student_record['code']}.mp3)",
+        data=decoded_audio_bytes_payload,
+        file_name=f"{current_active_student_record['code']}_Verified_Take.mp3",
+        mime="audio/mp3",
+        key="student_direct_download_key_node"
+    )
+except Exception as data_err:
+    st.error(f"Linguistic file block corrupted or written in an invalid format string structure ({data_err}).")
+
+# Logout button allows resetting session state memories to exit out of dashboard securely
+if st.button("🔒 Securely Close Repository & Logout", key="portal_exit_logout_trigger"):
+    st.session_state.authenticated_student_record = None
+    st.rerun()
 # ============================================================================
 # PART 5: COORDINATOR MANUAL UPLOAD GATEWAY AND BINARY TO BASE64 CONVERTERS
 # ============================================================================
@@ -222,21 +221,20 @@ if st.button("⚡ Process Audio Upload Ledger Insertion Loop"):
                 st.error(f"Transmission connection failed. ({connection_failure_err}).")
 
 # ----------------------------------------------------------------------------
-# FULLY VIEWABLE CLASS DATABASE LEDGER GRID (UNLOCKED SECURELY VIA CHASSIS ENTRY AUTH)
+# DYNAMIC ADMIN SUMMARY DATAFRAME VIEW (VISIBLE ONLY WHEN AUTHENTICATED PAST LOGINS WALLS)
 # ----------------------------------------------------------------------------
 st.write("---")
 st.markdown("### 📊 Stored Records Summary Ledger Matrix")
-st.write("This table unrolls automatically because you are authenticated via the main system security popup form:")
 
 if sheet_raw_data_matrix is not None and not sheet_raw_data_matrix.empty:
     try:
-        header_labels_row_list = sheet_raw_data_matrix.iloc.astype(str).tolist()
+        header_labels_row_list = sheet_raw_data_matrix.iloc[0].astype(str).tolist()
         data_content_matrix_rows = sheet_raw_data_matrix.iloc[1:].copy()
         data_content_matrix_rows.columns = header_labels_row_list
         
         visible_summary_ledger_df = data_content_matrix_rows.copy()
-        if "Datos Audio" in visible_summary_ledger_df.columns:
-            visible_summary_ledger_df["Datos Audio"] = "🔒 Audio Blob Data Protected"
+        if "Subir Evidencias" in visible_summary_ledger_df.columns:
+            visible_summary_ledger_df["Subir Evidencias"] = "🔒 Audio Blob Data Protected"
             
         st.dataframe(visible_summary_ledger_df, use_container_width=True, hide_index=True)
         st.caption(f"💡 *Total Stored Student Registrations active: {len(visible_summary_ledger_df)} files rows.*")
