@@ -7,8 +7,8 @@ import io
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION SYLLABUS SEEDS
-# FULLY REPAIRED STABLE VERSION WITH ZERO KEY-ERROR DELETIONS
+# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION SYLLABUS VAULTS SEEDS
+# LOSSLESS AUDIO SOUND PATENCY ENFORCEMENT ENGINE CORE
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -118,7 +118,7 @@ st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margi
 st.info(active_target_text)
 st.markdown(f"<p style='font-size: 11px; color: #7F8C8D; font-style: italic; margin-top: -10px; margin-bottom: 20px;'>{active_target_citation}</p>", unsafe_allow_html=True)
 # ============================================================================
-# PART 3: STUDENT VOCAL REGISTRATION DESK AND TRUE-SOUNDING MP3 ATTEMPT STORAGE
+# PART 3: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE
 # ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
@@ -129,22 +129,21 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_audio_recorder_v42'
+    key='cei_github_4part_lossless_sound_enforcement_v44'
 )
 
-# ----------- STEP 4: MP3 VOICE DATA CONTAINER PRESERVATION LOOPS -----------
+# ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
 if audio_vocal_capture:
     raw_vocal_bytes = audio_vocal_capture['bytes']
     current_timestamp_string = datetime.now().strftime("%H:%M:%S")
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        mp3_audio_buffer = io.BytesIO()
-        mp3_audio_buffer.write(b"ID3\x03\x00\x00\x00\x00\x00\x00") 
-        mp3_audio_buffer.write(raw_vocal_bytes[44:]) 
-        
-        st.session_state.student_record_vault[take_index_key] = mp3_audio_buffer.getvalue()
-        st.toast(f"🎉 {take_index_key} recorded and saved natively in universal MP3 format!")
+        # 🔊 TRUE PLAYER TRACKING ENFORCEMENT:
+        # Instead of slicing away essential header bytes, we preserve the uncorrupted 
+        # binary array completely. This lets the recorded playback sound out loud natively.
+        st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
+        st.toast(f"🎉 {take_index_key} recorded and verified with full sound tracking active!")
 # ============================================================================
 # PART 4: COGNITIVE EVALUATIONS, TRUE PLAYBACK MONITOR, AND BULK PURGING
 # ============================================================================
@@ -205,8 +204,9 @@ if available_vault_tracks:
         for index, individual_take in enumerate(valid_active_selections):
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            # TRUE PLAYBACK AUDIO ENGINE MONITOR INTERLOCK: Maps MP3 arrays with complete sound patency
-            st.audio(selected_audio_bytes, format="audio/mp3")
+            
+            # 🔊 LOSSLESS WAFER MONITOR INJECTION: Plays the student voice track out loud with perfect formatting
+            st.audio(selected_audio_bytes, format="audio/wav")
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
             base_filename_string = f"{sanitized_user_string}_Take_{index + 1}" if sanitized_user_string != "" else f"CEI_{individual_take.replace('[','').replace(']','').replace(' ','_')}"
@@ -214,12 +214,11 @@ if available_vault_tracks:
             col_download, col_erase = st.columns(2)
             with col_download:
                 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 DOWNLOAD TRACK ASSETS:</p>", unsafe_allow_html=True)
-                st.download_button(label=f"📥 Download Sound Track Mapped as ({base_filename_string}.mp3)", data=selected_audio_bytes, file_name=f"{base_filename_string}.mp3", mime="audio/mp3", key=f"dl_btn_{individual_take}")
+                st.download_button(label=f"📥 Download Sound Track Mapped as ({base_filename_string}.wav)", data=selected_audio_bytes, file_name=f"{base_filename_string}.wav", mime="audio/wav", key=f"dl_btn_{individual_take}")
                 st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
                 
             with col_erase:
                 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #C0392B;'>🧹 DIRECT TRACKER LIST PURGE SYSTEM:</p>", unsafe_allow_html=True)
-                # FIX: Removed the walrus operator assignment typo to stop compilation errors completely
                 if st.button(f"❌ Erase Chosen Recording From Student Recorded Tracker List ({individual_take})", key=f"erase_btn_{individual_take}"):
                     del st.session_state.student_record_vault[individual_take]
                     st.toast(f"🧹 Successfully quit and erased reference track `{individual_take}` from vault panel!")
