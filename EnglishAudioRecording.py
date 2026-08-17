@@ -2,16 +2,16 @@ import streamlit as st
 from streamlit_mic_recorder import mic_recorder
 from rapidfuzz import fuzz
 from datetime import datetime
+import pandas as pd
 import io
 import re
 import time
 
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
-# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION SYLLABUS SEEDS
-# MASTER VISIBLE ACOUSTIC PLAYER FRAMEWORK ENGINE (THE UNMUTED TRACK FIX)
-# CAREER ENGLISH INSTITUTE (2026)
+# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 5 STANDALONE PARTS
+# PART 1: SYSTEM APPLICATION STACK FRAMEWORKS, HEADERS, & SESSION CORE CACHES
+# MASTER PRODUCTION ARCHITECTURE • CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
@@ -20,8 +20,19 @@ st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; fon
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>B2 Upper-Intermediate Dynamic Verification & Re-Ordered Replay Console</h4>", unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------------
-# MASTER DIRECTORY CORE: COMPLETE 28 ACADEMIC EXERCISE SYLLABUS SEEDS
+# DYNAMIC UNBLOCKED GOOGLE SPREADSHEET MANIFEST TRACKING ADAPTER HOOK
 # ----------------------------------------------------------------------------
+PUBLISHED_MANIFEST_CSV_URL = "https://google.com"
+
+# Volatile session cache memories initialization
+if "student_record_vault" not in st.session_state:
+    st.session_state.student_record_vault = {}
+    
+if "gradebook_matrix_history" not in st.session_state:
+    st.session_state.gradebook_matrix_history = []
+# ============================================================================
+# PART 2: COMPREHENSIVE NATIVE CLIENT-SIDE EXTRA EXERCISE SEED DATABANK
+# ============================================================================
 if "master_curriculum_catalog" not in st.session_state:
     st.session_state.master_curriculum_catalog = {
         "ECAUDIOS_Track_01_Shift_Handover.mp3": "Good afternoon Carlos. Welcome to the Shift Two handover session. SMT Line Three is currently running part number ALC seven seven four two, active lot code alpha dash nine. The line layout is running at standard quota capacity, but we have intercepted a minor component misfeed at Station Four.",
@@ -53,67 +64,73 @@ if "master_curriculum_catalog" not in st.session_state:
         "ECAUDIOS_Track_27_Vendor_Audit_Review.mp3": "The incoming sub-assembly supplier score has dropped to eighty-two percent due to dimensional non-conformances. We are launching a formal supplier corrective action request to mandate root cause investigations.",
         "ECAUDIOS_Track_28_Kitting_Zone_Layout.mp3": "Coordinators are reviewing the kitting zone logistics layout map to cut down on material handling cycle waste times. Moving the staging bins adjacent to the line entrance drops transit waste immediately."
     }
-
-if "student_record_vault" not in st.session_state:
-    st.session_state.student_record_vault = {}
-    
-if "gradebook_matrix_history" not in st.session_state:
-    st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: DYNAMIC FILE SELECTION MATRIX AND VISIBLE REPLAY CONSOLES
+# PART 3: CLOUD SYNC MATRICES AND TARGET SCRIPT READING SHOWERS (STEP 1 & 2)
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
-# EXACT USER COMPLIANCE DROPDOWN PROMPT STRING LABELS ENFORCED
+discovered_curriculum_tracks = {}
+
+if "pub?output=csv" in PUBLISHED_MANIFEST_CSV_URL:
+    try:
+        # THE RUNTIME CACHE BUSTER: Appends a dynamic timestamp onto the streaming request link
+        # This completely skips browser cache blocks and force-loads all 28 rows from your sheet.
+        live_timestamp_nonce = int(time.time())
+        cache_busted_csv_stream_url = f"{PUBLISHED_MANIFEST_CSV_URL}&cb={live_timestamp_nonce}"
+        cloud_data_frame = pd.read_csv(cache_busted_csv_stream_url, header=None)
+        
+        # Positional index unroller scans column A (0) and column B (1) sequentially
+        for index, row in cloud_data_frame.iterrows():
+            if len(row) >= 2:
+                track_name = str(row.iloc[0]).strip()
+                audio_link = str(row.iloc[1]).strip()
+                
+                if track_name != "nan" and track_name != "" and audio_link != "nan" and audio_link != "" and not track_name.lower().startswith("audio_track"):
+                    if track_name in st.session_state.master_curriculum_catalog:
+                        lesson_text = st.session_state.master_curriculum_catalog[track_name]
+                    else:
+                        clean_lbl = track_name.replace('.mp3','').replace('.wav','').replace('_',' ')
+                        lesson_text = f"Technical language standard training manual passage matching cloud file asset: '{clean_lbl}'. Review printed references to trace vocabulary loops."
+                        
+                    discovered_curriculum_tracks[track_name] = {
+                        "text": lesson_text,
+                        "url": audio_link
+                    }
+    except Exception:
+        pass
+
+# Failsafe protection: injects the complete 28-track internal catalog if a network lag occurs
+if len(discovered_curriculum_tracks) < 28:
+    for k, v in st.session_state.master_curriculum_catalog.items():
+        discovered_curriculum_tracks[k] = {"text": v, "url": None}
+
+# EXACT DROPDOWN PROMPT MATRIX USER SPECIFICATION ENFORCED
 selected_track_id = st.selectbox(
     "Choose an Exercise track:",
-    options=sorted(list(st.session_state.master_curriculum_catalog.keys())),
+    options=sorted(list(discovered_curriculum_tracks.keys())),
     index=0
 )
 
-active_target_text = st.session_state.master_curriculum_catalog[selected_track_id]
+active_target_text = discovered_curriculum_tracks[selected_track_id]["text"]
+active_target_url = discovered_curriculum_tracks[selected_track_id]["url"]
 
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 NATURAL NATIVE SPEAKER PLAYER REPLAY CORE:</p>", unsafe_allow_html=True)
-st.write("Click the control console button grid below to run the high-definition neural reference voice track completely unmuted.")
 
-# HIGH-FIDELITY COGNITIVE INTERFACE INJECTION (THE SOUND FIDELITY RECOVERY CORE):
-# Renders a visible, clear, high-contrast control block panel on your page canvas layout.
-# This forces browsers to verify the sound request as an intentional click, immediately unmuting the speaker streams.
-js_unmuted_visible_speech_console = f"""
-<div style='background-color: #F2F4F4; border: 2px solid #D5DBDB; border-radius: 8px; padding: 15px; text-align: center; margin-bottom: 10px;'>
-    <button id='cei_unmuted_trigger_btn' style='background-color: #1A5276; color: white; border: none; padding: 10px 24px; font-size: 14px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-        🔊 Sound Selected Reference Course Track
-    </button>
-    <p style='font-size: 11px; color: #7F8C8D; margin-top: 8px; margin-bottom: 0;'>*Clicking unblocks cross-origin web frequencies natively with full volume margins.</p>
-</div>
-
-<script>
-document.getElementById('cei_unmuted_trigger_btn').addEventListener('click', function() {{
-    let synth = window.speechSynthesis;
-    synth.cancel(); # Resets overlapping audio registers completely
-    
-    let text_to_read = `{active_target_text.replace('`','\\`').replace('$','\\$')}`;
-    let utterance = new SpeechSynthesisUtterance(text_to_read);
-    
-    # Query advanced high-fidelity neural speaker timbres
-    let voices = synth.getVoices();
-    let neuralVoice = voices.find(v => 
-        v.name.includes('Google US English') || 
-        v.name.includes('Neural') || 
-        v.name.includes('Natural') || 
-        v.name.includes('Samantha')
-    );
-    
-    if (neuralVoice) utterance.voice = neuralVoice;
-    utterance.lang = 'en-US';
-    utterance.rate = 0.88;   # Clear, natural technical phrasing speed
-    utterance.pitch = 1.02;  # Warm human timbre alignment curve
-    
-    synth.speak(utterance);
-}});
-</script>
-"""
-st.components.v1.html(js_unmuted_visible_speech_console, height=105)
+# UNBLOCKED HTML5 CONTAINER REF PLAYBACK:
+# Reads direct streaming links from your spreadsheet rows to bypass all muted browser limits.
+if active_target_url and "://google.com" in active_target_url:
+    try:
+        parsed_id = re.search(r'(?:id=|\/d\/)([\w-]+)', active_target_url).group(1)
+        direct_streaming_packet_url = f"https://google.com{parsed_id}"
+        st.audio(direct_streaming_packet_url, format="audio/mp3")
+    except Exception as stream_err:
+        st.caption(f"⚠️ Link parsing configuration notice. Confirm public sharing permissions inside Drive ({stream_err}).")
+else:
+    if st.button("▶️ Sound Selected Reference Course Track (Local Backup Synthesizer Mode)"):
+        js_vocal_fallback = f"""
+        <html lang='en'><body><script>(function() {{ let s = window.speechSynthesis; s.cancel(); let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`); let voices = s.getVoices(); let youngVoice = voices.find(v => (v.lang.startsWith('en-US') && v.name.includes('Natural')) || v.lang.startsWith('en-US')); if (youngVoice) u.voice = youngVoice; u.lang = 'en-US'; u.rate = 0.88; s.speak(u); }})();</script></body></html>
+        """
+        st.components.v1.html(js_vocal_fallback, height=1)
 
 # ----------- STEP 2: THE READING SHOWER SCRIPT VIEWPORT BOARD -----------
 st.write("---")
@@ -121,7 +138,7 @@ st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 # ============================================================================
-# PART 3: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE
+# PART 4: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE (STEP 3 & 4)
 # ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
@@ -132,7 +149,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_sound_unmuted_visible_speech_recorder'
+    key='cei_github_5part_lossless_sound_fidelity_unmuted_recorder'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -142,10 +159,11 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
+        # Lossless passthrough ensures the student voice recording sounds exactly as it was recorded
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
-# PART 4: COGNITIVE EVALUATIONS, ADMINISTRATIVE MAINTENANCE PANEL, & DELETIONS
+# PART 5: COGNITIVE EVALUATIONS, ADMINISTRATIVE MAINTENANCE PANEL, & EXPORTERS
 # ============================================================================
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
@@ -210,7 +228,7 @@ if st.session_state.gradebook_matrix_history:
         key="maintenance_row_selector"
     )
     
-    target_numerical_index = int(chosen_maintenance_row_string.split("Row [").split("]")) - 1
+    target_numerical_index = int(chosen_maintenance_row_string.split("Row [")[1].split("]")[0]) - 1
     
     col_new_id, col_upgrade_trigger = st.columns(2)
     with col_new_id:
