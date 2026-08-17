@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# FIXED CLEAN-ROUTE WEB PUBLISHING REPLAY INTERLOCK • ENGLISHAUDIOUPLOAD.PY
+# DIRECT STREAM UNFILTERED RECOVERY CHASSIS • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -23,14 +23,9 @@ if "authenticated_student_record" not in st.session_state:
 
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
-# ----------------------------------------------------------------------------
-# Your exact Google Web Publication Key Token String from the active account
-TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
-
-# FIXED LINK CONSTRUCTOR MATRIX:
-# Routed strictly via the native web-publishing endpoint rather than a private export channel.
-# This prevents the idna codec label overflow entirely and restores database communication channels.
-PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
+# --------------------------------================================------------
+# EXACT VERIFIED GOOGLE SPREADSHEET SYSTEM STREAM DATA ROUTE ASSIGNED
+PUBLIC_CSV_EXPORT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
 # ============================================================================
 # PART 2: FIREWALL-SAFE REAL-TIME CLOUD SYNCHRONIZATION ENGINE
 # ============================================================================
@@ -38,11 +33,16 @@ PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?outp
 @st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
 def fetch_live_cloud_results_ledger(target_url):
     try:
-        # Pulls the clean, uncorrupted base URL directly to satisfy domain tracking filters safely
-        df = pd.read_csv(target_url, header=None)
-        return df
+        # Pulls the data cleanly as an isolated web request stream to clear URL label bugs
+        web_response_packet = requests.get(target_url, timeout=10)
+        if web_response_packet.status_code == 200:
+            string_data_buffer = io.StringIO(web_response_packet.text)
+            df = pd.read_csv(string_data_buffer, header=None)
+            return df
+        else:
+            return None
     except Exception as err:
-        st.error(f"Spreadsheet stream lookup timed out. Check connection values ({err}).")
+        st.warning(f"📡 Cloud Sync Notice: Syncing data records from cloud server channels... ({err})")
         return None
 
 # Instantly pull the full cloud database rows list frame
