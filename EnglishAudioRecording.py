@@ -3,6 +3,7 @@ from streamlit_mic_recorder import mic_recorder
 from rapidfuzz import fuzz
 from datetime import datetime
 import pandas as pd
+import struct
 import base64
 import io
 import re
@@ -12,7 +13,7 @@ import time
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# DIRECT WEBM NATIVE REPLAY CONSOLE (THE STATIC DESTRUCTION CONFLICT FIX)
+# MASTER LINEAR PCM RIFF TIMELINE STRUCT SINK (THE FROZEN TIMELINE TRACK FIX)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -188,7 +189,7 @@ st.markdown("### 🔍 2. Reading Shower Specification Board")
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #2E4053; margin-bottom: 2px;'>TARGET TRAINING PASSAGE SCRIPT MANUAL BLOCK:</p>", unsafe_allow_html=True)
 st.info(active_target_text)
 # ============================================================================
-# PART 4: STUDENT VOCAL REGISTRATION DESK AND TRUE LOSSLESS SOUND CAPTURE (STEP 3 & 4)
+# PART 4: STUDENT VOCAL REGISTRATION DESK AND STRUCTURAL TIMELINE CHASSIS
 # ============================================================================
 
 # ----------- STEP 3: STUDENT PLAYBACK AUDIO REGISTER GATEWAY -----------
@@ -199,23 +200,46 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_6part_uncompressed_direct_passthrough_stream_rec_final_v10'
+    key='cei_github_6part_structural_wav_timeline_unmuted_recorder_v99'
 )
 
-# ----------- STEP 4: TRACKING DATA BUFFER VALIDATION DESK -----------
+# ----------- STEP 4: RIFF AUDIO METADATA MULTIPLEXER ENGINE -----------
 if audio_vocal_capture:
     raw_vocal_bytes = audio_vocal_capture['bytes']
     current_timestamp_string = datetime.now().strftime("%H:%M:%S")
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # 🔊 ADAPTIVE VOICE PRESERVATION PATCH REFACTOR:
-        # Strips out manual WAV sample-rate headers entirely to prevent digital distortion locks.
-        # Saves the uncompressed raw binary array cleanly to match browser hardware profiles.
-        st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
-        st.toast(f"🎉 {take_index_key} recorded and verified with full uncompressed voice parameters active!")
+        # 🔊 STRUCTURAL HARDWARE METADATA STREAM INJECTION (THE SOUND MINUTES TIMELINE FIX):
+        # We wrap the browser's raw microphone bytes payload with a fully calculated 44-byte 
+        # RIFF WAVE header. This provides explicit timeline parameters, unmuting your player 
+        # and displaying the correct file tracking minutes seamlessly across all user nodes.
+        sample_rate_coefficient = 44100  # Enforces Standard CD Audio Frequency
+        audio_encoding_depth_bits = 16
+        total_audio_payload_bytes_len = len(raw_vocal_bytes)
+        
+        wav_header_packet_buffer = io.BytesIO()
+        wav_header_packet_buffer.write(b'RIFF') # ChunkID
+        wav_header_packet_buffer.write(struct.pack('<I', 36 + total_audio_payload_bytes_len)) # ChunkSize
+        wav_header_packet_buffer.write(b'WAVE') # Format descriptor tag
+        wav_header_packet_buffer.write(b'fmt ') # Subchunk1ID
+        wav_header_packet_buffer.write(struct.pack('<I', 16)) # Subchunk1Size
+        wav_header_packet_buffer.write(struct.pack('<H', 1)) # AudioFormat (1 = Uncompressed Linear PCM)
+        wav_header_packet_buffer.write(struct.pack('<H', 1)) # NumChannels (1 = Mono layout channel)
+        wav_header_packet_buffer.write(struct.pack('<I', sample_rate_coefficient)) # SampleRate (44.1kHz)
+        wav_header_packet_buffer.write(struct.pack('<I', sample_rate_coefficient * 2)) # ByteRate matrix tracking
+        wav_header_packet_buffer.write(struct.pack('<H', 2)) # BlockAlign properties variable
+        wav_header_packet_buffer.write(struct.pack('<H', audio_encoding_depth_bits)) # BitsPerSample depth
+        wav_header_packet_buffer.write(b'data') # Subchunk2ID token anchor field
+        wav_header_packet_buffer.write(struct.pack('<I', total_audio_payload_bytes_len)) # Subchunk2Size length bytes
+        
+        # Assemble fully formatted WAV media packet
+        finalized_sound_payload_bytes = wav_header_packet_buffer.getvalue() + raw_vocal_bytes
+        
+        st.session_state.student_record_vault[take_index_key] = finalized_sound_payload_bytes
+        st.toast(f"🎉 {take_index_key} indexed successfully with active sound timeline blocks!")
 # ============================================================================
-# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & DIRECT HTML5 WEBM AUDIO PLAYER
+# PART 5: SYSTEM TRACKS RESTARTER BULK PURGER & DIRECT HTML5 AUDIO PLAYER
 # ============================================================================
 st.write("---")
 st.markdown("### 🗂️ 5. Student Recorded Take Tracker & Vault Download Station")
@@ -243,17 +267,13 @@ if available_vault_tracks:
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
             
-            # ----------------------------------------------------------------------------
-            # DIRECT WEBM HTML5 DECODER REFACTOR (THE SOUND FIDELITY RECOVERY INTERLOCK):
-            # Converts the uncrushed bytes cleanly into an unblocked local Base64 string vector.
-            # Enforces type='audio/webm' inside the source element to resolve dynamic aliasing distortion.
-            # ----------------------------------------------------------------------------
+            # Converts the now fully multiplexed structured WAV bytes cleanly into an unblocked text Data URI block 
             b64_data_payload_string = base64.b64encode(selected_audio_bytes).decode('utf-8')
             
             html5_direct_player_bar = f"""
             <div style='background-color: #F4F6F7; border: 1px solid #BDC3C7; border-radius: 6px; padding: 10px; margin-bottom: 15px; max-width: 500px; text-align: center;'>
                 <audio controls style='width: 100%; height: 40px;'>
-                    <source src='data:audio/webm;base64,{b64_data_payload_string}' type='audio/webm'>
+                    <source src='data:audio/wav;base64,{b64_data_payload_string}' type='audio/wav'>
                     Your browser does not support the unblocked local media channel.
                 </audio>
             </div>
@@ -266,7 +286,7 @@ if available_vault_tracks:
             col_download, col_erase = st.columns(2)
             with col_download:
                 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>📥 DOWNLOAD TRACK ASSETS:</p>", unsafe_allow_html=True)
-                st.download_button(label=f"📥 Download Sound Track Mapped as ({base_filename_string}.webm)", data=selected_audio_bytes, file_name=f"{base_filename_string}.webm", mime="audio/webm", key=f"dl_btn_{individual_take}")
+                st.download_button(label=f"📥 Download Sound Track Mapped as ({base_filename_string}.wav)", data=selected_audio_bytes, file_name=f"{base_filename_string}.wav", mime="audio/wav", key=f"dl_btn_{individual_take}")
                 st.caption("💡 *Clicking opens a prompt window where you can choose your storage folder location.*")
                 
             with col_erase:
