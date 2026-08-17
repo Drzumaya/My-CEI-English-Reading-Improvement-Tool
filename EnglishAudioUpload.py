@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# MODAL SESSION-STATE GATEKEEPER INTERLOCK PANEL • MYCEIUPLOADEDFILES.PY
+# NATIVE FORM STATE & IDE COLUMN INDEX LOG COPLUING • MYCEIUPLOADEDFILES.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -30,7 +30,29 @@ TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJ
 # Public streaming ledger export channel
 PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
-# PART 3: THE FRONT-END MODAL GATEWAY PASSWORD DIALOGUE WINDOW
+# PART 2: CACHE-BUSTED SPREADSHEET ROW FETCH ENGINE (REAL-TIME ADAPTER)
+# ============================================================================
+
+@st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
+def fetch_live_cloud_results_ledger(target_url):
+    try:
+        live_timestamp_nonce = int(time.time())
+        if "?" in target_url:
+            cache_busted_csv_url = f"{target_url}&cb={live_timestamp_nonce}"
+        else:
+            cache_busted_csv_url = f"{target_url}?cb={live_timestamp_nonce}"
+        
+        # Read sheet rows layout dynamically
+        df = pd.read_csv(cache_busted_csv_url, header=None)
+        return df
+    except Exception as err:
+        st.error(f"Spreadsheet stream lookup timed out. Check connection values ({err}).")
+        return None
+
+# Instantly pull the full cloud database rows list frame
+sheet_raw_data_matrix = fetch_live_cloud_results_ledger(PUBLIC_CSV_EXPORT_URL)
+# ============================================================================
+# PART 3: RE-ENGINEERED STATE-DRIVEN POPUP PASSWORD CHASSIS
 # ============================================================================
 
 # Check if the session is locked or waiting for authorization loops
@@ -38,23 +60,23 @@ if not st.session_state.admin_authorized:
     st.markdown("<h3 style='text-align: center; color: #117A65; font-weight: bold;'>🔐 System Security Access Lock</h3>", unsafe_allow_html=True)
     st.write("Welcome to the CEI Master Toolsuite Archive. Please authenticate below to access student playback repositories and administration panels:")
     
-    # Secure container block encapsulates password fields cleanly
-    with st.form("cei_security_gatekeeper_challenge_form"):
-        inputted_portal_password = st.text_input(
-            label="🔑 Enter Administrator Master Access Password:",
-            placeholder="Type your security credential string token...",
-            type="password"
-        )
-        submit_auth_trigger = st.form_submit_button("⚡ Unlock Operational Toolsuite Portal")
-        
-        if submit_auth_trigger:
-            # Enforce your precise validation password assignment key parameter
-            if inputted_portal_password.strip() == "CEI-Admin-2026":
-                st.session_state.admin_authorized = True
-                st.toast("🔓 Access Granted! Initializing CEI workspace panels row components...")
-                st.rerun() # Refresh the page to clear the login form and reveal full app layout arrays
-            elif inputted_portal_password.strip() != "":
-                st.error("🔒 Security Lock: Invalid administrative verification token password access keys.")
+    # State-driven input fields map parameter tracking strings independently of form nodes
+    inputted_portal_password = st.text_input(
+        label="🔑 Enter Administrator Master Access Password:",
+        placeholder="Type your security credential string token...",
+        type="password",
+        key="master_portal_gatekeeper_password_input"
+    )
+    
+    # Fixed operational execution block fires callbacks immediately upon mouse click actions
+    if st.button("⚡ Unlock Operational Toolsuite Portal", key="auth_submission_trigger_button"):
+        if inputted_portal_password.strip() == "CEI-Admin-2026":
+            st.session_state.admin_authorized = True
+            st.toast("🔓 Access Granted! Initializing CEI workspace panels components...")
+            time.sleep(0.5)
+            st.rerun() # Hard page re-render wipes screen canvas and unrolls full app rows
+        elif inputted_portal_password.strip() != "":
+            st.error("🔒 Security Lock: Invalid administrative verification token password access keys.")
                 
     st.caption("⚠️ *Notice: Unauthorized attempts to download or modify student vocal records data models are monitored.*")
     st.stop() # CRITICAL STOP INTERLOCK: Prevents Streamlit from drawing another pixel if auth fails!
@@ -65,7 +87,7 @@ if not st.session_state.admin_authorized:
 st.markdown("<h1 style='text-align: center; color: #117A65; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Secure Playback Database Upload & Student Verification Desk</h4>", unsafe_allow_html=True)
 # ============================================================================
-# PART 4: STUDENT ID QUERY MANAGEMENT DESK PORTAL SINK
+# PART 4: STUDENT ID QUERY MANAGEMENT DESK PORTAL SINK (IDE COLUMN ASSIGNED)
 # ============================================================================
 st.write("---")
 st.markdown("### 🔍 Student Playback Retrieval Section")
@@ -83,7 +105,7 @@ if typed_student_code_password.strip() != "" and sheet_raw_data_matrix is not No
     search_token = typed_student_code_password.strip().lower()
     
     timestamp_column_index = 0   # Column 1 (Index 0) -> Fecha Registro
-    student_code_column_index = 1 # Column 2 (Index 1) -> STRICT: Código Estudiante
+    student_code_column_index = 1 # Column 2 (Index 1) -> STRICTLY TARGETS YOUR COLUMN LABEL: IDE
     audio_stream_column_index = 2 # Column 3 (Index 2) -> Datos Audio
 
     for index, row in sheet_raw_data_matrix.iterrows():
