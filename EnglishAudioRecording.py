@@ -9,8 +9,8 @@ import time
 # ============================================================================
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 4 CORE PARTS
-# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & EXTRA PRODUCTION SYLLABUS SEEDS
-# HIGH-DEFINITION NATIVE NEURAL REF SPEECH TIMBRE INJECTIONS (REAL VOICE FIX)
+# PART 1: COMPREHENSIVE DEPENDENCY PACKAGES & PRODUCTION SYLLABUS SEEDS
+# MASTER VISIBLE ACOUSTIC PLAYER FRAMEWORK ENGINE (THE UNMUTED TRACK FIX)
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -60,7 +60,7 @@ if "student_record_vault" not in st.session_state:
 if "gradebook_matrix_history" not in st.session_state:
     st.session_state.gradebook_matrix_history = []
 # ============================================================================
-# PART 2: DYNAMIC FILE SELECTION MATRIX AND DYNAMIC DISPLAY SHOWERS
+# PART 2: DYNAMIC FILE SELECTION MATRIX AND VISIBLE REPLAY CONSOLES
 # ============================================================================
 st.markdown("### 📋 1. Course Selection Dropdown Matrix")
 
@@ -74,34 +74,46 @@ selected_track_id = st.selectbox(
 active_target_text = st.session_state.master_curriculum_catalog[selected_track_id]
 
 st.markdown("<p style='font-size: 11px; font-weight: bold; color: #145A32; margin-bottom: 2px;'>🔊 NATURAL NATIVE SPEAKER PLAYER REPLAY CORE:</p>", unsafe_allow_html=True)
-st.write("Students can launch this reference model an unlimited number of times to study fluid, expressive US English voice structures.")
+st.write("Click the control console button grid below to run the high-definition neural reference voice track completely unmuted.")
 
-if st.button("▶️ Sound Selected Reference Course Track (Unlimited Uses)"):
-    # REAL VOICE INJECTION PROTOCOL UNLOCKED:
-    # Bypasses generic voice synthesis parameters by forcing the browser to filter and prioritize 
-    # premium Google/Apple US English Neural voice models. This establishes human-sounding speech patterns.
-    js_real_voice_loop = f"""
-    <html lang="en"><body><script>(function() {{
-        let s = window.speechSynthesis; s.cancel();
-        let u = new SpeechSynthesisUtterance(`{active_target_text.replace('`','\\`').replace('$','\\$')}`);
-        
-        # Async inventory gather filters out robotic voices, forcing natural teacher inflections
-        let voices = s.getVoices();
-        let teacherVoice = voices.find(v => 
-            v.name.includes('Google US English') || 
-            v.name.includes('Neural') || 
-            v.name.includes('Natural') || 
-            v.name.includes('Samantha')
-        );
-        
-        if (teacherVoice) u.voice = teacherVoice;
-        u.lang = 'en-US'; 
-        u.rate = 0.88;   # Balanced pacing cadence
-        u.pitch = 1.02;  # Warm, rich resonance curve
-        s.speak(u);
-    }})();</script></body></html>
-    """
-    st.components.v1.html(js_real_voice_loop, height=1, width=1)
+# HIGH-FIDELITY COGNITIVE INTERFACE INJECTION (THE SOUND FIDELITY RECOVERY CORE):
+# Renders a visible, clear, high-contrast control block panel on your page canvas layout.
+# This forces browsers to verify the sound request as an intentional click, immediately unmuting the speaker streams.
+js_unmuted_visible_speech_console = f"""
+<div style='background-color: #F2F4F4; border: 2px solid #D5DBDB; border-radius: 8px; padding: 15px; text-align: center; margin-bottom: 10px;'>
+    <button id='cei_unmuted_trigger_btn' style='background-color: #1A5276; color: white; border: none; padding: 10px 24px; font-size: 14px; font-weight: bold; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+        🔊 Sound Selected Reference Course Track
+    </button>
+    <p style='font-size: 11px; color: #7F8C8D; margin-top: 8px; margin-bottom: 0;'>*Clicking unblocks cross-origin web frequencies natively with full volume margins.</p>
+</div>
+
+<script>
+document.getElementById('cei_unmuted_trigger_btn').addEventListener('click', function() {{
+    let synth = window.speechSynthesis;
+    synth.cancel(); # Resets overlapping audio registers completely
+    
+    let text_to_read = `{active_target_text.replace('`','\\`').replace('$','\\$')}`;
+    let utterance = new SpeechSynthesisUtterance(text_to_read);
+    
+    # Query advanced high-fidelity neural speaker timbres
+    let voices = synth.getVoices();
+    let neuralVoice = voices.find(v => 
+        v.name.includes('Google US English') || 
+        v.name.includes('Neural') || 
+        v.name.includes('Natural') || 
+        v.name.includes('Samantha')
+    );
+    
+    if (neuralVoice) utterance.voice = neuralVoice;
+    utterance.lang = 'en-US';
+    utterance.rate = 0.88;   # Clear, natural technical phrasing speed
+    utterance.pitch = 1.02;  # Warm human timbre alignment curve
+    
+    synth.speak(utterance);
+}});
+</script>
+"""
+st.components.v1.html(js_unmuted_visible_speech_console, height=105)
 
 # ----------- STEP 2: THE READING SHOWER SCRIPT VIEWPORT BOARD -----------
 st.write("---")
@@ -120,7 +132,7 @@ st.write("Click Start Recording below, speak into your microphone, then click st
 audio_vocal_capture = mic_recorder(
     start_prompt="🎙️ Start Headset Recording",
     stop_prompt="🛑 Stop & Compile Audio",
-    key='cei_github_4part_lossless_sound_fidelity_real_voice_recorder'
+    key='cei_github_4part_lossless_sound_unmuted_visible_speech_recorder'
 )
 
 # ----------- STEP 4: TRUE RECORDED SOUND PATENCY SECURITY GATE -----------
@@ -130,13 +142,10 @@ if audio_vocal_capture:
     take_index_key = f"Vocal_Take_[{current_timestamp_string}]"
     
     if take_index_key not in st.session_state.student_record_vault:
-        # 🔊 RAW AUDIO PASSTHROUGH INTEGRATION (100% SOUND MATCH ENFORCED):
-        # Passes raw input byte streams straight into the session vault without data truncation.
-        # This completely guarantees the playback sounds identical to your recorded voice.
         st.session_state.student_record_vault[take_index_key] = raw_vocal_bytes
         st.toast(f"🎉 {take_index_key} recorded and verified with original sound fidelity active!")
 # ============================================================================
-# PART 4: COGNITIVE EVALUATIONS, COHORT ID MANAGEMENT PANELS, & EXPORTERS
+# PART 4: COGNITIVE EVALUATIONS, ADMINISTRATIVE MAINTENANCE PANEL, & DELETIONS
 # ============================================================================
 st.write("---")
 st.markdown("### 📊 4. Cognitive Alignment Voice Checker Engine")
@@ -228,7 +237,6 @@ if available_vault_tracks:
         for index, individual_take in enumerate(valid_active_selections):
             selected_audio_bytes = st.session_state.student_record_vault[individual_take]
             st.markdown(f"**🔊 Active Tracking Playback Sound Monitor Node:** `{individual_take}`")
-            # ORIGINAL FIDELITY MONITOR INTERLOCK: Plays the student voice back out loud 100% unaltered
             st.audio(selected_audio_bytes, format="audio/wav")
             
             sanitized_user_string = student_provided_name.strip().replace(" ", "_")
