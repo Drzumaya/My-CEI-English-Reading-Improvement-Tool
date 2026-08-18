@@ -20,10 +20,9 @@ if "authenticated_student_record" not in st.session_state:
     st.session_state.authenticated_student_record = None
 
 # Unified master account publication key token string
-MASTER_COMPLIANCE_TOKEN = "1vnRZDlb79scuC4kkdy0X3QNJKSLsVUFe_YoUe8GZlQU"
-
+MASTER_COMPLIANCE_TOKEN = "h2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 # Native Google Sheets raw stream publishing endpoint query route path
-FINAL_UNTAINTED_NET_URL = f"https://google.com{MASTER_COMPLIANCE_TOKEN}/pub?output=csv"
+FINAL_UNTAINTED_NET_URL = f"https://docs.google.com/spreadsheets/d/e/2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?gid=2026091417&single=true&output=csv"
 
 # ============================================================================
 # PART 2: UNCACHED UNMUTED DOCKER PIPELINE NETWORK READ STRACTION
