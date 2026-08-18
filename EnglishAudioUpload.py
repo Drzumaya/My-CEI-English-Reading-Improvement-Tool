@@ -10,12 +10,12 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# MODAL GATEKEEPER POPUP & CLEAN REFETCH SINK • ENGLISHAUDIOUPLOAD.PY
+# RE-INDEXED CLEAN ROUTE CONNECTIVITY INTERLOCK • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
-st.set_page_config(page_title="CEI Secure Storage Portal", layout="centered")
+st.set_page_config(page_title="CEI Secure Portal", layout="centered")
 
 # Initialize global authentication session tracking variables if not present in short-term memory
 if "authenticated_student_record" not in st.session_state:
@@ -27,23 +27,19 @@ if "authenticated_student_record" not in st.session_state:
 # Your correct Google Web Publication Key Token String from the active account
 TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
-# FIXED ENGINES CHASSIS:
-# Routes strictly via the native ://google.com publishing network path.
-# This structure completely satisfies the internet DNS name layers, preventing the label overflow.
-PUBLIC_CSV_EXPORT_URL = f"https://://google.com/spreadsheets/d/e/{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
+# NEW UNIQUE CONSTANT IDENTIFIER BASS CHASSIS:
+# Completely bypasses the old broken variable strings stuck inside your server's background cache.
+# Binds directly to the native Google Docs workspace publishing route with no extra parameters.
+CEI_CLEAN_LIVE_SPREADSHEET_STREAM_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
 # PART 2: FIREWALL-SAFE REAL-TIME CLOUD SYNCHRONIZATION ENGINE
 # ============================================================================
 
-@st.cache_data(ttl=1) # 1-second Time-To-Live forces Streamlit to constantly look for new student codes
+@st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
 def fetch_live_cloud_results_ledger(target_url):
     try:
-        # Appending a fresh timestamp buster forces the Streamlit platform to dump old broken cached strings
-        live_timestamp_nonce = int(time.time())
-        cache_busted_url = f"{target_url}&cb={live_timestamp_nonce}"
-        
-        # Pulls the data cleanly as an isolated web request stream to clear URL label bugs
-        web_response_packet = requests.get(cache_busted_url, timeout=10)
+        # Pulls the clean, uncorrupted base URL directly to satisfy domain tracking filters safely
+        web_response_packet = requests.get(target_url, timeout=10)
         if web_response_packet.status_code == 200:
             string_data_buffer = io.StringIO(web_response_packet.text)
             df = pd.read_csv(string_data_buffer, header=None)
@@ -54,13 +50,13 @@ def fetch_live_cloud_results_ledger(target_url):
         st.warning(f"📡 Cloud Sync Notice: Syncing data records from cloud server channels... ({err})")
         return None
 
-# Instantly pull the full cloud database rows list frame
-sheet_raw_data_matrix = fetch_live_cloud_results_ledger(PUBLIC_CSV_EXPORT_URL)
+# Instantly pull the full cloud database rows list frame using the newly created variable identifier
+sheet_raw_data_matrix = fetch_live_cloud_results_ledger(CEI_CLEAN_LIVE_SPREADSHEET_STREAM_URL)
 # ============================================================================
-# PART 3: THE FRONT-END DYNAMIC STUDENT PASSWORD GATEKEEPER (POPUP RESTORED)
+# PART 3: UNBLOCKED FORM-STATE POPUP PASSWORD GATEKEEPER
 # ============================================================================
 
-# Check if the session is locked or waiting for authorization loops
+# If no active student record token is currently authorized inside memory, lock down viewport layouts
 if st.session_state.authenticated_student_record is None:
     st.markdown("<h3 style='text-align: center; color: #117A65; font-weight: bold;'>🔐 System Security Access Lock</h3>", unsafe_allow_html=True)
     st.write("Welcome to the CEI Master Toolsuite Archive. Please enter your unique Student ID Code to act as your access verification password:")
