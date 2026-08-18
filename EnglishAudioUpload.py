@@ -161,12 +161,9 @@ col_cabecera, col_salir_pagina = st.columns([3, 1])
 with col_cabecera:
     st.success(f"🔓 Canal seguro de información asignado al IDE: **{st.session_state.student_code}**")
 
-with col_salir_pagina:
-    # CLAVE ÚNICA MODIFICADA PARA EVITAR EL ERROR STREAMLITAPIEXCEPTION
     with col_salir_pagina:
-    # Usamos el código del estudiante en la key para garantizar que sea única por sesión
+    # Asegúrate de que estas líneas tengan exactamente 4 espacios de sangría hacia la derecha
     id_unico_boton = f"main_logout_secure_{st.session_state.student_code}"
-    
     if st.button("❌ Salir / Terminar", key=id_unico_boton, type="danger", use_container_width=True):
         procesar_cierre_de_sesion()
 
