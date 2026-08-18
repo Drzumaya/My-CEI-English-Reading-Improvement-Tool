@@ -163,8 +163,13 @@ with col_cabecera:
 
 with col_salir_pagina:
     # CLAVE ÚNICA MODIFICADA PARA EVITAR EL ERROR STREAMLITAPIEXCEPTION
-    if st.button("❌ Salir / Terminar", key="main_logout_secure_unique_key", type="danger", use_container_width=True):
+    with col_salir_pagina:
+    # Usamos el código del estudiante en la key para garantizar que sea única por sesión
+    id_unico_boton = f"main_logout_secure_{st.session_state.student_code}"
+    
+    if st.button("❌ Salir / Terminar", key=id_unico_boton, type="danger", use_container_width=True):
         procesar_cierre_de_sesion()
+
 
 st.markdown(f"### 🎧 Historial de Grabaciones Registradas ({len(data_filtrada_estudiante)} registros)")
 st.markdown("Usa los controles multimedia integrados en cada bloque para reproducir o respaldar tus archivos localmente.")
