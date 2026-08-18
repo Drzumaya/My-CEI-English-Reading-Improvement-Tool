@@ -139,11 +139,7 @@ if not st.session_state.authenticated:
 # ==============================================================================
 # PARTE 6: PANEL PRINCIPAL Y SISTEMA DE CIERRE SEGURO (SOLUCIÓN AL COMPILADOR)
 # ==============================================================================
-def procesar_cierre_de_sesion():
-    st.session_state.authenticated = False
-    st.session_state.student_code = None
-    st.cache_data.clear()
-    st.rerun()
+
 
 # --- PANEL DE CONTROL LATERAL (Sidebar) ---
 st.sidebar.markdown(f"### 👤 Perfil Verificado")
