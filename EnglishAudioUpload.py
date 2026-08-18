@@ -25,7 +25,7 @@ if "authenticated_student_record" not in st.session_state:
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
 # Unified clean public master token string 
-MASTER_ACCOUNT_PUBLISH_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
+MASTER_ACCOUNT_PUBLISH_TOKEN = "1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
 # NEW CACHE-DESTROYING FORCE VARIABLE ID:
 # Changing the variable label signature breaks the Streamlit internal layout memory loop.
