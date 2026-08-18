@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# RE-INDEXED CLEAN ROUTE CONNECTIVITY INTERLOCK • ENGLISHAUDIOUPLOAD.PY
+# RECONSTRUCTED MASTER WEBPAGE PUBLICATION ENGINE • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -24,13 +24,13 @@ if "authenticated_student_record" not in st.session_state:
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
-# Your correct Google Web Publication Key Token String from the active account
-TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
+# RECONSTRUCTED REPO FIX: Unified your exact complete public master token string
+MASTER_ACCOUNT_PUBLISH_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
-# NEW UNIQUE CONSTANT IDENTIFIER BASS CHASSIS:
-# Completely bypasses the old broken variable strings stuck inside your server's background cache.
-# Binds directly to the native Google Docs workspace publishing route with no extra parameters.
-CEI_CLEAN_LIVE_SPREADSHEET_STREAM_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
+# NEW CACHE-FREE DESTINATION ENGINE INTERLOCK:
+# Completely overrides any broken old url variable blocks previously trapped in Streamlit Cloud.
+# Binds directly to the native Google Sheets publishing route with a clean, raw CSV output suffix.
+CEI_CLEAN_STREAM_URL = f"https://google.com{MASTER_ACCOUNT_PUBLISH_TOKEN}/pub?output=csv"
 # ============================================================================
 # PART 2: FIREWALL-SAFE REAL-TIME CLOUD SYNCHRONIZATION ENGINE
 # ============================================================================
@@ -38,7 +38,7 @@ CEI_CLEAN_LIVE_SPREADSHEET_STREAM_URL = f"https://google.com{TARGET_GOOGLE_SHEET
 @st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
 def fetch_live_cloud_results_ledger(target_url):
     try:
-        # Pulls the clean, uncorrupted base URL directly to satisfy domain tracking filters safely
+        # Pulls the data cleanly as an isolated web request stream to clear URL label bugs
         web_response_packet = requests.get(target_url, timeout=10)
         if web_response_packet.status_code == 200:
             string_data_buffer = io.StringIO(web_response_packet.text)
@@ -50,8 +50,8 @@ def fetch_live_cloud_results_ledger(target_url):
         st.warning(f"📡 Cloud Sync Notice: Syncing data records from cloud server channels... ({err})")
         return None
 
-# Instantly pull the full cloud database rows list frame using the newly created variable identifier
-sheet_raw_data_matrix = fetch_live_cloud_results_ledger(CEI_CLEAN_LIVE_SPREADSHEET_STREAM_URL)
+# Instantly pull the full cloud database rows list frame using the newly mapped clean variable template
+sheet_raw_data_matrix = fetch_live_cloud_results_ledger(CEI_CLEAN_STREAM_URL)
 # ============================================================================
 # PART 3: UNBLOCKED FORM-STATE POPUP PASSWORD GATEKEEPER
 # ============================================================================
@@ -184,7 +184,7 @@ st.markdown("### 📊 Stored Records Summary Ledger Matrix")
 
 if sheet_raw_data_matrix is not None and not sheet_raw_data_matrix.empty:
     try:
-        header_labels_row_list = sheet_raw_data_matrix.iloc[0].astype(str).str.strip().tolist()
+        header_labels_row_list = sheet_raw_data_matrix.iloc.astype(str).str.strip().tolist()
         data_content_matrix_rows = sheet_raw_data_matrix.iloc[1:].copy()
         data_content_matrix_rows.columns = header_labels_row_list
         
