@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 
 # ==============================================================================
-# PARTE 1: CONFIGURACIÓN E INICIALIZACIÓN DE SESIÓN SECURE
+# 🧩 PARTE 1: CONFIGURACIÓN, INICIALIZACIÓN Y SEGURIDAD (CONEXIÓN Y LOGIN)
 # ==============================================================================
 st.set_page_config(
     page_title="Portal de Grabaciones de Inglés",
@@ -21,23 +21,16 @@ if "student_code" not in st.session_state:
 SPREADSHEET_ID = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
 URL_SHEET = f"https://docs.google.com/spreadsheets/d/e/2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
 
-
-# ==============================================================================
-# PARTE 2: CARGA ULTRA SEGURA DE DATOS (FILTRO ANTI-NAN)
-# ==============================================================================
 @st.cache_data(ttl=3)  # Refresco rápido de caché de datos en segundos
 def cargar_y_sanitizar_datos():
     try:
         df = pd.read_csv(URL_SHEET)
-        
         # Elimina columnas sin nombre en el encabezado (los fantasmas 'nan' del archivo)
         columnas_validas = [col for col in df.columns if pd.notna(col) and not str(col).startswith('Unnamed:')]
         df = df[columnas_validas]
-        
         # Sanitizar espacios en blanco en la columna de códigos de alumnos
         if 'IDE' in df.columns:
             df['IDE'] = df['IDE'].astype(str).str.strip()
-            
         return df
     except Exception as e:
         st.error(f"Error crítico en el enlace de la base de datos: {e}")
@@ -45,9 +38,35 @@ def cargar_y_sanitizar_datos():
 
 df_source = cargar_y_sanitizar_datos()
 
+@st.dialog("🔒 Autenticación de Acceso del Estudiante")
+def popup_autenticacion():
+    st.write("Digita tu código personal registrado en la columna **IDE** de la planilla para validar tu acceso.")
+    input_code = st.text_input("Código de Estudiante (IDE):", type="password", key="modal_password_input").strip()
+    
+    if st.button("Verificar Credenciales", type="primary", use_container_width=True, key="modal_submit_button"):
+        if df_source is not None and 'IDE' in df_source.columns:
+            if input_code in df_source['IDE'].values:
+                st.session_state.authenticated = True
+                st.session_state.student_code = input_code
+                st.success("¡Identidad confirmada con éxito!")
+                st.rerun()
+            else:
+                st.error("❌ Código de estudiante no encontrado. Por favor intente de nuevo.")
+        else:
+            st.error("La base de datos de validación no está disponible temporalmente.")
+
+# Sistema de bloqueo permanente antes del ingreso
+if not st.session_state.authenticated:
+    st.info("👋 Bienvenido al Portal Evaluativo de Grabaciones.")
+    st.markdown("### Control de Acceso Requerido")
+    st.write("Los recursos multimedia de esta plataforma están restringidos. Por favor, inicia sesión con tu identificador.")
+    if st.button("🔐 Abrir Terminal de Autenticación", type="primary", key="gatekeeper_start_button"):
+        popup_autenticacion()
+    st.stop()
+
 
 # ==============================================================================
-# PARTE 3: REPRODUCTOR RESILIENTE Y GESTOR DE DESCARGAS
+# 🧩 PARTE 2: NÚCLEO DE PROCESAMIENTO MULTIMEDIA (REPARADOR DE AUDIO Y DESCARGAS)
 # ==============================================================================
 def renderizar_reproductor_audio(audio_data, file_index):
     """Repara cadenas Base64 incompletas y habilita descarga/reproducción sin bloqueos."""
@@ -81,8 +100,6 @@ def renderizar_reproductor_audio(audio_data, file_index):
             
             # Decodificación a datos binarios legibles
             audio_bytes = base64.b64decode(clean_b64)
-            
-            # Renderizar reproductor de audio integrado nativo del navegador
             st.audio(audio_bytes, format='audio/wav')
             
             # Desplegar botón de descarga local independiente
@@ -99,45 +116,7 @@ def renderizar_reproductor_audio(audio_data, file_index):
 
 
 # ==============================================================================
-# PARTE 4: POPUP DE SEGURIDAD (CUADRO DE DIÁLOGO EMERGENTE)
-# ==============================================================================
-@st.dialog("🔒 Autenticación de Acceso del Estudiante")
-def popup_autenticacion():
-    st.write("Digita tu código personal registrado en la columna **IDE** de la planilla para validar tu acceso.")
-    
-    # Campo de contraseña oculta para mayor confidencialidad
-    input_code = st.text_input("Código de Estudiante (IDE):", type="password", key="modal_password_input").strip()
-    
-    if st.button("Verificar Credenciales", type="primary", use_container_width=True, key="modal_submit_button"):
-        if df_source is not None and 'IDE' in df_source.columns:
-            # Comprobar la existencia del código ingresado en los registros del Google Sheet
-            if input_code in df_source['IDE'].values:
-                st.session_state.authenticated = True
-                st.session_state.student_code = input_code
-                st.success("¡Identidad confirmeda con éxito!")
-                st.rerun()  # Cierra la ventana emergente y actualiza la interfaz
-            else:
-                st.error("❌ Código de estudiante no encontrado. Por favor intente de nuevo.")
-        else:
-            st.error("La base de datos de validación no está disponible temporalmente.")
-
-
-# ==============================================================================
-# PARTE 5: SISTEMA DE BLOQUEO PERMANENTE ANTES DEL INGRESO
-# ==============================================================================
-if not st.session_state.authenticated:
-    st.info("👋 Bienvenido al Portal Evaluativo de Grabaciones.")
-    st.markdown("### Control de Acceso Requerido")
-    st.write("Los recursos multimedia de esta plataforma están restringidos. Por favor, inicia sesión con tu identificador.")
-    
-    if st.button("🔐 Abrir Terminal de Autenticación", type="primary", key="gatekeeper_start_button"):
-        popup_autenticacion()
-        
-    st.stop()  # Detiene la lectura del script restante si la sesión no está verificada
-
-
-# ==============================================================================
-# PARTE 6: PANEL PRINCIPAL Y SISTEMA DE CIERRE SEGURO desde SIDEBAR
+# 🧩 PARTE 3: PANEL DE USUARIO E INTERFAZ GRÁFICA (VISTA DE REGISTROS FILTRADOS)
 # ==============================================================================
 def procesar_cierre_de_sesion():
     st.session_state.authenticated = False
@@ -155,7 +134,7 @@ if st.sidebar.button("🚪 Cerrar Sesión", key="logout_sidebar_unique_action", 
 # Filtrar registros en memoria que correspondan solo al estudiante activo
 data_filtrada_estudiante = df_source[df_source['IDE'] == st.session_state.student_code]
 
-# Banner superior con la información del canal seguro (Se removió el botón "Salir")
+# Banner superior de confirmación de canal seguro
 st.success(f"🔓 Canal seguro de información asignado al IDE: **{st.session_state.student_code}**")
 
 st.markdown(f"### 🎧 Historial de Grabaciones Registradas ({len(data_filtrada_estudiante)} registros)")
@@ -164,16 +143,17 @@ st.markdown("---")
 
 if not data_filtrada_estudiante.empty and 'Subir evidencias' in data_filtrada_estudiante.columns:
     for indice, fila in data_filtrada_estudiante.iterrows():
-        fecha_registro = fila['Fecha'] if 'Fecha' in fila else "No disponible"
-        fase_registro = fila['Fase'] if 'Fase' in fila else "No disponible"
+        fecha_recording = fila['Fecha'] if 'Fecha' in fila else "No disponible"
+        fase_recording = fila['Fase'] if 'Fase' in fila else "No disponible"
         
         with st.container(border=True):
-            col_metadatos, col_reproductor_area = st.columns()
+            # SOLUCIÓN COMPILADOR: Agregamos el número '2' para definir el número de columnas
+            col_metadatos, col_reproductor_area = st.columns(2)
             
             with col_metadatos:
                 st.markdown(f"##### 📋 Evidencia de Lectura N° {indice}")
-                st.write(f"📅 **Fecha de Carga:** {fecha_registro}")
-                st.write(f"🎯 **Etapa evaluada:** {fase_registro}")
+                st.write(f"📅 **Fecha de Carga:** {fecha_recording}")
+                st.write(f"🎯 **Etapa evaluada:** {fase_recording}")
                 if 'Enlace Sitio Web' in fila and pd.notna(fila['Enlace Sitio Web']):
                     st.markdown(f"🔗 [Ir al Sitio del Proyecto]({fila['Enlace Sitio Web']})")
                     
