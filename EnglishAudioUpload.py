@@ -23,9 +23,9 @@ if "authenticated_student_record" not in st.session_state:
 
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
-# --------------------------------================================------------
+# ----------------------------------------------------------------------------
 # EXACT VERIFIED GOOGLE SPREADSHEET SYSTEM STREAM DATA ROUTE ASSIGNED
-PUBLIC_CSV_EXPORT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
+PUBLIC_CSV_EXPORT_URL = "https://google.com"
 # ============================================================================
 # PART 2: FIREWALL-SAFE REAL-TIME CLOUD SYNCHRONIZATION ENGINE
 # ============================================================================
@@ -111,7 +111,7 @@ if st.session_state.authenticated_student_record is None:
 st.markdown("<h1 style='text-align: center; color: #117A65; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Secure Playback Database Upload & Student Verification Desk</h4>", unsafe_allow_html=True)
 # ============================================================================
-# PART 4: SECURE STUDENT AUDIOS DISPLAYER DESK PANEL (OMITTED OVERHEAD TITLE)
+# PART 4: SECURE STUDENT AUDIOS PLAYER DESK PANEL (WAV DECODING UNMUTED)
 # ============================================================================
 st.write("---")
 
@@ -131,41 +131,36 @@ try:
         raw_base64_string += "=" * (4 - missing_padding_characters_count)
         
     decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
-    st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 UNBLOCKED PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
     
-    # Native direct text Data-URI HTML5 player avoids browser cross-origin sandbox mutes natively in MP3 compression formats
+    # HTML5 standard container player tracks layout unmuted via explicit type='audio/wav' mapping channels
     st.components.v1.html(f"""
         <div style='background-color: #E8F8F5; border: 1px solid #A3E4D7; border-radius: 6px; padding: 10px; text-align: center;'>
             <audio controls style='width: 100%; height: 40px;'>
-                <source src='data:audio/mp3;base64,{raw_base64_string}' type='audio/mp3'>
+                <source src='data:audio/wav;base64,{raw_base64_string}' type='audio/wav'>
                 Your browser does not support unblocked local element audio vectors.
             </audio>
         </div>
     """, height=65)
     
     st.download_button(
-        label=f"📥 Download Your Verified Sound Take ({current_active_student_record['code']}.mp3)",
+        label=f"📥 Download Your Verified Sound Take ({current_active_student_record['code']}.wav)",
         data=decoded_audio_bytes_payload,
-        file_name=f"{current_active_student_record['code']}_Verified_Take.mp3",
-        mime="audio/mp3",
+        file_name=f"{current_active_student_record['code']}_Verified_Take.wav",
+        mime="audio/wav",
         key="student_direct_download_key_node"
     )
 except Exception as data_err:
     st.error(f"Linguistic file block corrupted or written in an invalid format string structure ({data_err}).")
-
-# Logout button allows resetting session state memories to exit out of dashboard securely
-if st.button("🔒 Securely Close Repository & Logout", key="portal_exit_logout_trigger"):
-    st.session_state.authenticated_student_record = None
-    st.rerun()
 # ============================================================================
-# PART 5: COORDINATOR MANUAL UPLOAD GATEWAY AND BINARY TO BASE64 CONVERTERS
+# PART 5: REORDERED SUBMISSION INTERFACE PANEL
 # ============================================================================
 st.write("---")
-st.markdown("### 📤 Coordinator Audio Ingestion Console")
-st.write("Authorized administrators use this portal to bind student recorded elements directly into the database sheet.")
+st.markdown("### 📥 My Recording Playback List")
+st.write("Authorized users use this space to submit or check recorded oral entries.")
 
 admin_target_student_id = st.text_input(label="📋 Target Student Code Mapping Assignment:", placeholder="e.g., CEI-2026-4402", key="admin_id_field")
-uploaded_student_file_asset = st.file_uploader(label="📁 Upload Student Playback Recording File Asset (.mp3, .wav):", type=["mp3", "wav"])
+uploaded_student_file_asset = st.file_uploader(label="📁 Uploading my new Recording Playbacks:", type=["mp3", "wav"])
 
 compiled_base64_string_payload = ""
 
@@ -173,57 +168,12 @@ if uploaded_student_file_asset is not None:
     try:
         raw_uploaded_bytes_block = uploaded_student_file_asset.read()
         compiled_base64_string_payload = base64.b64encode(raw_uploaded_bytes_block).decode('utf-8')
-        st.info(f"✨ File asset '{uploaded_student_file_asset.name}' loaded and compressed successfully inside local browser memory.")
+        st.info(f"✨ File asset '{uploaded_student_file_asset.name}' loaded successfully inside browser memory.")
     except Exception as file_err:
         st.error(f"Error compiling structural file payload bytes ({file_err}).")
 # ============================================================================
-# PART 6: GOOGLE APPS SCRIPT WEB APP POST ENGINE AND THE DYNAMIC AUTOMATED MONITOR TABLE
+# PART 6: THE DYNAMIC AUTOMATED MONITOR TABLE SUMMARY
 # ============================================================================
-st.write("---")
-st.markdown("#### 🛠️ Direct Spreadsheet Append Form Hub")
-
-APPS_SCRIPT_DEPLOYMENT_WEB_APP_URL = st.text_input(
-    label="🔗 Paste Google Apps Script Web App URL Link:", 
-    placeholder="https://google.com",
-    type="password"
-)
-
-if st.button("⚡ Process Audio Upload Ledger Insertion Loop"):
-    if admin_target_student_id.strip() == "":
-        st.error("Operation Aborted: Target Student Code Mapping field cannot be blank.")
-    elif compiled_base64_string_payload == "":
-        st.error("Operation Aborted: Please choose a valid audio file asset to commit upload pipelines.")
-    elif APPS_SCRIPT_DEPLOYMENT_WEB_APP_URL.strip() == "":
-        st.error("Operation Aborted: Paste your public Forms Web App URL to append lines safely.")
-    else:
-        current_time_marker_string = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        form_payload_packet = {
-            "timestamp": current_time_marker_string,
-            "student_id": admin_target_student_id.strip(),
-            "audio_data": compiled_base64_string_payload
-        }
-        
-        with st.spinner("Executing secure pipeline data injection loop across cloud spreadsheets..."):
-            try:
-                post_server_response = requests.post(
-                    APPS_SCRIPT_DEPLOYMENT_WEB_APP_URL, 
-                    data=form_payload_packet, 
-                    timeout=15
-                )
-                if post_server_response.status_code == 200 or "success" in post_server_response.text.lower():
-                    st.balloons()
-                    st.success("🚀 Success! Student recording locked and committed successfully inside Google Sheets!")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error(f"Spreadsheet gateway rejected data logs format. Server Response: {post_server_response.text}")
-            except Exception as connection_failure_err:
-                st.error(f"Transmission connection failed. ({connection_failure_err}).")
-
-# ----------------------------------------------------------------------------
-# DYNAMIC ADMIN SUMMARY DATAFRAME VIEW (VISIBLE ONLY WHEN AUTHENTICATED PAST LOGINS WALLS)
-# ----------------------------------------------------------------------------
 st.write("---")
 st.markdown("### 📊 Stored Records Summary Ledger Matrix")
 
