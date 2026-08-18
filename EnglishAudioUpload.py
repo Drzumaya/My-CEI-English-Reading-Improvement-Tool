@@ -114,7 +114,7 @@ def popup_autenticacion():
             if input_code in df_source['IDE'].values:
                 st.session_state.authenticated = True
                 st.session_state.student_code = input_code
-                st.success("¡Identidad confirmada con éxito!")
+                st.success("¡Identidad confirmeda con éxito!")
                 st.rerun()  # Cierra la ventana emergente y actualiza la interfaz
             else:
                 st.error("❌ Código de estudiante no encontrado. Por favor intente de nuevo.")
@@ -137,7 +137,7 @@ if not st.session_state.authenticated:
 
 
 # ==============================================================================
-# PARTE 6: PANEL PRINCIPAL Y SISTEMA DE CIERRE SEGURO (SOLUCIÓN AL COMPILADOR)
+# PARTE 6: PANEL PRINCIPAL Y SISTEMA DE CIERRE SEGURO desde SIDEBAR
 # ==============================================================================
 def procesar_cierre_de_sesion():
     st.session_state.authenticated = False
@@ -155,22 +155,8 @@ if st.sidebar.button("🚪 Cerrar Sesión", key="logout_sidebar_unique_action", 
 # Filtrar registros en memoria que correspondan solo al estudiante activo
 data_filtrada_estudiante = df_source[df_source['IDE'] == st.session_state.student_code]
 
-# Fila del título y botón de abandono superior coordinado
-col_cabecera, col_salir_pagina = st.columns([3, 1])
-
-with col_cabecera:
-    st.success(f"🔓 Canal seguro de información asignado al IDE: **{st.session_state.student_code}**")
-# Fila del título y botón de abandono superior coordinado
-col_cabecera, col_salir_pagina = st.columns([3, 1])
-
-# Mostramos el mensaje de éxito en la columna de la izquierda
-col_cabecera.success(f"🔓 Canal seguro de información asignado al IDE: **{st.session_state.student_code}**")
-
-# Generamos y renderizamos el botón directamente en la columna derecha usando su variable
-id_unico_boton = f"main_logout_secure_{st.session_state.student_code}"
-if col_salir_pagina.button("❌ Salir / Terminar", key=id_unico_boton, type="danger", use_container_width=True):
-    procesar_cierre_de_sesion()
-
+# Banner superior con la información del canal seguro (Se removió el botón "Salir")
+st.success(f"🔓 Canal seguro de información asignado al IDE: **{st.session_state.student_code}**")
 
 st.markdown(f"### 🎧 Historial de Grabaciones Registradas ({len(data_filtrada_estudiante)} registros)")
 st.markdown("Usa los controles multimedia integrados en cada bloque para reproducir o respaldar tus archivos localmente.")
@@ -193,7 +179,7 @@ if not data_filtrada_estudiante.empty and 'Subir evidencias' in data_filtrada_es
                     
             with col_reproductor_area:
                 st.markdown("**Controles de Audio Disponibles:**")
-                # Invoca de forma segura al renderizador usando el índice numérico incremental
+                # Invoca al renderizador usando el índice numérico de la fila
                 renderizar_reproductor_audio(fila['Subir evidencias'], indice)
 else:
     st.info("No se registran bitácoras ni archivos cargados asociados a este identificador.")
