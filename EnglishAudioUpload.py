@@ -18,7 +18,7 @@ if "student_code" not in st.session_state:
     st.session_state.student_code = None
 
 # Configuración del puente con el Google Sheet usando tu ID verificado
-SPREADSHEET_ID = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
+SPREADSHEET_ID = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
 URL_SHEET = f"https://docs.google.com/spreadsheets/d/e/2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
 
 
@@ -139,7 +139,11 @@ if not st.session_state.authenticated:
 # ==============================================================================
 # PARTE 6: PANEL PRINCIPAL Y SISTEMA DE CIERRE SEGURO (SOLUCIÓN AL COMPILADOR)
 # ==============================================================================
-
+def procesar_cierre_de_sesion():
+    st.session_state.authenticated = False
+    st.session_state.student_code = None
+    st.cache_data.clear()
+    st.rerun()
 
 # --- PANEL DE CONTROL LATERAL (Sidebar) ---
 st.sidebar.markdown(f"### 👤 Perfil Verificado")
