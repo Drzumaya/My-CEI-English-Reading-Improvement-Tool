@@ -127,12 +127,11 @@ if not st.session_state.authenticated:
 # ==============================================================================
 # PARTE 6: PANEL PRINCIPAL CON BOTÓN DE SALIDA (LOGOUT)
 # ==============================================================================
-# Función reutilizable para cerrar sesión por completo
-def cerrar_sesion():
-    st.session_state.authenticated = False
-    st.session_state.student_code = None
-    st.cache_data.clear()
-    st.rerun()
+with col_salir:
+    # BOTÓN PARA SALIR / ABANDONAR LA PÁGINA (Con una clave única y segura)
+    if st.button("❌ Salir / Terminar", key="main_logout_unique_key", type="danger", use_container_width=True):
+        cerrar_sesion()
+
 
 # --- BARRA LATERAL (Sidebar) ---
 st.sidebar.markdown(f"### 👤 Perfil Activo")
