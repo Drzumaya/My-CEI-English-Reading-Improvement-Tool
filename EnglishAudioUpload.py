@@ -97,32 +97,40 @@ st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; fon
 # ============================================================================
 # PART 4: SECURE STUDENT AUDIOS DISPLAYER DESK PANEL (WAV DECODING UNMUTED)
 # ============================================================================
-st.write("---")
-current_active_student_record = st.session_state.authenticated_student_record
-st.info(f"👤 **Student Code Profile Locked:** `{current_active_student_record['code']}` | **Logged On:** {current_active_student_record['timestamp']}")
+import base64
+import streamlit as st
 
-try:
-    raw_base64_string = current_active_student_record['audio_data'].strip()
-    if "," in raw_base64_string: raw_base64_string = raw_base64_string.split(",")[-1]
+# --- REEMPLAZA TU BLOQUE DE REPRODUCCIÓN DE AUDIO ACTUAL CON ESTO ---
+
+# Asumiendo que 'row' es tu fila actual o que estás iterando sobre tu dataframe
+# Cambia 'row["Subir evidencias"]' por cómo tengas nombrada tu variable de celda
+audio_data = row["Subir evidencias"]
+
+if isinstance(audio_data, str) and audio_data.strip():
+    try:
+        # 1. Limpiar espacios, saltos de línea y metadatos innecesarios si existen
+        clean_base64 = audio_data.strip().replace("\n", "").replace("\r", "")
         
-    missing_padding_characters_count = len(raw_base64_string) % 4
-    if missing_padding_characters_count != 0: raw_base64_string += "=" * (4 - missing_padding_characters_count)
+        # Eliminar el prefijo data:audio/...;base64, si el script lo incluyó por error
+        if "," in clean_base64:
+            clean_base64 = clean_base64.split(",")[-1]
         
-    decoded_audio_bytes_payload = base64.b64decode(raw_base64_string)
-    st.markdown("<p style='font-size: 11px; font-weight: bold; color: #117A65; margin-bottom: 2px;'>🔊 PLAYBACK TRACK CONSOLE:</p>", unsafe_allow_html=True)
-    
-    st.components.v1.html(f"""
-        <div style='background-color: #E8F8F5; border: 1px solid #A3E4D7; border-radius: 6px; padding: 10px; text-align: center;'>
-            <audio controls style='width: 100%; height: 40px;'>
-                <source src='data:audio/wav;base64,{raw_base64_string}' type='audio/wav'>
-                Your browser does not support unblocked local element audio vectors.
-            </audio>
-        </div>
-    """, height=65)
-    
-    st.download_button(label=f"📥 Download Your Verified Sound Take ({current_active_student_record['code']}.wav)", data=decoded_audio_bytes_payload, file_name=f"{current_active_student_record['code']}_Verified_Take.wav", mime="audio/wav")
-except Exception as data_err:
-    st.error(f"Linguistic file block corrupted format string structure ({data_err}).")
+        # 2. CORRECCIÓN ESTRICTA DE MÚLTIPLO DE 4 (Repara el error de longitud 9, 13, etc.)
+        # Primero quitamos cualquier relleno previo para recalcularlo perfectamente
+        clean_base64 = clean_base64.rstrip('=')
+        modulo = len(clean_base64) % 4
+        if modulo > 0:
+            clean_base64 += "=" * (4 - modulo)
+            
+        # 3. Decodificar y reproducir de forma segura
+        audio_bytes = base64.b64decode(clean_base64)
+        st.audio(audio_bytes, format='audio/wav') # Cambia a audio/mp3 si usas ese formato
+        
+    except Exception as e:
+        st.error(f"⚠️ El archivo de audio excede el límite de tamaño de Google Sheets y está incompleto.")
+else:
+    st.warning("No hay ninguna evidencia de audio registrada en esta fila.")
+
 
 # ============================================================================
 # PART 5: REORDERED SUBMISSION INTERFACE PANEL
