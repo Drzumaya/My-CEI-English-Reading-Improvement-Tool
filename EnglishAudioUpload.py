@@ -160,12 +160,16 @@ col_cabecera, col_salir_pagina = st.columns([3, 1])
 
 with col_cabecera:
     st.success(f"🔓 Canal seguro de información asignado al IDE: **{st.session_state.student_code}**")
+# Fila del título y botón de abandono superior coordinado
+col_cabecera, col_salir_pagina = st.columns([3, 1])
 
-    with col_salir_pagina:
-    # Asegúrate de que estas líneas tengan exactamente 4 espacios de sangría hacia la derecha
-    id_unico_boton = f"main_logout_secure_{st.session_state.student_code}"
-    if st.button("❌ Salir / Terminar", key=id_unico_boton, type="danger", use_container_width=True):
-        procesar_cierre_de_sesion()
+# Mostramos el mensaje de éxito en la columna de la izquierda
+col_cabecera.success(f"🔓 Canal seguro de información asignado al IDE: **{st.session_state.student_code}**")
+
+# Generamos y renderizamos el botón directamente en la columna derecha usando su variable
+id_unico_boton = f"main_logout_secure_{st.session_state.student_code}"
+if col_salir_pagina.button("❌ Salir / Terminar", key=id_unico_boton, type="danger", use_container_width=True):
+    procesar_cierre_de_sesion()
 
 
 st.markdown(f"### 🎧 Historial de Grabaciones Registradas ({len(data_filtrada_estudiante)} registros)")
