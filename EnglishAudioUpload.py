@@ -10,7 +10,7 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# DIRECT STREAM UNFILTERED RECOVERY CHASSIS • ENGLISHAUDIOUPLOAD.PY
+# FIXED WEB DATA INGESTION MATRIX • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
@@ -24,8 +24,13 @@ if "authenticated_student_record" not in st.session_state:
 # ----------------------------------------------------------------------------
 # CRITICAL HARDCODED SYSTEM SECURITY PROTECTIONS INTERLOCK
 # ----------------------------------------------------------------------------
-# EXACT VERIFIED GOOGLE SPREADSHEET SYSTEM STREAM DATA ROUTE ASSIGNED
-PUBLIC_CSV_EXPORT_URL = "https://google.com"
+# Your correct Google Web Publication Key Token String from the active account
+TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
+
+# FIXED EXPORT PATHWAY CONSTRUCTOR:
+# Routes strictly via the native web-publishing endpoint rather than google.com root indices.
+# This prevents the idna codec label overflow and strips HTML parsing duplicates entirely.
+PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
 # PART 2: FIREWALL-SAFE REAL-TIME CLOUD SYNCHRONIZATION ENGINE
 # ============================================================================
