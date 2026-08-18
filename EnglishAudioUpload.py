@@ -1,178 +1,118 @@
-import streamlit as st
+import base64
 import pandas as pd
-import base64
-import requests
-import io
-import time
-from datetime import datetime
-
-# ============================================================================
-# TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
-# PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
-# PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# MASTER DUMP-CACHE DIRECT PIPELINE MATRIX • ENGLISHAUDIOUPLOAD.PY
-# CAREER ENGLISH INSTITUTE (2026)
-# ============================================================================
-
-st.set_page_config(page_title="CEI Secure Portal", layout="centered")
-
-if "authenticated_student_record" not in st.session_state:
-    st.session_state.authenticated_student_record = None
-
-# Unified master account publication key token string
-MASTER_COMPLIANCE_TOKEN = "h2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
-# Native Google Sheets raw stream publishing endpoint query route path
-FINAL_UNTAINTED_NET_URL = f"https://docs.google.com/spreadsheets/d/e/2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?gid=2026091417&single=true&output=csv"
-
-# ============================================================================
-# PART 2: UNCACHED UNMUTED DOCKER PIPELINE NETWORK READ STRACTION
-# ============================================================================
-@st.cache_data(ttl=1)
-def extract_live_sheets_matrix_uncached(target_url):
-    try:
-        # Pull data as a clean raw web packet stream to force reset broken server labels
-        server_raw_packet = requests.get(target_url, timeout=12)
-        if server_raw_packet.status_code == 200:
-            string_io_buffer = io.StringIO(server_raw_packet.text)
-            df = pd.read_csv(string_io_buffer, header=None)
-            return df
-        return None
-    except Exception as network_error:
-        st.error(f"📡 System Connection Notice: Streaming target spreadsheet... ({network_error})")
-        return None
-
-sheet_raw_data_matrix = extract_live_sheets_matrix_uncached(FINAL_UNTAINTED_NET_URL)
-
-# ============================================================================
-# PART 3: UNBLOCKED FORM-STATE POPUP PASSWORD GATEKEEPER
-# ============================================================================
-if st.session_state.authenticated_student_record is None:
-    st.markdown("<h3 style='text-align: center; color: #117A65; font-weight: bold;'>🔐 System Security Access Lock</h3>", unsafe_allow_html=True)
-    st.write("Welcome to the CEI Master Toolsuite Archive. Please enter your unique Student ID Code to act as your access verification password:")
-    
-    with st.form("cei_student_secure_password_gateway_form"):
-        student_entered_password_string = st.text_input(label="🔑 Enter Student Code as Password:", placeholder="Type your personal IDE code here...", type="password")
-        submit_auth_trigger = st.form_submit_button("⚡ Verify Code Credentials & Open Dashboard")
-        
-        if submit_auth_trigger:
-            if student_entered_password_string.strip() == "":
-                st.error("Operation Aborted: Password input string cannot be blank.")
-            elif sheet_raw_data_matrix is not None:
-                clean_search_token = student_entered_password_string.strip().lower()
-                
-                timestamp_column_index = 0   
-                student_code_column_index = 1 
-                audio_stream_column_index = 2 
-                
-                temporary_match_holder = None
-                
-                for index, row in sheet_raw_data_matrix.iterrows():
-                    if index == 0: continue 
-                    if len(row) > max(student_code_column_index, audio_stream_column_index):
-                        if str(row.iloc[student_code_column_index]).strip().lower() == clean_search_token:
-                            temporary_match_holder = {
-                                "timestamp": str(row.iloc[timestamp_column_index]),
-                                "code": str(row.iloc[student_code_column_index]),
-                                "audio_data": str(row.iloc[audio_stream_column_index])
-                            }
-                            break
-                
-                if temporary_match_holder is not None:
-                    st.session_state.authenticated_student_record = temporary_match_holder
-                    st.toast("🔓 Access Granted!")
-                    time.sleep(0.5)
-                    st.rerun()
-                else:
-                    st.error("🔒 Security Lock: Code not found inside dataset records.")
-            else:
-                st.error("🔒 Database connection offline. Clear your app container storage on share.streamlit.io.")
-                    
-    st.caption("⚠️ *Notice: Unauthorized attempts to download or modify student vocal records data models are monitored.*")
-    st.stop() 
-
-# Unlocked application interface zone canvas parameters views
-st.markdown("<h1 style='text-align: center; color: #117A65; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Secure Playback Database Upload & Student Verification Desk</h4>", unsafe_allow_html=True)
-
-# ============================================================================
-# PART 4: SECURE STUDENT AUDIOS DISPLAYER DESK PANEL (WAV DECODING UNMUTED)
-# ============================================================================
-import base64
 import streamlit as st
 
-# --- REEMPLAZA TU BLOQUE DE REPRODUCCIÓN DE AUDIO ACTUAL CON ESTO ---
+# Configuración de la página de Streamlit
+st.set_page_config(
+    page_title="Visualizador de Evidencias",
+    page_icon="📊",
+    layout="wide"
+)
 
-# Asumiendo que 'row' es tu fila actual o que estás iterando sobre tu dataframe
-# Cambia 'row["Subir evidencias"]' por cómo tengas nombrada tu variable de celda
-audio_data = row["Subir evidencias"]
+st.title("📊 Panel de Control y Streaming de Datos")
+st.markdown("---")
 
-if isinstance(audio_data, str) and audio_data.strip():
+# 1. DIRECCIÓN DE TU GOOGLE SHEET (Actualizado con tu ID correcto)
+# Usamos el formato /export?format=csv para que Pandas lo lea directamente sin fallar en los hosts
+SPREADSHEET_ID = "1vnRZDlb79scuC4kkdy0X3QNJKSLsVUFe_YoUe8GZlQU"
+URL_SHEET = f"https://google.com{SPREADSHEET_ID}/export?format=csv"
+
+@st.cache_data(ttl=10)  # Se actualiza automáticamente cada 10 segundos
+def cargar_datos():
     try:
-        # 1. Limpiar espacios, saltos de línea y metadatos innecesarios si existen
-        clean_base64 = audio_data.strip().replace("\n", "").replace("\r", "")
+        # Cargar los datos directo de la URL de exportación
+        df = pd.read_csv(URL_SHEET)
         
-        # Eliminar el prefijo data:audio/...;base64, si el script lo incluyó por error
-        if "," in clean_base64:
-            clean_base64 = clean_base64.split(",")[-1]
+        # 2. LIMPIEZA DE COLUMNAS DUPLICADAS O VACÍAS (Evita el error 'nan')
+        # Filtramos para quedarnos solo con columnas que tengan un nombre real y válido
+        columnas_validas = [col for col in df.columns if pd.notna(col) and not str(col).startswith('Unnamed:')]
+        df = df[columnas_validas]
         
-        # 2. CORRECCIÓN ESTRICTA DE MÚLTIPLO DE 4 (Repara el error de longitud 9, 13, etc.)
-        # Primero quitamos cualquier relleno previo para recalcularlo perfectamente
-        clean_base64 = clean_base64.rstrip('=')
-        modulo = len(clean_base64) % 4
-        if modulo > 0:
-            clean_base64 += "=" * (4 - modulo)
-            
-        # 3. Decodificar y reproducir de forma segura
-        audio_bytes = base64.b64decode(clean_base64)
-        st.audio(audio_bytes, format='audio/wav') # Cambia a audio/mp3 si usas ese formato
+        # Eliminar filas completamente vacías que puedan alterar el orden
+        df = df.dropna(how='all')
         
+        return df
     except Exception as e:
-        st.error(f"⚠️ El archivo de audio excede el límite de tamaño de Google Sheets y está incompleto.")
-else:
-    st.warning("No hay ninguna evidencia de audio registrada en esta fila.")
+        st.error(f"Error de conexión al cargar la planilla: {e}")
+        return None
 
+# Carga de datos al inicializar la app
+df_datos = cargar_datos()
 
-# ============================================================================
-# PART 5: REORDERED SUBMISSION INTERFACE PANEL
-# ============================================================================
-st.write("---")
-st.markdown("### 📥 My Recording Playback List")
-st.write("Authorized users use this space to submit or check recorded oral entries.")
+if df_datos is not None:
+    st.success("✅ Conexión establecida con éxito con el objetivo.")
+    
+    # Mostrar métricas rápidas de tu tabla
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total de Registros", len(df_datos))
+    with col2:
+        st.metric("Última Fase Activa", df_datos['Fase'].iloc[-1] if 'Fase' in df_datos.columns else "N/A")
+    with col3:
+        st.metric("Columnas Mapeadas", len(df_datos.columns))
 
-admin_target_student_id = st.text_input(label="📋 Target Student Code Mapping Assignment:", placeholder="e.g., CEI-2026-4402", key="admin_id_field")
-uploaded_student_file_asset = st.file_uploader(label="📁 Uploading my new Recording Playbacks:", type=["mp3", "wav"])
+    st.markdown("### 📋 Vista General de Datos")
+    # Mostramos la tabla limpia en la interfaz
+    st.dataframe(df_datos, use_container_width=True)
 
-compiled_base64_string_payload = ""
-if uploaded_student_file_asset is not None:
-    try:
-        raw_uploaded_bytes_block = uploaded_student_file_asset.read()
-        compiled_base64_string_payload = base64.b64encode(raw_uploaded_bytes_block).decode('utf-8')
-        st.info(f"✨ File asset '{uploaded_student_file_asset.name}' loaded successfully inside browser memory.")
-    except Exception as file_err:
-        st.error(f"Error compiling structural file payload bytes ({file_err}).")
+    st.markdown("---")
+    st.markdown("### 🎧 Reproductor Seguro de Evidencias de Audio")
 
-# ============================================================================
-# PART 6: THE DYNAMIC AUTOMATED MONITOR TABLE SUMMARY
-# ============================================================================
-st.write("---")
-st.markdown("### 📊 Stored Records Summary Ledger Matrix")
-
-if sheet_raw_data_matrix is not None and not sheet_raw_data_matrix.empty:
-    try:
-        header_labels_row_list = sheet_raw_data_matrix.iloc[0].astype(str).str.strip().tolist()
-        data_content_matrix_rows = sheet_raw_data_matrix.iloc[1:].copy()
-        data_content_matrix_rows.columns = header_labels_row_list
+    # Crear un selector dinámico para revisar fila por fila los audios
+    if 'IDE' in df_datos.columns and 'Subir evidencias' in df_datos.columns:
+        opciones_registro = [f"ID: {row['IDE']} - Fecha: {row['Fecha']}" for _, row in df_datos.iterrows()]
         
-        visible_summary_ledger_df = data_content_matrix_rows.copy()
-        if "Subir Evidencias" in visible_summary_ledger_df.columns:
-            visible_summary_ledger_df["Subir Evidencias"] = "🔒 Audio Blob Data Protected"
-            
-        st.dataframe(visible_summary_ledger_df, use_container_width=True, hide_index=True)
-        st.caption(f"💡 *Total Stored Student Registrations active: {len(visible_summary_ledger_df)} files rows.*")
+        seleccion = st.selectbox("Selecciona un registro para escuchar el audio:", opciones_registro)
         
-        csv_ledger_buffer = visible_summary_ledger_df.to_csv(index=False)
-        st.download_button(label="📥 Download Clean Student Logs Overview (.csv)", data=csv_ledger_buffer.encode('utf-8'), file_name="CEI_Registered_Students_Report.csv", mime="text/csv")
-    except Exception as display_err:
-        st.error(f"Error mapping spreadsheet layout columns variables arrays ({display_err}).")
+        # Obtener el índice de la fila seleccionada
+        idx_seleccionado = opciones_registro.index(seleccion)
+        fila_actual = df_datos.iloc[idx_seleccionado]
+        
+        audio_data = fila_actual['Subir evidencias']
+        
+        st.info(f"**Procesando audio para el IDE:** {fila_actual['IDE']}")
+
+        # 3. BLOQUE DE REPARACIÓN DE STRING BASE64 CORRUPTO (Múltiplos de 4)
+        if isinstance(audio_data, str) and audio_data.strip():
+            # Validar si es un enlace de Drive o un texto Base64
+            if audio_data.startswith("http://") or audio_data.startswith("https://"):
+                st.audio(audio_data)
+                st.caption("Audio reproducido directamente desde enlace web/Drive.")
+            else:
+                try:
+                    # Limpieza absoluta de espacios y caracteres de escape
+                    clean_base64 = audio_data.strip().replace("\n", "").replace("\r", "")
+                    
+                    # Remover metadatos de encabezado de audio web si existen
+                    if "," in clean_base64:
+                        clean_base64 = clean_base64.split(",")[-1]
+                    
+                    # Remover rellenos viejos para recalcular la estructura exacta de 4 bits
+                    clean_base64 = clean_base64.rstrip('=')
+                    residuo = len(clean_base64) % 4
+                    if residuo > 0:
+                        # Corrige el error de "1 more than a multiple of 4" añadiendo los faltantes
+                        clean_base64 += "=" * (4 - residuo)
+                    
+                    # Convertir el bloque corregido a binario ejecutable por el reproductor
+                    audio_bytes = base64.b64decode(clean_base64)
+                    
+                    # Desplegar reproductor de audio nativo en el navegador
+                    st.audio(audio_bytes, format='audio/wav')
+                    st.success("🎉 Cadena Base64 reparada y decodificada con éxito.")
+                    
+                except Exception as error_decode:
+                    st.error(f"❌ Estructura de archivo corrupta. La celda excede los 50,000 caracteres límites de Google Sheets.")
+                    st.warning("Recomendación: Cambia tu Apps Script para guardar los archivos de audio pesados en Google Drive.")
+        else:
+            st.warning("⚠️ No se detectó ninguna cadena de audio o enlace en la columna 'Subir evidencias' para esta fila.")
+    else:
+        st.error("❌ Columnas críticas ausentes. La hoja de cálculo debe contener las columnas 'IDE' y 'Subir evidencias'.")
+
 else:
-    st.info("Awaiting active sheet row entries database packets updates data models...")
+    st.warning("Refrescando la conexión con la base de datos de Google...")
+
+# Botón manual en la barra lateral para vaciar memoria caché del navegador de Streamlit
+if st.sidebar.button("🔄 Forzar Sincronización (Limpiar Caché)"):
+    st.cache_data.clear()
+    st.rerun()
