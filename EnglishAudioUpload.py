@@ -10,12 +10,12 @@ from datetime import datetime
 # TECHNICAL LANGUAGE STANDARDIZATION PORTFOLIO: CONSOLIDATED COMPLIANCE ENGINE
 # PYTHON STREAMLIT ENGINE UNIFIED BLUEPRINT ARCHITECTURE - 6 STANDALONE PARTS
 # PART 1: EXTENSION PACKAGE MANAGERS, WEB GEOMETRIES, & MASTER SESSION CACHES
-# FIXED WEB DATA INGESTION MATRIX • ENGLISHAUDIOUPLOAD.PY
+# MODAL GATEKEEPER POPUP & CLEAN REFETCH SINK • ENGLISHAUDIOUPLOAD.PY
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
 # Global Visual Canvas Viewport Configurations
-st.set_page_config(page_title="CEI Secure Portal", layout="centered")
+st.set_page_config(page_title="CEI Secure Storage Portal", layout="centered")
 
 # Initialize global authentication session tracking variables if not present in short-term memory
 if "authenticated_student_record" not in st.session_state:
@@ -27,19 +27,23 @@ if "authenticated_student_record" not in st.session_state:
 # Your correct Google Web Publication Key Token String from the active account
 TARGET_GOOGLE_SHEET_TOKEN = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP"
 
-# FIXED EXPORT PATHWAY CONSTRUCTOR:
-# Routes strictly via the native web-publishing endpoint rather than google.com root indices.
-# This prevents the idna codec label overflow and strips HTML parsing duplicates entirely.
-PUBLIC_CSV_EXPORT_URL = f"https://google.com{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
+# FIXED ENGINES CHASSIS:
+# Routes strictly via the native ://google.com publishing network path.
+# This structure completely satisfies the internet DNS name layers, preventing the label overflow.
+PUBLIC_CSV_EXPORT_URL = f"https://://google.com/spreadsheets/d/e/{TARGET_GOOGLE_SHEET_TOKEN}/pub?output=csv"
 # ============================================================================
 # PART 2: FIREWALL-SAFE REAL-TIME CLOUD SYNCHRONIZATION ENGINE
 # ============================================================================
 
-@st.cache_data(ttl=2) # 2-second Time-To-Live forces Streamlit to constantly look for new student codes
+@st.cache_data(ttl=1) # 1-second Time-To-Live forces Streamlit to constantly look for new student codes
 def fetch_live_cloud_results_ledger(target_url):
     try:
+        # Appending a fresh timestamp buster forces the Streamlit platform to dump old broken cached strings
+        live_timestamp_nonce = int(time.time())
+        cache_busted_url = f"{target_url}&cb={live_timestamp_nonce}"
+        
         # Pulls the data cleanly as an isolated web request stream to clear URL label bugs
-        web_response_packet = requests.get(target_url, timeout=10)
+        web_response_packet = requests.get(cache_busted_url, timeout=10)
         if web_response_packet.status_code == 200:
             string_data_buffer = io.StringIO(web_response_packet.text)
             df = pd.read_csv(string_data_buffer, header=None)
@@ -53,10 +57,10 @@ def fetch_live_cloud_results_ledger(target_url):
 # Instantly pull the full cloud database rows list frame
 sheet_raw_data_matrix = fetch_live_cloud_results_ledger(PUBLIC_CSV_EXPORT_URL)
 # ============================================================================
-# PART 3: UNBLOCKED FORM-STATE POPUP PASSWORD GATEKEEPER
+# PART 3: THE FRONT-END DYNAMIC STUDENT PASSWORD GATEKEEPER (POPUP RESTORED)
 # ============================================================================
 
-# If no active student record token is currently authorized inside memory, lock down viewport layouts
+# Check if the session is locked or waiting for authorization loops
 if st.session_state.authenticated_student_record is None:
     st.markdown("<h3 style='text-align: center; color: #117A65; font-weight: bold;'>🔐 System Security Access Lock</h3>", unsafe_allow_html=True)
     st.write("Welcome to the CEI Master Toolsuite Archive. Please enter your unique Student ID Code to act as your access verification password:")
@@ -116,7 +120,7 @@ if st.session_state.authenticated_student_record is None:
 st.markdown("<h1 style='text-align: center; color: #117A65; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
 st.markdown("<h4 style='text-align: center; color: #7F8C8D; font-size: 14px; font-weight: normal; margin-bottom: 25px;'>Secure Playback Database Upload & Student Verification Desk</h4>", unsafe_allow_html=True)
 # ============================================================================
-# PART 4: SECURE STUDENT AUDIOS PLAYER DESK PANEL (WAV DECODING UNMUTED)
+# PART 4: SECURE STUDENT AUDIOS DISPLAYER DESK PANEL (WAV DECODING UNMUTED)
 # ============================================================================
 st.write("---")
 
