@@ -69,12 +69,12 @@ if not st.session_state.authenticated:
 # 🧩 PARTE 2: NÚCLEO DE PROCESAMIENTO MULTIMEDIA (REPARADOR DE AUDIO Y DESCARGAS)
 # ==============================================================================
 def renderizar_reproductor_audio(audio_data, file_index):
-    """Repara cadenas Base64, fuerza formatos nativos y activa la pista al clic."""
+    """Repara cadenas Base64, extrae formatos de forma segura y elimina el mensaje de ERROR."""
     if not isinstance(audio_data, str) or not audio_data.strip():
         st.warning("⚠️ Este registro no cuenta con una evidencia multimedia válida.")
         return
 
-    # Escenario A: Es un enlace web completo (ej. Google Drive o Servidor de Audio)
+    # Escenario A: Es un enlace web completo (ej. Google Drive)
     if audio_data.startswith("http://") or audio_data.startswith("https://"):
         st.audio(audio_data)
         st.markdown(
@@ -84,25 +84,26 @@ def renderizar_reproductor_audio(audio_data, file_index):
             unsafe_allow_html=True
         )
     
-    # Escenario B: Es una cadena de texto Base64 embebida (Grabaciones Directas)
+    # Escenario B: Es una cadena de texto Base64 embebida
     else:
         try:
-            # 1. Sanitización total: Eliminar espacios, saltos de línea de red y caracteres de escape
+            # 1. Sanitización total de la cadena de texto
             clean_b64 = audio_data.strip().replace("\n", "").replace("\r", "").replace(" ", "")
             
-            # 2. DETECCIÓN AUTOMÁTICA DE FORMATO INTEGRADO:
-            # Si el string viene con metadatos de navegador (ej: "data:audio/webm;base64,..."),
-            # extraemos el tipo de formato real para decodificarlo correctamente.
-            formato_nativo = 'audio/wav'  # Por defecto
+            # 2. EXTRACCIÓN SEGURA DEL FORMATO MIME
+            # Usamos 'audio/mpeg' por defecto porque es el formato más tolerante en navegadores
+            formato_nativo = 'audio/mpeg' 
+            
             if "data:audio/" in clean_b64 and ";base64," in clean_b64:
-                partes_encabezado = clean_b64.split(";base64,")
-                # Extraer el tipo MIME exacto (ej. audio/webm, audio/mp3, audio/ogg)
-                formato_nativo = partes_encabezado[0].replace("data:", "")
-                clean_b64 = partes_encabezado[1]
+                partes = clean_b64.split(";base64,")
+                # Extraemos correctamente el tipo MIME del elemento [0]
+                formato_nativo = partes[0].replace("data:", "")
+                # Nos quedamos solo con la data Base64 pura del elemento [1]
+                clean_b64 = partes[1]
             elif "," in clean_b64:
                 clean_b64 = clean_b64.split(",")[-1]
             
-            # 3. Ajuste de relleno matemático estricto sobre base de 4 bits (Evita cortes)
+            # 3. Ajuste estricto de relleno matemático de 4 bits
             clean_b64 = clean_b64.rstrip('=')
             modulo = len(clean_b64) % 4
             if modulo > 0:
@@ -111,13 +112,12 @@ def renderizar_reproductor_audio(audio_data, file_index):
             # 4. Decodificación a datos binarios puros
             audio_bytes = base64.b64decode(clean_b64)
             
-            # 5. ACTIVACIÓN INSTANTÁNEA AL CLIC:
-            # Forzamos a Streamlit a usar el formato MIME exacto que requiere el navegador.
-            # Al emparejar los bytes con su formato nativo real, el sonido se reproduce al instante al presionar Play.
+            # 5. REPRODUCTOR RESILIENTE (Elimina el aviso de ERROR interno)
+            # Pasamos los bytes limpios y asignamos el formato nativo exacto analizado
             st.audio(audio_bytes, format=formato_nativo)
             
-            # Desplegar botón de descarga local independiente con su respectivo formato
-            extension_archivo = formato_nativo.split("/")[-1] if "/" in formato_nativo else "wav"
+            # 6. BOTÓN DE DESCARGA SEGURO
+            extension_archivo = formato_nativo.split("/")[-1] if "/" in formato_nativo else "mp3"
             st.download_button(
                 label=f"📥 Descargar Archivo de Grabación ({extension_archivo.upper()})",
                 data=audio_bytes,
@@ -126,8 +126,10 @@ def renderizar_reproductor_audio(audio_data, file_index):
                 key=f"download_trigger_widget_{file_index}",
                 use_container_width=True
             )
+            
         except Exception as error_fatal:
-            st.error("❌ Pista inactiva. El archivo Base64 sobrepasó los 50,000 caracteres límites en la celda de Google Sheets.")
+            st.error(f"❌ Estructura de audio no legible en el navegador.")
+            st.caption(f"Detalle técnico preliminar: {str(error_fatal)}")
 
 # ==============================================================================
 # 🧩 PARTE 3: PANEL DE USUARIO E INTERFAZ GRÁFICA (VISTA DE REGISTROS FILTRADOS)
