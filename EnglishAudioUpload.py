@@ -69,7 +69,7 @@ if not st.session_state.authenticated:
 # 🧩 PARTE 2: NÚCLEO DE PROCESAMIENTO MULTIMEDIA (REPARADOR DE AUDIO Y DESCARGAS)
 # ==============================================================================
 def renderizar_reproductor_audio(audio_data, file_index):
-    """Repara cadenas Base64, extrae formatos de forma segura y elimina el mensaje de ERROR."""
+    """Repara cadenas Base64 e inyecta un reproductor HTML5 forzado para activar el audio al clic."""
     if not isinstance(audio_data, str) or not audio_data.strip():
         st.warning("⚠️ Este registro no cuenta con una evidencia multimedia válida.")
         return
@@ -84,45 +84,46 @@ def renderizar_reproductor_audio(audio_data, file_index):
             unsafe_allow_html=True
         )
     
-    # Escenario B: Es una cadena de texto Base64 embebida
+    # Escenario B: Es una cadena de texto Base64 embebida (Grabaciones directas)
     else:
         try:
-            # 1. Sanitización total de la cadena de texto
+            # 1. Limpieza absoluta de la cadena Base64
             clean_b64 = audio_data.strip().replace("\n", "").replace("\r", "").replace(" ", "")
             
-            # 2. EXTRACCIÓN SEGURA DEL FORMATO MIME
-            # Usamos 'audio/mpeg' por defecto porque es el formato más tolerante en navegadores
-            formato_nativo = 'audio/mpeg' 
-            
-            if "data:audio/" in clean_b64 and ";base64," in clean_b64:
+            # Detectar si ya viene con encabezado o es data pura
+            if ";base64," in clean_b64:
                 partes = clean_b64.split(";base64,")
-                # Extraemos correctamente el tipo MIME del elemento [0]
-                formato_nativo = partes[0].replace("data:", "")
-                # Nos quedamos solo con la data Base64 pura del elemento [1]
                 clean_b64 = partes[1]
             elif "," in clean_b64:
                 clean_b64 = clean_b64.split(",")[-1]
             
-            # 3. Ajuste estricto de relleno matemático de 4 bits
+            # 2. Ajuste de relleno matemático estricto (Múltiplo de 4)
             clean_b64 = clean_b64.rstrip('=')
             modulo = len(clean_b64) % 4
             if modulo > 0:
                 clean_b64 += "=" * (4 - modulo)
             
-            # 4. Decodificación a datos binarios puros
+            # 3. ACTIVACIÓN FORZADA AL CLIC MEDIANTE HTML5:
+            # En lugar de usar st.audio(), construimos una etiqueta de audio nativa de HTML.
+            # Al pasarle el Base64 directamente al navegador, este lo activa instantáneamente al presionar Play.
+            audio_html = f"""
+                <div style="margin-bottom: 10px;">
+                    <audio controls style="width: 100%; height: 45px; border-radius: 30px; background-color: #f1f3f4;">
+                        <source src="data:audio/mp3;base64,{clean_b64}" type="audio/mp3">
+                        <source src="data:audio/wav;base64,{clean_b64}" type="audio/wav">
+                        Tu navegador no soporta este reproductor de audio.
+                    </audio>
+                </div>
+            """
+            st.markdown(audio_html, unsafe_allow_html=True)
+            
+            # 4. BOTÓN DE DESCARGA LOCAL SEGURO (Mantenemos el que ya funcionaba bien)
             audio_bytes = base64.b64decode(clean_b64)
-            
-            # 5. REPRODUCTOR RESILIENTE (Elimina el aviso de ERROR interno)
-            # Pasamos los bytes limpios y asignamos el formato nativo exacto analizado
-            st.audio(audio_bytes, format=formato_nativo)
-            
-            # 6. BOTÓN DE DESCARGA SEGURO
-            extension_archivo = formato_nativo.split("/")[-1] if "/" in formato_nativo else "mp3"
             st.download_button(
-                label=f"📥 Descargar Archivo de Grabación ({extension_archivo.upper()})",
+                label="📥 Descargar Archivo de Grabación (MP3/WAV)",
                 data=audio_bytes,
-                file_name=f"recording_student_{st.session_state.student_code}_{file_index}.{extension_archivo}",
-                mime=formato_nativo,
+                file_name=f"recording_student_{st.session_state.student_code}_{file_index}.mp3",
+                mime="audio/mp3",
                 key=f"download_trigger_widget_{file_index}",
                 use_container_width=True
             )
