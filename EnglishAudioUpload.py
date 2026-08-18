@@ -3,177 +3,191 @@ import pandas as pd
 import streamlit as st
 
 # ==============================================================================
-# PARTE 1: CONFIGURACIÓN E INICIALIZACIÓN DE SESIÓN
+# PARTE 1: CONFIGURACIÓN E INICIALIZACIÓN DE SESIÓN SECURE
 # ==============================================================================
 st.set_page_config(
-    page_title="Portal de Grabaciones",
+    page_title="Portal de Grabaciones de Inglés",
     page_icon="🔒",
     layout="wide"
 )
 
+# Inicializar estados de sesión para el control de accesos
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "student_code" not in st.session_state:
     st.session_state.student_code = None
 
-# URL de exportación directa de tu Google Sheet
-SPREADSHEET_ID = "2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
-URL_SHEET = f"https://docs.google.com/spreadsheets/d/e/2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
+# Configuración del puente con el Google Sheet usando tu ID verificado
+SPREADSHEET_ID = "1vnRZDlb79scuC4kkdy0X3QNJKSLsVUFe_YoUe8GZlQU"
+URL_SHEET = f"https://google.com{SPREADSHEET_ID}/export?format=csv"
 
 
 # ==============================================================================
-# PARTE 2: CARGA Y LIMPIEZA ULTRA-ESTRICTA DE DATOS
+# PARTE 2: CARGA ULTRA SEGURA DE DATOS (FILTRO ANTI-NAN)
 # ==============================================================================
-@st.cache_data(ttl=2)  # Actualización rápida de datos
-def cargar_y_limpiar_datos():
+@st.cache_data(ttl=3)  # Refresco rápido de caché de datos en segundos
+def cargar_y_sanitizar_datos():
     try:
         df = pd.read_csv(URL_SHEET)
-        # Limpieza automática de columnas fantasma (evita errores 'nan')
+        
+        # Elimina columnas sin nombre en el encabezado (los fantasmas 'nan' del archivo)
         columnas_validas = [col for col in df.columns if pd.notna(col) and not str(col).startswith('Unnamed:')]
         df = df[columnas_validas]
         
+        # Sanitizar espacios en blanco en la columna de códigos de alumnos
         if 'IDE' in df.columns:
             df['IDE'] = df['IDE'].astype(str).str.strip()
             
         return df
     except Exception as e:
-        st.error(f"Error de conexión con la base de datos: {e}")
+        st.error(f"Error crítico en el enlace de la base de datos: {e}")
         return None
 
-df_source = cargar_y_limpiar_datos()
+df_source = cargar_y_sanitizar_datos()
 
 
 # ==============================================================================
-# PARTE 3: PROCESADOR DE AUDIO COMPATIBLE (ACTIVA PISTAS CAÍDAS)
+# PARTE 3: REPRODUCTOR RESILIENTE Y GESTOR DE DESCARGAS
 # ==============================================================================
-def procesar_evidencia_audio(audio_data, file_index):
-    """Procesa el audio, activa el reproductor y genera el botón de descarga."""
+def renderizar_reproductor_audio(audio_data, file_index):
+    """Repara cadenas Base64 incompletas y habilita descarga/reproducción sin bloqueos."""
     if not isinstance(audio_data, str) or not audio_data.strip():
-        st.warning("⚠️ No hay archivo de audio registrado para este registro.")
+        st.warning("⚠️ Este registro no cuenta con una evidencia multimedia válida.")
         return
 
-    # Caso A: Si es un enlace directo de Web o Google Drive
+    # Escenario A: Es un enlace web completo (ej. Google Drive)
     if audio_data.startswith("http://") or audio_data.startswith("https://"):
         st.audio(audio_data)
-        st.markdown(f'<a href="{audio_data}" target="_blank"><button style="width:100%; padding:10px; background-color:#2e7d32; color:white; border:none; border-radius:5px; cursor:pointer;">📥 Descargar Archivo desde Enlace</button></a>', unsafe_allow_html=True)
+        st.markdown(
+            f'<a href="{audio_data}" target="_blank">'
+            f'<button style="width:100%; padding:10px; background-color:#1e7e34; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">'
+            f'📥 Descargar desde Enlace Externo</button></a>', 
+            unsafe_allow_html=True
+        )
     
-    # Caso B: Si es una cadena Base64 (Reparación de pista inactiva)
+    # Escenario B: Es una cadena de texto Base64 embebida
     else:
         try:
-            # Sanitización absoluta de la cadena
+            # Sanitizar saltos de línea de transmisión web y espacios ocultos
             clean_b64 = audio_data.strip().replace("\n", "").replace("\r", "").replace(" ", "")
             if "," in clean_b64:
                 clean_b64 = clean_b64.split(",")[-1]
             
-            # Re-ajuste estricto de múltiplos de 4 (Corrige error de longitud)
+            # Ajuste de relleno matemático sobre base de 4 bits
             clean_b64 = clean_b64.rstrip('=')
             modulo = len(clean_b64) % 4
             if modulo > 0:
                 clean_b64 += "=" * (4 - modulo)
             
-            # Decodificación a bytes binarios puros
+            # Decodificación a datos binarios legibles
             audio_bytes = base64.b64decode(clean_b64)
             
-            # 1. REPRODUCTOR COMPATIBLE: Forzamos la reproducción directa inyectando el componente
+            # Renderizar reproductor de audio integrado nativo del navegador
             st.audio(audio_bytes, format='audio/wav')
             
-            # 2. BOTÓN DE DESCARGA: Permite descargar localmente la evidencia de audio
+            # Desplegar botón de descarga local independiente
             st.download_button(
-                label="📥 Descargar Grabación (WAV)",
+                label="📥 Descargar Archivo de Grabación (WAV)",
                 data=audio_bytes,
-                file_name=f"grabacion_estudiante_{st.session_state.student_code}_{file_index}.wav",
+                file_name=f"recording_student_{st.session_state.student_code}_{file_index}.wav",
                 mime="audio/wav",
-                key=f"btn_dl_{file_index}",
+                key=f"download_trigger_widget_{file_index}",
                 use_container_width=True
             )
         except Exception:
-            st.error("❌ La pista está inactiva porque el texto Base64 superó los 50k caracteres en Google Sheets y se guardó incompleto.")
+            st.error("❌ Pista inactiva. El archivo Base64 sobrepasó los 50,000 caracteres límites en la celda de Google Sheets.")
 
 
 # ==============================================================================
-# PARTE 4: VENTANA POPUP DE AUTENTICACIÓN (LOGIN)
+# PARTE 4: POPUP DE SEGURIDAD (CUADRO DE DIÁLOGO EMERGENTE)
 # ==============================================================================
-@st.dialog("🔒 Autenticación de Acceso")
-def popup_login():
-    st.write("Ingresa tu código de estudiante para verificar tus registros en la base de datos.")
-    input_code = st.text_input("Código de Estudiante (IDE):", type="password").strip()
+@st.dialog("🔒 Autenticación de Acceso del Estudiante")
+def popup_autenticacion():
+    st.write("Digita tu código personal registrado en la columna **IDE** de la planilla para validar tu acceso.")
     
-    if st.button("Verificar Identidad", type="primary", use_container_width=True):
+    # Campo de contraseña oculta para mayor confidencialidad
+    input_code = st.text_input("Código de Estudiante (IDE):", type="password", key="modal_password_input").strip()
+    
+    if st.button("Verificar Credenciales", type="primary", use_container_width=True, key="modal_submit_button"):
         if df_source is not None and 'IDE' in df_source.columns:
+            # Comprobar la existencia del código ingresado en los registros del Google Sheet
             if input_code in df_source['IDE'].values:
                 st.session_state.authenticated = True
                 st.session_state.student_code = input_code
-                st.success("¡Acceso concedido! Cargando panel seguro...")
-                st.rerun()
+                st.success("¡Identidad confirmada con éxito!")
+                st.rerun()  # Cierra la ventana emergente y actualiza la interfaz
             else:
-                st.error("❌ Código inválido. Verifica los caracteres o contacta al administrador.")
+                st.error("❌ Código de estudiante no encontrado. Por favor intente de nuevo.")
         else:
-            st.error("Error del sistema. No se pudo verificar la base de datos de Google Sheets.")
+            st.error("La base de datos de validación no está disponible temporalmente.")
 
 
 # ==============================================================================
-# PARTE 5: CONTROL DE ACCESO GENERAL RESTRINGIDO
+# PARTE 5: SISTEMA DE BLOQUEO PERMANENTE ANTES DEL INGRESO
 # ==============================================================================
 if not st.session_state.authenticated:
-    st.info("👋 Bienvenido al Sistema de Evidencias de Audio.")
-    st.markdown("### Acceso Restringido")
-    st.write("Para ver y descargar tus archivos de audio, por favor abre la terminal de seguridad.")
+    st.info("👋 Bienvenido al Portal Evaluativo de Grabaciones.")
+    st.markdown("### Control de Acceso Requerido")
+    st.write("Los recursos multimedia de esta plataforma están restringidos. Por favor, inicia sesión con tu identificador.")
     
-    if st.button("🔐 Iniciar Sesión con mi Código", type="primary"):
-        popup_login()
-    st.stop()
+    if st.button("🔐 Abrir Terminal de Autenticación", type="primary", key="gatekeeper_start_button"):
+        popup_autenticacion()
+        
+    st.stop()  # Detiene la lectura del script restante si la sesión no está verificada
 
 
 # ==============================================================================
-# PARTE 6: PANEL PRINCIPAL CON BOTÓN DE SALIDA (LOGOUT)
+# PARTE 6: PANEL PRINCIPAL Y SISTEMA DE CIERRE SEGURO (SOLUCIÓN AL COMPILADOR)
 # ==============================================================================
-with col_salir:
-    # BOTÓN PARA SALIR / ABANDONAR LA PÁGINA (Con una clave única y segura)
-    if st.button("❌ Salir / Terminar", key="main_logout_unique_key", type="danger", use_container_width=True):
-        cerrar_sesion()
+def procesar_cierre_de_sesion():
+    st.session_state.authenticated = False
+    st.session_state.student_code = None
+    st.cache_data.clear()
+    st.rerun()
 
+# --- PANEL DE CONTROL LATERAL (Sidebar) ---
+st.sidebar.markdown(f"### 👤 Perfil Verificado")
+st.sidebar.info(f"**IDE Activo:** `{st.session_state.student_code}`")
+if st.sidebar.button("🚪 Cerrar Sesión", key="logout_sidebar_unique_action", type="secondary"):
+    procesar_cierre_de_sesion()
 
-# --- BARRA LATERAL (Sidebar) ---
-st.sidebar.markdown(f"### 👤 Perfil Activo")
-st.sidebar.info(f"**Estudiante:** `{st.session_state.student_code}`")
-if st.sidebar.button("🚪 Salir de la Aplicación", key="sidebar_logout", type="secondary"):
-    cerrar_sesion()
+# --- CUERPO PRINCIPAL DE LA PÁGINA ---
+# Filtrar registros en memoria que correspondan solo al estudiante activo
+data_filtrada_estudiante = df_source[df_source['IDE'] == st.session_state.student_code]
 
-# --- PANEL CENTRAL PRINCIPAL ---
-# Filtrar registros que pertenezcan únicamente al código autenticado
-registros_estudiante = df_source[df_source['IDE'] == st.session_state.student_code]
+# Fila del título y botón de abandono superior coordinado
+col_cabecera, col_salir_pagina = st.columns([3, 1])
 
-# Encabezado principal con botón de Salida Destacado
-col_titulo, col_salir = st.columns([4, 1])
-with col_titulo:
-    st.success(f"🔓 Sesión segura para el código: **{st.session_state.student_code}**")
-with col_salir:
-    # BOTÓN PARA SALIR / ABANDONAR LA PÁGINA SI SE DESEA
-    if st.button("❌ Salir / Terminar", key="main_logout", type="danger", use_container_width=True):
-        cerrar_sesion()
+with col_cabecera:
+    st.success(f"🔓 Canal seguro de información asignado al IDE: **{st.session_state.student_code}**")
 
-st.markdown(f"### 🎧 Tus Grabaciones de Audio ({len(registros_estudiante)} encontradas)")
-st.markdown("A continuación se enlistan tus evidencias. Puedes reproducirlas directamente o descargarlas usando el botón correspondiente.")
+with col_salir_pagina:
+    # CLAVE ÚNICA MODIFICADA PARA EVITAR EL ERROR STREAMLITAPIEXCEPTION
+    if st.button("❌ Salir / Terminar", key="main_logout_secure_unique_key", type="danger", use_container_width=True):
+        procesar_cierre_de_sesion()
+
+st.markdown(f"### 🎧 Historial de Grabaciones Registradas ({len(data_filtrada_estudiante)} registros)")
+st.markdown("Usa los controles multimedia integrados en cada bloque para reproducir o respaldar tus archivos localmente.")
 st.markdown("---")
 
-if not registros_estudiante.empty and 'Subir evidencias' in registros_estudiante.columns:
-    for index, row in registros_estudiante.iterrows():
-        fecha = row['Fecha'] if 'Fecha' in row else "No registrada"
-        fase = row['Fase'] if 'Fase' in row else "No definida"
+if not data_filtrada_estudiante.empty and 'Subir evidencias' in data_filtrada_estudiante.columns:
+    for indice, fila in data_filtrada_estudiante.iterrows():
+        fecha_registro = fila['Fecha'] if 'Fecha' in fila else "No disponible"
+        fase_registro = fila['Fase'] if 'Fase' in fila else "No disponible"
         
         with st.container(border=True):
-            col_meta, col_media = st.columns([1, 1])
+            col_metadatos, col_reproductor_area = st.columns()
             
-            with col_meta:
-                st.markdown(f"##### 📋 Grabación Registro N° {index}")
-                st.write(f"📅 **Fecha de Envío:** {fecha}")
-                st.write(f"🎯 **Fase Actual:** {fase}")
-                if 'Enlace Sitio Web' in row and pd.notna(row['Enlace Sitio Web']):
-                    st.markdown(f"🔗 [Ver Sitio Web Relacionado]({row['Enlace Sitio Web']})")
-            
-            with col_media:
-                st.markdown("**Controles de Audio y Descarga:**")
-                # Llama a la función que fuerza la reproducción y dibuja el botón de descarga
-                procesar_evidencia_audio(row['Subir evidencias'], index)
+            with col_metadatos:
+                st.markdown(f"##### 📋 Evidencia de Lectura N° {indice}")
+                st.write(f"📅 **Fecha de Carga:** {fecha_registro}")
+                st.write(f"🎯 **Etapa evaluada:** {fase_registro}")
+                if 'Enlace Sitio Web' in fila and pd.notna(fila['Enlace Sitio Web']):
+                    st.markdown(f"🔗 [Ir al Sitio del Proyecto]({fila['Enlace Sitio Web']})")
+                    
+            with col_reproductor_area:
+                st.markdown("**Controles de Audio Disponibles:**")
+                # Invoca de forma segura al renderizador usando el índice numérico incremental
+                renderizar_reproductor_audio(fila['Subir evidencias'], indice)
 else:
-    st.info("No se encontraron archivos multimedia vinculados a tu código de estudiante.")
+    st.info("No se registran bitácoras ni archivos cargados asociados a este identificador.")
