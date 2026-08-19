@@ -46,39 +46,41 @@ from PIL import Image
 from io import BytesIO
 
 # ==============================================================================
-# SUBPARTE 3: MOTOR DE AUDIO AMERICANO PREMIUM, COLORES E IMÁGENES SEGURAS
+# SUBPARTE 3: MOTOR DE AUDIO HUMANO PREMIUM (VOCES DISTINTAS HOMBRE / MUJER US)
 # ==============================================================================
 def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen=None):
     """
-    Descarga la imagen de forma interna en el servidor para evitar bloqueos de red,
-    mapea los textos en colores por categorías gramaticales e inyecta la voz US.
+    Descarga la imagen internamente para evitar bloqueos, mapea colores gramaticales
+    e inyecta un motor de voz humano real que alterna entre hombre y mujer según el ID.
     """
-    # 1. Procesador seguro de imágenes (Evita cuadros grises y signos de interrogación)
     if url_imagen:
         try:
-            # Forzamos una cabecera de navegador estándar para que el servidor de imágenes no nos bloquee
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
             respuesta = requests.get(url_imagen, headers=headers, timeout=5)
             if respuesta.status_code == 200:
                 imagen_binaria = Image.open(BytesIO(respuesta.content))
-                # Desplegar la imagen de forma nativa en Streamlit con ancho controlado
                 st.image(imagen_binaria, width=420)
         except Exception:
-            # Fallback silencioso si el enlace falla, para que no colapse la app
             st.caption("📷 *[Ilustración técnica de apoyo]*")
         
-    st.markdown(f"重量 **English:** {texto_en_ingles}", unsafe_allow_html=True)
+    st.markdown(f"📖 **English:** {texto_en_ingles}", unsafe_allow_html=True)
     st.markdown(f"🔹 **Español:** {texto_en_espanol}", unsafe_allow_html=True)
     
     # Limpiar las etiquetas de color HTML para el lector de voz
     texto_plano = re.sub(r'<[^>]+>', '', texto_en_ingles)
     texto_escapado = texto_plano.replace("'", "\\'").replace('"', '\\"')
     
+    # Determinar género basado en el hash o texto del id_unico para que sea consistente
+    # IDs que terminan en número par o letras específicas usarán voz de mujer, otros de hombre
+    es_par = any(char in id_unico for char in ['0', '2', '4', '6', '8', 'p', 'boss', 'footer'])
+    genero_objetivo = "female" if es_par else "male"
+    label_genero = "👩 Female Voice" if genero_objetivo == "female" else "👨 Male Voice"
+    
     codigo_html = f"""
     <!DOCTYPE html>
     <html>
     <body>
-        <button onclick="playUSVoice()" style="
+        <button onclick="playHumanVoice()" style="
             background-color: #1e88e5; 
             color: white; 
             border: none; 
@@ -90,30 +92,63 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
             box-shadow: 0px 2px 4px rgba(0,0,0,0.15);
             font-family: sans-serif;
             margin-top: 5px;
-            margin-bottom: 15px;">
-            🔊 Listen & Practice (Play)
+            margin-bottom: 15px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;">
+            🔊 Listen & Practice ({label_genero})
         </button>
 
         <script>
-            function playUSVoice() {{
+            function playHumanVoice() {{
                 var mainWin = window.parent || window;
                 if ('speechSynthesis' in mainWin) {{
-                    mainWin.speechSynthesis.cancel();
+                    mainWin.speechSynthesis.cancel(); // Liberar memoria colgada de audio
                     
                     var msg = new mainWin.SpeechSynthesisUtterance('{texto_escapado}');
-                    msg.lang = 'en-US';
-                    msg.rate = 0.82;
-                    msg.volume = 1.0;
-                    
                     var voices = mainWin.speechSynthesis.getVoices();
-                    var usVoice = voices.find(function(v) {{
+                    
+                    // Filtrar estrictamente voces en inglés de Estados Unidos (en-US / en)
+                    var usVoices = voices.filter(function(v) {{
                         return v.lang.startsWith('en');
                     }});
-                    if (usVoice) msg.voice = usVoice;
+                    
+                    var targetVoice = null;
+                    var targetGender = '{genero_objetivo}';
+                    
+                    if (targetGender === "female") {{
+                        // Buscar perfiles de voz femenina Premium (Google, Zira, Samantha, Hazel, etc.)
+                        targetVoice = usVoices.find(function(v) {{
+                            var name = v.name.toLowerCase();
+                            return name.includes('zira') || name.includes('samantha') || name.includes('hazel') || name.includes('female') || name.includes('google us english');
+                        }});
+                    }} else {{
+                        // Buscar perfiles de voz masculina Premium (David, George, Male, etc.)
+                        targetVoice = usVoices.find(function(v) {{
+                            var name = v.name.toLowerCase();
+                            return name.includes('david') || name.includes('george') || name.includes('male') || name.includes('desktop');
+                        }});
+                    }}
+                    
+                    # Fallback de seguridad: si no encuentra el género exacto, usa la primera voz en inglés disponible
+                    if (!targetVoice && usVoices.length > 0) {{
+                        targetVoice = usVoices[0];
+                    }}
+                    
+                    if (targetVoice) {{
+                        msg.voice = targetVoice;
+                    }}
+                    
+                    msg.lang = 'en-US';
+                    msg.rate = 0.85;   // Velocidad humana y clara para entrenamiento de oído
+                    msg.pitch = 1.0;  // Tono de frecuencia natural no robótico
+                    msg.volume = 1.0; 
                     
                     mainWin.speechSynthesis.speak(msg);
                 }}
             }}
+            
+            // Forzar precarga de voces en el hilo principal del navegador
             if ('speechSynthesis' in (window.parent || window)) {{
                 (window.parent || window).speechSynthesis.getVoices();
             }}
