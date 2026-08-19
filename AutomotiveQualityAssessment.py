@@ -1,7 +1,7 @@
 import streamlit as st
 
 # ==============================================================================
-# PARTE 1: CONFIGURACIÓN DE PÁGINA, SESIÓN SECURE Y CONTROL DE ACCESO
+# 🧩 PARTE 1: CONFIGURACIÓN GENERAL, PUERTO DE SEGURIDAD Y LOGIN (PASSWORD)
 # ==============================================================================
 st.set_page_config(
     page_title="Quality Inspector - English Practice Tool",
@@ -40,7 +40,54 @@ if not st.session_state.training_authenticated:
         popup_seguridad_entrenamiento()
     st.stop()  # Aborta la lectura del resto del código hasta que se inicie sesión con éxito
 # ==============================================================================
-# PARTE 3: PANEL DE CONTROL LATERAL (SIDEBAR) Y MENÚ DE NAVEGACIÓN
+# 🧩 PARTE 2: NÚCLEO DE PRONUNCIACIÓN (MOTOR JAVASCRIPT TEXT-TO-SPEECH NATIVO)
+# ==============================================================================
+def crear_boton_practica(texto_a_reproducir, id_unico):
+    """
+    Inyecta un botón HTML5/JS que utiliza el motor TTS nativo del dispositivo del estudiante.
+    Garantiza que el audio suene de inmediato al hacer clic sin cargar archivos de red externos.
+    """
+    # Escapar comillas para evitar rupturas en la cadena de texto de JavaScript
+    texto_escapado = texto_a_reproducir.replace("'", "\\'").replace('"', '\\"')
+    
+    html_control = f"""
+    <button onclick="speakPhrases('{texto_escapado}')" style="
+        background-color: #1e88e5; 
+        color: white; 
+        border: none; 
+        padding: 6px 14px; 
+        font-size: 13px; 
+        font-weight: bold;
+        border-radius: 20px; 
+        cursor: pointer; 
+        box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin: 4px 0px;">
+        🔊 Listen & Practice
+    </button>
+    <script>
+    if (typeof window.speakPhrases !== 'function') {{
+        window.speakPhrases = function(text) {{
+            if ('speechSynthesis' in window) {{
+                window.speechSynthesis.cancel(); // Detener cualquier reproducción previa activa
+                var msg = new SpeechSynthesisUtterance();
+                msg.text = text;
+                msg.lang = 'en-US'; // Forzar pronunciación técnica americana nativa
+                msg.rate = 0.85;    // Velocidad ligeramente reducida para facilitar el aprendizaje
+                msg.volume = 1.0;
+                window.speechSynthesis.speak(msg);
+            }} else {{
+                alert('Tu navegador no soporta reproducción de voz nativa. Intente usando Google Chrome.');
+            }}
+        }};
+    }}
+    </script>
+    """
+    st.markdown(html_control, unsafe_allow_html=True)
+# ==============================================================================
+# 🧩 PARTE 3: INTERFAZ GRÁFICA, MENÚS Y CONTENIDO DEL GLOSARIO (IATF 16949)
 # ==============================================================================
 # Sistema en la barra lateral para cerrar sesión de forma segura y borrar caché
 if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", key="btn_logout_training"):
@@ -64,19 +111,17 @@ seccion = st.sidebar.radio(
 st.title("🚗 Quality Inspector - Pronunciation & Training Simulator")
 st.subheader("IATF 16949 Standards & Shop Floor Communication Practice")
 st.markdown("---")
-# ==============================================================================
-# PARTE 4: BLOQUES CORE DE REPASO DE TEXTO (OBJETIVO Y ESCRITURA TÉCNICA)
-# ==============================================================================
+
+# --- RENDERIZADO DINÁMICO DE CONTENIDO ---
+
 if seccion == "I. Objective & Scope":
     st.header("I. OBJECTIVE & SCOPE")
-    
     parrafo_1 = "The purpose of this assessment is to identify specific language gaps and technical English competencies required by the Quality Inspector role."
     parrafo_2 = "The insights gathered will align language training with IATF 16949 standards, minimize operational risk, and optimize shop floor communication."
     
     with st.container(border=True):
         st.write(f"*{parrafo_1}*")
         crear_boton_practica(parrafo_1, "p1")
-        
     with st.container(border=True):
         st.write(f"*{parrafo_2}*")
         crear_boton_practica(parrafo_2, "p2")
@@ -84,14 +129,12 @@ if seccion == "I. Objective & Scope":
 elif seccion == "II-A. Written English (Reports)":
     st.header("II. TARGETED COMPETENCY INQUIRIES")
     st.subheader("A. WRITTEN ENGLISH: REPORTS & TRACEABILITY")
-    
     preguntas_escritas = [
         "Which official quality documents do you require me to write more clearly in English (e.g., Non-Conformance Reports (NCR), 8D Reports, Quality Alerts, or shift handovers)?",
         "What specific sections of the 8D report (like Containment Actions or Root Cause Analysis) should I practice writing to make my explanations clearer?",
         "When I enter defect codes or dimensions into our shop floor system, what are the most common English vocabulary or formatting mistakes you notice?",
         "When I email global engineering teams, suppliers, or OEM customers about part deviations, what areas of my written English need improvement?"
     ]
-    
     for i, pregunta in enumerate(preguntas_escritas, 1):
         with st.container(border=True):
             st.markdown(f"**{i}. {pregunta}**")
@@ -101,32 +144,26 @@ elif seccion == "II-A. Written English (Reports)":
 elif seccion == "II-B. Spoken English (Floor Alerts)":
     st.header("II. TARGETED COMPETENCY INQUIRIES")
     st.subheader("B. SPOKEN ENGLISH: FLOOR ALERTS & PUSHBACK")
-    
     preguntas_habladas = [
         "What specific technical vocabulary do you want me to master when describing physical automotive defects during a teardown or inspection (e.g., burrs, flash, porosity, mismatch, cross-threading, orange peel)?",
         "How can I improve my English communication when I need to urgently report a critical quality issue or trigger a Line Down / Hold status?",
         "What specific phrases should I use to confidently defend my quality decisions in English when production supervisors pressure me to release a suspect batch?",
         "What key terms or metrics should I focus on using during our daily Gemba Walks or production meetings to report quality data and scrap percentages?"
     ]
-    
     for i, pregunta in enumerate(preguntas_habladas, 1):
         with st.container(border=True):
             st.markdown(f"**{i}. {pregunta}**")
             crear_boton_practica(pregunta, f"spoken_{i}")
             st.text_input("✏️ Notes / Personal Practice:", key=f"notes_spoken_{i}")
-# ==============================================================================
-# PARTE 5: MÓDULOS DE AUDITORÍAS, GLOSARIOS Y RETROALIMENTACIÓN CASUAL
-# ==============================================================================
+
 elif seccion == "II-C. Audits & Standards (IATF)":
     st.header("II. TARGETED COMPETENCY INQUIRIES")
     st.subheader("C. AUDITS & STANDARDS (IATF 16949)")
-    
     preguntas_auditoria = [
         "What specific questions from external auditors (like IATF, or clients like Ford, GM, Toyota) do you think I need to practice answering verbally on the shop floor?",
         "How can I improve my explanation of our company’s quality policy and gauge calibration procedures when I am audited in English?",
         "When reading or discussing engineering blueprints, GD&T symbols, and Control Plans in English, what technical terms do I struggle with most?"
     ]
-    
     for i, pregunta in enumerate(preguntas_auditoria, 1):
         with st.container(border=True):
             st.markdown(f"**{i}. {pregunta}**")
@@ -136,18 +173,15 @@ elif seccion == "II-C. Audits & Standards (IATF)":
 elif seccion == "II-D. Technical Glossary & Tools":
     st.header("II. TARGETED COMPETENCY INQUIRIES")
     st.subheader("D. TECHNICAL GLOSSARY & INDUSTRY ACRONYMS")
-    
     preguntas_glosario = [
         "Which automotive quality acronyms do you need me to explain and speak about more comfortably (e.g., PPAP, APQP, FMEA, MSA, SPC, Poka-Yoke)?",
         "Are there specific OEM portals or English software tools where you want me to improve my data entry and navigation skills?"
     ]
-    
     for i, pregunta in enumerate(preguntas_glosario, 1):
         with st.container(border=True):
             st.markdown(f"**{i}. {pregunta}**")
             crear_boton_practica(pregunta, f"glossary_{i}")
             st.text_input("✏️ Notes / Personal Practice:", key=f"notes_glossary_{i}")
-            
     st.markdown("---")
     st.subheader("III. APPROVAL & SIGN-OFF")
     st.caption("The signatures below confirm that the communication gaps outlined above will be used to develop a targeted English training curriculum for the employee.")
@@ -155,7 +189,6 @@ elif seccion == "II-D. Technical Glossary & Tools":
 elif seccion == "💡 Supervisor Feedback Version (Casual)":
     st.header("💬 MY ENGLISH GROWTH PLAN: FEEDBACK QUESTIONS FOR MY SUPERVISOR")
     st.info("💡 Casual Shop Floor / Coffee Meeting Version")
-    
     frase_intro = "Hi Boss, I want to make sure my English skills are fully supporting our team's goals and keeping the line running smoothly. Let's use this quick checklist to find out exactly where I can improve my written and spoken English."
     
     with st.container(border=True):
@@ -163,27 +196,23 @@ elif seccion == "💡 Supervisor Feedback Version (Casual)":
         crear_boton_practica(frase_intro, "intro_boss")
         
     st.markdown("#### Checklists to Practice with your Supervisor:")
-    
     v_written = [
         "Which official reports do you need me to write better in English? (NCRs, 8D Reports, Quality Alerts, Shift Handovers)",
         "Any specific sections of the 8D report I should practice writing?",
         "What mistakes do you notice when I enter defect data into the system?",
         "How can I improve my emails to global teams, suppliers, or customers?"
     ]
-    
     v_spoken = [
         "What specific defect words do I need to learn? (burrs, flash, porosity, mismatch, orange peel...)",
         "How can I sound more urgent when triggering a Line Down or Hold status?",
         "What phrases should I use when production managers challenge my quality decisions?",
         "What key metrics should I practice talking about during Gemba Walks?"
     ]
-    
     v_audit = [
         "What specific questions from auditors (IATF, Ford, GM, Toyota) should I practice?",
         "Can I explain our quality policy and tool calibration clearly enough?",
         "What terms do I trip over when reading blueprints, GD&T, or Control Plans?"
     ]
-    
     v_tools = [
         "Which acronyms do I need to explain better? (PPAP, FMEA, SPC, Poka-Yoke...)",
         "Which English customer portals or software tools do I need to master?"
@@ -195,7 +224,6 @@ elif seccion == "💡 Supervisor Feedback Version (Casual)":
         ("🔍 AUDITS & TECHNICAL DATA (IATF 16949)", v_audit, "c_au"),
         ("🛠️ GLOSSARY & SOFTWARE TOOLS", v_tools, "c_tl")
     ]
-    
     for titulo, lista, prefijo in categorias:
         with st.expander(titulo, expanded=True):
             for idx, item in enumerate(lista):
