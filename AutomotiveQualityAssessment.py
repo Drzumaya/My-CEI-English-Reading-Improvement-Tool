@@ -13,6 +13,12 @@ import requests
 from PIL import Image
 from io import BytesIO
 
+import streamlit as st
+import re
+import requests
+from PIL import Image
+from io import BytesIO
+
 # ==============================================================================
 # SUBPARTE 1: CONFIGURACIÓN GENERAL Y CONTROL DE ACCESO MAESTRO
 # ==============================================================================
@@ -28,6 +34,7 @@ if "training_authenticated" not in st.session_state:
 
 # Definición de la clave de acceso maestra para el personal de planta
 PASSWORD_MAESTRA = "QUALITY2026"
+
 
 
 # ==============================================================================
@@ -184,7 +191,7 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
     """
     st.components.v1.html(codigo_html, height=48, scrolling=False)
 # ==============================================================================
-# SUBPARTE 4: MENÚ DE NAVEGACIÓN, LOGOTIPO FIJO PROTÉGIDO Y CRÉDITOS INSTITUCIONALES
+# SUBPARTE 4: MENÚ DE NAVEGACIÓN, LOGOTIPO INTEGRADO Y CRÉDITOS INSTITUCIONALES
 # ==============================================================================
 # 1. Botón para el cierre seguro de la sesión de entrenamiento activo
 if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", key="btn_logout_training"):
@@ -193,19 +200,19 @@ if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", k
 
 st.sidebar.markdown("---")
 
-# 2. LOGOTIPO FIJO E INMUTABLE (Protegido contra modificaciones de usuarios externos)
-# Reemplaza la URL de abajo por la dirección web directa del logo de tu instituto (ej. de tu sitio web o GitHub)
-URL_LOGO_PERMANENTE = "https://wikimedia.org"
+# 2. LOGOTIPO FIJO E INMUTABLE (Dirección Raw Certificada de tu Repositorio GitHub)
+URL_LOGO_PERMANENTE = "https://githubusercontent.com"
 
 try:
-    headers = {"User-Agent": "Mozilla/5.0"}
+    # Solicitud segura al servidor de GitHub Usercontent
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     respuesta_logo = requests.get(URL_LOGO_PERMANENTE, headers=headers, timeout=5)
     if respuesta_logo.status_code == 200:
         img_instituto = Image.open(BytesIO(respuesta_logo.content))
         st.sidebar.image(img_instituto, use_container_width=True)
 except Exception:
-    # Muestra un texto corporativo limpio si el servidor del logotipo no responde temporalmente
-    st.sidebar.subheader("🏫 Career English Institute")
+    # Respaldo de texto elegante si hay latencia en los servidores de GitHub
+    st.sidebar.markdown("<h2 style='text-align:center; color:#1e88e5; font-family:sans-serif;'>🏫 CAREER ENGLISH INSTITUTE</h2>", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
