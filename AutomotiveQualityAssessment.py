@@ -68,16 +68,41 @@ def crear_boton_practica(texto_a_reproducir, id_unico):
         🔊 Listen & Practice
     </button>
     <script>
+    // DESPERTADOR DE AUDIO: Precargar las voces del sistema para evitar que el navegador las congele
+    if ('speechSynthesis' in window) {{
+        window.speechSynthesis.getVoices();
+    }}
+
     if (typeof window.speakPhrases !== 'function') {{
         window.speakPhrases = function(text) {{
             if ('speechSynthesis' in window) {{
-                window.speechSynthesis.cancel(); // Detener cualquier reproducción previa activa
+                // 1. Cancelar cualquier proceso colgado previo
+                window.speechSynthesis.cancel(); 
+                
                 var msg = new SpeechSynthesisUtterance();
                 msg.text = text;
                 msg.lang = 'en-US'; // Forzar pronunciación técnica americana nativa
-                msg.rate = 0.85;    // Velocidad ligeramente reducida para facilitar el aprendizaje
+                msg.rate = 0.85;    // Velocidad reducida para facilitar el aprendizaje
                 msg.volume = 1.0;
+                
+                // 2. PARCHE DE ACTIVACIÓN: Forzar al navegador a despertar el canal de audio si está congelado
+                msg.onstart = function() {{
+                    console.log("Audio iniciado correctamente.");
+                }};
+                
+                // 3. Ejecutar la reproducción nativa
                 window.speechSynthesis.speak(msg);
+                
+                // 4. Parche específico para navegadores basados en Chromium (Chrome/Edge):
+                // Si el audio se congela a la mitad o no responde, este ciclo fuerza la reactivación instantánea
+                var r = setInterval(function() {{
+                    if (!window.speechSynthesis.speaking) {{
+                        clearInterval(r);
+                    }} else {{
+                        window.speechSynthesis.resume();
+                    }}
+                }}, 14000);
+                
             }} else {{
                 alert('Tu navegador no soporta reproducción de voz nativa. Intente usando Google Chrome.');
             }}
@@ -86,6 +111,7 @@ def crear_boton_practica(texto_a_reproducir, id_unico):
     </script>
     """
     st.markdown(html_control, unsafe_allow_html=True)
+
 # ==============================================================================
 # 🧩 PARTE 3: INTERFAZ GRÁFICA, MENÚS Y CONTENIDO DEL GLOSARIO (IATF 16949)
 # ==============================================================================
