@@ -44,18 +44,19 @@ if not st.session_state.training_authenticated:
 # ==============================================================================
 # SUBPARTE 3: MOTOR DE AUDIO AMERICANO PREMIUM (DESBLOCKED)
 # ==============================================================================
-def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen=None):
+def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, banner_texto=None):
     """
-    Renderiza una imagen técnica estable, empareja colores por categorías gramaticales
-    e inyecta un reproductor directo HTML5 libre de bloqueos de sandbox.
+    Renderiza un encabezado de sección nativo si existe, empareja colores por 
+    categorías gramaticales e inyecta el reproductor directo de audio de EE. UU.
     """
-    if url_imagen:
-        st.image(url_imagen, use_container_width=False, width=450)
+    # 1. Si hay un texto descriptivo, lo mostramos como un Banner Corporativo Nativo de Streamlit
+    if banner_texto:
+        st.info(banner_texto)
         
     st.markdown(f"📖 **English:** {texto_en_ingles}", unsafe_allow_html=True)
     st.markdown(f"🔹 **Español:** {texto_en_espanol}", unsafe_allow_html=True)
     
-    # Limpiar las de colores HTML para que el lector no pronuncie los códigos de color
+    # Limpiar las etiquetas de color HTML para que el lector no pronuncie los códigos de color
     texto_plano = re.sub(r'<[^>]+>', '', texto_en_ingles)
     texto_escapado = texto_plano.replace("'", "\\'").replace('"', '\\"')
     
@@ -131,7 +132,7 @@ st.title("🚗 Quality Inspector - Pronunciation & Training Simulator")
 st.subheader("IATF 16949 Standards & Shop Floor Communication Practice")
 st.markdown("---")
 # ==============================================================================
-# SUBPARTE 5: SECCIÓN CORE I (OBJECTIVE Y REPORTES ESCRITOS CON PANCARTAS NATIVAS)
+# SUBPARTE 5: SECCIÓN CORE I (OBJECTIVE Y REPORTES ESCRITOS)
 # ==============================================================================
 if seccion == "I. Objective & Scope":
     st.header("I. OBJECTIVE & SCOPE")
@@ -142,13 +143,10 @@ if seccion == "I. Objective & Scope":
     p2_en = "<span style='color:#424242; font-weight:bold;'>The</span> <span style='color:#1565c0; font-weight:bold;'>insights gathered</span> <span style='color:#2e7d32; font-weight:bold;'>will align</span> <span style='color:#1565c0; font-weight:bold;'>language training</span> <span style='color:#ef6c00; font-weight:bold;'>with</span> <span style='color:#1565c0; font-weight:bold;'>IATF 16949 standards</span>, <span style='color:#2e7d32; font-weight:bold;'>minimize</span> <span style='color:#1565c0; font-weight:bold;'>operational risk</span>, <span style='color:#ef6c00; font-weight:bold;'>and</span> <span style='color:#2e7d32; font-weight:bold;'>optimize</span> <span style='color:#1565c0; font-weight:bold;'>shop floor communication</span>."
     p2_es = "<span style='color:#424242; font-weight:bold;'>La</span> <span style='color:#1565c0; font-weight:bold;'>información recopilada</span> <span style='color:#2e7d32; font-weight:bold;'>alineará</span> <span style='color:#1565c0; font-weight:bold;'>la capacitación lingüística</span> <span style='color:#ef6c00; font-weight:bold;'>con</span> <span style='color:#1565c0; font-weight:bold;'>los estándares IATF 16949</span>, <span style='color:#2e7d32; font-weight:bold;'>minimizará</span> <span style='color:#1565c0; font-weight:bold;'>el riesgo operativo</span>, <span style='color:#ef6c00; font-weight:bold;'>y</span> <span style='color:#2e7d32; font-weight:bold;'>optimizará</span> <span style='color:#1565c0; font-weight:bold;'>la comunicación en el piso de producción</span>."
     
-    # Reemplazamos los links rotos por bloques visuales nativos st.info/success que nunca fallan
     with st.container(border=True):
-        st.info("📊 **VISUAL MAP:** LANGUAGE AUDIT & COMPETENCY BLUEPRINT")
-        crear_boton_practica(p1_en, p1_es, "p1")
+        crear_boton_practica(p1_en, p1_es, "p1", "📊 ASSESSMENT OBJECTIVE: Quality Inspector Core Audit")
     with st.container(border=True):
-        st.success("🏭 **PLANT STANDARD:** IATF 16949 RISK MINIMIZATION AND COMPLIANCE")
-        crear_boton_practica(p2_en, p2_es, "p2")
+        crear_boton_practica(p2_en, p2_es, "p2", "🏭 SHOP FLOOR STANDARD: IATF 16949 Communication")
 
 elif seccion == "II-A. Written English (Reports)":
     st.header("II. TARGETED COMPETENCY INQUIRIES")
@@ -157,24 +155,23 @@ elif seccion == "II-A. Written English (Reports)":
     preguntas_escritas = [
         ("<span style='color:#1565c0; font-weight:bold;'>Which official quality documents</span> <span style='color:#2e7d32; font-weight:bold;'>do you require me to write</span> <span style='color:#6a1b9a; font-weight:bold;'>more clearly</span> <span style='color:#ef6c00; font-weight:bold;'>in</span> <span style='color:#1565c0; font-weight:bold;'>English</span>?",
          "<span style='color:#1565c0; font-weight:bold;'>Cuáles documentos oficiales de calidad</span> <span style='color:#2e7d32; font-weight:bold;'>requiere que yo escriba</span> <span style='color:#6a1b9a; font-weight:bold;'>con mayor claridad</span> <span style='color:#ef6c00; font-weight:bold;'>en</span> <span style='color:#1565c0; font-weight:bold;'>inglés</span>?",
-         "🗂️ OFFICIAL RECORDS: Non-Conformance Reports (NCR) & Quality Alerts"),
+         "🗂️ QUALITY ALERTS: Non-Conformance Reports (NCR) & Shift Handovers"),
         
         ("<span style='color:#1565c0; font-weight:bold;'>What specific sections of the 8D report</span> <span style='color:#2e7d32; font-weight:bold;'>should I practice writing</span> <span style='color:#ef6c00; font-weight:bold;'>to</span> <span style='color:#2e7d32; font-weight:bold;'>make</span> <span style='color:#424242; font-weight:bold;'>my</span> <span style='color:#1565c0; font-weight:bold;'>explanations</span> <span style='color:#6a1b9a; font-weight:bold;'>clearer</span>?",
          "<span style='color:#1565c0; font-weight:bold;'>Qué secciones específicas del reporte 8D</span> <span style='color:#2e7d32; font-weight:bold;'>debería practicar escribir</span> <span style='color:#ef6c00; font-weight:bold;'>para</span> <span style='color:#2e7d32; font-weight:bold;'>hacer</span> <span style='color:#424242; font-weight:bold;'>mis</span> <span style='color:#1565c0; font-weight:bold;'>explicaciones</span> <span style='color:#6a1b9a; font-weight:bold;'>más claras</span>?",
-         "🧪 ENGINEERING LOG: Containment Actions & Root Cause Analysis (8D)"),
+         "🔬 PROBLEM SOLVING: Root Cause Analysis & Containment Actions"),
         
         ("<span style='color:#ef6c00; font-weight:bold;'>When</span> <span style='color:#2e7d32; font-weight:bold;'>I enter</span> <span style='color:#1565c0; font-weight:bold;'>defect codes</span>, <span style='color:#1565c0; font-weight:bold;'>what</span> <span style='color:#2e7d32; font-weight:bold;'>are</span> <span style='color:#424242; font-weight:bold;'>the</span> <span style='color:#6a1b9a; font-weight:bold;'>most common formatting mistakes</span>?",
          "<span style='color:#ef6c00; font-weight:bold;'>Cuando</span> <span style='color:#2e7d32; font-weight:bold;'>ingreso</span> <span style='color:#1565c0; font-weight:bold;'>códigos de defectos</span>, <span style='color:#1565c0; font-weight:bold;'>cuáles</span> <span style='color:#2e7d32; font-weight:bold;'>son</span> <span style='color:#424242; font-weight:bold;'>los</span> <span style='color:#6a1b9a; font-weight:bold;'>errores de formato más comunes</span>?",
-         "💻 TERMINAL ENTRY: Shop Floor Data Systems & Core Dimensions"),
+         "💻 SYSTEM LOG: Shop Floor Terminal Defect Entry & Dimensions"),
         
         ("<span style='color:#ef6c00; font-weight:bold;'>When</span> <span style='color:#2e7d32; font-weight:bold;'>I email</span> <span style='color:#1565c0; font-weight:bold;'>global engineering teams</span>, <span style='color:#1565c0; font-weight:bold;'>what areas of my written English</span> <span style='color:#2e7d32; font-weight:bold;'>need</span> <span style='color:#1565c0; font-weight:bold;'>improvement</span>?",
          "<span style='color:#ef6c00; font-weight:bold;'>Cuando</span> <span style='color:#2e7d32; font-weight:bold;'>envío correos electrónicos</span> <span style='color:#424242; font-weight:bold;'>a</span> <span style='color:#1565c0; font-weight:bold;'>equipos globales de ingeniería</span>, <span style='color:#1565c0; font-weight:bold;'>qué áreas de mi inglés escrito</span> <span style='color:#2e7d32; font-weight:bold;'>necesitan</span> <span style='color:#1565c0; font-weight:bold;'>mejorar</span>?",
-         "📧 OUTBOUND MAIL: Global Supply Chains & OEM Customer Deviations")
+         "📧 SUPPLY CHAIN: Part Deviations Notifications to OEM Customers")
     ]
-    for i, (en, es, pancarta) in enumerate(preguntas_escritas, 1):
+    for i, (en, es, b_txt) in enumerate(preguntas_escritas, 1):
         with st.container(border=True):
-            st.warning(pancarta) # Genera un recuadro naranja corporativo nativo e indestructible
-            crear_boton_practica(en, es, f"written_{i}")
+            crear_boton_practica(en, es, f"written_{i}", b_txt)
             st.text_input("✏️ Notes / Personal Practice:", key=f"notes_written_{i}")
 # ==============================================================================
 # SUBPARTE 6: SECCIÓN CORE II (SPOKEN ENGLISH, AUDITORÍAS Y SIGLAS CON PANCARTAS)
