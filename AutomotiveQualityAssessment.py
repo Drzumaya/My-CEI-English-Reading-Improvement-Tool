@@ -39,79 +39,78 @@ if not st.session_state.training_authenticated:
     if st.button("🔐 Abrir Terminal de Autenticación", type="primary", key="btn_open_gate"):
         popup_seguridad_entrenamiento()
     st.stop()  # Aborta la lectura del resto del código hasta que se inicie sesión con éxito
+    
 # ==============================================================================
-# 🧩 PARTE 2: NÚCLEO DE PRONUNCIACIÓN (MOTOR JAVASCRIPT TEXT-TO-SPEECH NATIVO)
+# 🧩 PARTE 2: NÚCLEO DE PRONUNCIACIÓN (MOTOR HTML5 NATIVO DESCONGELADO)
 # ==============================================================================
 def crear_boton_practica(texto_a_reproducir, id_unico):
     """
-    Inyecta un botón HTML5/JS que utiliza el motor TTS nativo del dispositivo del estudiante.
-    Garantiza que el audio suene de inmediato al hacer clic sin cargar archivos de red externos.
+    Inyecta un reproductor de audio oculto y un botón de control utilizando un iframe 
+    con permisos de audio explícitos. Usa síntesis de voz sin bloqueos del navegador.
     """
     # Escapar comillas para evitar rupturas en la cadena de texto de JavaScript
     texto_escapado = texto_a_reproducir.replace("'", "\\'").replace('"', '\\"')
     
-    html_control = f"""
-    <button onclick="speakPhrases('{texto_escapado}')" style="
-        background-color: #1e88e5; 
-        color: white; 
-        border: none; 
-        padding: 6px 14px; 
-        font-size: 13px; 
-        font-weight: bold;
-        border-radius: 20px; 
-        cursor: pointer; 
-        box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        margin: 4px 0px;">
-        🔊 Listen & Practice
-    </button>
-    <script>
-    // DESPERTADOR DE AUDIO: Precargar las voces del sistema para evitar que el navegador las congele
-    if ('speechSynthesis' in window) {{
-        window.speechSynthesis.getVoices();
-    }}
-
-    if (typeof window.speakPhrases !== 'function') {{
-        window.speakPhrases = function(text) {{
-            if ('speechSynthesis' in window) {{
-                // 1. Cancelar cualquier proceso colgado previo
-                window.speechSynthesis.cancel(); 
-                
-                var msg = new SpeechSynthesisUtterance();
-                msg.text = text;
-                msg.lang = 'en-US'; // Forzar pronunciación técnica americana nativa
-                msg.rate = 0.85;    // Velocidad reducida para facilitar el aprendizaje
-                msg.volume = 1.0;
-                
-                // 2. PARCHE DE ACTIVACIÓN: Forzar al navegador a despertar el canal de audio si está congelado
-                msg.onstart = function() {{
-                    console.log("Audio iniciado correctamente.");
-                }};
-                
-                // 3. Ejecutar la reproducción nativa
-                window.speechSynthesis.speak(msg);
-                
-                // 4. Parche específico para navegadores basados en Chromium (Chrome/Edge):
-                // Si el audio se congela a la mitad o no responde, este ciclo fuerza la reactivación instantánea
-                var r = setInterval(function() {{
-                    if (!window.speechSynthesis.speaking) {{
-                        clearInterval(r);
-                    }} else {{
-                        window.speechSynthesis.resume();
-                    }}
-                }}, 14000);
-                
-            }} else {{
-                alert('Tu navegador no soporta reproducción de voz nativa. Intente usando Google Chrome.');
+    # Creamos un widget HTML puro integrado que rompe el bloqueo de seguridad del navegador
+    codigo_html_descongelado = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ margin: 0; padding: 0; background: transparent; font-family: sans-serif; }}
+            .play-btn {{
+                background-color: #1e88e5; 
+                color: white; 
+                border: none; 
+                padding: 6px 14px; 
+                font-size: 13px; 
+                font-weight: bold;
+                border-radius: 20px; 
+                cursor: pointer; 
+                box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
             }}
-        }};
-    }}
-    </script>
-    """
-    st.markdown(html_control, unsafe_allow_html=True)
+            .play-btn:hover {{ background-color: #1565c0; }}
+            .play-btn:active {{ transform: scale(0.98); }}
+        </style>
+    </head>
+    <body>
+        <button class="play-btn" onclick="reproducirVozDirecta()">🔊 Listen & Practice</button>
 
+        <script>
+            // Despertar y precargar las voces del sistema del alumno inmediatamente
+            if ('speechSynthesis' in window) {{
+                window.speechSynthesis.getVoices();
+            }}
+
+            function reproducirVozDirecta() {{
+                if ('speechSynthesis' in window) {{
+                    // Cancelar cualquier cola colgada para liberar la memoria de audio del dispositivo
+                    window.speechSynthesis.cancel();
+                    
+                    var utterance = new SpeechSynthesisUtterance('{texto_escapado}');
+                    utterance.lang = 'en-US';  # Forzar pronunciación técnica americana nativa
+                    utterance.rate = 0.85;     # Velocidad ligeramente reducida para captar la fonética
+                    utterance.volume = 1.0;    # Volumen al máximo operativo del dispositivo
+                    
+                    // Ejecutar la orden de voz forzando al navegador a responder
+                    window.speechSynthesis.speak(utterance);
+                }} else {{
+                    alert("Tu dispositivo o navegador no soporta Text-To-Speech nativo.");
+                }}
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    
+    # IMPORTANTE: Usamos st.components.v1.html para forzar al contenedor a pintar 
+    # el botón de audio con una altura controlada de 40 píxeles, evitando espacios grises.
+    st.components.v1.html(codigo_html_descongelado, height=40, scrolling=False)
+    
 # ==============================================================================
 # 🧩 PARTE 3: INTERFAZ GRÁFICA, MENÚS Y CONTENIDO DEL GLOSARIO (IATF 16949)
 # ==============================================================================
