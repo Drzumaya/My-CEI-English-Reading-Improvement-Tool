@@ -41,12 +41,12 @@ if not st.session_state.training_authenticated:
         popup_seguridad_entrenamiento()
     st.stop()  # Aborta la lectura del resto del código hasta que se inicie sesión con éxito
 # ==============================================================================
-# SUBPARTE 3: MOTOR DE AUDIO NATIVO DESCONGELADO CON TRADUCCIÓN
+# SUBPARTE 3: MOTOR DE AUDIO NATIVO DESCONGELADO CON TRADUCCIÓN Y VOZ PREMIUM US
 # ==============================================================================
 def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico):
     """
     Muestra la traducción al español e inyecta un botón HTML5 que interactúa
-    directamente con la ventana superior del navegador, evitando que el audio se congele.
+    directamente con las voces nativas americanas del sistema, eliminando el acento español.
     """
     # Mostrar la traducción escrita al español de manera inmediata
     st.markdown(f"🔹 **Español:** *{texto_en_espanol}*")
@@ -54,12 +54,11 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico):
     # Escapar comillas para evitar rupturas en la cadena de texto de JavaScript
     texto_escapado = texto_en_ingles.replace("'", "\\'").replace('"', '\\"')
     
-    # Inyección de HTML y JS utilizando un puente nativo (window.parent) que rompe el bloqueo del iframe de Streamlit
     codigo_html = f"""
     <!DOCTYPE html>
     <html>
     <body>
-        <button onclick="despertarYReproducir()" style="
+        <button onclick="reproducirConVozAmericana()" style="
             background-color: #1e88e5; 
             color: white; 
             border: none; 
@@ -74,33 +73,55 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico):
         </button>
 
         <script>
-            function despertarYReproducir() {{
-                // Usamos window.parent para saltar el sandbox del iframe de Streamlit Cloud
-                var targetWindow = window.parent || window;
-                if ('speechSynthesis' in targetWindow) {{
-                    targetWindow.speechSynthesis.cancel(); // Limpiar cola congelada
+            function reproducirConVozAmericana() {{
+                // Acceder a la ventana superior para romper el aislamiento de Streamlit
+                var tWindow = window.parent || window;
+                
+                if ('speechSynthesis' in tWindow) {{
+                    tWindow.speechSynthesis.cancel(); // Limpiar cola colgada previa
                     
-                    var msg = new targetWindow.SpeechSynthesisUtterance('{texto_escapado}');
-                    msg.lang = 'en-US'; // Inglés Americano Técnico
-                    msg.rate = 0.82;    // Velocidad pausada para entrenamiento
-                    msg.volume = 1.0;
+                    var msg = new tWindow.SpeechSynthesisUtterance('{texto_escapado}');
                     
-                    targetWindow.speechSynthesis.speak(msg);
-                }} else if ('speechSynthesis' in window) {{
-                    window.speechSynthesis.cancel();
-                    var msg2 = new SpeechSynthesisUtterance('{texto_escapado}');
-                    msg2.lang = 'en-US';
-                    msg2.rate = 0.82;
-                    window.speechSynthesis.speak(msg2);
+                    // OBLIGAR AL MOTOR A ENCONTRAR UNA VOZ NATIVA DE ESTADOS UNIDOS (USA)
+                    var vocesDisponibles = tWindow.speechSynthesis.getVoices();
+                    
+                    // Intentar buscar la voz premium americana de Google o fallbacks de Microsoft/Apple en inglés
+                    var vozSeleccionada = vocesDisponibles.find(function(v) {{
+                        return v.lang === 'en-US' && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('David') || v.name.includes('Zira'));
+                    }});
+                    
+                    // Si no encuentra una específica, buscar cualquier voz que contenga 'en' o 'en-US'
+                    if (!vozSeleccionada) {{
+                        vozSeleccionada = vocesDisponibles.find(function(v) {{
+                            return v.lang.startsWith('en');
+                        }});
+                    }}
+                    
+                    // Asignar la voz en inglés americano encontrada al mensaje
+                    if (vozSeleccionada) {{
+                        msg.voice = vozSeleccionada;
+                    }}
+                    
+                    msg.lang = 'en-US'; // Reforzar el código de idioma
+                    msg.rate = 0.85;    # Cadencia humana ligeramente pausada para entrenamiento
+                    msg.volume = 1.0;   # Volumen operativo completo
+                    
+                    tWindow.speechSynthesis.speak(msg);
                 }} else {{
-                    alert("Tu navegador bloqueó el sistema de audio. Se recomienda usar Google Chrome.");
+                    alert("Tu navegador no soporta el motor de audio. Se recomienda usar Google Chrome en PC o celular.");
                 }}
+            }}
+            
+            # Forzar al navegador a precargar la lista de voces en cuanto se renderice el botón
+            if ('speechSynthesis' in (window.parent || window)) {{
+                (window.parent || window).speechSynthesis.getVoices();
             }}
         </script>
     </body>
     </html>
     """
     st.components.v1.html(codigo_html, height=42, scrolling=False)
+    
 # ==============================================================================
 # SUBPARTE 4: MENÚ DE NAVEGACIÓN Y CIERRE DE SESIÓN (SIDEBAR)
 # ==============================================================================
