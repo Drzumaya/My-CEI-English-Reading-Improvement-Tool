@@ -46,12 +46,12 @@ from PIL import Image
 from io import BytesIO
 
 # ==============================================================================
-# SUBPARTE 3: MOTOR DE AUDIO HUMANO PREMIUM (VOCES DISTINTAS HOMBRE / MUJER US)
+# SUBPARTE 3: MOTOR DE AUDIO HUMANO REAL (VOCES ALTERNADAS SIN INTERFERENCIAS)
 # ==============================================================================
 def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen=None):
     """
-    Descarga la imagen internamente para evitar bloqueos, mapea colores gramaticales
-    e inyecta un motor de voz humano real que alterna entre hombre y mujer según el ID.
+    Procesa imágenes de forma nativa, formatea los textos bilingües con colores
+    e inyecta el motor de voz humana US alternando géneros sin errores de sintaxis.
     """
     if url_imagen:
         try:
@@ -63,15 +63,14 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
         except Exception:
             st.caption("📷 *[Ilustración técnica de apoyo]*")
         
-    st.markdown(f"📖 **English:** {texto_en_ingles}", unsafe_allow_html=True)
+    st.markdown(f"重量 **English:** {texto_en_ingles}", unsafe_allow_html=True)
     st.markdown(f"🔹 **Español:** {texto_en_espanol}", unsafe_allow_html=True)
     
-    # Limpiar las etiquetas de color HTML para el lector de voz
+    # Limpiar las etiquetas de color HTML para que el lector no las pronuncie
     texto_plano = re.sub(r'<[^>]+>', '', texto_en_ingles)
     texto_escapado = texto_plano.replace("'", "\\'").replace('"', '\\"')
     
-    # Determinar género basado en el hash o texto del id_unico para que sea consistente
-    # IDs que terminan en número par o letras específicas usarán voz de mujer, otros de hombre
+    # Alternar géneros de voz de manera consistente según el identificador de la frase
     es_par = any(char in id_unico for char in ['0', '2', '4', '6', '8', 'p', 'boss', 'footer'])
     genero_objetivo = "female" if es_par else "male"
     label_genero = "👩 Female Voice" if genero_objetivo == "female" else "👨 Male Voice"
@@ -103,12 +102,11 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
             function playHumanVoice() {{
                 var mainWin = window.parent || window;
                 if ('speechSynthesis' in mainWin) {{
-                    mainWin.speechSynthesis.cancel(); // Liberar memoria colgada de audio
+                    mainWin.speechSynthesis.cancel();
                     
                     var msg = new mainWin.SpeechSynthesisUtterance('{texto_escapado}');
                     var voices = mainWin.speechSynthesis.getVoices();
                     
-                    // Filtrar estrictamente voces en inglés de Estados Unidos (en-US / en)
                     var usVoices = voices.filter(function(v) {{
                         return v.lang.startsWith('en');
                     }});
@@ -117,20 +115,17 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
                     var targetGender = '{genero_objetivo}';
                     
                     if (targetGender === "female") {{
-                        // Buscar perfiles de voz femenina Premium (Google, Zira, Samantha, Hazel, etc.)
                         targetVoice = usVoices.find(function(v) {{
                             var name = v.name.toLowerCase();
                             return name.includes('zira') || name.includes('samantha') || name.includes('hazel') || name.includes('female') || name.includes('google us english');
                         }});
                     }} else {{
-                        // Buscar perfiles de voz masculina Premium (David, George, Male, etc.)
                         targetVoice = usVoices.find(function(v) {{
                             var name = v.name.toLowerCase();
                             return name.includes('david') || name.includes('george') || name.includes('male') || name.includes('desktop');
                         }});
                     }}
                     
-                    # Fallback de seguridad: si no encuentra el género exacto, usa la primera voz en inglés disponible
                     if (!targetVoice && usVoices.length > 0) {{
                         targetVoice = usVoices[0];
                     }}
@@ -140,15 +135,14 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
                     }}
                     
                     msg.lang = 'en-US';
-                    msg.rate = 0.85;   // Velocidad humana y clara para entrenamiento de oído
-                    msg.pitch = 1.0;  // Tono de frecuencia natural no robótico
+                    msg.rate = 0.85;   
+                    msg.pitch = 1.0;  
                     msg.volume = 1.0; 
                     
                     mainWin.speechSynthesis.speak(msg);
                 }}
             }}
             
-            // Forzar precarga de voces en el hilo principal del navegador
             if ('speechSynthesis' in (window.parent || window)) {{
                 (window.parent || window).speechSynthesis.getVoices();
             }}
