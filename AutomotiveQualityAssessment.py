@@ -7,6 +7,12 @@ import requests
 from PIL import Image
 from io import BytesIO
 
+import streamlit as st
+import re
+import requests
+from PIL import Image
+from io import BytesIO
+
 # ==============================================================================
 # SUBPARTE 1: CONFIGURACIÓN GENERAL Y CONTROL DE ACCESO MAESTRO
 # ==============================================================================
@@ -16,14 +22,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# Inicializar estados de sesión para el bloqueo de seguridad y almacenamiento del logo
+# Inicializar estado de sesión únicamente para el bloqueo de seguridad involuntario
 if "training_authenticated" not in st.session_state:
     st.session_state.training_authenticated = False
-if "uploaded_logo" not in st.session_state:
-    st.session_state.uploaded_logo = None
 
 # Definición de la clave de acceso maestra para el personal de planta
 PASSWORD_MAESTRA = "QUALITY2026"
+
 
 # ==============================================================================
 # SUBPARTE 2: PUERTO DE SEGURIDAD Y LOGIN (PASSWORD DIALOG)
@@ -179,7 +184,7 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
     """
     st.components.v1.html(codigo_html, height=48, scrolling=False)
 # ==============================================================================
-# SUBPARTE 4: MENÚ DE NAVEGACIÓN, GESTOR DE LOGOTIPO Y CRÉDITOS INSTITUCIONALES
+# SUBPARTE 4: MENÚ DE NAVEGACIÓN, LOGOTIPO FIJO PROTÉGIDO Y CRÉDITOS INSTITUCIONALES
 # ==============================================================================
 # 1. Botón para el cierre seguro de la sesión de entrenamiento activo
 if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", key="btn_logout_training"):
@@ -188,25 +193,19 @@ if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", k
 
 st.sidebar.markdown("---")
 
-# 2. SECCIÓN DE LOGOTIPO DISCRETA: Oculta las instrucciones y leyendas técnicas de carga
-if st.session_state.uploaded_logo is not None:
-    try:
-        img_logo = Image.open(st.session_state.uploaded_logo)
-        st.sidebar.image(img_logo, use_container_width=True)
-    except Exception:
-        st.sidebar.error("Error al procesar el archivo del logotipo.")
+# 2. LOGOTIPO FIJO E INMUTABLE (Protegido contra modificaciones de usuarios externos)
+# Reemplaza la URL de abajo por la dirección web directa del logo de tu instituto (ej. de tu sitio web o GitHub)
+URL_LOGO_PERMANENTE = "https://wikimedia.org"
 
-# Cargador invisible a nivel de etiquetas (label_visibility='collapsed') para máxima limpieza visual
-archivo_logo = st.sidebar.file_uploader(
-    "logo_uploader", 
-    type=["png", "jpg", "jpeg"], 
-    key="uploader_logo_instituto",
-    label_visibility="collapsed"
-)
-
-if archivo_logo is not None:
-    st.session_state.uploaded_logo = archivo_logo
-    st.rerun()
+try:
+    headers = {"User-Agent": "Mozilla/5.0"}
+    respuesta_logo = requests.get(URL_LOGO_PERMANENTE, headers=headers, timeout=5)
+    if respuesta_logo.status_code == 200:
+        img_instituto = Image.open(BytesIO(respuesta_logo.content))
+        st.sidebar.image(img_instituto, use_container_width=True)
+except Exception:
+    # Muestra un texto corporativo limpio si el servidor del logotipo no responde temporalmente
+    st.sidebar.subheader("🏫 Career English Institute")
 
 st.sidebar.markdown("---")
 
