@@ -188,25 +188,25 @@ if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", k
 
 st.sidebar.markdown("---")
 
-# 2. SECCIÓN DE PERSONALIZACIÓN: Espacio para subir y mostrar el logotipo institucional
-st.sidebar.markdown("### 🏢 Logotipo Institucional")
-archivo_logo = st.sidebar.file_uploader(
-    "Haz clic abajo para cargar o actualizar el logo de la escuela (PNG / JPG):", 
-    type=["png", "jpg", "jpeg"], 
-    key="uploader_logo_instituto"
-)
-
-# Guardar la imagen subida en el estado de sesión para mantenerla fija durante la navegación
-if archivo_logo is not None:
-    st.session_state.uploaded_logo = archivo_logo
-
-# Renderizar el logotipo si ya ha sido cargado por el administrador
+# 2. SECCIÓN DE LOGOTIPO DISCRETA: Oculta las instrucciones y leyendas técnicas de carga
 if st.session_state.uploaded_logo is not None:
     try:
         img_logo = Image.open(st.session_state.uploaded_logo)
         st.sidebar.image(img_logo, use_container_width=True)
     except Exception:
         st.sidebar.error("Error al procesar el archivo del logotipo.")
+
+# Cargador invisible a nivel de etiquetas (label_visibility='collapsed') para máxima limpieza visual
+archivo_logo = st.sidebar.file_uploader(
+    "logo_uploader", 
+    type=["png", "jpg", "jpeg"], 
+    key="uploader_logo_instituto",
+    label_visibility="collapsed"
+)
+
+if archivo_logo is not None:
+    st.session_state.uploaded_logo = archivo_logo
+    st.rerun()
 
 st.sidebar.markdown("---")
 
@@ -232,7 +232,7 @@ st.sidebar.markdown("""
         <b>🏫 INSTITUTO:</b><br>CAREER ENGLISH INSTITUTE
     </p>
     <p style="margin: 6px 0 0 0; font-size: 11px; color: #555555; font-family: sans-serif;">
-        <b>👨‍A CREADOR:</b><br>Dr. JACOB ZUMAYA PRIANTI
+        <b>👨‍🏫 CREADOR:</b><br>Dr. JACOB ZUMAYA PRIANTI
     </p>
     <p style="margin: 6px 0 0 0; font-size: 10px; color: #888888; font-family: sans-serif; border-top: 1px solid #ddd; padding-top: 4px;">
         © DERECHOS RESERVADOS 2026
