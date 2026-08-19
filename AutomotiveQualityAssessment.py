@@ -1,8 +1,14 @@
 import streamlit as st
 import re
 
+import streamlit as st
+import re
+import requests
+from PIL import Image
+from io import BytesIO
+
 # ==============================================================================
-# SUBPARTE 1: CONFIGURACIÓN GENERAL DE LA PLATAFORMA
+# SUBPARTE 1: CONFIGURACIÓN GENERAL Y CONTROL DE ACCESO MAESTRO
 # ==============================================================================
 st.set_page_config(
     page_title="Quality Inspector - English Practice Tool",
@@ -10,12 +16,15 @@ st.set_page_config(
     layout="wide"
 )
 
-# Inicializar estados de sesión para el bloqueo de seguridad involuntario
+# Inicializar estados de sesión para el bloqueo de seguridad y almacenamiento del logo
 if "training_authenticated" not in st.session_state:
     st.session_state.training_authenticated = False
+if "uploaded_logo" not in st.session_state:
+    st.session_state.uploaded_logo = None
 
 # Definición de la clave de acceso maestra para el personal de planta
 PASSWORD_MAESTRA = "QUALITY2026"
+
 # ==============================================================================
 # SUBPARTE 2: PUERTO DE SEGURIDAD Y LOGIN (PASSWORD DIALOG)
 # ==============================================================================
@@ -170,13 +179,38 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
     """
     st.components.v1.html(codigo_html, height=48, scrolling=False)
 # ==============================================================================
-# SUBPARTE 4: MENÚ DE NAVEGACIÓN Y CIERRE DE SESIÓN (SIDEBAR)
+# SUBPARTE 4: MENÚ DE NAVEGACIÓN, GESTOR DE LOGOTIPO Y CRÉDITOS INSTITUCIONALES
 # ==============================================================================
+# 1. Botón para el cierre seguro de la sesión de entrenamiento activo
 if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", key="btn_logout_training"):
     st.session_state.training_authenticated = False
     st.rerun()
 
 st.sidebar.markdown("---")
+
+# 2. SECCIÓN DE PERSONALIZACIÓN: Espacio para subir y mostrar el logotipo institucional
+st.sidebar.markdown("### 🏢 Logotipo Institucional")
+archivo_logo = st.sidebar.file_uploader(
+    "Haz clic abajo para cargar o actualizar el logo de la escuela (PNG / JPG):", 
+    type=["png", "jpg", "jpeg"], 
+    key="uploader_logo_instituto"
+)
+
+# Guardar la imagen subida en el estado de sesión para mantenerla fija durante la navegación
+if archivo_logo is not None:
+    st.session_state.uploaded_logo = archivo_logo
+
+# Renderizar el logotipo si ya ha sido cargado por el administrador
+if st.session_state.uploaded_logo is not None:
+    try:
+        img_logo = Image.open(st.session_state.uploaded_logo)
+        st.sidebar.image(img_logo, use_container_width=True)
+    except Exception:
+        st.sidebar.error("Error al procesar el archivo del logotipo.")
+
+st.sidebar.markdown("---")
+
+# 3. CONTROLADOR INTERACTIVO DE NAVEGACIÓN (Definición de variable 'seccion')
 seccion = st.sidebar.radio(
     "📂 Selecciona la Sección del Documento:",
     [
@@ -189,9 +223,28 @@ seccion = st.sidebar.radio(
     ]
 )
 
+st.sidebar.markdown("---")
+
+# 4. PIE DE PÁGINA CORPORATIVO: Datos de Identidad Legal y Derechos del Autor
+st.sidebar.markdown("""
+<div style="background-color: #f8f9fa; padding: 12px; border-radius: 8px; border-left: 4px solid #1e88e5; margin-top: 20px;">
+    <p style="margin: 0; font-size: 11px; color: #555555; font-family: sans-serif;">
+        <b>🏫 INSTITUTO:</b><br>CAREER ENGLISH INSTITUTE
+    </p>
+    <p style="margin: 6px 0 0 0; font-size: 11px; color: #555555; font-family: sans-serif;">
+        <b>👨‍A CREADOR:</b><br>Dr. JACOB ZUMAYA PRIANTI
+    </p>
+    <p style="margin: 6px 0 0 0; font-size: 10px; color: #888888; font-family: sans-serif; border-top: 1px solid #ddd; padding-top: 4px;">
+        © DERECHOS RESERVADOS 2026
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# Encabezado fijo superior en el cuerpo de la página
 st.title("🚗 Quality Inspector - Pronunciation & Training Simulator")
 st.subheader("IATF 16949 Standards & Shop Floor Communication Practice")
 st.markdown("---")
+
 # ==============================================================================
 # SUBPARTE 5: SECCIÓN CORE I (OBJECTIVE Y REPORTES ESCRITOS CON ENLACES DINÁMICOS)
 # ==============================================================================
