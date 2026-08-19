@@ -47,7 +47,7 @@ st.title("🛡️ Sistema de Gestión de Cuotas Estatutarias (Exención IVA)")
 # ... (deja el resto de tu código exactamente igual)
 import streamlit as st
 
-st.set_page_config(page_title="Blindaje de IVA - AC", page_icon="🛡️")
+st.set_page_config(page_title="Mantenimiento - AC", page_icon="🛡️")
 
 st.title("🛡️ Sistema de Gestión de Cuotas Estatutarias (Exención IVA)")
 st.caption("Intervención 1: Estructuración de Ingresos de Base Popular - Nivel Doctoral")
