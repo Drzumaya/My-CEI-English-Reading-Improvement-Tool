@@ -200,27 +200,26 @@ if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", k
 
 st.sidebar.markdown("---")
 
-# 2. LOGOTIPO FIJO E INMUTABLE (Ruta absoluta del commit verificado de tu repositorio)
-URL_LOGO_PERMANENTE = "https://githubusercontent.com"
+# 2. LOGOTIPO LOCAL DIRECTO (Lee el archivo directamente desde tu repositorio de GitHub)
+NOMBRE_LOGO_LOCAL = "LOGO CEI APP.png"
 
 try:
-    # Solicitud segura al servidor de GitHub Usercontent con la rama/commit correcto
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    respuesta_logo = requests.get(URL_LOGO_PERMANENTE, headers=headers, timeout=5)
-    if respuesta_logo.status_code == 200:
-        img_instituto = Image.open(BytesIO(respuesta_logo.content))
-        st.sidebar.image(img_instituto, use_container_width=True)
-    else:
-        # Fallback alternativo por si usas la rama clásica master en tus actualizaciones futuras
-        URL_FALLBACK = "https://githubusercontent.com"
-        respuesta_fallback = requests.get(URL_FALLBACK, headers=headers, timeout=5)
-        if respuesta_fallback.status_code == 200:
-            img_instituto_master = Image.open(BytesIO(respuesta_fallback.content))
-            st.sidebar.image(img_instituto_master, use_container_width=True)
+    # Intentar abrir la imagen local de forma nativa con Pillow
+    img_instituto = Image.open(NOMBRE_LOGO_LOCAL)
+    st.sidebar.image(img_instituto, use_container_width=True)
+except Exception:
+    # Fallback de seguridad por red si se ejecuta en un entorno de pruebas sin el archivo local
+    try:
+        URL_RESPALDO = "https://githubusercontent.com"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        respuesta_logo = requests.get(URL_RESPALDO, headers=headers, timeout=3)
+        if respuesta_logo.status_code == 200:
+            img_web = Image.open(BytesIO(respuesta_logo.content))
+            st.sidebar.image(img_web, use_container_width=True)
         else:
             st.sidebar.markdown("<h2 style='text-align:center; color:#1e88e5; font-family:sans-serif;'>🏫 CAREER ENGLISH INSTITUTE</h2>", unsafe_allow_html=True)
-except Exception:
-    st.sidebar.markdown("<h2 style='text-align:center; color:#1e88e5; font-family:sans-serif;'>🏫 CAREER ENGLISH INSTITUTE</h2>", unsafe_allow_html=True)
+    except Exception:
+        st.sidebar.markdown("<h2 style='text-align:center; color:#1e88e5; font-family:sans-serif;'>🏫 CAREER ENGLISH INSTITUTE</h2>", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
@@ -246,7 +245,7 @@ st.sidebar.markdown("""
         <b>🏫 INSTITUTO:</b><br>CAREER ENGLISH INSTITUTE
     </p>
     <p style="margin: 6px 0 0 0; font-size: 11px; color: #555555; font-family: sans-serif;">
-        <b>👨‍🏫 CREADOR:</b><br>Dr. JACOB ZUMAYA PRIANTI
+        <b>👨‍🏫 CREADOR:</b><br>DR. JACOB ZUMAYA PRIANTI
     </p>
     <p style="margin: 6px 0 0 0; font-size: 10px; color: #888888; font-family: sans-serif; border-top: 1px solid #ddd; padding-top: 4px;">
         © DERECHOS RESERVADOS 2026
