@@ -46,12 +46,12 @@ from PIL import Image
 from io import BytesIO
 
 # ==============================================================================
-# SUBPARTE 3: MOTOR DE AUDIO HUMANO REAL (VOCES ALTERNADAS SIN INTERFERENCIAS)
+# SUBPARTE 3: MOTOR DE AUDIO HUMANO REAL (FILTRO ESTRICTO DE GÉNERO HOMBRE/MUJER)
 # ==============================================================================
 def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen=None):
     """
-    Procesa imágenes de forma nativa, formatea los textos bilingües con colores
-    e inyecta el motor de voz humana US alternando géneros sin errores de sintaxis.
+    Procesador nativo de imágenes, mapa lingüístico en colores y motor de audio
+    asíncrono con separación estricta de voces masculinas y femeninas de EE. UU.
     """
     if url_imagen:
         try:
@@ -63,14 +63,14 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
         except Exception:
             st.caption("📷 *[Ilustración técnica de apoyo]*")
         
-    st.markdown(f"重量 **English:** {texto_en_ingles}", unsafe_allow_html=True)
+    st.markdown(f"📖 **English:** {texto_en_ingles}", unsafe_allow_html=True)
     st.markdown(f"🔹 **Español:** {texto_en_espanol}", unsafe_allow_html=True)
     
-    # Limpiar las etiquetas de color HTML para que el lector no las pronuncie
+    # Limpiar etiquetas HTML para que el lector no deletree los códigos de color
     texto_plano = re.sub(r'<[^>]+>', '', texto_en_ingles)
     texto_escapado = texto_plano.replace("'", "\\'").replace('"', '\\"')
     
-    # Alternar géneros de voz de manera consistente según el identificador de la frase
+    # Clasificación binaria estricta de género según el identificador único
     es_par = any(char in id_unico for char in ['0', '2', '4', '6', '8', 'p', 'boss', 'footer'])
     genero_objetivo = "female" if es_par else "male"
     label_genero = "👩 Female Voice" if genero_objetivo == "female" else "👨 Male Voice"
@@ -79,7 +79,7 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
     <!DOCTYPE html>
     <html>
     <body>
-        <button onclick="playHumanVoice()" style="
+        <button onclick="playStrictGenderVoice()" style="
             background-color: #1e88e5; 
             color: white; 
             border: none; 
@@ -99,7 +99,7 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
         </button>
 
         <script>
-            function playHumanVoice() {{
+            function playStrictGenderVoice() {{
                 var mainWin = window.parent || window;
                 if ('speechSynthesis' in mainWin) {{
                     mainWin.speechSynthesis.cancel();
@@ -107,36 +107,48 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
                     var msg = new mainWin.SpeechSynthesisUtterance('{texto_escapado}');
                     var voices = mainWin.speechSynthesis.getVoices();
                     
-                    var usVoices = voices.filter(function(v) {{
+                    // Filtrar solo las voces disponibles en idioma inglés
+                    var engVoices = voices.filter(function(v) {{
                         return v.lang.startsWith('en');
                     }});
                     
-                    var targetVoice = null;
-                    var targetGender = '{genero_objetivo}';
+                    var selectedVoice = null;
+                    var reqGender = '{genero_objetivo}';
                     
-                    if (targetGender === "female") {{
-                        targetVoice = usVoices.find(function(v) {{
-                            var name = v.name.toLowerCase();
-                            return name.includes('zira') || name.includes('samantha') || name.includes('hazel') || name.includes('female') || name.includes('google us english');
+                    if (reqGender === "female") {{
+                        // 1. Intentar buscar por nombres femeninos conocidos
+                        selectedVoice = engVoices.find(function(v) {{
+                            var n = v.name.toLowerCase();
+                            return n.includes('zira') || n.includes('samantha') || n.includes('hazel') || n.includes('female') || n.includes('google us english') || n.includes('jenny');
                         }});
                     }} else {{
-                        targetVoice = usVoices.find(function(v) {{
-                            var name = v.name.toLowerCase();
-                            return name.includes('david') || name.includes('george') || name.includes('male') || name.includes('desktop');
+                        // 2. Intentar buscar por nombres masculinos conocidos (David, George, Ravi, etc.)
+                        selectedVoice = engVoices.find(function(v) {{
+                            var n = v.name.toLowerCase();
+                            return n.includes('david') || n.includes('george') || n.includes('male') || n.includes('desktop') || n.includes('guy');
                         }});
+                        
+                        // 3. Si no encuentra por nombre, excluir explícitamente voces femeninas conocidas para evitar errores
+                        if (!selectedVoice) {{
+                            selectedVoice = engVoices.find(function(v) {{
+                                var n = v.name.toLowerCase();
+                                return !n.includes('zira') && !n.includes('samantha') && !n.includes('female') && !n.includes('jenny') && !n.includes('zira');
+                            }});
+                        }}
                     }}
                     
-                    if (!targetVoice && usVoices.length > 0) {{
-                        targetVoice = usVoices[0];
+                    // Fallback final: si el filtro estricto falla, usar la primera en inglés
+                    if (!selectedVoice && engVoices.length > 0) {{
+                        selectedVoice = engVoices[0];
                     }}
                     
-                    if (targetVoice) {{
-                        msg.voice = targetVoice;
+                    if (selectedVoice) {{
+                        msg.voice = selectedVoice;
                     }}
                     
                     msg.lang = 'en-US';
                     msg.rate = 0.85;   
-                    msg.pitch = 1.0;  
+                    msg.pitch = (reqGender === "female") ? 1.1 : 0.9; // Modulación física del tono (Más grave para hombre, más agudo para mujer)
                     msg.volume = 1.0; 
                     
                     mainWin.speechSynthesis.speak(msg);
