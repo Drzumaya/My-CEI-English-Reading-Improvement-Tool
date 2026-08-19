@@ -184,21 +184,22 @@ st.title("🚗 Quality Inspector - Pronunciation & Training Simulator")
 st.subheader("IATF 16949 Standards & Shop Floor Communication Practice")
 st.markdown("---")
 # ==============================================================================
-# SUBPARTE 5: SECCIÓN CORE I (OBJECTIVE Y REPORTES ESCRITOS CON "THE" EN AMARILLO)
+# SUBPARTE 5: SECCIÓN CORE I (OBJECTIVE Y REPORTES ESCRITOS CON IMÁGENES SEGURAS)
 # ==============================================================================
 if seccion == "I. Objective & Scope":
     st.header("I. OBJECTIVE & SCOPE")
     
     p1_en = "<span style='color:#fbc02d; font-weight:bold;'>The</span> <span style='color:#1565c0; font-weight:bold;'>purpose of this assessment</span> <span style='color:#2e7d32; font-weight:bold;'>is to identify</span> <span style='color:#1565c0; font-weight:bold;'>specific language gaps</span> <span style='color:#ef6c00; font-weight:bold;'>and</span> <span style='color:#1565c0; font-weight:bold;'>technical English competencies</span> <span style='color:#2e7d32; font-weight:bold;'>required by the Quality Inspector role</span>."
-    p1_es = "<span style='color:#424242; font-weight:bold;'>El</span> <span style='color:#1565c0; font-weight:bold;'>propósito de esta evaluación</span> <span style='color:#2e7d32; font-weight:bold;'>es identificar</span> <span style='color:#1565c0; font-weight:bold;'>brechas lingüísticas específicas</span> <span style='color:#ef6c00; font-weight:bold;'>and</span> <span style='color:#1565c0; font-weight:bold;'>competencias técnicas en inglés</span> <span style='color:#2e7d32; font-weight:bold;'>requeridas por el rol de Inspector de Calidad</span>."
+    p1_es = "<span style='color:#fbc02d; font-weight:bold;'>El</span> <span style='color:#1565c0; font-weight:bold;'>propósito de esta evaluación</span> <span style='color:#2e7d32; font-weight:bold;'>es identificar</span> <span style='color:#1565c0; font-weight:bold;'>brechas lingüísticas específicas</span> <span style='color:#ef6c00; font-weight:bold;'>y</span> <span style='color:#1565c0; font-weight:bold;'>competencias técnicas en inglés</span> <span style='color:#2e7d32; font-weight:bold;'>requeridas por el rol de Inspector de Calidad</span>."
     
     p2_en = "<span style='color:#fbc02d; font-weight:bold;'>The</span> <span style='color:#1565c0; font-weight:bold;'>insights gathered</span> <span style='color:#2e7d32; font-weight:bold;'>will align</span> <span style='color:#1565c0; font-weight:bold;'>language training</span> <span style='color:#ef6c00; font-weight:bold;'>with</span> <span style='color:#1565c0; font-weight:bold;'>IATF 16949 standards</span>, <span style='color:#2e7d32; font-weight:bold;'>minimize</span> <span style='color:#1565c0; font-weight:bold;'>operational risk</span>, <span style='color:#ef6c00; font-weight:bold;'>and</span> <span style='color:#2e7d32; font-weight:bold;'>optimize</span> <span style='color:#1565c0; font-weight:bold;'>shop floor communication</span>."
-    p2_es = "<span style='color:#424242; font-weight:bold;'>La</span> <span style='color:#1565c0; font-weight:bold;'>información recopilada</span> <span style='color:#2e7d32; font-weight:bold;'>alineará</span> <span style='color:#1565c0; font-weight:bold;'>la capacitación lingüística</span> <span style='color:#ef6c00; font-weight:bold;'>con</span> <span style='color:#1565c0; font-weight:bold;'>los estándares IATF 16949</span>, <span style='color:#2e7d32; font-weight:bold;'>minimizará</span> <span style='color:#1565c0; font-weight:bold;'>el riesgo operativo</span>, <span style='color:#ef6c00; font-weight:bold;'>y</span> <span style='color:#2e7d32; font-weight:bold;'>optimizará</span> <span style='color:#1565c0; font-weight:bold;'>la comunicación en el piso de producción</span>."
+    p2_es = "<span style='color:#fbc02d; font-weight:bold;'>La</span> <span style='color:#1565c0; font-weight:bold;'>información recopilada</span> <span style='color:#2e7d32; font-weight:bold;'>alineará</span> <span style='color:#1565c0; font-weight:bold;'>la capacitación lingüística</span> <span style='color:#ef6c00; font-weight:bold;'>con</span> <span style='color:#1565c0; font-weight:bold;'>los estándares IATF 16949</span>, <span style='color:#2e7d32; font-weight:bold;'>minimizará</span> <span style='color:#1565c0; font-weight:bold;'>el riesgo operativo</span>, <span style='color:#ef6c00; font-weight:bold;'>y</span> <span style='color:#2e7d32; font-weight:bold;'>optimizará</span> <span style='color:#1565c0; font-weight:bold;'>la comunicación en el piso de producción</span>."
     
+    # Imagen alusiva al alcance de la evaluación industrial
     with st.container(border=True):
-        crear_boton_practica(p1_en, p1_es, "p1", "https://wikimedia.org")
+        crear_boton_practica(p1_en, p1_es, "p1", "https://pexels.com")
     with st.container(border=True):
-        crear_boton_practica(p2_en, p2_es, "p2", "https://wikimedia.org")
+        crear_boton_practica(p2_en, p2_es, "p2")
 
 elif seccion == "II-A. Written English (Reports)":
     st.header("II. TARGETED COMPETENCY INQUIRIES")
@@ -207,26 +208,24 @@ elif seccion == "II-A. Written English (Reports)":
     preguntas_escritas = [
         ("<span style='color:#1565c0; font-weight:bold;'>Which official quality documents</span> <span style='color:#2e7d32; font-weight:bold;'>do you require me to write</span> <span style='color:#6a1b9a; font-weight:bold;'>more clearly</span> <span style='color:#ef6c00; font-weight:bold;'>in</span> <span style='color:#1565c0; font-weight:bold;'>English</span>?",
          "<span style='color:#1565c0; font-weight:bold;'>Cuáles documentos oficiales de calidad</span> <span style='color:#2e7d32; font-weight:bold;'>requiere que yo escriba</span> <span style='color:#6a1b9a; font-weight:bold;'>con mayor claridad</span> <span style='color:#ef6c00; font-weight:bold;'>en</span> <span style='color:#1565c0; font-weight:bold;'>inglés</span>?",
-         "https://wikimedia.org"),
+         "https://pexels.com"), # Imagen de documentación y reportes
         
         ("<span style='color:#1565c0; font-weight:bold;'>What specific sections of</span> <span style='color:#fbc02d; font-weight:bold;'>the</span> <span style='color:#1565c0; font-weight:bold;'>8D report</span> <span style='color:#2e7d32; font-weight:bold;'>should I practice writing</span> <span style='color:#ef6c00; font-weight:bold;'>to</span> <span style='color:#2e7d32; font-weight:bold;'>make</span> <span style='color:#424242; font-weight:bold;'>my</span> <span style='color:#1565c0; font-weight:bold;'>explanations</span> <span style='color:#6a1b9a; font-weight:bold;'>clearer</span>?",
-         "<span style='color:#1565c0; font-weight:bold;'>Qué secciones específicas del reporte 8D</span> <span style='color:#2e7d32; font-weight:bold;'>debería practicar escribir</span> <span style='color:#ef6c00; font-weight:bold;'>para</span> <span style='color:#2e7d32; font-weight:bold;'>hacer</span> <span style='color:#424242; font-weight:bold;'>mis</span> <span style='color:#1565c0; font-weight:bold;'>explicaciones</span> <span style='color:#6a1b9a; font-weight:bold;'>más claras</span>?",
-         "https://wikimedia.org"),
+         "<span style='color:#1565c0; font-weight:bold;'>Qué secciones específicas de</span> <span style='color:#fbc02d; font-weight:bold;'>los</span> <span style='color:#1565c0; font-weight:bold;'>reportes 8D</span> <span style='color:#2e7d32; font-weight:bold;'>debería practicar escribir</span> <span style='color:#ef6c00; font-weight:bold;'>para</span> <span style='color:#2e7d32; font-weight:bold;'>hacer</span> <span style='color:#424242; font-weight:bold;'>mis</span> <span style='color:#1565c0; font-weight:bold;'>explicaciones</span> <span style='color:#6a1b9a; font-weight:bold;'>más claras</span>?"),
         
         ("<span style='color:#ef6c00; font-weight:bold;'>When</span> <span style='color:#2e7d32; font-weight:bold;'>I enter</span> <span style='color:#1565c0; font-weight:bold;'>defect codes</span>, <span style='color:#1565c0; font-weight:bold;'>what</span> <span style='color:#2e7d32; font-weight:bold;'>are</span> <span style='color:#fbc02d; font-weight:bold;'>the</span> <span style='color:#6a1b9a; font-weight:bold;'>most common formatting mistakes</span>?",
-         "<span style='color:#ef6c00; font-weight:bold;'>Cuando</span> <span style='color:#2e7d32; font-weight:bold;'>ingreso</span> <span style='color:#1565c0; font-weight:bold;'>códigos de defectos</span>, <span style='color:#1565c0; font-weight:bold;'>cuáles</span> <span style='color:#2e7d32; font-weight:bold;'>son</span> <span style='color:#424242; font-weight:bold;'>los</span> <span style='color:#6a1b9a; font-weight:bold;'>errores de formato más comunes</span>?",
-         "https://wikimedia.org"),
+         "<span style='color:#ef6c00; font-weight:bold;'>Cuando</span> <span style='color:#2e7d32; font-weight:bold;'>ingreso</span> <span style='color:#1565c0; font-weight:bold;'>códigos de defectos</span>, <span style='color:#1565c0; font-weight:bold;'>cuáles</span> <span style='color:#2e7d32; font-weight:bold;'>son</span> <span style='color:#fbc02d; font-weight:bold;'>los</span> <span style='color:#6a1b9a; font-weight:bold;'>errores de formato más comunes</span>?"),
         
         ("<span style='color:#ef6c00; font-weight:bold;'>When</span> <span style='color:#2e7d32; font-weight:bold;'>I email</span> <span style='color:#1565c0; font-weight:bold;'>global engineering teams</span>, <span style='color:#1565c0; font-weight:bold;'>what areas of my written English</span> <span style='color:#2e7d32; font-weight:bold;'>need</span> <span style='color:#1565c0; font-weight:bold;'>improvement</span>?",
-         "<span style='color:#ef6c00; font-weight:bold;'>Cuando</span> <span style='color:#2e7d32; font-weight:bold;'>envío correos electrónicos</span> <span style='color:#424242; font-weight:bold;'>a</span> <span style='color:#1565c0; font-weight:bold;'>equipos globales de ingeniería</span>, <span style='color:#1565c0; font-weight:bold;'>qué áreas de mi inglés escrito</span> <span style='color:#2e7d32; font-weight:bold;'>necesitan</span> <span style='color:#1565c0; font-weight:bold;'>mejorar</span>?",
-         "https://wikimedia.org")
+         "<span style='color:#ef6c00; font-weight:bold;'>Cuando</span> <span style='color:#2e7d32; font-weight:bold;'>envío correos electrónicos</span> <span style='color:#424242; font-weight:bold;'>a</span> <span style='color:#1565c0; font-weight:bold;'>equipos globales de ingeniería</span>, <span style='color:#1565c0; font-weight:bold;'>qué áreas de mi inglés escrito</span> <span style='color:#2e7d32; font-weight:bold;'>necesitan</span> <span style='color:#1565c0; font-weight:bold;'>mejorar</span>?")
     ]
-    for i, (en, es, img) in enumerate(preguntas_escritas, 1):
+    for i, registro in enumerate(preguntas_escritas, 1):
+        img_url = registro[2] if len(registro) > 2 else None
         with st.container(border=True):
-            crear_boton_practica(en, es, f"written_{i}", img)
+            crear_boton_practica(registro[0], registro[1], f"written_{i}", img_url)
             st.text_input("✏️ Notes / Personal Practice:", key=f"notes_written_{i}")
 # ==============================================================================
-# SUBPARTE 6: SECCIÓN CORE II (SPOKEN ENGLISH, AUDITORÍAS Y SIGLAS CON IMÁGENES)
+# SUBPARTE 6: SECCIÓN CORE II (SPOKEN ENGLISH, AUDITORÍAS Y SIGLAS CON IMÁGENES SEGURAS)
 # ==============================================================================
 elif seccion == "II-B. Spoken English (Floor Alerts)":
     st.header("II. TARGETED COMPETENCY INQUIRIES")
@@ -235,23 +234,21 @@ elif seccion == "II-B. Spoken English (Floor Alerts)":
     preguntas_habladas = [
         ("<span style='color:#1565c0; font-weight:bold;'>What specific technical vocabulary</span> <span style='color:#2e7d32; font-weight:bold;'>do you want me to master</span> <span style='color:#ef6c00; font-weight:bold;'>when</span> <span style='color:#2e7d32; font-weight:bold;'>describing</span> <span style='color:#1565c0; font-weight:bold;'>physical defects</span>?",
          "<span style='color:#1565c0; font-weight:bold;'>Qué vocabulario técnico específico</span> <span style='color:#2e7d32; font-weight:bold;'>desea que domine</span> <span style='color:#ef6c00; font-weight:bold;'>al</span> <span style='color:#2e7d32; font-weight:bold;'>describir</span> <span style='color:#1565c0; font-weight:bold;'>defectos físicos</span>?",
-         "https://wikimedia.org"),
+         "https://pexels.com"), # Imagen de inspección en piso de producción
         
         ("<span style='color:#6a1b9a; font-weight:bold;'>How</span> <span style='color:#2e7d32; font-weight:bold;'>can I improve</span> <span style='color:#424242; font-weight:bold;'>my</span> <span style='color:#1565c0; font-weight:bold;'>communication</span> <span style='color:#ef6c00; font-weight:bold;'>when</span> <span style='color:#2e7d32; font-weight:bold;'>I need to urgently report</span> <span style='color:#424242; font-weight:bold;'>a</span> <span style='color:#1565c0; font-weight:bold;'>critical quality issue</span>?",
-         "<span style='color:#6a1b9a; font-weight:bold;'>Cómo</span> <span style='color:#2e7d32; font-weight:bold;'>puedo mejorar</span> <span style='color:#424242; font-weight:bold;'>mi</span> <span style='color:#1565c0; font-weight:bold;'>comunicación</span> <span style='color:#ef6c00; font-weight:bold;'>cuando</span> <span style='color:#2e7d32; font-weight:bold;'>necesito reportar urgentemente</span> <span style='color:#424242; font-weight:bold;'>un</span> <span style='color:#1565c0; font-weight:bold;'>problema de calidad crítico</span>?",
-         "https://wikimedia.org"),
+         "<span style='color:#6a1b9a; font-weight:bold;'>Cómo</span> <span style='color:#2e7d32; font-weight:bold;'>puedo mejorar</span> <span style='color:#424242; font-weight:bold;'>mi</span> <span style='color:#1565c0; font-weight:bold;'>comunicación</span> <span style='color:#ef6c00; font-weight:bold;'>cuando</span> <span style='color:#2e7d32; font-weight:bold;'>necesito reportar urgentemente</span> <span style='color:#424242; font-weight:bold;'>un</span> <span style='color:#1565c0; font-weight:bold;'>problema de calidad crítico</span>?"),
         
         ("<span style='color:#1565c0; font-weight:bold;'>What specific phrases</span> <span style='color:#2e7d32; font-weight:bold;'>should I use to confidently defend</span> <span style='color:#424242; font-weight:bold;'>my</span> <span style='color:#1565c0; font-weight:bold;'>quality decisions</span>?",
-         "<span style='color:#1565c0; font-weight:bold;'>Qué frases específicas</span> <span style='color:#2e7d32; font-weight:bold;'>debería usar para defender con confianza</span> <span style='color:#1565c0; font-weight:bold;'>mis</span> <span style='color:#1565c0; font-weight:bold;'>decisiones de calidad</span>?",
-         "https://wikimedia.org"),
+         "<span style='color:#1565c0; font-weight:bold;'>Qué frases específicas</span> <span style='color:#2e7d32; font-weight:bold;'>debería usar para defender con confianza</span> <span style='color:#424242; font-weight:bold;'>mis</span> <span style='color:#1565c0; font-weight:bold;'>decisiones de calidad</span>?"),
         
         ("<span style='color:#1565c0; font-weight:bold;'>What key terms</span> <span style='color:#2e7d32; font-weight:bold;'>should I focus on using</span> <span style='color:#ef6c00; font-weight:bold;'>during</span> <span style='color:#424242; font-weight:bold;'>our</span> <span style='color:#6a1b9a; font-weight:bold;'>daily</span> <span style='color:#1565c0; font-weight:bold;'>Gemba Walks</span>?",
-         "<span style='color:#1565c0; font-weight:bold;'>En qué términos clave</span> <span style='color:#2e7d32; font-weight:bold;'>debería enfocarme al usar</span> <span style='color:#ef6c00; font-weight:bold;'>durante</span> <span style='color:#424242; font-weight:bold;'>nuestras</span> <span style='color:#1565c0; font-weight:bold;'>caminatas Gemba</span> <span style='color:#6a1b9a; font-weight:bold;'>diarias</span>?",
-         "https://wikimedia.org")
+         "<span style='color:#1565c0; font-weight:bold;'>En qué términos clave</span> <span style='color:#2e7d32; font-weight:bold;'>debería enfocarme al usar</span> <span style='color:#ef6c00; font-weight:bold;'>durante</span> <span style='color:#424242; font-weight:bold;'>nuestras</span> <span style='color:#6a1b9a; font-weight:bold;'>caminatas Gemba</span> <span style='color:#6a1b9a; font-weight:bold;'>diarias</span>?")
     ]
-    for i, (en, es, img) in enumerate(preguntas_habladas, 1):
+    for i, registro in enumerate(preguntas_habladas, 1):
+        img_url = registro[2] if len(registro) > 2 else None
         with st.container(border=True):
-            crear_boton_practica(en, es, f"spoken_{i}", img)
+            crear_boton_practica(registro[0], registro[1], f"spoken_{i}", img_url)
             st.text_input("✏️ Notes / Personal Practice:", key=f"notes_spoken_{i}")
 
 elif seccion == "II-C. Audits & Standards (IATF)":
@@ -261,19 +258,18 @@ elif seccion == "II-C. Audits & Standards (IATF)":
     preguntas_auditoria = [
         ("<span style='color:#1565c0; font-weight:bold;'>What specific questions from external auditors</span> <span style='color:#2e7d32; font-weight:bold;'>do you think I need to practice answering</span>?",
          "<span style='color:#1565c0; font-weight:bold;'>Qué preguntas específicas de auditores externos</span> <span style='color:#2e7d32; font-weight:bold;'>cree que necesito practicar responder</span>?",
-         "https://wikimedia.org"),
+         "https://pexels.com"), # Imagen representativa de auditorías externas
         
         ("<span style='color:#6a1b9a; font-weight:bold;'>How</span> <span style='color:#2e7d32; font-weight:bold;'>can I improve</span> <span style='color:#424242; font-weight:bold;'>my</span> <span style='color:#1565c0; font-weight:bold;'>explanation of our company’s quality policy</span>?",
-         "<span style='color:#6a1b9a; font-weight:bold;'>Cómo</span> <span style='color:#2e7d32; font-weight:bold;'>puedo mejorar</span> <span style='color:#424242; font-weight:bold;'>mi</span> <span style='color:#1565c0; font-weight:bold;'>explicación de la política de calidad de nuestra empresa</span>?",
-         "https://wikimedia.org"),
+         "<span style='color:#6a1b9a; font-weight:bold;'>Cómo</span> <span style='color:#2e7d32; font-weight:bold;'>puedo mejorar</span> <span style='color:#424242; font-weight:bold;'>mi</span> <span style='color:#1565c0; font-weight:bold;'>explicación de la política de calidad de nuestra empresa</span>?"),
         
         ("<span style='color:#ef6c00; font-weight:bold;'>When</span> <span style='color:#2e7d32; font-weight:bold;'>discussing engineering blueprints</span>, <span style='color:#1565c0; font-weight:bold;'>what technical terms</span> <span style='color:#2e7d32; font-weight:bold;'>do I struggle with</span> <span style='color:#6a1b9a; font-weight:bold;'>most</span>?",
-         "<span style='color:#ef6c00; font-weight:bold;'>Al</span> <span style='color:#2e7d32; font-weight:bold;'>discutir planos de ingeniería</span>, <span style='color:#1565c0; font-weight:bold;'>con qué términos técnicos</span> <span style='color:#2e7d32; font-weight:bold;'>tengo</span> <span style='color:#6a1b9a; font-weight:bold;'>más</span> <span style='color:#1565c0; font-weight:bold;'>dificultad</span>?",
-         "https://wikimedia.org")
+         "<span style='color:#ef6c00; font-weight:bold;'>Al</span> <span style='color:#2e7d32; font-weight:bold;'>discutir planos de ingeniería</span>, <span style='color:#1565c0; font-weight:bold;'>con qué términos técnicos</span> <span style='color:#2e7d32; font-weight:bold;'>tengo</span> <span style='color:#6a1b9a; font-weight:bold;'>más</span> <span style='color:#1565c0; font-weight:bold;'>dificultad</span>?")
     ]
-    for i, (en, es, img) in enumerate(preguntas_auditoria, 1):
+    for i, registro in enumerate(preguntas_auditoria, 1):
+        img_url = registro[2] if len(registro) > 2 else None
         with st.container(border=True):
-            crear_boton_practica(en, es, f"audit_{i}", img)
+            crear_boton_practica(registro[0], registro[1], f"audit_{i}", img_url)
             st.text_input("✏️ Notes / Personal Practice:", key=f"notes_audit_{i}")
 
 elif seccion == "II-D. Technical Glossary & Tools":
@@ -283,21 +279,21 @@ elif seccion == "II-D. Technical Glossary & Tools":
     preguntas_glosario = [
         ("<span style='color:#1565c0; font-weight:bold;'>Which automotive quality acronyms</span> <span style='color:#2e7d32; font-weight:bold;'>do you need me to explain</span> <span style='color:#6a1b9a; font-weight:bold;'>more comfortably</span>?",
          "<span style='color:#1565c0; font-weight:bold;'>Cuáles acrónimos de calidad automotriz</span> <span style='color:#2e7d32; font-weight:bold;'>necesita que explique</span> <span style='color:#6a1b9a; font-weight:bold;'>con mayor comodidad</span>?",
-         "https://wikimedia.org"),
+         "https://pexels.com"), # Imagen de herramientas métricas avanzadas (Core Tools)
         
         ("<span style='color:#2e7d32; font-weight:bold;'>Are there</span> <span style='color:#1565c0; font-weight:bold;'>specific OEM portals</span> <span style='color:#ef6c00; font-weight:bold;'>where</span> <span style='color:#2e7d32; font-weight:bold;'>you want me to improve</span> <span style='color:#424242; font-weight:bold;'>my</span> <span style='color:#1565c0; font-weight:bold;'>navigation skills</span>?",
-         "<span style='color:#2e7d32; font-weight:bold;'>Existen</span> <span style='color:#1565c0; font-weight:bold;'>portales OEM específicos</span> <span style='color:#ef6c00; font-weight:bold;'>donde</span> <span style='color:#2e7d32; font-weight:bold;'>desee que mejore</span> <span style='color:#424242; font-weight:bold;'>mis</span> <span style='color:#1565c0; font-weight:bold;'>habilidades de navegación</span>?",
-         "https://wikimedia.org")
+         "<span style='color:#2e7d32; font-weight:bold;'>Existen</span> <span style='color:#1565c0; font-weight:bold;'>portales OEM específicos</span> <span style='color:#ef6c00; font-weight:bold;'>donde</span> <span style='color:#2e7d32; font-weight:bold;'>desee que mejore</span> <span style='color:#424242; font-weight:bold;'>mis</span> <span style='color:#1565c0; font-weight:bold;'>habilidades de navegación</span>?")
     ]
-    for i, (en, es, img) in enumerate(preguntas_glosario, 1):
+    for i, registro in enumerate(preguntas_glosario, 1):
+        img_url = registro[2] if len(registro) > 2 else None
         with st.container(border=True):
-            crear_boton_practica(en, es, f"glossary_{i}", img)
+            crear_boton_practica(registro[0], registro[1], f"glossary_{i}", img_url)
             st.text_input("✏️ Notes / Personal Practice:", key=f"notes_glossary_{i}")
     st.markdown("---")
     st.subheader("III. APPROVAL & SIGN-OFF")
     st.caption("The signatures below confirm that the communication gaps outlined above will be used to develop a targeted English training curriculum for the employee.")
 # ==============================================================================
-# SUBPARTE 7: SIMULADOR DE FEEDBACK CASUAL CON SUPERVISOR E IMÁGENES CORREGIDAS
+# SUBPARTE 7: SIMULADOR DE FEEDBACK CASUAL CON SUPERVISOR E IMÁGENES SEGURAS
 # ==============================================================================
 elif seccion == "💡 Supervisor Feedback Version (Casual)":
     st.header("💬 MY ENGLISH GROWTH PLAN: FEEDBACK QUESTIONS FOR MY SUPERVISOR")
@@ -307,7 +303,7 @@ elif seccion == "💡 Supervisor Feedback Version (Casual)":
     intro_es = "<span style='color:#2e7d32; font-weight:bold;'>Quiero asegurarme de que</span> <span style='color:#424242; font-weight:bold;'>mis</span> <span style='color:#1565c0; font-weight:bold;'>habilidades en inglés</span> <span style='color:#2e7d32; font-weight:bold;'>respalden plenamente</span> <span style='color:#424242; font-weight:bold;'>los</span> <span style='color:#1565c0; font-weight:bold;'>objetivos de nuestro equipo</span>."
     
     with st.container(border=True):
-        crear_boton_practica(intro_en, intro_es, "intro_boss", "https://wikimedia.org")
+        crear_boton_practica(intro_en, intro_es, "intro_boss", "https://pexels.com") # Imagen de reunión uno a uno
         
     st.markdown("#### Checklists to Practice with your Supervisor:")
     
@@ -343,4 +339,4 @@ elif seccion == "💡 Supervisor Feedback Version (Casual)":
     
     gracias_en = "<span style='color:#2e7d32; font-weight:bold;'>Thanks for your time</span> <span style='color:#ef6c00; font-weight:bold;'>and</span> <span style='color:#1565c0; font-weight:bold;'>feedback</span>!"
     gracias_es = "<span style='color:#2e7d32; font-weight:bold;'>¡Gracias por su tiempo</span> <span style='color:#ef6c00; font-weight:bold;'>y</span> <span style='color:#1565c0; font-weight:bold;'>retroalimentación</span>!"
-    crear_boton_practica(gracias_en, gracias_es, "thanks_footer", "https://wikimedia.org")
+    crear_boton_practica(gracias_en, gracias_es, "thanks_footer", "https://pexels.com")
