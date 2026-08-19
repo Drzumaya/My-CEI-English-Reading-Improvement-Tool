@@ -22,7 +22,7 @@ def check_password():
     # Renderizar el formulario de inicio de sesión
     st.title("🔐 Acceso Restringido - Agente Capacitador")
     st.subheader("Sistema Integral de Desarrollo Económico Popular (Agua Prieta)")
-    st.caption("Esta plataforma contiene datos fiscales y estratégicos de la A.C. en Régimen General.")
+    st.caption("Gestión estratégica de JZPAC.")
     
     st.text_input(
         "Introduce la contraseña de acceso institucional:",
@@ -43,7 +43,7 @@ if not check_password():
 # ==============================================================================
 # EL CÓDIGO ANTERIOR DE TU APLICACIÓN CONTINÚA AQUÍ ABAJO (A partir de st.title, etc.)
 # ==============================================================================
-st.title("🛡️ Sistema de Gestión de Cuotas Estatutarias (Exención IVA)")
+st.title("🛡️ Sistema de Gestión de Cuotas Estatutarias)")
 # ... (deja el resto de tu código exactamente igual)
 import streamlit as st
 
