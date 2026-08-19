@@ -200,18 +200,26 @@ if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", k
 
 st.sidebar.markdown("---")
 
-# 2. LOGOTIPO FIJO E INMUTABLE (Dirección Raw Certificada de tu Repositorio GitHub)
+# 2. LOGOTIPO FIJO E INMUTABLE (Ruta absoluta del commit verificado de tu repositorio)
 URL_LOGO_PERMANENTE = "https://githubusercontent.com"
 
 try:
-    # Solicitud segura al servidor de GitHub Usercontent
+    # Solicitud segura al servidor de GitHub Usercontent con la rama/commit correcto
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     respuesta_logo = requests.get(URL_LOGO_PERMANENTE, headers=headers, timeout=5)
     if respuesta_logo.status_code == 200:
         img_instituto = Image.open(BytesIO(respuesta_logo.content))
         st.sidebar.image(img_instituto, use_container_width=True)
+    else:
+        # Fallback alternativo por si usas la rama clásica master en tus actualizaciones futuras
+        URL_FALLBACK = "https://githubusercontent.com"
+        respuesta_fallback = requests.get(URL_FALLBACK, headers=headers, timeout=5)
+        if respuesta_fallback.status_code == 200:
+            img_instituto_master = Image.open(BytesIO(respuesta_fallback.content))
+            st.sidebar.image(img_instituto_master, use_container_width=True)
+        else:
+            st.sidebar.markdown("<h2 style='text-align:center; color:#1e88e5; font-family:sans-serif;'>🏫 CAREER ENGLISH INSTITUTE</h2>", unsafe_allow_html=True)
 except Exception:
-    # Respaldo de texto elegante si hay latencia en los servidores de GitHub
     st.sidebar.markdown("<h2 style='text-align:center; color:#1e88e5; font-family:sans-serif;'>🏫 CAREER ENGLISH INSTITUTE</h2>", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
