@@ -10,6 +10,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Inicializar estados de sesión si no existen
+if "password_correct" not in st.session_state:
+    st.session_state["password_correct"] = False
+
 # ==============================================================================
 # 2. SISTEMA DE SEGURIDAD Y CONTROL DE ACCESO (STREAMLIT SECRETS)
 # ==============================================================================
@@ -22,13 +26,14 @@ def check_password():
         else:
             st.session_state["password_correct"] = False
 
-    if st.session_state.get("password_correct", False):
+    # Si la sesión está activa y validada, permitir el acceso
+    if st.session_state["password_correct"]:
         return True
 
     # Renderizado de la pantalla de login (Layout Centrado para Seguridad)
+    st.markdown("<br><br>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
     with col_l2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
         st.title("🔐 Acceso Restringido")
         st.subheader("Plataforma de Desarrollo Económico Popular")
         st.caption("Asociación Civil en Régimen General (Título II LISR) • Agua Prieta, Sonora")
@@ -46,7 +51,7 @@ def check_password():
         st.info("Nota: Las claves de acceso son administradas de forma directa por el Agente Capacitador.")
     return False
 
-# Interrumpir renderizado si falla el password
+# Interrumpir renderizado si falla el password o la sesión está cerrada
 if not check_password():
     st.stop()
 
@@ -59,13 +64,24 @@ st.title("🦅 Plataforma de Control Técnico y Blindaje Económico Popular")
 st.subheader("Instrumentación del Plan Maestro para la Retención de Valor en Agua Prieta")
 st.markdown("---")
 
-# Barra Lateral Informativa y Parámetros Globales
+# Función para limpiar la sesión (Logout / Cerrar App)
+def logout():
+    st.session_state["password_correct"] = False
+    st.rerun()
+
+# Barra Lateral Informativa, Parámetros Globales y Botón de Cierre
 with st.sidebar:
     st.header("📋 Estado del Sistema")
     st.success("🔒 Conexión Encriptada")
     st.markdown("**Organización:** Asociación Civil (Título II)")
     st.markdown("**Jurisdicción:** Agua Prieta, Sonora")
-    st.markdown("**Estatus IVA:** Actividades Exentas Activas")
+    st.markdown("---")
+    
+    # BOTÓN DE CERRAR APLICACIÓN / LOGOUT
+    st.header("🛑 Seguridad Corporativa")
+    if st.button("❌ Cerrar Aplicación (Logout)", use_container_width=True, type="primary"):
+        logout()
+    
     st.markdown("---")
     st.header("⚙️ Parámetros Globales")
     presupuesto_total = st.number_input("Bolsa Económica Mensual Operativa (MXN)", min_value=10000, value=200000, step=10000)
@@ -84,7 +100,7 @@ with tab1:
     st.header("Estructuración de Ingresos mediante Cuotas Estatutarias de Miembros")
     st.caption("Objetivo: Sustituir facturación comercial con riesgo de IVA por esquemas de aportación del Art. 15-XII LIVA.")
     
-    col_t1_l, col_t1_r = st.columns([2, 1])
+    col_t1_l, col_t1_r = st.columns(2)
     
     with col_t1_l:
         num_talleres = st.slider("Número de Talleres Populares (Miembros Adherentes Cooperativos)", min_value=5, max_value=300, value=60)
@@ -142,7 +158,7 @@ with tab2:
     res3.metric("IVA no Acreditable (Al Gasto)", f"${iva_costo:,.2f} MXN", delta="Costo Directo", delta_color="inverse")
 
 # ==============================================================================
-# PESTAÑA 3: NÓMINA ASIMILADA (ESGUDO FISCAL DE DEDUCCIONES)
+# PESTAÑA 3: NÓMINA ASIMILADA (ESCUDO FISCAL DE DEDUCCIONES)
 # ==============================================================================
 with tab3:
     st.header("Simulador de Retribución por Asimilados a Salarios")
