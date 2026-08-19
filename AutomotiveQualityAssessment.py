@@ -40,23 +40,22 @@ if not st.session_state.training_authenticated:
     
     if st.button("🔐 Abrir Terminal de Autenticación", type="primary", key="btn_open_gate"):
         popup_seguridad_entrenamiento()
-    st.stop()
+    st.stop()  # Aborta la lectura del resto del código hasta que se inicie sesión con éxito
 # ==============================================================================
-# SUBPARTE 3: MOTOR DE AUDIO AMERICANO PREMIUM, COLORES E IMÁGENES ILUSTRATIVAS
+# SUBPARTE 3: MOTOR DE AUDIO AMERICANO PREMIUM (DESBLOCKED)
 # ==============================================================================
 def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen=None):
     """
-    Muestra una imagen técnica ilustrativa opcional, renderiza las oraciones 
-    emparejando colores por categorías gramaticales e inyecta el motor de voz US.
+    Renderiza una imagen técnica estable, empareja colores por categorías gramaticales
+    e inyecta un reproductor directo HTML5 libre de bloqueos de sandbox.
     """
-    # 1. Si se proporciona una URL de imagen, desplegarla de forma estilizada
     if url_imagen:
         st.image(url_imagen, use_container_width=False, width=450)
         
     st.markdown(f"📖 **English:** {texto_en_ingles}", unsafe_allow_html=True)
     st.markdown(f"🔹 **Español:** {texto_en_espanol}", unsafe_allow_html=True)
     
-    # Limpiar las etiquetas de color HTML para el lector de voz
+    # Limpiar las de colores HTML para que el lector no pronuncie los códigos de color
     texto_plano = re.sub(r'<[^>]+>', '', texto_en_ingles)
     texto_escapado = texto_plano.replace("'", "\\'").replace('"', '\\"')
     
@@ -108,6 +107,29 @@ def crear_boton_practica(texto_en_ingles, texto_en_espanol, id_unico, url_imagen
     </html>
     """
     st.components.v1.html(codigo_html, height=48, scrolling=False)
+# ==============================================================================
+# SUBPARTE 4: MENÚ DE NAVEGACIÓN Y CIERRE DE SESIÓN (SIDEBAR)
+# ==============================================================================
+if st.sidebar.button("🚪 Cerrar Sesión de Entrenamiento", type="secondary", key="btn_logout_training"):
+    st.session_state.training_authenticated = False
+    st.rerun()
+
+st.sidebar.markdown("---")
+seccion = st.sidebar.radio(
+    "📂 Selecciona la Sección del Documento:",
+    [
+        "I. Objective & Scope", 
+        "II-A. Written English (Reports)", 
+        "II-B. Spoken English (Floor Alerts)", 
+        "II-C. Audits & Standards (IATF)", 
+        "II-D. Technical Glossary & Tools",
+        "💡 Supervisor Feedback Version (Casual)"
+    ]
+)
+
+st.title("🚗 Quality Inspector - Pronunciation & Training Simulator")
+st.subheader("IATF 16949 Standards & Shop Floor Communication Practice")
+st.markdown("---")
 # ==============================================================================
 # SUBPARTE 5: SECCIÓN CORE I (OBJECTIVE Y REPORTES ESCRITOS CON IMÁGENES)
 # ==============================================================================
@@ -171,7 +193,7 @@ elif seccion == "II-B. Spoken English (Floor Alerts)":
          "https://wikimedia.org"),
         
         ("<span style='color:#1565c0; font-weight:bold;'>What key terms</span> <span style='color:#2e7d32; font-weight:bold;'>should I focus on using</span> <span style='color:#ef6c00; font-weight:bold;'>during</span> <span style='color:#424242; font-weight:bold;'>our</span> <span style='color:#6a1b9a; font-weight:bold;'>daily</span> <span style='color:#1565c0; font-weight:bold;'>Gemba Walks</span>?",
-         "<span style='color:#1565c0; font-weight:bold;'>En qué términos clave</span> <span style='color:#2e7d32; font-weight:bold;'>debería enfocarme al usar</span> <span style='color:#ef6c00; font-weight:bold;'>durante</span> <span style='color:#424242; font-weight:bold;'>nuestras</span> <span style='color:#1565c0; font-weight:bold;'>caminatas Gemba</span> <span style='color:#6a1b9a; font-weight:bold;'>diarias</span>?",
+         "<span style='color:#1565c0; font-weight:bold;'>En qué términos clave</span> <span style='color:#2e7d32; font-weight:bold;'>debería enfocarme al usar</span> <span style='color:#ef6c00; font-weight:bold;'>durante</span> <span style='color:#424242; font-weight:bold;'>nuestras</span> <span style='color:#6a1b9a; font-weight:bold;'>caminatas Gemba</span> <span style='color:#6a1b9a; font-weight:bold;'>diarias</span>?",
          "https://wikimedia.org")
     ]
     for i, (en, es, img) in enumerate(preguntas_habladas, 1):
@@ -221,9 +243,6 @@ elif seccion == "II-D. Technical Glossary & Tools":
     st.markdown("---")
     st.subheader("III. APPROVAL & SIGN-OFF")
     st.caption("The signatures below confirm that the communication gaps outlined above will be used to develop a targeted English training curriculum for the employee.")
-
-
-
 # ==============================================================================
 # SUBPARTE 7: SIMULADOR DE FEEDBACK CASUAL CON SUPERVISOR E IMÁGENES
 # ==============================================================================
