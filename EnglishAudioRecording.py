@@ -16,6 +16,70 @@ import time
 # CAREER ENGLISH INSTITUTE (2026)
 # ============================================================================
 
+# =========================================================================
+# 1. CONTROL DE ACCESO (SISTEMA DE AUTENTICACIÓN)
+# =========================================================================
+
+# URL pública de tu Google Sheet (Columna IDE)
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR14gLuF0ogpRIDP_OGmAff4akh2JdUKLVawIgBVd4AJhK796f1-uonX-2aLVaIW2nFtzyGsWe0yCLP/pub?output=csv"
+
+# Forzar configuración inicial de página (Solo si tu código original no lo tiene ya)
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+@st.cache_data(ttl=300) # Evita saturar el Sheet consultándolo solo cada 5 minutos
+def obtener_codigos_autorizados():
+    try:
+        df = pd.read_csv(CSV_URL)
+        df.columns = df.columns.str.strip()  # Elimina espacios raros en las cabeceras
+        if 'IDE' in df.columns:
+            # Filtra celdas vacías y convierte todo a texto limpio para comparar sin errores
+            return df['IDE'].dropna().astype(str).str.strip().tolist()
+        else:
+            st.error("Error en Base de Datos: No se encontró la columna 'IDE'.")
+            return []
+    except Exception as e:
+        st.error(f"Error al conectar con la lista de accesos: {e}")
+        return []
+
+# --- INTERFAZ DE LOGUEO ---
+if not st.session_state.autenticado:
+    st.markdown("<h2 style='text-align: center;'>🔒 Control de Acceso</h2>", unsafe_allow_html=True)
+    st.write("Por favor, introduce tu código de estudiante para desbloquear las herramientas de CEI English Tool.")
+    
+    # Campo tipo password oculta lo que escribe el alumno
+    codigo_ingresado = st.text_input("Código de Estudiante (IDE):", type="password", placeholder="Ingresa tu código aquí...")
+    
+    if st.button("Ingresar", use_container_width=True):
+        codigos_validos = obtener_codigos_autorizados()
+        
+        if codigo_ingresado.strip() in codigos_validos:
+            st.session_state.autenticado = True
+            st.success("¡Acceso autorizado!")
+            st.rerun()  # Recarga la app mostrando la app real
+        else:
+            st.error("Código incorrecto, inválido o no registrado. Verifica e intenta de nuevo.")
+
+# =========================================================================
+# 2. TU APLICACIÓN ACTUAL (CONTENIDO PROTEGIDO)
+# =========================================================================
+else:
+    # Agrega un botón discreto en la barra lateral para cerrar sesión si lo desean
+    if st.sidebar.button("🔒 Cerrar Sesión"):
+        st.session_state.autenticado = False
+        st.rerun()
+
+    # ---------------------------------------------------------------------
+    # REEMPLAZA LAS LÍNEAS DE ABAJO PEGANDO EL CÓDIGO ACTUAL DE TU APLICACIÓN
+    # ¡MUY IMPORTANTE!: Todo lo que pegues aquí dentro debe llevar una 
+    # sangría (indentación) de 4 espacios hacia la derecha para que quede
+    # protegido por el bloque "else:".
+    # ---------------------------------------------------------------------
+    
+    st.title("Bienvenido a CEI English Tool")
+    st.write("Tu código original ya se está ejecutando de forma segura detrás del login.")
+
+
 # Global Visual Canvas Viewport Configurations
 st.set_page_config(page_title="CEI Master Evaluation Engine", layout="centered")
 st.markdown("<h1 style='text-align: center; color: #1A5276; font-size: 24px; font-weight: bold;'>CAREER ENGLISH INSTITUTE</h1>", unsafe_allow_html=True)
