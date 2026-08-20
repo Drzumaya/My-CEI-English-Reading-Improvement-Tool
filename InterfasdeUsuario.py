@@ -1,7 +1,7 @@
 import streamlit as st
 
 # ==============================================================================
-# SUBPARTE A: CONFIGURACIÓN, SEGURIDAD Y BARRA LATERAL CON LOGOUT
+# PARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD Y CONTROL DE SESIÓN
 # ==============================================================================
 st.set_page_config(
     page_title="Tablero Integrado - Agua Prieta",
@@ -10,7 +10,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Inicializar estados de sesión críticos para la seguridad institucional
+# Inicializar estados de sesión críticos para la seguridad de la A.C.
 if "password_correct" not in st.session_state:
     st.session_state["password_correct"] = False
 
@@ -26,7 +26,7 @@ def check_password():
     if st.session_state["password_correct"]:
         return True
 
-    # Renderizado de la pantalla de login de alta seguridad (Bloqueo Total)
+    # Renderizado de la pantalla de login con bloqueo absoluto
     st.markdown("<br><br>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns()
     with col_l2:
@@ -46,21 +46,21 @@ def check_password():
         st.info("Nota: Las claves de acceso son administradas de forma directa por el Agente Capacitador.")
     return False
 
-# Si la contraseña no es correcta, detener la ejecución de todo el archivo inmediatamente
+# Si la contraseña falla, detener la ejecución del archivo InterfasdeUsuario.py aquí
 if not check_password():
     st.stop()
 
-# Función de Cierre de Sesión Seguro
+# Función de Cierre de Sesión Seguro (Logout)
 def logout():
     st.session_state["password_correct"] = False
     st.rerun()
 
-# Encabezado Institucional Principal
+# Encabezado Institucional Principal de la Interfaz
 st.title("🦅 Sistema de Control Técnico y Conexión de Subsistemas Autónomos")
 st.subheader("Ecosistema de Economía Popular y Retención de Valor Fronterizo")
 st.markdown("---")
 
-# Construcción de la Barra Lateral Común
+# Construcción de la Barra Lateral Común (Sidebar)
 with st.sidebar:
     st.header("📋 Monitoreo de Red")
     st.success("🔒 Conexión Encriptada")
@@ -84,10 +84,10 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🏦 Módulo 5: Caja de Ahorro (Brazo Fuerte)"
 ])
 # ==============================================================================
-# SUBPARTE B: MÓDULOS FISCALES (COMPORTAMIENTO DE IVA E ISR)
+# PARTE 2 DE 3: MÓDULOS FISCALES (COMPORTAMIENTO DE IVA E ISR)
 # ==============================================================================
 
-# Variables globales puente para conectar analíticamente la Subparte B con la C
+# Variables de interconexión para enlazar analíticamente la Parte 2 con la Parte 3
 num_talleres_global = 65
 prima_individual_global = 120
 comision_retorno_global = 20
@@ -99,7 +99,7 @@ with tab1:
     col_t1_l, col_t1_r = st.columns(2)
     with col_t1_l:
         num_talleres = st.slider("Talleres Populares Integrados (Miembros Adherentes)", min_value=5, max_value=300, value=num_talleres_global)
-        num_talleres_global = num_talleres # Sincronización dinámica
+        num_talleres_global = num_talleres # Sincronización en tiempo real
         cuota_calculada = presupuesto_total / num_talleres
         
         c1, c2 = st.columns(2)
@@ -142,7 +142,7 @@ with tab3:
     r_as2.metric("Retención Total ISR a Enterar", f"${isr_retenido * num_promotores:,.2f} MXN")
     r_as3.metric("Ahorro en ISR Corporativo A.C.", f"${ahorrado_isr_ac:,.2f} MXN", delta="Gasto Justificado")
 # ==============================================================================
-# SUBPARTE C: SUBSISTEMAS DE MICROSEGUROS Y CAJA DE AHORRO (VÍNCULO FINANCIERO)
+# PARTE 3 DE 3: SUBSISTEMAS DE MICROSEGUROS Y CAJA DE AHORRO (VÍNCULO FINANCIERO)
 # ==============================================================================
 
 # ----- PESTAÑA 4: MICROSEGUROS (SUBSISTEMA FILIAL MERCANTIL) -----
@@ -176,7 +176,7 @@ with tab5:
         st.subheader("📥 Fuentes de Inyección de Capital Social (Mensual)")
         ahorrio_barrio_mensual = st.number_input("Ahorros Directos de los Trabajadores de Agua Prieta", min_value=0.0, value=55000.0)
         
-        # CONEXIÓN INTER-MÓDULO: Extracción automática del retorno anual calculado en la Subparte B
+        # VÍNCULO CORPORATIVO AUTOMÁTICO: Extracción mensual del retorno anual calculado en la pestaña anterior
         comision_seguros_mensual = retorno_anual_ac / 12
         st.markdown(f"➕ **Inyección Automatizada desde Agencia de Seguros:** `${comision_seguros_mensual:,.2f} MXN/mes` *(Pestaña 4)*")
         
@@ -187,11 +187,11 @@ with tab5:
         monto_credito = st.number_input("Monto por Microcrédito de Emprendimiento Popular", min_value=5000, value=35000, step=5000)
         tasa_social = st.slider("Tasa de Interés Activa Social Anual (%)", min_value=3, max_value=20, value=7)
 
-    # CÁLCULO TRASLACIONAL DEL VÍNCULO FINANCIERO CONSOLIDADO
+    # Cálculo traslacional definitivo del fondo común interconectado
     capital_mensual_total = ahorrio_barrio_mensual + comision_seguros_mensual + excedente_cooperativa
     capital_anual_total = capital_mensual_total * 12
     creditos_otorgados = int(capital_anual_total // monto_credito)
-    interes_retornado_fondo = (capital_anual_total * 0.80) * (tasa_social / 100) # 80% de colocación eficiente
+    interes_retornado_fondo = (capital_anual_total * 0.80) * (tasa_social / 100)
 
     st.markdown("---")
     st.markdown("### 📊 Balance de Consolidación del Circuito Cerrado de Riqueza")
