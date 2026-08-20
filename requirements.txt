@@ -3,4 +3,4 @@ pandas>=2.0.0
 gtts
 Pillow
 requests
-
+reportlab>=4.1.0
