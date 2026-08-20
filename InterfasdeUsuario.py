@@ -1,14 +1,14 @@
 import streamlit as st
 import io
 from datetime import datetime
-# Motor ReportLab de alta compatibilidad para servidores en la nube
+# Motores ReportLab puros para asegurar renderizado exitoso en la nube
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # ==============================================================================
-# PARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD E INICIALIZACIÓN DEL HISTORIAL
+# PARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD E INICIALIZACIÓN DE REPORTES EDITABLES
 # ==============================================================================
 st.set_page_config(
     page_title="Tablero Integrado - Agua Prieta",
@@ -21,11 +21,20 @@ st.set_page_config(
 if "password_correct" not in st.session_state:
     st.session_state["password_correct"] = False
 
-# HISTORIAL DE AUDITORÍA: Inicializa el registro de descargas si no existe en la sesión
 if "historial_descargas" not in st.session_state:
     st.session_state["historial_descargas"] = []
 
-# Inicializar textos estatutarios editables en memoria activa de sesión
+# INICIALIZACIÓN DE TEXTOS DE INFORMES EDITABLES (Independientes para cada módulo)
+if "reporte_fiscal_texto" not in st.session_state:
+    st.session_state["reporte_fiscal_texto"] = "Informe contable de validacion para la Asociacion Civil que ampara la captacion de cuotas extraordinarias de recuperacion exentas de IVA y la retribucion de lideres tecnicos de Agua Prieta Sonora."
+
+if "reporte_seguros_texto" not in st.session_state:
+    st.session_state["reporte_seguros_texto"] = "Certificado anual expedido por el Subsistema de Gestion de Riesgos que detalla la captacion de primas comerciales y el retorno legal de utilidades hacia el fondo de desarrollo de la Asociacion Civil."
+
+if "reporte_caja_texto" not in st.session_state:
+    st.session_state["reporte_caja_texto"] = "Balance consolidador del circuito cerrado de riqueza de Agua Prieta Sonora. Valida el capital semilla disponible para financiamientos de activos fijos de baja escala sin intermediacion bancaria tradicional."
+
+# Inicializar textos estatutarios del repositorio legal
 if "doc_seguros" not in st.session_state:
     st.session_state["doc_seguros"] = "ESCRITURA PÚBLICA: [CONSTITUCIÓN S.A. DE C.V.] - RAMO MICROSEGUROS AGUA PRIETA..."
 if "doc_cooperativa" not in st.session_state:
@@ -54,13 +63,9 @@ def check_password():
         st.title("🔐 Acceso Restringido")
         st.subheader("Plataforma Integral de Economía Popular")
         st.caption("Asociación Civil en Régimen General (Título II LISR) • Agua Prieta, Sonora")
-        
         st.text_input("Introduce la contraseña de acceso:", type="password", on_change=password_entered, key="password")
-        
         if st.session_state.get("show_login_error", False):
             st.error("❌ Credenciales inválidas. Intento bloqueado por seguridad.")
-        with st.expander("ℹ️ Soporte Técnico"):
-            st.caption("Las claves son administradas de forma directa por el Agente Capacitador.")
     return False
 
 if not check_password():
@@ -71,16 +76,11 @@ def logout():
     st.session_state["show_login_error"] = False
     st.rerun()
 
-# Función para registrar descargas en la bitácora en tiempo real
 def registrar_descarga(modulo, archivo):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_entry = {
-        "Fecha y Hora": now,
-        "Módulo": modulo,
-        "Archivo Descargado": archivo,
-        "Estatus": "Éxito (Generado en Servidor)"
-    }
-    st.session_state["historial_descargas"].append(log_entry)
+    st.session_state["historial_descargas"].append({
+        "Fecha y Hora": now, "Módulo": modulo, "Archivo Descargado": archivo, "Estatus": "Éxito (Generado en Servidor)"
+    })
 
 # Generador de Informes Técnicos en PDF (Nivel Doctoral)
 def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
@@ -100,26 +100,19 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
     story.append(Paragraph(resumen_texto, estilo_cuerpo))
     story.append(Spacer(1, 15))
     
-    tabla_pdf = Table(datos_tabla, colWidths=[240, 240])
+    tabla_pdf = Table(datos_tabla, colWidths=)
     tabla_pdf.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (1, 0), color_primario),
-        ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
-        ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BACKGROUND', (0, 0), (1, 0), color_primario), ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
+        ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")), ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'), ('FONTSIZE', (0, 0), (-1, -1), 10),
     ]))
-    
     story.append(tabla_pdf)
     doc.build(story)
     buffer.seek(0)
     return buffer
 
 st.sidebar.header("📋 Operaciones")
-st.sidebar.success("🔒 Conexión Encriptada")
 if st.sidebar.button("❌ Cerrar Sesión (Logout)", use_container_width=True, type="primary"):
     logout()
 presupuesto_total = st.sidebar.number_input("Bolsa Económica Mensual Operativa (MXN)", min_value=10000, value=250000, step=10000)
@@ -127,7 +120,7 @@ presupuesto_total = st.sidebar.number_input("Bolsa Económica Mensual Operativa 
 tabs = st.tabs(["🛡️ IVA e ISR", "📊 Microseguros", "🏦 Caja de Ahorro", "📈 Estadísticas Anuales", "📝 Editor Estatutario", "📑 Historial de Descargas"])
 tab1, tab4, tab5, tab_stats, tab6, tab_log = tabs
 # ==============================================================================
-# PARTE 2 DE 3: SIMULADORES OPERATIVOS E INYECTORES CON REGISTRO DE BITÁCORA
+# PARTE 2 DE 3: MÓDULOS DE SIMULACIÓN CON GESTORES PDF INDEPENDIENTES
 # ==============================================================================
 num_talleres_global = 65
 prima_individual_global = 120.0
@@ -143,9 +136,18 @@ with tab1:
         num_talleres_global = num_talleres
         cuota_calculada = float(presupuesto_total / num_talleres)
         st.metric("Cuota Extraordinaria de Recuperación", f"${cuota_calculada:,.2f} MXN", "0% IVA (Exento)")
+    
     with col2:
-        st.subheader("📄 Exportar Cierre Fiscal Mensual")
-        texto_resumen_t1 = "Informe contable de validación para la Asociación Civil que ampara la captación de cuotas extraordinarias de recuperación exentas de IVA."
+        st.subheader("📑 Centro de Edición y Compilación del Informe Fiscal")
+        
+        # Sistema de Edición y Guardado de Cambios
+        with st.expander("📝 Botón: Editar Cuerpo del Reporte"):
+            txt_fiscal_editado = st.text_area("Modifica el texto introductorio del PDF:", value=st.session_state["reporte_fiscal_texto"], key="edit_t1_area")
+            if st.button("💾 Guardar Cambios en Reporte Fiscal", key="save_t1_btn"):
+                st.session_state["reporte_fiscal_texto"] = txt_fiscal_editado
+                st.success("✓ Cambios consolidados en el borrador fiscal.")
+
+        # Recalcular la matriz de datos en tiempo real para el PDF
         tabla_datos_t1 = [
             ["Indicador Técnico / Concepto", "Monto Calculado (MXN)"],
             ["Bolsa Operativa Mensual Inyectada", f"${float(presupuesto_total):,.2f}"],
@@ -153,9 +155,10 @@ with tab1:
             ["Cuota Estatutaria Promedio", f"${cuota_calculada:,.2f}"],
             ["Escudo Fiscal Generado (30% ISR Mitigado)", f"${float(presupuesto_total * 0.30):,.2f}"]
         ]
-        pdf_t1 = generar_informe_pdf("Informe de Blindaje Fiscal y Remanentes", tabla_datos_t1, texto_resumen_t1)
         
-        # Al ejecutarse la descarga, se gatilla de forma paralela la bitácora
+        # Botón de consulta y descarga final compilandose con las ediciones guardadas
+        pdf_t1 = generar_informe_pdf("Informe de Blindaje Fiscal y Remanentes", tabla_datos_t1, st.session_state["reporte_fiscal_texto"])
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.download_button(label="📥 Descargar Reporte de Blindaje Fiscal (PDF)", data=pdf_t1, file_name="Reporte_Fiscal_AC.pdf", mime="application/pdf", key="dl_t1"):
             registrar_descarga("🛡️ IVA e ISR", "Reporte_Fiscal_AC.pdf")
 
@@ -173,16 +176,23 @@ with tab4:
     retorno_anual_ac = prima_anual * (retorno_pct / 100)
     
     with col_t4_r:
-        st.subheader("📄 Certificación de Reservas Técnicas")
-        texto_resumen_t4 = "Certificado anual expedido por el Subsistema de Gestión de Riesgos que detalla la captación de primas comerciales y el retorno legal de utilidades."
+        st.subheader("📑 Centro de Edición y Compilación de Certificados")
+        
+        with st.expander("📝 Botón: Editar Cuerpo del Certificado"):
+            txt_seguros_editado = st.text_area("Modifica las cláusulas de riesgo del PDF:", value=st.session_state["reporte_seguros_texto"], key="edit_t4_area")
+            if st.button("💾 Guardar Cambios en Certificado de Seguros", key="save_t4_btn"):
+                st.session_state["reporte_seguros_texto"] = txt_seguros_editado
+                st.success("✓ Cambios consolidados en el borrador de seguros.")
+
         tabla_datos_t4 = [
             ["Rubro de Control de Riesgos", "Valor Proyectado Anual"],
             ["Volumen Global de Primas Recaudadas", f"${prima_anual:,.2f} MXN"],
             ["Retorno por Comisión a la A.C.", f"${retorno_anual_ac:,.2f} MXN"],
             ["Fondo Comunitario de Siniestralidad (5%)", f"${float(prima_anual * 0.05):,.2f} MXN"]
         ]
-        pdf_t4 = generar_informe_pdf("Certificado Patrimonial de Microseguros", tabla_datos_t4, texto_resumen_t4)
         
+        pdf_t4 = generar_informe_pdf("Certificado Patrimonial de Microseguros", tabla_datos_t4, st.session_state["reporte_seguros_texto"])
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.download_button(label="📥 Descargar Certificado de Pólizas (PDF)", data=pdf_t4, file_name="Certificado_Microseguros.pdf", mime="application/pdf", key="dl_t4"):
             registrar_descarga("📊 Microseguros", "Certificado_Microseguros.pdf")
 
@@ -201,20 +211,27 @@ with tab5:
     creditos_otorgados = int(capital_anual_total // monto_credito)
     
     with col_t5_r:
-        st.subheader("📄 Balance del Brazo Fuerte Financiero")
-        texto_resumen_t5 = "Balance consolidador del circuito cerrado de riqueza de Agua Prieta Sonora que valida el capital semilla disponible."
+        st.subheader("📑 Centro de Edición y Compilación del Balance")
+        
+        with st.expander("📝 Botón: Editar Resumen de Estados de Cuenta"):
+            txt_caja_editado = st.text_area("Modifica las notas de balance del PDF:", value=st.session_state["reporte_caja_texto"], key="edit_t5_area")
+            if st.button("💾 Guardar Cambios en Balance General", key="save_t5_btn"):
+                st.session_state["reporte_caja_texto"] = txt_caja_editado
+                st.success("✓ Cambios consolidados en el borrador de la caja.")
+
         tabla_datos_t5 = [
             ["Estructura de Capital Social", "Flujo Consolidado (MXN)"],
             ["Inyecciones Mensuales Consolidadas", f"${capital_mensual_total:,.2f}"],
             ["Capacidad Financiera Anual Recurrente", f"${capital_anual_total:,.2f}"],
             ["Microcréditos de Maquinaria Viables / Año", f"{creditos_otorgados} Otorgamientos"]
         ]
-        pdf_t5 = generar_informe_pdf("Balance Analítico de la Caja de Ahorro", tabla_datos_t5, texto_resumen_t5)
         
+        pdf_t5 = generar_informe_pdf("Balance Analítico de la Caja de Ahorro", tabla_datos_t5, st.session_state["reporte_caja_texto"])
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.download_button(label="📥 Descargar Balance de Fondos Mutuos (PDF)", data=pdf_t5, file_name="Balance_Caja_Ahorro.pdf", mime="application/pdf", key="dl_t5"):
             registrar_descarga("🏦 Caja de Ahorro", "Balance_Caja_Ahorro.pdf")
 # ==============================================================================
-# PARTE 3 DE 3: HISTÓRICO ANUAL, GESTOR EDITABLE Y VISOR DEL HISTORIAL
+# PARTE 3 DE 3: TENDENCIAS ANUALES, REPOSITORIO E HISTORIAL DE AUDITORÍA
 # ==============================================================================
 
 # ----- PESTAÑA: ESTADÍSTICAS POR AÑO -----
@@ -231,7 +248,7 @@ with tab_stats:
     with col_sel:
         anio_seleccionado = st.selectbox("📊 Selecciona el Ejercicio Fiscal a Evaluar:", list(datos_historicos.keys()))
     with col_down:
-        texto_resumen_stats = f"Informe de auditoría histórica comparativa que consolida el crecimiento del ecosistema popular para el año fiscal {anio_seleccionado}."
+        texto_resumen_stats = f"Informe de auditoria historica comparativa que consolida el crecimiento del ecosistema popular para el ano fiscal {anio_seleccionado}."
         tabla_datos_stats = [
             ["Indicador Macroeconómico Local", f"Métricas del Ejercicio {anio_seleccionado}"],
             ["Capital Social Anualizado", f"${datos_historicos[anio_seleccionado]['capital']:,.2f} MXN"],
@@ -256,10 +273,8 @@ with tab_stats:
 with tab6:
     st.header("📜 Gestor Legal de Instrumentos Jurídicos Autónomos")
     opciones_docs = [
-        "Sub-Acta 1: Agencia de Seguros (S.A. de C.V.)",
-        "Sub-Acta 2: Cooperativa de Logística (S.C. de R.L.)",
-        "Contrato 1: Corretaje Social (A.C. ── Agencia Seguros)",
-        "Contrato 2: Fideicomiso Privado (A.C. ── Caja de Ahorro)"
+        "Sub-Acta 1: Agencia de Seguros (S.A. de C.V.)", "Sub-Acta 2: Cooperativa de Logística (S.C. de R.L.)",
+        "Contrato 1: Corretaje Social (A.C. ── Agencia Seguros)", "Contrato 2: Fideicomiso Privado (A.C. ── Caja de Ahorro)"
     ]
     doc_seleccionado = st.selectbox("⚡ Selecciona el documento que deseas trabajar:", opciones_docs)
     
@@ -272,22 +287,19 @@ with tab6:
     else:
         texto_inicial, key_memoria = st.session_state["doc_fideicomiso"], "doc_fideicomiso"
         
-    texto_editado = st.text_area(label=f"Modifica las cláusulas de: {doc_seleccionado}", value=texto_inicial, height=300)
+    texto_editado = st.text_area(label=f"Modifica las cláusulas de: {doc_seleccionado}", value=texto_inicial, height=250)
     
-    if st.button("💾 Consolidar y Guardar Cambios en el Estatuto", type="secondary"):
+    if st.button("💾 Consolidar y Guardar Cambios en el Estatuto", type="secondary", key="save_statutes_btn"):
         st.session_state[key_memoria] = texto_editado
         st.success("✓ Estatuto actualizado correctamente en la memoria de la A.C.")
 
-# ----- PESTAÑA NUEVA: CONSULTA DEL HISTORIAL DE DESCARGAS -----
+# ----- PESTAÑA: CONSULTA DEL HISTORIAL DE DESCARGAS -----
 with tab_log:
     st.header("📑 Bitácora de Auditoría e Historial de Descargas")
-    st.caption("Registro de control interno que ampara las descargas e impresiones de informes oficiales del ejercicio 2026.")
-    
     if len(st.session_state["historial_descargas"]) == 0:
-        st.info("ℹ️ No se registran descargas de archivos en el presente ciclo operativo. Los movimientos aparecerán listados aquí en tiempo real.")
+        st.info("ℹ️ No se registran descargas de archivos en el presente ciclo operativo.")
     else:
-        st.warning("⚠️ Recordatorio de Gobernanza: Esta tabla registra la materialidad de impresión de documentos institucionales con fines de transparencia.")
-        # Renderiza de forma interactiva y tabular las acciones del servidor
+        st.warning("⚠️ Control de Auditoría Interna Activo.")
         st.table(st.session_state["historial_descargas"])
 
 # MATRIZ INDUSTRIAL DE CIERRE
