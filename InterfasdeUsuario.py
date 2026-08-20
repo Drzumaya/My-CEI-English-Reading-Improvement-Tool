@@ -26,9 +26,9 @@ def check_password():
     if st.session_state["password_correct"]:
         return True
 
-    # Renderizado de la pantalla de login con bloqueo absoluto
+    # Renderizado de la pantalla de login con bloqueo absoluto (CORREGIDO)
     st.markdown("<br><br>", unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns()
+    col_l1, col_l2, col_l3 = st.columns(3)
     with col_l2:
         st.title("🔐 Acceso Restringido")
         st.subheader("Plataforma Integral de Economía Popular")
@@ -46,7 +46,7 @@ def check_password():
         st.info("Nota: Las claves de acceso son administradas de forma directa por el Agente Capacitador.")
     return False
 
-# Si la contraseña falla, detener la ejecución del archivo InterfasdeUsuario.py aquí
+# Si la contraseña falla, detener la ejecución del archivo aquí
 if not check_password():
     st.stop()
 
@@ -208,42 +208,41 @@ with tab5:
     * **Circulación de Riqueza:** Los intereses generados de **${interes_retornado_fondo:,.2f} MXN** no se distribuyen entre los socios directores como ganancias capitalistas; se quedan etiquetados en la cuenta de orden para absorber pérdidas por siniestros no cubiertos, manteniendo la naturaleza civil de la organización.
     """)
 
-    # RECONFIGURACIÓN VISUAL DE LA MATRIZ DE VÍNCULOS EN STREAMLIT
-    st.markdown("---")
-    st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
-    
-    col_v1, col_v2, col_v3 = st.columns(3)
-    
-    with col_v1:
-        st.markdown("""
-        <div style='background-color: #d4edda; padding: 15px; border-radius: 8px; border-left: 5px solid #28a745;'>
-            <h4 style='color: #155724; margin-top:0;'>🟢 Nodo Central: Asociación Civil</h4>
-            <p style='color: #1c7430; font-size: 14px;'>
-                <b>Función:</b> Absorción de flujos indirectos y dispersión de nómina barrial.<br>
-                <b>Estatus Fiscal:</b> 0% IVA Trasladado / Escudo del 30% ISR vía Asimilados.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with col_v2:
-        st.markdown("""
-        <div style='background-color: #d1ecf1; padding: 15px; border-radius: 8px; border-left: 5px solid #17a2b8;'>
-            <h4 style='color: #0c5460; margin-top:0;'>🔵 Brazo Fuerte: Caja de Ahorro</h4>
-            <p style='color: #117a8b; font-size: 14px;'>
-                <b>Contrato Blanco:</b> Fideicomiso y Cuenta de Orden.<br>
-                <b>Impacto:</b> Resguarda el capital semilla de Agua Prieta sin acumular base gravable corporativa.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with col_v3:
-        st.markdown("""
-        <div style='background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107;'>
-            <h4 style='color: #856404; margin-top:0;'>💛 Riesgos: Agencia de Seguros</h4>
-            <p style='color: #9e7e1a; font-size: 14px;'>
-                <b>Contrato Rojo:</b> Corretaje Social (Retorno del 20%).<br>
-                <b>Impacto:</b> Transforma primas comerciales de la S.A. en fondos limpios para el desarrollo popular.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+# RECONFIGURACIÓN VISUAL DE LA MATRIZ DE VÍNCULOS EN STREAMLIT (CORREGIDO)
+st.markdown("---")
+st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
 
+col_v1, col_v2, col_v3 = st.columns(3)
+
+with col_v1:
+    st.markdown("""
+    <div style='background-color: #d4edda; padding: 15px; border-radius: 8px; border-left: 5px solid #28a745;'>
+        <h4 style='color: #155724; margin-top:0;'>🟢 Nodo Central: Asociación Civil</h4>
+        <p style='color: #1c7430; font-size: 14px;'>
+            <b>Función:</b> Absorción de flujos indirectos y dispersión de nómina barrial.<br>
+            <b>Estatus Fiscal:</b> 0% IVA Trasladado / Escudo del 30% ISR vía Asimilados.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+with col_v2:
+    st.markdown("""
+    <div style='background-color: #d1ecf1; padding: 15px; border-radius: 8px; border-left: 5px solid #17a2b8;'>
+        <h4 style='color: #0c5460; margin-top:0;'>🔵 Brazo Fuerte: Caja de Ahorro</h4>
+        <p style='color: #117a8b; font-size: 14px;'>
+            <b>Contrato Blanco:</b> Fideicomiso y Cuenta de Orden.<br>
+            <b>Impacto:</b> Resguarda el capital semilla de Agua Prieta sin acumular base gravable corporativa.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+with col_v3:
+    st.markdown("""
+    <div style='background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107;'>
+        <h4 style='color: #856404; margin-top:0;'>💛 Riesgos: Agencia de Seguros</h4>
+        <p style='color: #9e7e1a; font-size: 14px;'>
+            <b>Contrato Rojo:</b> Corretaje Social (Retorno del 20%).<br>
+            <b>Impacto:</b> Transforma primas comerciales de la S.A. en fondos limpios para el desarrollo popular.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
