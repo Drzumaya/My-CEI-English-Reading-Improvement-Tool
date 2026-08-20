@@ -19,14 +19,18 @@ def check_password():
     def password_entered():
         if st.session_state["password"] == st.secrets["access_control"]["password"]:
             st.session_state["password_correct"] = True
+            # Inicializar bandera para ocultar el error si el login es exitoso
+            st.session_state["show_login_error"] = False
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
+            # Activar la bandera de error solo si la contraseña falló
+            st.session_state["show_login_error"] = True
 
     if st.session_state["password_correct"]:
         return True
 
-    # Renderizado de la pantalla de login con bloqueo absoluto (CORREGIDO)
+    # Renderizado de la pantalla de login con bloqueo absoluto 
     st.markdown("<br><br>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns(3)
     with col_l2:
@@ -41,18 +45,26 @@ def check_password():
             key="password",
         )
         
-        if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+        # EVENTO OPORTUNO: El error solo existe si el usuario ya falló un intento de inicio de sesión
+        if st.session_state.get("show_login_error", False):
             st.error("❌ Credenciales inválidas. Intento bloqueado por el protocolo de seguridad.")
-        st.info("Nota: Las claves de acceso son administradas de forma directa por el Agente Capacitador.")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        # CONTENEDOR OCULTO: La nota informativa ahora requiere una acción consciente del usuario para leerse
+        with st.expander("ℹ️ ¿No tienes acceso? Soporte del Ecosistema"):
+            st.caption("Nota: Las claves de acceso son administradas de forma directa por el Agente Capacitador.")
+            
     return False
 
-# Si la contraseña falla, detener la ejecución del archivo aquí
+# Si la contraseña falla o es el primer ingreso, detener la ejecución del archivo aquí
 if not check_password():
     st.stop()
 
 # Función de Cierre de Sesión Seguro (Logout)
 def logout():
     st.session_state["password_correct"] = False
+    # Reiniciar la bandera de error para que la pantalla vuelva a estar limpia en el siguiente login
+    st.session_state["show_login_error"] = False
     st.rerun()
 
 # Encabezado Institucional Principal de la Interfaz
