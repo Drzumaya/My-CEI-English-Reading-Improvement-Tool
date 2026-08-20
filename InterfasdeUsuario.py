@@ -1,7 +1,7 @@
 import streamlit as st
 
 # ==============================================================================
-# PARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD Y CONTROL DE SESIÓN
+# SUBPARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD Y CONTROL DE SESIÓN
 # ==============================================================================
 st.set_page_config(
     page_title="Tablero Integrado - Agua Prieta",
@@ -19,18 +19,16 @@ def check_password():
     def password_entered():
         if st.session_state["password"] == st.secrets["access_control"]["password"]:
             st.session_state["password_correct"] = True
-            # Inicializar bandera para ocultar el error si el login es exitoso
             st.session_state["show_login_error"] = False
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
-            # Activar la bandera de error solo si la contraseña falló
             st.session_state["show_login_error"] = True
 
     if st.session_state["password_correct"]:
         return True
 
-    # Renderizado de la pantalla de login con bloqueo absoluto 
+    # Renderizado de la pantalla de login limpia con bloqueo absoluto (Ajustado a 3 columnas)
     st.markdown("<br><br>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns(3)
     with col_l2:
@@ -45,25 +43,24 @@ def check_password():
             key="password",
         )
         
-        # EVENTO OPORTUNO: El error solo existe si el usuario ya falló un intento de inicio de sesión
+        # OCURRENCIA OPORTUNA: El error de credenciales solo aparece si falló el intento
         if st.session_state.get("show_login_error", False):
             st.error("❌ Credenciales inválidas. Intento bloqueado por el protocolo de seguridad.")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        # CONTENEDOR OCULTO: La nota informativa ahora requiere una acción consciente del usuario para leerse
+        # CONTENEDOR COLAPSABLE: Oculta la nota de soporte para no generar ruido visual
         with st.expander("ℹ️ ¿No tienes acceso? Soporte del Ecosistema"):
             st.caption("Nota: Las claves de acceso son administradas de forma directa por el Agente Capacitador.")
             
     return False
 
-# Si la contraseña falla o es el primer ingreso, detener la ejecución del archivo aquí
+# Si la contraseña falla, detener la ejecución del archivo aquí
 if not check_password():
     st.stop()
 
 # Función de Cierre de Sesión Seguro (Logout)
 def logout():
     st.session_state["password_correct"] = False
-    # Reiniciar la bandera de error para que la pantalla vuelva a estar limpia en el siguiente login
     st.session_state["show_login_error"] = False
     st.rerun()
 
@@ -96,14 +93,14 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🏦 Módulo 5: Caja de Ahorro (Brazo Fuerte)"
 ])
 # ==============================================================================
-# PARTE 2 DE 3: MÓDULOS FISCALES (COMPORTAMIENTO DE IVA E ISR)
+# SUBPARTE 2 DE 3: MÓDULOS FISCALES (COMPORTAMIENTO DE IVA E ISR)
 # ==============================================================================
 
-# Variables de interconexión para enlazar analíticamente la Parte 2 con la Parte 3
+# TODAS LAS VARIABLES FINANCIERAS DECLARADAS COMO FLOAT (.0) PARA EVITAR MIXED TYPES ERROR
 num_talleres_global = 65
-prima_individual_global = 120
+prima_individual_global = 120.0
 comision_retorno_global = 20
-excedente_coop_global = 35000
+excedente_coop_global = 35000.0
 
 # ----- PESTAÑA 1: BLINDAJE DE IVA -----
 with tab1:
@@ -112,7 +109,7 @@ with tab1:
     with col_t1_l:
         num_talleres = st.slider("Talleres Populares Integrados (Miembros Adherentes)", min_value=5, max_value=300, value=num_talleres_global)
         num_talleres_global = num_talleres # Sincronización en tiempo real
-        cuota_calculada = presupuesto_total / num_talleres
+        cuota_calculada = float(presupuesto_total / num_talleres)
         
         c1, c2 = st.columns(2)
         c1.metric("Cuota Mensual Promedio", f"${cuota_calculada:,.2f} MXN")
@@ -144,17 +141,17 @@ with tab2:
 with tab3:
     st.header("Simulador de Retribución por Asimilados a Salarios")
     num_promotores = st.slider("Número de Líderes de Barrio a Retribuir", min_value=1, max_value=50, value=15)
-    monto_bruto = presupuesto_total / num_promotores
+    monto_bruto = float(presupuesto_total / num_promotores)
     isr_retenido = monto_bruto * 0.08 
     monto_neto = monto_bruto - isr_retenido
-    ahorrado_isr_ac = presupuesto_total * 0.30
+    ahorrado_isr_ac = float(presupuesto_total * 0.30)
     
     r_as1, r_as2, r_as3 = st.columns(3)
     r_as1.metric("Honorario Neto / Líder", f"${monto_neto:,.2f} MXN")
     r_as2.metric("Retención Total ISR a Enterar", f"${isr_retenido * num_promotores:,.2f} MXN")
     r_as3.metric("Ahorro en ISR Corporativo A.C.", f"${ahorrado_isr_ac:,.2f} MXN", delta="Gasto Justificado")
 # ==============================================================================
-# PARTE 3 DE 3: SUBSISTEMAS DE MICROSEGUROS Y CAJA DE AHORRO (VÍNCULO FINANCIERO)
+# SUBPARTE 3 DE 3: SUBSISTEMAS DE MICROSEGUROS Y CAJA DE AHORRO (VÍNCULO FINANCIERO)
 # ==============================================================================
 
 # ----- PESTAÑA 4: MICROSEGUROS (SUBSISTEMA FILIAL MERCANTIL) -----
@@ -162,14 +159,14 @@ with tab4:
     st.header("Gestión Financiera de la Agencia de Microseguros (S.A.)")
     col_t4_l, col_t4_r = st.columns(2)
     with col_t4_l:
-        prima_mensual = st.number_input("Prima Mensual Cobrada por Taller (MXN)", min_value=50, value=prima_individual_global)
+        prima_mensual = st.number_input("Prima Mensual Cobrada por Taller (MXN)", min_value=50.0, value=prima_individual_global)
         prima_individual_global = prima_mensual
         retorno_pct = st.slider("Porcentaje de Comisión Pactado para Devolución a la A.C.", min_value=5, max_value=40, value=comision_retorno_global)
         comision_retorno_global = retorno_pct
     with col_t4_r:
         tasa_siniestros = st.slider("Tasa de Accidentes / Siniestros Proyectada (%)", min_value=1, max_value=20, value=5)
     
-    prima_anual = num_talleres_global * prima_mensual * 12
+    prima_anual = float(num_talleres_global * prima_mensual * 12)
     retorno_anual_ac = prima_anual * (retorno_pct / 100)
     fondo_siniestros = prima_anual * (tasa_siniestros / 100)
     
@@ -188,18 +185,19 @@ with tab5:
         st.subheader("📥 Fuentes de Inyección de Capital Social (Mensual)")
         ahorrio_barrio_mensual = st.number_input("Ahorros Directos de los Trabajadores de Agua Prieta", min_value=0.0, value=55000.0)
         
-        # VÍNCULO CORPORATIVO AUTOMÁTICO: Extracción mensual del retorno anual calculado en la pestaña anterior
-        comision_seguros_mensual = retorno_anual_ac / 12
+        # VÍNCULO CORPORATIVO AUTOMÁTICO: Extracción mensual de la comisión por seguros calculada arriba
+        comision_seguros_mensual = float(retorno_anual_ac / 12)
         st.markdown(f"➕ **Inyección Automatizada desde Agencia de Seguros:** `${comision_seguros_mensual:,.2f} MXN/mes` *(Pestaña 4)*")
         
+        # ALINEACIÓN DE DECIMALES EXCELENTE: min_value (0.0) y value (excedente_coop_global = 35000.0) son floats unificados
         excedente_cooperativa = st.number_input("Inyección de Utilidades desde la Cooperativa de Logística", min_value=0.0, value=excedente_coop_global)
     
     with col_t5_r:
         st.subheader("📐 Colocación de Crédito para Maquinaria")
-        monto_credito = st.number_input("Monto por Microcrédito de Emprendimiento Popular", min_value=5000, value=35000, step=5000)
+        monto_credito = st.number_input("Monto por Microcrédito de Emprendimiento Popular", min_value=5000.0, value=35000.0, step=5000.0)
         tasa_social = st.slider("Tasa de Interés Activa Social Anual (%)", min_value=3, max_value=20, value=7)
 
-    # Cálculo traslacional definitivo del fondo común interconectado
+    # Cálculo traslacional del circuito de capitales
     capital_mensual_total = ahorrio_barrio_mensual + comision_seguros_mensual + excedente_cooperativa
     capital_anual_total = capital_mensual_total * 12
     creditos_otorgados = int(capital_anual_total // monto_credito)
@@ -220,7 +218,7 @@ with tab5:
     * **Circulación de Riqueza:** Los intereses generados de **${interes_retornado_fondo:,.2f} MXN** no se distribuyen entre los socios directores como ganancias capitalistas; se quedan etiquetados en la cuenta de orden para absorber pérdidas por siniestros no cubiertos, manteniendo la naturaleza civil de la organización.
     """)
 
-# RECONFIGURACIÓN VISUAL DE LA MATRIZ DE VÍNCULOS EN STREAMLIT (CORREGIDO)
+# RECONFIGURACIÓN VISUAL DE LA MATRIZ DE VÍNCULOS (CORREGIDO CON ARGUMENTO NUMÉRICO 3)
 st.markdown("---")
 st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
 
