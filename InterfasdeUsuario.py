@@ -1,7 +1,7 @@
 import streamlit as st
 
 # ==============================================================================
-# SUBPARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD Y CONTROL DE SESIÓN
+# PARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD Y CONTROL DE SESIÓN EDITABLE
 # ==============================================================================
 st.set_page_config(
     page_title="Tablero Integrado - Agua Prieta",
@@ -14,8 +14,51 @@ st.set_page_config(
 if "password_correct" not in st.session_state:
     st.session_state["password_correct"] = False
 
+# TEXTOS LEGALES EN MEMORIA: Inicializar la base de datos editable del Título II
+if "doc_seguros" not in st.session_state:
+    st.session_state["doc_seguros"] = """ESCRITURA PÚBLICA NÚMERO: [XXXX] | VOLUMEN: [XX]
+CONSTITUCIÓN DE SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE
+
+En la ciudad de Agua Prieta, Sonora, a 20 de agosto de 2026, ante mí, el Notario Público Número [X], comparece el Asociado Director en representación del Subsistema de Riesgos, para constituir una SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE, sujeta a los siguientes estatutos:
+
+ARTÍCULO PRIMERO: DENOMINACIÓN Y BRAZO DE CONEXIÓN.
+La sociedad se denominará "AGENCIA DE PROTECCIÓN SOLIDARIA FRONTERIZA", seguida de las palabras SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE o de sus siglas "S.A. DE C.V.". Esta entidad funciona como un subsistema autónomo de la Asociación Civil matriz.
+
+ARTÍCULO SEGUNDO: OBJETO SOCIAL CORPORATIVO.
+La sociedad tendrá por objeto exclusivo: 
+a) Realizar actividades de intermediación de contratos de seguros en los ramos de vida, accidentes, enfermedades y daños, de conformidad con la Ley de Instituciones de Seguros y de Fianzas (LISF).
+b) Tramitar y mantener la cédula de Agente de Seguros Persona Moral ante la Comisión Nacional de Seguros y Fianzas (CNSF)."""
+
+if "doc_cooperativa" not in st.session_state:
+    st.session_state["doc_cooperativa"] = """ACTA DE ASAMBLEA CONSTITUTIVA DE SOCIEDAD COOPERATIVA
+REGISTRO COMERCIAL: SC-AP-2026-02
+
+En la periferia urbana de Agua Prieta, Sonora, siendo las 10:00 horas del día 20 de agosto de 2026, se reúnen de manera voluntaria los trabajadores choferes, transportistas y micro-comerciantes de los barrios de la localidad para constituir una SOCIEDAD COOPERATIVA DE PRODUCCIÓN DE SERVICIOS, al tenor de las siguientes bases constitutivas:
+
+BASES CONSTITUTIVAS
+ARTÍCULO 1: DENOMINACIÓN Y RÉGIMEN.
+La sociedad se denominará "COOPERATIVA DE TRANSPORTE Y LOGÍSTICA DE LOS BARRIOS DE AGUA PRIETA", seguida de sus siglas "S.C. DE R.L. DE C.V." (Sociedad Cooperativa de Responsabilidad Limitada de Capital Variable)."""
+
+if "doc_corretaje" not in st.session_state:
+    st.session_state["doc_corretaje"] = """CONTRATO DE PRESTACIÓN DE SERVICIOS DE CAPACITACIÓN Y PROMOCIÓN DE RIESGOS
+
+Contrato que celebran por una parte la "Asociación Civil Matriz", representada por su Apoderado Legal, en lo sucesivo "LA MATRIZ"; y por la otra parte "AGENCIA DE PROTECCIÓN SOLIDARIA FRONTERIZA, S.A. DE C.V.", representada por su Administrador Único, en lo sucesivo "EL SUBSISTEMA DE SEGUROS", al tenor de las siguientes cláusulas:
+
+C L Á U S U L A S
+PRIMERA: OBJETO. "LA MATRIZ" se obliga a prestar a "EL SUBSISTEMA DE SEGUROS" los servicios profesionales de educación, fomento y capacitación para el trabajo enfocados en la prevención de riesgos laborales y salvaguarda de maquinaria en las colonias de Agua Prieta, Sonora.
+
+SEGUNDA: RETORNO DE VALOR (EL VÍNCULO FINANCIERO). Como contraprestación por los servicios de promoción y educación, "EL SUBSISTEMA DE SEGUROS" pagará mensualmente a "LA MATRIZ" una cantidad equivalente al 20% (veinte por ciento) de las primas totales recaudadas por la venta de pólizas de microseguros colectivos."""
+
+if "doc_fideicomiso" not in st.session_state:
+    st.session_state["doc_fideicomiso"] = """CONTRATO DE MANDATO Y ADJUDICACIÓN DE FIDEICOMISO DE ADMINISTRACIÓN PATRIMONIAL PRIVADO
+
+Contrato de fideicomiso privado que celebran por una parte "LA MATRIZ" (Asociación Civil), en su carácter de Fideicomitente; y por la otra parte, el Asociado Director de la Caja de Ahorro, en su carácter de Fideicomisario y Administrador Técnico, bajo el amparo de las siguientes estipulaciones:
+
+C L Á U S U L A S
+PRIMERA: PATRIMONIO AUTÓNOMO (EL BRAZO FUERTE). Las partes acuerdan la constitución de un fondo de capital social denominado "Caja de Ahorro y Préstamo Digital de Agua Prieta". Los recursos depositados por los trabajadores populares, así como las inyecciones de utilidades de la cooperativa y seguros, constituyen un patrimonio autónomo separado del gasto corriente de "LA MATRIZ"."""
+
+
 def check_password():
-    """Valida las credenciales institucionales contra variables de entorno."""
     def password_entered():
         if st.session_state["password"] == st.secrets["access_control"]["password"]:
             st.session_state["password_correct"] = True
@@ -28,7 +71,6 @@ def check_password():
     if st.session_state["password_correct"]:
         return True
 
-    # Renderizado de la pantalla de login limpia con bloqueo absoluto (Ajustado a 3 columnas)
     st.markdown("<br><br>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns(3)
     with col_l2:
@@ -43,60 +85,43 @@ def check_password():
             key="password",
         )
         
-        # OCURRENCIA OPORTUNA: El error de credenciales solo aparece si falló el intento
         if st.session_state.get("show_login_error", False):
             st.error("❌ Credenciales inválidas. Intento bloqueado por el protocolo de seguridad.")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        # CONTENEDOR COLAPSABLE: Oculta la nota de soporte para no generar ruido visual
         with st.expander("ℹ️ ¿No tienes acceso? Soporte del Ecosistema"):
             st.caption("Nota: Las claves de acceso son administradas de forma directa por el Agente Capacitador.")
             
     return False
 
-# Si la contraseña falla, detener la ejecución del archivo aquí
 if not check_password():
     st.stop()
 
-# Función de Cierre de Sesión Seguro (Logout)
 def logout():
     st.session_state["password_correct"] = False
     st.session_state["show_login_error"] = False
     st.rerun()
 
-# Encabezado Institucional Principal de la Interfaz
-st.title("🦅 Sistema de Control Técnico y Conexión de Subsistemas Autónomos")
-st.subheader("Ecosistema de Economía Popular y Retención de Valor Fronterizo")
-st.markdown("---")
-
-# Construcción de la Barra Lateral Común (Sidebar)
+# Encabezado Principal
 with st.sidebar:
     st.header("📋 Monitoreo de Red")
     st.success("🔒 Conexión Encriptada")
     st.markdown("**Organización:** Asociación Civil (Título II)")
     st.markdown("**Ubicación:** Agua Prieta, Sonora")
-    
     st.header("🛑 Seguridad Corporativa")
     if st.button("❌ Cerrar Aplicación (Logout)", use_container_width=True, type="primary"):
         logout()
-    
     st.markdown("---")
     st.header("⚙️ Presupuesto Global")
     presupuesto_total = st.number_input("Bolsa Económica Mensual Operativa (MXN)", min_value=10000, value=250000, step=10000)
 
-# Declaración unificada de las 5 pestañas de navegación para el Agente Capacitador
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🛡️ Módulo 1: Blindaje IVA", 
-    "🧮 Módulo 2: Prorrateo IVA", 
-    "👥 Módulo 3: Nómina Asimilada",
-    "📊 Módulo 4: Microseguros (S.A.)",
-    "🏦 Módulo 5: Caja de Ahorro (Brazo Fuerte)"
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "🛡️ Módulo 1: Blindaje IVA", "🧮 Módulo 2: Prorrateo IVA", "👥 Módulo 3: Nómina Asimilada",
+    "📊 Módulo 4: Microseguros (S.A.)", "🏦 Módulo 5: Caja de Ahorro (Brazo Fuerte)", "📝 Módulo 6: Repositorio Editable"
 ])
 # ==============================================================================
-# SUBPARTE 2 DE 3: MÓDULOS FISCALES (COMPORTAMIENTO DE IVA E ISR)
+# PARTE 2 DE 3: MÓDULOS FISCALES (COMPORTAMIENTO DE IVA E ISR)
 # ==============================================================================
-
-# TODAS LAS VARIABLES FINANCIERAS DECLARADAS COMO FLOAT (.0) PARA EVITAR MIXED TYPES ERROR
 num_talleres_global = 65
 prima_individual_global = 120.0
 comision_retorno_global = 20
@@ -108,7 +133,7 @@ with tab1:
     col_t1_l, col_t1_r = st.columns(2)
     with col_t1_l:
         num_talleres = st.slider("Talleres Populares Integrados (Miembros Adherentes)", min_value=5, max_value=300, value=num_talleres_global)
-        num_talleres_global = num_talleres # Sincronización en tiempo real
+        num_talleres_global = num_talleres 
         cuota_calculada = float(presupuesto_total / num_talleres)
         
         c1, c2 = st.columns(2)
@@ -151,10 +176,10 @@ with tab3:
     r_as2.metric("Retención Total ISR a Enterar", f"${isr_retenido * num_promotores:,.2f} MXN")
     r_as3.metric("Ahorro en ISR Corporativo A.C.", f"${ahorrado_isr_ac:,.2f} MXN", delta="Gasto Justificado")
 # ==============================================================================
-# SUBPARTE 3 DE 3: SUBSISTEMAS DE MICROSEGUROS Y CAJA DE AHORRO (VÍNCULO FINANCIERO)
+# PARTE 3 DE 3: SUBSISTEMAS, CAJA DE AHORRO Y REPOSITORIO LEGAL EDITABLE
 # ==============================================================================
 
-# ----- PESTAÑA 4: MICROSEGUROS (SUBSISTEMA FILIAL MERCANTIL) -----
+# ----- PESTAÑA 4: MICROSEGUROS -----
 with tab4:
     st.header("Gestión Financiera de la Agencia de Microseguros (S.A.)")
     col_t4_l, col_t4_r = st.columns(2)
@@ -175,84 +200,81 @@ with tab4:
     m_s2.metric("Comisión Retornada a la A.C.", f"${retorno_anual_ac:,.2f} MXN", delta="Ingreso de Fomento")
     m_s3.metric("Fondo de Reserva para Siniestros", f"${fondo_siniestros:,.2f} MXN")
 
-# ----- PESTAÑA 5: CAJA DE AHORRO (EL BRAZO FUERTE Y VÍNCULO CORPORATIVO) -----
+# ----- PESTAÑA 5: CAJA DE AHORRO -----
 with tab5:
     st.header("🏦 El Brazo Fuerte: Caja de Ahorro y Consolidación de Vínculos Financieros")
-    st.caption("Monitoreo en tiempo real del flujo cruzado de capital de los subsistemas autónomos hacia la cuenta matriz.")
-    
     col_t5_l, col_t5_r = st.columns(2)
     with col_t5_l:
         st.subheader("📥 Fuentes de Inyección de Capital Social (Mensual)")
         ahorrio_barrio_mensual = st.number_input("Ahorros Directos de los Trabajadores de Agua Prieta", min_value=0.0, value=55000.0)
-        
-        # VÍNCULO CORPORATIVO AUTOMÁTICO: Extracción mensual de la comisión por seguros calculada arriba
         comision_seguros_mensual = float(retorno_anual_ac / 12)
         st.markdown(f"➕ **Inyección Automatizada desde Agencia de Seguros:** `${comision_seguros_mensual:,.2f} MXN/mes` *(Pestaña 4)*")
-        
-        # ALINEACIÓN DE DECIMALES EXCELENTE: min_value (0.0) y value (excedente_coop_global = 35000.0) son floats unificados
         excedente_cooperativa = st.number_input("Inyección de Utilidades desde la Cooperativa de Logística", min_value=0.0, value=excedente_coop_global)
-    
     with col_t5_r:
         st.subheader("📐 Colocación de Crédito para Maquinaria")
         monto_credito = st.number_input("Monto por Microcrédito de Emprendimiento Popular", min_value=5000.0, value=35000.0, step=5000.0)
         tasa_social = st.slider("Tasa de Interés Activa Social Anual (%)", min_value=3, max_value=20, value=7)
 
-    # Cálculo traslacional del circuito de capitales
     capital_mensual_total = ahorrio_barrio_mensual + comision_seguros_mensual + excedente_cooperativa
     capital_anual_total = capital_mensual_total * 12
     creditos_otorgados = int(capital_anual_total // monto_credito)
     interes_retornado_fondo = (capital_anual_total * 0.80) * (tasa_social / 100)
 
-    st.markdown("---")
-    st.markdown("### 📊 Balance de Consolidación del Circuito Cerrado de Riqueza")
-    
     f1, f2, f3 = st.columns(3)
     f1.metric("Flujo de Entrada Mensual Unificado", f"${capital_mensual_total:,.2f} MXN", delta="Tránsito Limpio de IVA")
     f2.metric("Capacidad Total del Brazo Fuerte (Anual)", f"${capital_anual_total:,.2f} MXN", delta="Independencia Bancaria")
     f3.metric("Microcréditos de Maquinaria Viables", f"{creditos_otorgados} Préstamos", delta=f"+${interes_retornado_fondo:,.2f} Crecimiento de Caja")
 
-    st.markdown("---")
-    st.success("🎯 **Evidencia del Vínculo Financiero (Defensa Jurídica del Agente):**")
-    st.markdown(f"""
-    * **Materialidad ante Auditorías:** Del flujo anual acumulado de **${capital_anual_total:,.2f} MXN**, el SAT identifica que el 100% de las inyecciones de la Cooperativa y la Agencia de Seguros están respaldadas por contratos de servicios de asistencia técnica y capacitación exentos de IVA.
-    * **Circulación de Riqueza:** Los intereses generados de **${interes_retornado_fondo:,.2f} MXN** no se distribuyen entre los socios directores como ganancias capitalistas; se quedan etiquetados en la cuenta de orden para absorber pérdidas por siniestros no cubiertos, manteniendo la naturaleza civil de la organización.
-    """)
+# ----- PESTAÑA 6: REPOSITORIO LEGAL TOTALMENTE EDITABLE -----
+with tab6:
+    st.header("📜 Gestor Legal de Instrumentos Jurídicos Autónomos")
+    st.caption("Selecciona, consulta, edita y consolida los estatutos y contratos del ecosistema con un solo clic.")
+    
+    # 1. Menú interactivo de un solo clic
+    opciones_docs = [
+        "Sub-Acta 1: Agencia de Seguros (S.A. de C.V.)",
+        "Sub-Acta 2: Cooperativa de Logística (S.C. de R.L.)",
+        "Contrato 1: Corretaje Social (A.C. ── Agencia Seguros)",
+        "Contrato 2: Fideicomiso Privado (A.C. ── Caja de Ahorro)"
+    ]
+    doc_seleccionado = st.selectbox("⚡ Selecciona el documento que deseas trabajar:", opciones_docs)
+    
+    # 2. Mapear la selección con las variables editables de st.session_state
+    if doc_seleccionado == "Sub-Acta 1: Agencia de Seguros (S.A. de C.V.)":
+        texto_inicial = st.session_state["doc_seguros"]
+        key_memoria = "doc_seguros"
+    elif doc_seleccionado == "Sub-Acta 2: Cooperativa de Logística (S.C. de R.L.)":
+        texto_inicial = st.session_state["doc_cooperativa"]
+        key_memoria = "doc_cooperativa"
+    elif doc_seleccionado == "Contrato 1: Corretaje Social (A.C. ── Agencia Seguros)":
+        texto_inicial = st.session_state["doc_corretaje"]
+        key_memoria = "doc_corretaje"
+    else:
+        texto_inicial = st.session_state["doc_fideicomiso"]
+        key_memoria = "doc_fideicomiso"
+        
+    st.markdown("### 🛠️ Editor Legal Activo")
+    
+    # 3. El cuadro de texto ahora es editable y actualiza la memoria del servidor de forma reactiva
+    texto_editado = st.text_area(
+        label=f"Modifica las cláusulas de: {doc_seleccionado}",
+        value=texto_inicial,
+        height=400,
+        help="Cualquier cambio que realices aquí se actualizará de inmediato en los reportes del tablero."
+    )
+    
+    # 4. Botón de guardado definitivo con un clic
+    if st.button("💾 Consolidar y Guardar Cambios en el Estatuto", type="secondary"):
+        st.session_state[key_memoria] = texto_editado
+        st.success(f"✓ El documento '{doc_seleccionado}' ha sido actualizado con éxito en la memoria institucional de la A.C.")
 
-# RECONFIGURACIÓN VISUAL DE LA MATRIZ DE VÍNCULOS (CORREGIDO CON ARGUMENTO NUMÉRICO 3)
+# MATRIZ FINAL DE COMPORTAMIENTO CORPORATIVO
 st.markdown("---")
 st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
-
 col_v1, col_v2, col_v3 = st.columns(3)
-
 with col_v1:
-    st.markdown("""
-    <div style='background-color: #d4edda; padding: 15px; border-radius: 8px; border-left: 5px solid #28a745;'>
-        <h4 style='color: #155724; margin-top:0;'>🟢 Nodo Central: Asociación Civil</h4>
-        <p style='color: #1c7430; font-size: 14px;'>
-            <b>Función:</b> Absorción de flujos indirectos y dispersión de nómina barrial.<br>
-            <b>Estatus Fiscal:</b> 0% IVA Trasladado / Escudo del 30% ISR vía Asimilados.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
+    st.markdown("<div style='background-color: #d4edda; padding: 15px; border-radius: 8px; border-left: 5px solid #28a745;'><h4 style='color: #155724; margin-top:0;'>🟢 Nodo Central: Asociación Civil</h4><p style='color: #1c7430; font-size: 14px;'><b>Función:</b> Absorción de flujos indirectos y dispersión de nómina barrial.<br><b>Estatus Fiscal:</b> 0% IVA Trasladado / Escudo del 30% ISR vía Asimilados.</p></div>", unsafe_allow_html=True)
 with col_v2:
-    st.markdown("""
-    <div style='background-color: #d1ecf1; padding: 15px; border-radius: 8px; border-left: 5px solid #17a2b8;'>
-        <h4 style='color: #0c5460; margin-top:0;'>🔵 Brazo Fuerte: Caja de Ahorro</h4>
-        <p style='color: #117a8b; font-size: 14px;'>
-            <b>Contrato Blanco:</b> Fideicomiso y Cuenta de Orden.<br>
-            <b>Impacto:</b> Resguarda el capital semilla de Agua Prieta sin acumular base gravable corporativa.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
+    st.markdown("<div style='background-color: #d1ecf1; padding: 15px; border-radius: 8px; border-left: 5px solid #17a2b8;'><h4 style='color: #0c5460; margin-top:0;'>🔵 Brazo Fuerte: Caja de Ahorro</h4><p style='color: #117a8b; font-size: 14px;'><b>Contrato Blanco:</b> Fideicomiso y Cuenta de Orden.<br><b>Impacto:</b> Resguarda el capital de Agua Prieta sin acumular base gravable corporativa.</p></div>", unsafe_allow_html=True)
 with col_v3:
-    st.markdown("""
-    <div style='background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107;'>
-        <h4 style='color: #856404; margin-top:0;'>💛 Riesgos: Agencia de Seguros</h4>
-        <p style='color: #9e7e1a; font-size: 14px;'>
-            <b>Contrato Rojo:</b> Corretaje Social (Retorno del 20%).<br>
-            <b>Impacto:</b> Transforma primas comerciales de la S.A. en fondos limpios para el desarrollo popular.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div style='background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107;'><h4 style='color: #856404; margin-top:0;'>💛 Riesgos: Agencia de Seguros</h4><p style='color: #9e7e1a; font-size: 14px;'><b>Contrato Rojo:</b> Corretaje Social (Retorno del 20%).<br><b>Impacto:</b> Transforma primas comerciales de la S.A. en fondos limpios para el desarrollo popular.</p></div>", unsafe_allow_html=True)
