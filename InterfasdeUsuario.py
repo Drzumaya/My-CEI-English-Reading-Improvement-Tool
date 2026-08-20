@@ -1,14 +1,14 @@
 import streamlit as st
 import io
 from datetime import datetime
-# Motores ReportLab puros para asegurar renderizado exitoso en la nube
+# Motores ReportLab puros de alta compatibilidad para servidores en la nube
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # ==============================================================================
-# PARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD E INICIALIZACIÓN DE REPORTES EDITABLES
+# PARTE 1 DE 3: CONFIGURACIÓN, SEGURIDAD E INICIALIZACIÓN DE REPORTES
 # ==============================================================================
 st.set_page_config(
     page_title="Tablero Integrado - Agua Prieta",
@@ -29,7 +29,7 @@ if "reporte_fiscal_texto" not in st.session_state:
     st.session_state["reporte_fiscal_texto"] = "Informe contable de validacion para la Asociacion Civil que ampara la captacion de cuotas extraordinarias de recuperacion exentas de IVA y la retribucion de lideres tecnicos de Agua Prieta Sonora."
 
 if "reporte_seguros_texto" not in st.session_state:
-    st.session_state["reporte_seguros_texto"] = "Certificado anual expedido por el Subsistema de Gestion de Riesgos que detalla la captacion de primas comerciales y el retorno legal de utilidades hacia el fondo de desarrollo de la Asociacion Civil."
+    st.session_state["reporte_seguros_texto"] = "Certificado anual expedido por el Subsistema de Gestion de Riesgos que detalla la captacion de primas comerciales and el retorno legal de utilidades hacia el fondo de desarrollo de la Asociacion Civil."
 
 if "reporte_caja_texto" not in st.session_state:
     st.session_state["reporte_caja_texto"] = "Balance consolidador del circuito cerrado de riqueza de Agua Prieta Sonora. Valida el capital semilla disponible para financiamientos de activos fijos de baja escala sin intermediacion bancaria tradicional."
@@ -82,7 +82,7 @@ def registrar_descarga(modulo, archivo):
         "Fecha y Hora": now, "Módulo": modulo, "Archivo Descargado": archivo, "Estatus": "Éxito (Generado en Servidor)"
     })
 
-# Generador de Informes Técnicos en PDF (Nivel Doctoral)
+# Generador de Informes Técnicos en PDF (CORREGIDO CON VALORES FIJOS EN COLWIDTHS)
 def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
@@ -100,7 +100,8 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
     story.append(Paragraph(resumen_texto, estilo_cuerpo))
     story.append(Spacer(1, 15))
     
-    tabla_pdf = Table(datos_tabla, colWidths=)
+    # SOLUCIÓN DEL SYNTAXERROR: Se definen 240 puntos de ancho para cada columna
+    tabla_pdf = Table(datos_tabla, colWidths=[240, 240])
     tabla_pdf.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (1, 0), color_primario), ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
         ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
@@ -120,7 +121,7 @@ presupuesto_total = st.sidebar.number_input("Bolsa Económica Mensual Operativa 
 tabs = st.tabs(["🛡️ IVA e ISR", "📊 Microseguros", "🏦 Caja de Ahorro", "📈 Estadísticas Anuales", "📝 Editor Estatutario", "📑 Historial de Descargas"])
 tab1, tab4, tab5, tab_stats, tab6, tab_log = tabs
 # ==============================================================================
-# PARTE 2 DE 3: MÓDULOS DE SIMULACIÓN CON GESTORES PDF INDEPENDIENTES
+# PARTE 2 DE 3: SIMULADORES OPERATIVOS E INYECTORES CON GESTORES PDF
 # ==============================================================================
 num_talleres_global = 65
 prima_individual_global = 120.0
@@ -140,14 +141,12 @@ with tab1:
     with col2:
         st.subheader("📑 Centro de Edición y Compilación del Informe Fiscal")
         
-        # Sistema de Edición y Guardado de Cambios
         with st.expander("📝 Botón: Editar Cuerpo del Reporte"):
             txt_fiscal_editado = st.text_area("Modifica el texto introductorio del PDF:", value=st.session_state["reporte_fiscal_texto"], key="edit_t1_area")
             if st.button("💾 Guardar Cambios en Reporte Fiscal", key="save_t1_btn"):
                 st.session_state["reporte_fiscal_texto"] = txt_fiscal_editado
                 st.success("✓ Cambios consolidados en el borrador fiscal.")
 
-        # Recalcular la matriz de datos en tiempo real para el PDF
         tabla_datos_t1 = [
             ["Indicador Técnico / Concepto", "Monto Calculado (MXN)"],
             ["Bolsa Operativa Mensual Inyectada", f"${float(presupuesto_total):,.2f}"],
@@ -156,7 +155,6 @@ with tab1:
             ["Escudo Fiscal Generado (30% ISR Mitigado)", f"${float(presupuesto_total * 0.30):,.2f}"]
         ]
         
-        # Botón de consulta y descarga final compilandose con las ediciones guardadas
         pdf_t1 = generar_informe_pdf("Informe de Blindaje Fiscal y Remanentes", tabla_datos_t1, st.session_state["reporte_fiscal_texto"])
         st.markdown("<br>", unsafe_allow_html=True)
         if st.download_button(label="📥 Descargar Reporte de Blindaje Fiscal (PDF)", data=pdf_t1, file_name="Reporte_Fiscal_AC.pdf", mime="application/pdf", key="dl_t1"):
@@ -258,7 +256,8 @@ with tab_stats:
         pdf_stats = generar_informe_pdf(f"Auditoría Histórica - Ejercicio {anio_seleccionado}", tabla_datos_stats, texto_resumen_stats)
         st.markdown("<div style='padding-top:25px;'></div>", unsafe_allow_html=True)
         
-        nombre_pdf_stats = f"Auditoria_{anio_seleccionado.split()[0]}.pdf"
+        # Corrección complementaria de formato de cadena para el nombre del archivo
+        nombre_pdf_stats = f"Auditoria_{anio_seleccionado.replace(' ', '_')}.pdf"
         if st.download_button(label=f"📥 Descargar Reporte Histórico {anio_seleccionado} (PDF)", data=pdf_stats, file_name=nombre_pdf_stats, mime="application/pdf", key="dl_stats"):
             registrar_descarga("📈 Estadísticas Anuales", nombre_pdf_stats)
 
@@ -307,8 +306,8 @@ st.markdown("---")
 st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
 col_v1, col_v2, col_v3 = st.columns(3)
 with col_v1:
-    st.markdown("<div style='background-color: #d4edda; padding: 15px; border-radius: 8px; border-left: 5px solid #28a745;'><h4 style='color: #155724; margin-top:0;'>🟢 Nodo Central: Asociación Civil</h4><p style='color: #1c7430; font-size: 14px;'><b>Función:</b> Absorción de flujos indirectos y dispersión de nómina barrial.<br><b>Estatus:</b> 0% IVA / Escudo 30% ISR vía Asimilados.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div style='background-color: #d4edda; padding: 15px; border-radius: 8px; border-left: 5px solid #28a745;'><h4 style='color: #155724; margin-top:0;'>🟢 Nodo Central: Asociación Civil</h4><p style='color: #1c7430; font-size: 14px;'><b>Función:</b> Absorción de flujos indirectos y distribución de nómina barrial.<br><b>Estatus:</b> 0% IVA / Escudo 30% ISR vía Asimilados.</p></div>", unsafe_allow_html=True)
 with col_v2:
-    st.markdown("<div style='background-color: #d1ecf1; padding: 15px; border-radius: 8px; border-left: 5px solid #17a2b8;'><h4 style='color: #0c5460; margin-top:0;'>🔵 Brazo Fuerte: Caja de Ahorro</h4><p style='color: #117a8b; font-size: 14px;'><b>Contrato Blanco:</b> Fideicomiso / Cuenta de Orden.<br><b>Impacto:</b> Resguarda el capital de Agua Prieta libre de base gravable.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div style='background-color: #d1ecf1; padding: 15px; border-radius: 8px; border-left: 5px solid #17a2b8;'><h4 style='color: #0c5460; margin-top:0;'>🔵 Brazo Fuerte: Caja de Ahorro</h4><p style='color: #117a8b; font-size: 14px;'><b>Contrato Blanco:</b> Fideicomiso / Cuenta de Orden.<br><b>Impacto:</b> Resguarda el capital de Agua Prieta libre de base gravable corporativa.</p></div>", unsafe_allow_html=True)
 with col_v3:
-    st.markdown("<div style='background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107;'><h4 style='color: #856404; margin-top:0;'>💛 Riesgos: Agencia de Seguros</h4><p style='color: #9e7e1a; font-size: 14px;'><b>Contrato Rojo:</b> Corretaje Social (Retorno 20%).<br><b>Impacto:</b> Transforma utilidades de la S.A. en fondos limpios de fomento.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div style='background-color: #fff3cd; padding: 15px; border-radius: 8px; border-left: 5px solid #ffc107;'><h4 style='color: #856404; margin-top:0;'>💛 Riesgos: Agencia de Seguros</h4><p style='color: #9e7e1a; font-size: 14px;'><b>Contrato Rojo:</b> Corretaje Social (Retorno 20%).<br><b>Impacto:</b> Transforma utilidades de la S.A. en fondos de fomento social.</p></div>", unsafe_allow_html=True)
