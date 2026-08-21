@@ -115,7 +115,7 @@ if "repositorio_institucional" not in st.session_state:
         }
     }
 # ==============================================================================
-# PARTE 8 DE 17: SUBRUTINAS DE AUDITORÍA REGISTRAL Y CONTROL FISCAL CENTRAL
+# PARTE 8 DE 17: SUBRUTINAS DE AUDITORÍA REGISTRAL CENTRAL FISCAL
 # ==============================================================================
 def registrar_descarga(modulo, archivo):
     """Inyecta de forma síncrona la estampa de tiempo de las descargas en la bitácora contable."""
@@ -156,53 +156,49 @@ def check_password():
 if not check_password():
     st.stop()
 # ==============================================================================
-# PARTE 9 DE 17: MOTOR DE COMPILACIÓN VANGUARDISTA (PDF EJECUTIVO CON LOGO)
+# PARTE 9 DE 17: MOTOR DE COMPILACIÓN VANGUARDISTA CORREGIDO (SIN ERRORES DE TAGS)
 # ==============================================================================
 def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
-    """Compila estados financieros o analíticos en un formato PDF de vanguardia con logo institucional."""
+    """Compila estados contables en un formato PDF vanguardista libre de errores de tags HTML."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=42, leftMargin=40, topMargin=40, bottomMargin=40)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
     
-    # Paleta de Colores de Alta Dirección JZPAC
-    color_primario = colors.HexColor("#1e4620")   # Verde Forestal Institucional
-    color_secundario = colors.HexColor("#2d5a27") # Verde Oliva de Control
-    color_acento = colors.HexColor("#495057")     # Gris Ejecutivo Oscuro
+    color_primario = colors.HexColor("#1e4620")   # Verde Forestal JZPAC
+    color_acento = colors.HexColor("#495057")     # Gris Ejecutivo
     
-    # Tipografías y Jerarquías Estilizadas
-    estilo_titulo = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=15, fontName='Helvetica-Bold', textColor=color_primario, spaceAfter=2)
+    estilo_titulo = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=14, fontName='Helvetica-Bold', textColor=color_primario, spaceAfter=2)
     estilo_sub = ParagraphStyle('DocSub', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=color_acento, spaceAfter=12)
     estilo_cuerpo = ParagraphStyle('DocBody', parent=styles['Normal'], fontSize=10, fontName='Helvetica', leading=15, textColor=colors.HexColor("#212529"), spaceAfter=14)
     estilo_firmas = ParagraphStyle('DocSign', parent=styles['Normal'], fontSize=8, fontName='Helvetica', alignment=1)
     
     story = []
     
-    # --- ENCABEZADO VANGUARDISTA DE DOS COLUMNAS (Texto Institucional a la Izquierda, Logo a la Derecha) ---
+    # --- CONSTRUCCIÓN SEGURA DEL ENCABEZADO ASIMÉTRICO ---
+    # Procesar el logotipo como un objeto Flowable real dentro de una lista de celdas
+    from reportlab.platypus import Image as RLImage
+    logo_flowable = ""
+    try:
+        logo_flowable = [RLImage("JZPACLOGOREDONDO.png", width=42, height=42)]
+    except Exception:
+        logo_flowable = [Paragraph("<b>🦅 JZPAC</b>", ParagraphStyle('Fb', fontSize=10, textColor=color_primario, alignment=2))]
+
     header_text = [
-        [Paragraph(f"<b>{titulo_modulo.upper()}</b>", estilo_titulo), ""],
+        [Paragraph(f"<b>{titulo_modulo.upper()}</b>", estilo_titulo), logo_flowable],
         [Paragraph("<b>JACOB ZUMAYA PRIANTI, A.C.</b> • Ecosistema de Economía Popular AP-AC", estilo_sub), ""]
     ]
     
-    # Tabla base para el acomodo del encabezado asimétrico
     header_table = Table(header_text, colWidths=[380.0, 100.0])
     header_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('SPAN', (1,0), (1,1)), # Expandir el logotipo en el ala derecha de la cabecera
         ('ALIGN', (1,0), (1,-1), 'RIGHT'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('TOPPADDING', (0,0), (-1,-1), 0),
     ]))
-    
-    # Inyección asimétrica del Logotipo Oficial Redondo desde el repositorio al PDF
-    from reportlab.platypus import Image as RLImage
-    try:
-        header_table._cellvalues[0][1] = RLImage("JZPACLOGOREDONDO.png", width=42, height=42)
-    except Exception:
-        # Fallback tipográfico por seguridad por si hay demoras de carga en el servidor
-        header_table._cellvalues[0][1] = Paragraph("<b>🦅 JZPAC</b>", ParagraphStyle('Fback', fontSize=10, textColor=color_primario, alignment=2))
-        
     story.append(header_table)
     
-    # Línea Geométrica Vanguardista de Separación Corporativa (Grosor 1.5 puntos)
+    # Línea Divisoria Industrial
     divider_line = Table([[""]], colWidths=[480.0])
     divider_line.setStyle(TableStyle([
         ('LINEBELOW', (0,0), (-1,-1), 1.5, color_primario),
@@ -212,41 +208,38 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
     story.append(divider_line)
     story.append(Spacer(1, 10))
     
-    # --- CUERPO NARRATIVO OPERATIVO ---
+    # Texto del Manual / Simulador
     story.append(Paragraph(resumen_texto, estilo_cuerpo))
     story.append(Spacer(1, 8))
     
-    # --- TABLA ANALÍTICA RECONFIGURADA CON COLWIDTHS EXACTOS ---
+    # Matriz Analítica con colWidths reparado
     tabla_pdf = Table(datos_tabla, colWidths=[240.0, 240.0])
     tabla_pdf.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (1, 0), color_primario),
-        ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
-        ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 0), (1, 0), color_primario), ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
+        ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")), ('FONTSIZE', (0, 0), (-1, -1), 9),
     ]))
     story.append(tabla_pdf)
-    story.append(Spacer(1, 25))
+    story.append(Spacer(1, 30))
     
-    # --- ANCLA DE CALCE VANGUARDISTA DE VALIDACIÓN (CUADRO DE TRIPLES FIRMAS) ---
+    # --- CONSTRUCCIÓN SEGURA DEL CUADRO DE TRIPLES FIRMAS (SIN TAGS <BR> CONFLICTIVOS) ---
     datos_firmas = [
-        ["", "", ""],
         ["____________________________", "____________________________", "____________________________"],
-        [Paragraph("<b>Agente Capacitador Central</b><br>Jacob Zumaya Prianti, A.C.", estilo_firmas),
-         Paragraph("<b>Director de Subsistema</b><br>Gobernanza de Célula de Barrio", estilo_firmas),
-         Paragraph("<b>Delegación de Control SAT</b><br>Materialidad e Inclusión Fiscal", estilo_firmas)]
+        [Paragraph("<b>Agente Capacitador Central</b>", estilo_firmas),
+         Paragraph("<b>Director de Subsistema</b>", estilo_firmas),
+         Paragraph("<b>Delegación de Control SAT</b>", estilo_firmas)],
+        [Paragraph("Jacob Zumaya Prianti, A.C.", estilo_firmas),
+         Paragraph("Gobernanza de Célula de Barrio", estilo_firmas),
+         Paragraph("Materialidad e Inclusión Fiscal", estilo_firmas)]
     ]
     
     tabla_firmas = Table(datos_firmas, colWidths=[155.0, 170.0, 155.0])
     tabla_firmas.setStyle(TableStyle([
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('TOPPADDING', (0,2), (-1,2), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
     ]))
     story.append(tabla_firmas)
     
@@ -254,10 +247,10 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
     buffer.seek(0)
     return buffer
 # ==============================================================================
-# PARTE 10 DE 17: MOTOR DE ENCUADERNACIÓN DE MONOGRAFÍAS CON ÍNDICE (APA 7)
+# PARTE 10 DE 17: MOTOR DE ENCUADERNACIÓN DE MONOGRAFÍAS CON ÍNDICE SEGURO (APA 7)
 # ==============================================================================
 def generar_libro_apa7(nombre_entidad, diccionario_marcos):
-    """Compila y encuaderna toda la documentación de una entidad en un libro estilo APA 7 con Índice."""
+    """Compila e imprime toda la documentación de una entidad en un libro estilo APA 7 con Índice Seguro."""
     buffer_libro = io.BytesIO()
     doc = SimpleDocTemplate(buffer_libro, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
     styles = getSampleStyleSheet()
@@ -271,19 +264,20 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos):
     estilo_indice = ParagraphStyle('DocIndex', fontName='Helvetica', fontSize=10, textColor=colors.black, spaceAfter=8)
     
     story = []
-    
-    # --- 1. FRONTISPICIO DE PORTADA CON INYECCIÓN DEL LOGO CORPORATIVO ---
     story.append(Spacer(1, 20))
+    
+    # Inyección Controlada del Logo en la Portada del Libro
     from reportlab.platypus import Image as RLImage
     try:
-        story.append(RLImage("JZPACLOGOREDONDO.png", width=65, height=65))
+        story.append(RLImage("JZPACLOGOREDONDO.png", width=60, height=65))
         story.append(Spacer(1, 15))
     except Exception:
         pass
         
-    story.append(Paragraph(f"<b>JACOB ZUMAYA PRIANTI, A.C.</b>", ParagraphStyle('TopN', fontName='Helvetica-Bold', fontSize=12, textColor=color_corporativo, alignment=1, spaceAfter=20)))
-    story.append(Paragraph(f"<b>COMPENDIO INSTITUCIONAL INTEGRAL DE CONTROL VINCULADO</b>", estilo_portada_titulo))
-    story.append(Paragraph(f"<b>Subsistema Técnico-Legal: {nombre_entidad.upper()}</b>", ParagraphStyle('SubC', parent=estilo_portada_titulo, fontSize=14, textColor=colors.black)))
+    story.append(Paragraph("<b>JACOB ZUMAYA PRIANTI, A.C.</b>", ParagraphStyle('TopN', fontName='Helvetica-Bold', fontSize=11, textColor=color_corporativo, alignment=1, spaceAfter=20)))
+    story.append(Paragraph("<b>COMPENDIO INSTITUCIONAL INTEGRAL DE CONTROL VINCULADO</b>", estilo_portada_titulo))
+    story.append(Paragraph(f"<b>Subsistema Técnico-Legal: {nombre_entidad.upper()}</b>", ParagraphStyle('SubC', parent=estilo_portada_titulo, fontSize=13, textColor=colors.black)))
+    st.markdown("<div style='padding-top:5px;'></div>", unsafe_allow_html=True)
     story.append(Spacer(1, 30))
     story.append(Paragraph("<b>Línea de Investigación:</b> Crecimiento Endógeno y Retención de Valor Fronterizo", estilo_portada_meta))
     story.append(Paragraph("<b>Autor Corporativo:</b> Consejo Directivo Central JZPAC - Agente Capacitador", estilo_portada_meta))
@@ -294,21 +288,20 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos):
     
     story.append(PageBreak())
     
-    # --- 2. ÍNDICE GENERAL AUTOMATIZADO CON DISEÑO VANGUARDISTA DE PUNTOS ---
+    # Índice Analítico General
     story.append(Paragraph("<b>ÍNDICE GENERAL DE CAPÍTULOS</b>", estilo_apa_h1))
     story.append(Spacer(1, 15))
     
     num_capitulo = 1
     for titulo_manual in diccionario_marcos.keys():
         linea_puntos = ". " * 32
-        # Estructura del renglón del índice alineado dinámicamente
         renglon_indice = f"<b>Capítulo {num_capitulo}:</b> {titulo_manual} {linea_puntos} [Ver Sección]"
         story.append(Paragraph(renglon_indice, estilo_indice))
         num_capitulo += 1
         
     story.append(PageBreak())
     
-    # --- 3. ENCUADERNACIÓN CRONOLÓGICA DE CAPÍTULOS ---
+    # Despliegue de los Tomos del Manual
     for titulo_manual, texto_contenido in diccionario_marcos.items():
         story.append(Paragraph(f"<b>{titulo_manual}</b>", estilo_apa_h1))
         story.append(Spacer(1, 10))
@@ -321,8 +314,8 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos):
         story.append(Spacer(1, 15))
         
     doc.build(story)
-    buffer.seek(0)
-    return buffer
+    buffer_libro.seek(0)
+    return buffer_libro
 # ==============================================================================
 # PARTE 10 DE 17: COMPILADOR DE LIBROS COMPENDIOS CON ÍNDICE DE CONTENIDOS APA 7
 # ==============================================================================
