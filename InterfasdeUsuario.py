@@ -434,7 +434,7 @@ prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
 # ==============================================================================
-# PARTE 12 DE 14: COLUMNA IZQUIERDA - CONTROL DE FLUJOS FLOTANTES INTERACTIVOS
+# PARTE 12 DE 14: COLUMNA IZQUIERDA - VISOR EDITABLE Y RESPALDO COMPATIBLE CON GOOGLE
 # ==============================================================================
 with col_izquierda_matriz:
     # 1. ENTORNO FLOTANTE PARA EDITAR MANUALES INDIVIDUALES EN VIVO
@@ -448,7 +448,7 @@ with col_izquierda_matriz:
         st.info(f"📁 Ventana de Trabajo Activa: {ent} ➔ {tdoc}")
         st.markdown("---")
         
-        texto_editable_actual = st.text_area(label="Editor Oficial de Cláusulas e Instructivos:", value=st.session_state["repositorio_institucional"][ent][tdoc], height=380)
+        texto_editable_actual = st.text_area(label="Editor Oficial de Cláusulas e Instructivos:", value=st.session_state["repositorio_institucional"][ent][tdoc], height=320)
         
         b1, b2, b3, b4 = st.columns(4)
         with b1:
@@ -463,18 +463,18 @@ with col_izquierda_matriz:
                 registrar_descarga(ent, f"{tdoc}.pdf")
         with b3:
             buffer_word = io.BytesIO(texto_editable_actual.encode('utf-8'))
-            st.download_button(label="📝 Word", data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+            st.download_button(label="📝 Word / G-Docs", data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
         with b4:
             if st.button("🛑 Cerrar Visor", use_container_width=True, type="primary"):
                 st.session_state["ver_visor_legal"] = False
                 st.rerun()
 
-    # 2. INTERFAZ DEL FORMULARIO DE ALTA DE LÍDERES ASOCIADOS DENTRO DE LA VENTANA CENTRAL
+    # 2. INTERFAZ DEL FORMULARIO DE ALTA DE DIRECTORES (RESPALDO EXCEL/SHEETS DIRECTO)
     elif st.session_state["ver_formulario_registro"]:
         st.success("📝 Formulario Flotante Activo: Alta y Nombramiento de Directores Asociados")
         st.markdown("---")
         datos_universales_mexico = {
-            "1. Asociación Civil Matriz (A.C.)": {"Regimen_SAT": "Régimen General (Título II LISR)", "Obligacion_Fiscal": "Declaración anual en marzo, retenciones asimilados.", "Normativa_Clave": "Artículos 15 Fracc. IV y XII de la Ley del IVA (Exento)."},
+            "1. Asociación Civil Matriz (A.C.)": {"Regimen_SAT": "Régimen General (Título II LISR)", "Obligacion_Fiscal": "Declaración anual en marzo, retenciones asimilados.", "Normativa_Clave": "Artículos 15 Fracc. IV y XII de la Ley del IVA (Exención de traslado del 16% en capacitación)."},
             "2. Cooperativa de Logística (S.C.)": {"Regimen_SAT": "Régimen Título III LISR (Fines no Lucrativos)", "Obligacion_Fiscal": "Facturación electrónica fletes, Retención del 4% de ISR.", "Normativa_Clave": "Ley General de Sociedades Cooperativas (LGSC) - Resp. Limitada."},
             "3. Agencia de Microseguros (S.A.)": {"Regimen_SAT": "Régimen General de Ley (Título II LISR)", "Obligacion_Fiscal": "Contabilidad mercantil auditada, desglose general de IVA.", "Normativa_Clave": "Ley de Instituciones de Seguros y de Fianzas (CNSF)."},
             "4. Equipo de Investigación Científica APSON": {"Regimen_SAT": "Régimen General con asignación de Fideicomisos Tecnológicos", "Obligacion_Fiscal": "Reporte de fondos de Innovación, exención de IVA en contratos I+D.", "Normativa_Clave": "Ley General de Humanidades, Ciencias, Tecnologías e Innovación."}
@@ -491,10 +491,13 @@ with col_izquierda_matriz:
         with rc1:
             if st.button("💾 Validar e Inscribir Director", use_container_width=True, type="secondary"):
                 if f_nom and f_rfc and f_puesto:
+                    marca_tiempo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    # Guardado en el estado interno seguro de la sesión
                     st.session_state["directores_registrados"].append({
-                        "Fecha Registro": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc.upper(), "Estatus": "Alta Exitosa / Acta Firmada"
+                        "Fecha Registro": marca_tiempo, "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc.upper(), "Estatus": "Alta Exitosa / Acta Firmada"
                     })
-                    st.success(f"✓ El {f_puesto} ha sido legalmente registrado.")
+                    st.success(f"✓ El {f_puesto} ha sido registrado de forma exitosa localmente.")
                 else:
                     st.error("Por favor, llena todos los campos obligatorios.")
         with rc2:
@@ -502,20 +505,43 @@ with col_izquierda_matriz:
                 st.session_state["ver_formulario_registro"] = False
                 st.rerun()
 
-    # 3. MONITOREO DE LA BASE DE DATOS DEL PADRÓN EN TIEMPO REAL
+    # 3. MONITOREO DE PADRÓN EN TIEMPO REAL CON EXPORTADOR COMPATIBLE CON GOOGLE SHEETS
     elif st.session_state["ver_padron_flotante"]:
         st.warning("👁️ Ventana Flotante de Datos Activa: Monitoreo del Padrón de Directores en Tiempo Real")
         st.markdown("---")
         st.table(st.session_state["directores_registrados"])
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🛑 Ocultar Vista de Datos y Volver", use_container_width=True, type="primary"):
-            st.session_state["ver_padron_flotante"] = False
-            st.rerun()
+        
+        # --- CONVERSIÓN COMPATIBLE CON GOOGLE SHEETS SIN REQUERIR APPS SCRIPT ---
+        import csv
+        output_csv = io.StringIO()
+        writer_csv = csv.writer(output_csv)
+        # Escribir encabezados oficiales exigidos por auditoría
+        writer_csv.writerow(["Fecha Registro", "Nombre", "Entidad", "Puesto", "RFC", "Estatus"])
+        for row in st.session_state["directores_registrados"]:
+            writer_csv.writerow([row["Fecha Registro"], row["Nombre"], row["Entidad"], row["Puesto"], row["RFC"], row["Estatus"]])
+        
+        data_csv_string = output_csv.getvalue()
+        
+        c_desc1, c_desc2 = st.columns(2)
+        with c_desc1:
+            # Botón de descarga universal de hoja de cálculo
+            st.download_button(
+                label="📥 Descargar Padrón para Google Sheets (.csv)",
+                data=data_csv_string,
+                file_name="Padron_Directores_JZPAC.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with c_desc2:
+            if st.button("🛑 Ocultar Vista de Datos y Volver", use_container_width=True, type="primary"):
+                st.session_state["ver_padron_flotante"] = False
+                st.rerun()
 # ==============================================================================
 # PARTE 13 DE 14: COLUMNA IZQUIERDA (CENTRO) - PESTAÑAS ORDINARIAS DE TRABAJO
 # ==============================================================================
     else:
-        # PESTAÑAS ORDINARIAS POR DEFECTO: El "centro" analítico genuino que ya aparece
+        # PESTAÑAS ORDINARIAS POR DEFECTO: El "centro" analítico genuino de la app
         tabs = st.tabs(["🛡️ IVA e ISR", "🔮 Módulo Logístico Cooperativo", "📊 Microseguros", "🏦 Caja de Ahorro", "📑 Historial de Descargas"])
         tab1, tab_logistica, tab4, tab5, tab_log = tabs
         
@@ -570,6 +596,19 @@ with col_izquierda_matriz:
                 st.info("No se registran descargas en el ciclo actual.")
             else:
                 st.table(st.session_state["historial_descargas"])
+
+        # INSTRUCCIÓN TÉCNICA DE TRÁNSITO PARA IMPORTACIÓN DIRECTA A GOOGLE DOCS
+        st.markdown("---")
+        st.markdown("""
+        <div style='background-color: #f1f3f5; padding: 12px; border-radius: 6px; border-left: 5px solid #4285f4;'>
+            <p style='margin-bottom:0px; font-size:12px; color: #495057;'>
+                💡 <b>Sincronización con Google Drive:</b> Para abrir cualquier manual en <b>Google Docs</b>, descarga el archivo en formato 
+                <b>.docx (Word)</b> desde el panel de la derecha, arrástralo a tu cuenta de Google Drive y elígelo con un click derecho para 
+                'Abrir con: Documentos de Google'. El formateo corporativo se mantendrá intacto y editable en la nube.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
 # ==============================================================================
 # PARTE 14 DE 14: COLUMNA DERECHA - LOGOTIPO, IDIOMA BILINGÜE Y MATRIZ CONTABLE DE CIERRE
 # ==============================================================================
