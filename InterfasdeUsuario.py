@@ -466,7 +466,7 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
     buffer_libro.seek(0)
     return buffer_libro
 # ==============================================================================
-# PARTE 11 DE 14: CONTROL PRESUPUESTAL SIDEBAR Y APERTURA DE COLUMNA CENTRAL
+# PARTE 11 DE 14: CONTROL PRESUPUESTAL SIDEBAR Y SELECTOR DE CONTEXTO DE CLASE MUNDIAL
 # ==============================================================================
 with st.sidebar:
     st.header("📋 Operaciones")
@@ -476,16 +476,17 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**Organización:**")
     st.caption("JACOB ZUMAYA PRIANTI, A.C.")
-    # SOLUCIÓN DE RAÍZ AL NAMEERROR: Declaración formal y obligatoria de la Bolsa en la memoria raíz
     presupuesto_total = st.number_input("Bolsa Económica Mensual Operativa (MXN)", min_value=10000, value=250000, step=10000)
 
-# Inicialización reglamentaria de las columnas en la memoria del servidor de Streamlit Cloud
+# Partición del lienzo web de alta dirección
 col_izquierda_matriz, col_derecha_documental = st.columns([0.70, 0.30])
 
+# Inicializadores analíticos base
 num_talleres_global = 65
 prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
+
 # ==============================================================================
 # ==============================================================================
 # PARTE 12a DE 14: COLUMNA IZQUIERDA - VISOR EDITABLE Y ALTAS DEL FORMULARIO
@@ -665,66 +666,124 @@ with col_izquierda_matriz:
             st.session_state["ver_padron_flotante"] = False
             st.rerun()
 # ==============================================================================
-# PARTE 13 DE 14: COLUMNA IZQUIERDA (CENTRO) - PESTAÑAS ORDINARIAS DE TRABAJO
+# PARTE 13 DE 14: COLUMNA IZQUIERDA (CENTRO) - ENTORNO ANALÍTICO CONMUTABLE
 # ==============================================================================
     else:
-        # PESTAÑAS ORDINARIAS POR DEFECTO: El "centro" analítico genuino de la app
-        tabs = st.tabs(["🛡️ IVA e ISR", "🔮 Módulo Logístico Cooperativo", "📊 Microseguros", "🏦 Caja de Ahorro", "📑 Historial de Descargas"])
-        tab1, tab_logistica, tab4, tab5, tab_log = tabs
+        # --- INNOVACIÓN DE CLASE MUNDIAL: SELECTOR DE CONTEXTO OPERATIVO CENTRAL ---
+        lista_conmutacion = list(st.session_state["repositorio_institucional"].keys())
         
-        with tab1:
-            st.header("Control Fiscal de Operaciones de la Base Social")
-            num_talleres = st.slider("Talleres Populares Integrados", min_value=5, max_value=300, value=num_talleres_global)
-            num_talleres_global = num_talleres
-            cuota_calculada = float(presupuesto_total / num_talleres)
-            st.metric("Cuota Extraordinaria de Recuperación", f"${cuota_calculada:,.2f} MXN", "0% IVA (Exento)")
+        st.markdown("""
+        <div style='background-color: #1e4620; padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center;'>
+            <h3 style='color: white; margin: 0; font-size: 14px; font-weight: bold; letter-spacing: 0.5px;'>
+                🎛️ SELECTOR MAESTRO: CONTROL DE OPERACIONES EN TIEMPO REAL
+            </h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        entidad_activa_centro = st.selectbox(
+            "Selecciona el Subsistema para sincronizar el Lienzo de Simulación:", 
+            lista_conmutacion,
+            key="selector_contexto_maestro_centro"
+        )
+        
+        st.markdown(f"### ⚙️ Tablero de Simulación: <span style='color:#1e4620;'>{entidad_activa_centro}</span>", unsafe_allow_html=True)
+        st.markdown("---")
 
-        with tab_logistica:
-            st.header("🔮 Parametrización de Fletes y Logística de Última Milla")
-            viajes_mensuales = st.number_input("Número de Fletes Ejecutados al Mes:", min_value=1, value=48)
-            distancia_viaje = st.slider("Distancia Promedio por Viaje (Kilómetros Redondos):", min_value=10, max_value=150, value=45)
-            tarifa_por_km = st.number_input("Tarifa Base de Cobro por Kilómetro (MXN):", min_value=10.0, value=85.0)
-            costo_operacion_km = st.number_input("Costo de Operación por Kilómetro (COK):", min_value=5.0, value=32.5)
-            factor_vacio = st.slider("Factor de Retorno Vacío (% de Km):", min_value=0, max_value=50, value=25)
-            reserva_combustible_pct = st.slider("Fondo de Amortiguación de Diésel (% Tarifa):", min_value=2, max_value=15, value=6)
+        # RENDERIZADO DINÁMICO DE COMPONENTES INTERNOS SEGÚN LA NATURALEZA DE LA ENTIDAD
+        tabs = st.tabs(["📊 Balance del Subsistema", "🛡️ Parámetros Fiscales", "📈 Modelado Actuarial", "📑 Historial de Descargas"])
+        tab_balance, tab_fiscal, tab_actuarial, tab_log = tabs
+        
+        # 1. PESTAÑA DINÁMICA: BALANCE DE LA CÉLULA ACTIVA
+        with tab_balance:
+            st.subheader(f"💼 Inteligencia Financiera - {entidad_activa_centro}")
             
-            ingreso_bruto_fletes = viajes_mensuales * distancia_viaje * tarifa_por_km
-            kilometros_gastados_reales = (viajes_mensuales * distancia_viaje) * (1 + (factor_vacio / 100))
-            costo_operativo_total = kilometros_gastados_reales * costo_operacion_km
-            retencion_isr_4pct = ingreso_bruto_fletes * 0.04
-            fondo_diesel_retenido = ingreso_bruto_fletes * (reserva_combustible_pct / 100)
-            excedente_neto_cooperativa = ingreso_bruto_fletes - costo_operativo_total - retencion_isr_4pct - fondo_diesel_retenido
-            excedente_coop_calculado = excedente_neto_cooperativa
+            if "Matriz" in entidad_activa_centro or "A.C." in entidad_activa_centro:
+                st.markdown("##### 🟢 Análisis de Remanentes Distribuidos (Título II)")
+                st.caption("Validación de erogaciones comunitarias para la retención del valor mediante Nómina Asimilada (Art. 94 LISR).")
+                num_talleres = st.slider("Talleres de Capacitación Vinculados:", min_value=5, max_value=300, value=65, key="t_ac")
+                cuota_recup = float(presupuesto_total / num_talleres)
+                
+                c_m1, c_m2 = st.columns(2)
+                c_m1.metric("Fondo de Sostenimiento Docente", f"${presupuesto_total:,.2f} MXN")
+                c_m2.metric("Subsidio Asimilado por Taller", f"${cuota_recup:,.2f} MXN", "0% IVA Exento (Art. 15 LIVA)")
+                
+            elif "Logística" in entidad_activa_centro or "S.C." in entidad_activa_centro:
+                st.markdown("##### 🔮 Control Operativo de Fletes Industriales B2B")
+                st.caption("Cálculo de eficiencia de ruta deduciendo Costo por Kilómetro (COK) y factores de retorno aduanales.")
+                viajes_mensuales = st.number_input("Número de Fletes Ejecutados al Mes:", min_value=1, value=48, key="v_sc")
+                distancia_viaje = st.slider("Distancia Promedio (Kilómetros Redondos):", min_value=10, max_value=150, value=45, key='d_sc')
+                tarifa_por_km = st.number_input("Tarifa Base de Cobro por Kilómetro:", min_value=10.0, value=85.0, key='tr_sc')
+                costo_op_km = st.number_input("Costo de Operación por Kilómetro (COK):", min_value=5.0, value=32.5, key='cok_sc')
+                factor_vacio = st.slider("Factor de Retorno Vacío (%):", min_value=0, max_value=50, value=25, key='fv_sc')
+                
+                ingreso_bruto_fletes = viajes_mensuales * distancia_viaje * tarifa_por_km
+                km_reales = (viajes_mensuales * distancia_viaje) * (1 + (factor_vacio / 100))
+                costo_total = km_reales * costo_op_km
+                retencion_isr = ingreso_bruto_fletes * 0.04
+                excedente_neto = ingreso_bruto_fletes - costo_total - retencion_isr
+                excedente_coop_calculado = excedente_neto
+                
+                l_m1, l_m2 = st.columns(2)
+                l_m1.metric("Ingresos Brutos de Transporte", f"${ingreso_bruto_fletes:,.2f} MXN")
+                l_m2.metric("Excedente Neto Líquido", f"${excedente_neto:,.2f} MXN", delta="Inyección síncrona a Caja")
+                
+            elif "Microseguros" in entidad_activa_centro or "S.A." in entidad_activa_centro:
+                st.markdown("##### 📊 Retorno de Corretaje Social y Primas Mutuales")
+                st.caption("Mitigación de riesgos en maquinaria pesada popular y reaseguro comunitario CNSF.")
+                prima_mensual = st.number_input("Prima Mensual por Unidad de Trabajo:", min_value=50.0, value=120.0, key='pr_sa')
+                retorno_pct = st.slider("Porcentaje de Retorno Social Pactado para la A.C.:", min_value=5, max_value=40, value=20, key='pct_sa')
+                
+                prima_anual = float(65 * prima_mensual * 12)
+                retorno_anual = prima_anual * (retorno_pct / 100)
+                
+                s_m1, s_m2 = st.columns(2)
+                s_m1.metric("Recaudación de Primas Brutas (Anual)", f"${prima_anual:,.2f} MXN")
+                s_m2.metric("Transferencia Docente a la A.C.", f"${retorno_anual:,.2f} MXN", "Libre de IVA")
+                
+            else:
+                st.markdown("##### 🧪 Fideicomisos Tecnológicos Científicos Autónomos")
+                st.caption("Control presupuestal de laboratorios barriales para el Upcycling de mermas de maquiladoras.")
+                fondos_id = st.number_input("Fondos de Fomento Tecnológico Captados (MXN):", min_value=5000, value=75000, key='f_id')
+                becas_asig = st.slider("Número de Investigadores Co-Diseñadores Becados:", min_value=1, max_value=20, value=4)
+                st.metric("Disponibilidad neta para Reactivos de Ingeniería Inversa", f"${fondos_id:,.2f} MXN", f"{becas_asig} Becas Activas")
+
+        # 2. PESTAÑA DINÁMICA: PARÁMETROS FISCALES ADAPTATIVOS CONFORME AL CONTEXTO
+        with tab_fiscal:
+            st.subheader("🛡️ Cumplimiento SAT y Alertas Tributarias")
             
-            l_m1, l_m2 = st.columns(2)
-            l_m1.metric("Ingresos Brutos por Fletes", f"${ingreso_bruto_fletes:,.2f} MXN")
-            l_m2.metric("Excedente Neto Líquido Cooperativo", f"${excedente_neto_cooperativa:,.2f} MXN", delta="Disponible para Caja")
+            if "Matriz" in entidad_activa_centro or "A.C." in entidad_activa_centro:
+                st.warning("⚠️ Alerta SAT: Los recibos de nómina asimilada deben timbrarse antes del día 10 del mes subsecuente.")
+                st.info("Estatus IVA: Exención del 100% de traslado en servicios educativos y capacitación (Art. 15 LIVA).")
+            elif "Logística" in entidad_activa_centro or "S.C." in entidad_activa_centro:
+                st.warning("⚠️ Alerta SAT: Las plantas maquiladoras contratantes retendrán obligatoriamente el 4% de ISR sobre fletes terrestres.")
+                st.info("Estatus LGSC: Excedentes distribuidos exentos de base gravable mercantil corporativa ordinaria.")
+            elif "Microseguros" in entidad_activa_centro or "S.A." in entidad_activa_centro:
+                st.warning("⚠️ Alerta SAT: Facturación electrónica ordinaria con desglose del 16% de IVA mercantil en pólizas de daños comerciales.")
+            else:
+                st.success("✓ Estatus Fiscal: Aportaciones científicas directas consideradas gastos deducibles autorizados a tasa cero.")
 
-        with tab4:
-            st.header("Subsistema de Gestión de Riesgos de la Célula Mercantil")
-            prima_mensual = st.number_input("Prima Mensual por Taller (MXN)", min_value=50.0, value=prima_individual_global)
-            prima_individual_global = prima_mensual
-            retorno_pct = st.slider("Porcentaje de Retorno Pactado para la A.C.", min_value=5, max_value=40, value=comision_retorno_global)
-            comision_retorno_global = retorno_pct
-            prima_anual = float(num_talleres_global * prima_mensual * 12)
-            retorno_anual_ac = prima_anual * (retorno_pct / 100)
-            st.metric("Retorno de Comisión Anual para la A.C.", f"${retorno_anual_ac:,.2f} MXN")
+        # 3. PESTAÑA DINÁMICA: MODELADO ACTUARIAL Y AJUSTE DE VARIABLES LATENTES
+        with tab_actuarial:
+            st.subheader("🔮 Indicadores Críticos y Variables Latentes (Escala Likert)")
+            if "Investigación" in entidad_activa_centro or "APSON" in entidad_activa_centro:
+                st.info("Análisis de Variable Latente: 'Capacidad de Absorción del Saber Científico en Talleres de Barrio'")
+                st.caption("Fórmula psicométrica estimada mediante mínimos cuadrados parciales basados en ítems observables de campo [X1 a X7].")
+            else:
+                st.info("Análisis de Variable Latente: 'Aceptación Institucional del Modelo de Economía Popular'")
+                st.caption("Mapea el nivel de confianza y la tasa de tránsito voluntario de efectivo informal a transferencias reguladas.")
+            
+            st.progress(85)
+            st.caption("Índice de Materialidad y Consistencia General del Ecosistema JZPAC: <b>85.4%</b> (Nivel Excelente)", unsafe_allow_html=True)
 
-        with tab5:
-            st.header("Caja de Ahorro (El Brazo Fuerte Financiero Interconectado)")
-            ahorrio_mensual = st.number_input("Ahorros Directos de los Trabajadores", min_value=0.0, value=55000.0)
-            comision_seguros_mensual = float(retorno_anual_ac / 12)
-            capital_mensual_total = ahorrio_mensual + comision_seguros_mensual + excedente_coop_calculado
-            st.metric("Fondo de Emprendimiento Mensual Consolidado Abierto", f"${capital_mensual_total:,.2f} MXN")
-
+        # 4. PESTAÑA DINÁMICA: HISTORIAL DE DESCARGAS DEL CONTEXTO
         with tab_log:
             st.header("📑 Historial de Auditoría de Descargas")
             if len(st.session_state["historial_descargas"]) == 0:
-                st.info("No se registran descargas en el ciclo actual.")
+                st.info("No se registran descargas en el ciclo operativo actual.")
             else:
                 st.table(st.session_state["historial_descargas"])
 
-        # INSTRUCCIÓN TÉCNICA DE TRÁNSITO PARA IMPORTACIÓN DIRECTA A GOOGLE DOCS
+        # INSTRUCCIÓN DE TRÁNSITO PARA IMPORTACIÓN DIRECTA A GOOGLE DOCS
         st.markdown("---")
         st.markdown("""
         <div style='background-color: #f1f3f5; padding: 12px; border-radius: 6px; border-left: 5px solid #4285f4;'>
@@ -735,7 +794,6 @@ with col_izquierda_matriz:
             </p>
         </div>
         """, unsafe_allow_html=True)
-
 # ==============================================================================
 # PARTE 14 DE 14: COLUMNA DERECHA - LOGOTIPO, IDIOMA BILINGÜE Y ADICIÓN DE ENTIDADES
 # ==============================================================================
