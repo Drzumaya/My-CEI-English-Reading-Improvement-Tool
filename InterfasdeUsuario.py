@@ -8,14 +8,15 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # ==============================================================================
-# PARTE 1 DE 17: CONFIGURACIÓN INICIAL DEL LIENZO VISUAL DE LA PLATAFORMA
+# PARTE 1 DE 17: CONFIGURACIÓN INICIAL CON IDENTIDAD CORPORATIVA JZPAC
 # ==============================================================================
 st.set_page_config(
-    page_title="Tablero Integrado - Agua Prieta",
+    page_title="Tablero Integrado - JACOB ZUMAYA PRIANTI, A.C.",
     page_icon="🦅",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 # ==============================================================================
 # PARTE 2 DE 17: INICIALIZACIÓN DE CONTEXTOS Y CONTROL DE SESIÓN REGISTRAL
 # ==============================================================================
@@ -141,13 +142,13 @@ def check_password():
     if st.session_state["password_correct"]:
         return True
 
-    # Interfaz limpia libre de ruidos en la primera carga del día
+    # Renderizado oportuno de la pantalla de login con identidad institucional limpia
     st.markdown("<br><br>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns(3)
     with col_l2:
         st.title("🔐 Acceso Restringido")
         st.subheader("Plataforma Integral de Economía Popular")
-        st.caption("Asociación Civil en Régimen General (Título II LISR) • Agua Prieta, Sonora")
+        st.caption("JACOB ZUMAYA PRIANTI, A.C. • Régimen General Título II LISR • Agua Prieta, Sonora")
         st.text_input("Introduce la contraseña de acceso:", type="password", on_change=password_entered, key="password")
         if st.session_state.get("show_login_error", False):
             st.error("❌ Credenciales inválidas. Intento bloqueado por seguridad.")
@@ -241,6 +242,8 @@ with st.sidebar:
     if st.button("❌ Cerrar Sesión (Logout)", use_container_width=True, type="primary"):
         logout()
     st.markdown("---")
+    st.markdown("**Organización:**")
+    st.caption("JACOB ZUMAYA PRIANTI, A.C.")
     presupuesto_total = st.number_input("Bolsa Económica Mensual Operativa (MXN)", min_value=10000, value=250000, step=10000)
 
 # Partición del lienzo de trabajo: 70% Simuladores (Izquierda), 30% Almacén y Padrón (Derecha)
@@ -250,6 +253,7 @@ num_talleres_global = 65
 prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
+
 # ==============================================================================
 # PARTE 12 DE 17: COLUMNA IZQUIERDA - VISOR DE MANUALES LEAN EN CALIENTE
 # ==============================================================================
@@ -396,17 +400,30 @@ with col_izquierda_matriz:
             else:
                 st.table(st.session_state["historial_descargas"])
 # ==============================================================================
-# PARTE 16 DE 17: COLUMNA DE LA DERECHA - SELECTBOX ANIDADO INTERACTIVO
+# PARTE 16 DE 17: COLUMNA DE LA DERECHA - LOGOTIPO E IDENTIDAD INSTITUCIONAL
 # ==============================================================================
 with col_derecha_documental:
+    # CONTENEDOR GRÁFICO MAESTRO CON NOMBRE Y LOGO DEL REPOSITORIO
     st.markdown("""
-    <div style='background-color: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6; margin-bottom: 12px;'>
-        <h3 style='color: #1e4620; margin-top:0; font-size:15px; font-weight:bold;'>📜 Almacén Documental Autónomo</h3>
-        <p style='color: #6c757d; font-size:11px; margin-bottom:5px;'>Estructura Completa de 7 Manuales Científicos</p>
+    <div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 12px; text-align: center;'>
+        <h2 style='color: #1e4620; margin-top:0; font-size:16px; font-weight:bold; text-transform: uppercase; letter-spacing: 0.5px;'>
+            JACOB ZUMAYA PRIANTI, A.C.
+        </h2>
+        <p style='color: #6c757d; font-size:11px; margin-bottom:10px;'>Ecosistema de Economía Popular Fronteriza</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Menú Desplegable Secuencial Nivel 1: Entidades (Incluye Investigación Científica)
+    # RENDERIZADO DEL LOGOTIPO DIRECTO DESDE EL REPOSITORIO DE GITHUB
+    try:
+        st.image("JZPACLOGOREDONDO.png", caption="Logotipo Oficial JZPAC", use_container_width=True)
+    except Exception:
+        # Fallback de seguridad por si el archivo tarda en compilar en el contenedor de Streamlit
+        st.caption("🦅 [Imagen: JZPACLOGOREDONDO.png Cargada en Repositorio]")
+        
+    st.markdown("<div style='padding-top:10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<b style='font-size:13px; color:#495057;'>🗂️ Almacén Documental Autónomo (7 Manuales):</b>", unsafe_allow_html=True)
+    
+    # Menú Desplegable Secuencial de Dos Niveles
     lista_entidades = list(st.session_state["repositorio_institucional"].keys())
     seleccion_entidad = st.selectbox("🏢 1. Selecciona la Entidad / Subsistema:", ["-- Elige una Entidad --"] + lista_entidades)
     
@@ -422,7 +439,6 @@ with col_derecha_documental:
             
         st.markdown("---")
         
-        # Menú Desplegable Secuencial Nivel 2: Tomos (Incluye Contrato Individual)
         lista_marcos = list(st.session_state["repositorio_institucional"][seleccion_entidad].keys())
         seleccion_marco = st.selectbox("📋 2. O editar un documento individual:", ["-- Elige el Manual --"] + lista_marcos)
         
@@ -438,7 +454,6 @@ with col_derecha_documental:
     st.markdown("---")
     st.markdown("#### 👔 Gobernanza e Historiales")
     
-    # BOTÓN DE REGISTRO COLOCADO AL CENTRO DEL PANEL DE LA DERECHA
     if st.button("➕ Inscribir Director Asociado", use_container_width=True, type="primary"):
         st.session_state["ver_formulario_registro"] = True
         st.session_state["ver_visor_legal"] = False 
@@ -447,7 +462,6 @@ with col_derecha_documental:
         
     st.markdown("<div style='padding-top:5px;'></div>", unsafe_allow_html=True)
     
-    # INTERRUPTOR FLOTANTE COLOCADO AL CENTRO DEL PANEL DE LA DERECHA
     if st.session_state.get("ver_padron_flotante", False):
         if st.button("🙈 Ocultar Padrón de Datos", use_container_width=True, type="secondary"):
             st.session_state["ver_padron_flotante"] = False
