@@ -16,7 +16,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # ==============================================================================
 # PARTE 2 DE 17: INICIALIZACIÓN DE CONTEXTOS Y CONTROL DE SESIÓN REGISTRAL
 # ==============================================================================
@@ -70,13 +69,10 @@ if "repositorio_institucional" not in st.session_state:
             "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS DE GOBERNANZA CENTRAL (MAP-01)\n\n1. Recepción de comisiones de la S.A. y aportaciones cooperativas.\n2. Validación de listas de asistencia de talleres.\n3. Dispersión mensual y timbrado de CFDI de asimilados a salarios.",
             "Manual administrativo": "MANUAL ADMINISTRATIVO DE RECURSOS HUMANOS Y CONTROL (MAC-01)\n\nRegula las políticas de contratación de promotores barriales, el control de activos en comodato y los lineamientos de transparencia para auditorías externas del SAT.",
             "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS Y RIESGO SOCIOECONÓMICO (MTC-01)\n\nMonitorea la inflación en la franja fronteriza, los cambios en las reglas misceláneas del SAT y el impacto del tipo de cambio peso-dólar en el poder adquisitivo de Agua Prieta.",
-            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - EVALUACIÓN DE ADOPCIÓN DE PROGRAMAS SOCIALES\n\nVARIABLE LATENTE CENTRAL: 'Aceptación Institucional del Modelo de Economía Popular'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Frecuencia con la que el asociado acude voluntariamente a las mesas de gobernanza.\n2. [X2] Nivel de confianza percibido en la transparencia del manejo de fondos del Título II.\n3. [X3] Disposición declarada para transitar de contratos informales a Nómina de Asimilados.\n4. [X4] Grado de recomendación del programa de capacitación de la A.C. a otros microemprendedores del barrio.\n5. [X5] Percepción de mejora en la estabilidad de su negocio tras el cobro vía recibo estatutario.",
-            "Contrato de Incorporación y Adhesión Individual": "CONTRATO INDIVIDUAL DE ADHESIÓN Y ASIMILACIÓN A SALARIOS (A.C. MATRIZ)\n\nCONTRATO que celebran por una parte la Asociación Civil Matriz, y por la otra el Usuario Inscrito por propio derecho en su carácter de Director Asociado de Célula Barrial, al tenor de las siguientes cláusulas:\n\nPRIMERA: OBJETO. El Usuario acepta la designación técnica para coordinar los talleres de capacitación para el trabajo y fomento económico en su colonia asignada de Agua Prieta.\n\nSEGUNDA: RÉGIMEN FISCAL. El Usuario manifiesta su consentimiento expreso para someter sus honorarios de apoyo al régimen de Asimilados a Salarios (Art. 94 Fracc. V de la LISR), obligándose la A.C. a retener el impuesto correlativo y timbrar el CFDI de nómina para amparar deducciones autorizadas de Título II.\n\nTERCERA: EXENCIÓN DE IVA. Las partes acuerdan que las cuotas extraordinarias que recaude el Usuario de los talleres se consideran cuotas de miembros exentas de IVA (Art. 15-XII LIVA) y se integrarán de inmediato a la cuenta de orden de la Caja de Ahorro.",
-            
-            # COMPONENTE NUEVO REDACTADO PARA FIRMA NOTARIAL
-            "Acta Constitutiva Notarial Oficial": "ESCRITURA PÚBLICA NÚMERO: [XXXX] | VOLUMEN: [XX]\nCONSTITUCIÓN DE ASOCIACIÓN CIVIL BAJO EL RÉGIMEN GENERAL (TÍTULO II LISR)\n\nEn la ciudad de Agua Prieta, Estado de Sonora, ante mí, Notario Público Número [X], comparecen los Asociados Fundadores para formalizar de manera estricta el ACTA CONSTITUTIVA de la persona moral que se regirá bajo las siguientes cláusulas formales:\n\nCLÁUSULA PRIMERA: DENOMINACIÓN, DOMICILIO Y DURACIÓN.\nLa organización se denominará 'DESARROLLO OPERATIVO DE LA ECONOMÍA POPULAR DE AGUA PRIETA', seguida de las siglas 'A.C.'. Su domicilio legal definitivo se fija en Agua Prieta, Sonora, y su duración será por tiempo indefinido.\n\nCLÁUSULA SEGUNDA: OBJETO SOCIAL Y REMANENTES DISPONIBLES.\nEl objeto primordial consiste en impartir de forma gratuita y exenta de IVA (Art. 15 LIVA) capacitación para el trabajo, educación técnica, fomento de oficios y asesoría de microcréditos para la retención del valor fronterizo. Al operar bajo el Régimen General (Título II LISR), los excedentes o remanentes de operación no se distribuirán como dividendos capitalistas, sino que se capitalizarán en cuentas de orden para subsidiar activos del barrio o se dispersarán al 100% como erogaciones salariales asimiladas (Art. 94 LISR) a los Directores Asociados.\n\nCLÁUSULA TERCERA: PATRIMONIO SOCIAL Y ASAMBLEA CENTRAL.\nEl patrimonio de la A.C. se integrará por las cuotas ordinarias y extraordinarias de recuperación aportadas por sus Miembros Adherentes (Art. 15-XII LIVA), así como por las comisiones docentes y de fomento ingresadas desde sus subsistemas secundarios filiales. El órgano supremo es la Asamblea General de Asociados, representada por el Agente Capacitador como Director General, dotado de Poder General Amplio para Pleitos, Cobranzas y Actos de Dominio."
+            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - EVALUACIÓN DE ADOPCIÓN DE PROGRAMAS SOCIALES\n\nVARIABLE LATENTE CENTRAL: 'Aceptación Institucional del Modelo de Economía Popular'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Frecuencia con la que el asociado acude voluntariamente a las mesas de gobernanza de la A.C.\n2. [X2] Nivel de confianza percibido en la transparencia del manejo de fondos del Título II corporativo.\n3. [X3] Disposición declarada para transitar de contratos informales en efectivo a Nómina de Asimilados.\n4. [X4] Grado de recomendación del programa de capacitación de la A.C. a otros microemprendedores del barrio.\n5. [X5] Percepción de mejora en la estabilidad de su negocio tras el cobro vía recibo estatutario.",
+            "Contrato de Incorporación y Adhesión Individual": "CONTRATO INDIVIDUAL DE ADHESIÓN Y ASIMILACIÓN A SALARIOS (A.C. MATRIZ)\n\nCONTRATO que celebran por una parte la Asociación Civil Matriz, y por la otra el Usuario Inscrito por propio derecho en su carácter de Director Asociado de Célula Barrial, al tenor de las siguientes cláusulas:\n\nPRIMERA: OBJETO. El Usuario acepta la designation técnica para coordinar los talleres de capacitación para el trabajo y fomento económico en su colonia asignada de Agua Prieta.\n\nSEGUNDA: RÉGIMEN FISCAL. El Usuario manifiesta su consentimiento expreso para someter sus honorarios de apoyo al régimen de Asimilados a Salarios (Art. 94 Fracc. V de la LISR), obligándose la A.C. a retener el impuesto correlativo y timbrar el CFDI de nómina para amparar deducciones autorizadas de Título II.\n\nTERCERA: EXENCIÓN DE IVA. Las partes acuerdan que las cuotas extraordinarias que recaude el Usuario de los talleres se consideran cuotas de miembros exentas de IVA (Art. 15-XII LIVA) y se integrarán de inmediato a la cuenta de orden de la Caja de Ahorro.",
+            "Acta Constitutiva Notarial Oficial": "ESCRITURA PÚBLICA NÚMERO: [XXXX] | VOLUMEN: [XX]\nCONSTITUCIÓN DE ASOCIACIÓN CIVIL BAJO EL RÉGIMEN GENERAL (TÍTULO II LISR)\n\nEn la ciudad de Agua Prieta, Estado de Sonora, ante mí, Notario Público Número [X], comparecen los Asociados Fundadores para formalizar de manera estricta el ACTA CONSTITUTIVA de la persona moral que se regirá bajo las siguientes cláusulas formales:\n\nCLÁUSULA PRIMERA: DENOMINACIÓN, DOMICILIO Y DURACIÓN.\nLa organización se denominará 'DESARROLLO OPERATIVO DE LA ECONOMÍA POPULAR DE AGUA PRIETA', seguida de las siglas 'A.C.'. Su domicilio legal definitivo se fija en Agua Prieta, Sonora, y su duración será por tiempo indefinido.\n\nCLÁUSULA SEGUNDA: OBJETO SOCIAL Y REMANENTES DISPONIBLES.\nEl objeto primordial consiste en impartir de forma gratuita y exenta de IVA (Art. 15 LIVA) capacitación para el trabajo, educación técnica, fomento de oficios y asesoría de microcréditos para la retención del valor fronterizo. Al operar bajo el Régimen General (Título II LISR), los excedentes o remanentes de operación no se distribuirán como dividendos capitalistas, sino que se capitalizarán en cuentas de orden para subsidiar activos del barrio o se dispersarán al 100% como erogaciones salariales asimiladas (Art. 94 LISR) a los Directores Asociados.\n\nCLÁUSULA TERCERA: PATRIMONIO SOCIAL AND ASAMBLEA CENTRAL.\nEl patrimonio de la A.C. se integrará por las cuotas ordinarias y extraordinarias de recuperación aportadas por sus Miembros Adherentes (Art. 15-XII LIVA), así como por las comisiones docentes y de fomento ingresadas desde sus subsistemas secundarios filiales. El órgano supremo es la Asamblea General de Asociados, representada por el Agente Capacitador como Director General, dotado de Poder General Amplio para Pleitos, Cobranzas y Actos de Dominio."
         },
-
 # ==============================================================================
 # PARTE 5 DE 17: ALMACÉN DOCUMENTAL - COOPERATIVA DE LOGÍSTICA (S.C.)
 # ==============================================================================
@@ -88,11 +84,8 @@ if "repositorio_institucional" not in st.session_state:
             "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS DE TRANSPORTE TRANSFRONTERIZO (MTC-02)\n\nAnaliza los tiempos de espera en las aduanas, la fluctuación estacional de la producción automotriz de las maquiladoras y el impacto de aranceles comerciales en el flujo de fletes.",
             "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - EFICIENCIA OPERATIVA DE LA LOGÍSTICA DE BARRIO\n\nVARIABLE LATENTE CENTRAL: 'Cultura de Optimización de Ruta en Choferes Cooperativistas'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Índice de cumplimiento exacto de los horarios de recolección aduanal.\n2. [X2] Nivel de reducción voluntaria reportada en el Factor de Retorno Vacío.\n3. [X3] Frecuencia de registro y uso correcto de la aplicación Streamlit para el reporte del COK.\n4. [X4] Grado de apego a los lineamientos de mantenimiento preventivo y revisión de presión de neumáticos.\n5. [X5] Proporción de fletes ejecutados sin registrar incidencias o penalizaciones por retraso.\n6. [X6] Disposición del chofer para cooperar en cargas consolidadas compartidas con otros talleres.",
             "Contrato de Incorporación y Adhesión Individual": "CONTRATO DE ADHESIÓN INDIVIDUAL DE SOCIO TRABAJADOR COOPERATIVISTA (S.C. LOGÍSTICA)\n\nCONTRATO de adhesión que celebran la Sociedad Cooperativa de Logística y Transporte de los Barrios, y por la otra el Usuario en su carácter de Socio Conductor, bajo las siguientes cláusulas:\n\nPRIMERA: ASOCIACIÓN COMUNITARIA. El Usuario aporta su trabajo personal y se adhiere formalmente a las Bases Constitutivas vigentes, bajo el régimen de Responsabilidad Limitada amparado por la Ley General de Sociedades Cooperativas (LGSC).\n\nSEGUNDA: RETENCIONES Y COK. El Socio acepta registrar cada viaje en la aplicación de control analítico Streamlit de la A.C., deduciendo el Costo de Operación por Kilómetro (COK), el Factor de Retorno Vacío, el 4% de retención de ISR y aportando de forma síncrona el 6% para el fondo de amortiguación de diésel fronterizo.\n\nTERCERA: EXCEDENTES. El Socio Conductor reconoce que los excedentes netos de fletes calculados en la plataforma se inyectarán de forma legal a la Caja de Ahorro común, teniendo derecho a retiros de rendimientos sociales según los acuerdos de la Asamblea General.",
-            
-            # COMPONENTE NUEVO REDACTADO PARA FIRMA NOTARIAL
             "Acta Constitutiva Notarial Oficial": "INSCRIPCIÓN REGISTRAL MERCANTIL | FOJA: [XXX]\nBASES CONSTITUTIVAS DE SOCIEDAD COOPERATIVA DE RESPONSABILIDAD LIMITADA (S.C. DE R.L.)\n\nEn la Ciudad de Agua Prieta, Sonora, se formaliza el Acta de Asamblea Constitutiva de la Sociedad Cooperativa que se organiza de conformidad con la Ley General de Sociedades Cooperativas (LGSC) y el Código Comercio de México:\n\nCLÁUSULA PRIMERA: RÉGIMEN, DENOMINACIÓN Y JURISDICCIÓN.\nLa sociedad se denominará 'COOPERATIVA DE LOGÍSTICA Y TRANSPORTE TRANSFRONTERIZO DE AGUA PRIETA', operando obligatoriamente con las siglas 'S.C. DE R.L. DE C.V.'. Su responsabilidad frente a terceros queda estrictamente LIMITADA al monto de los certificados de aportación de sus miembros.\n\nCLÁUSULA SEGUNDA: OBJETO COMERCIAL Y CADENA DE VALOR B2B.\nEl objeto exclusivo consiste en prestar servicios integrales de transporte terrestre, carga pesada, distribución aduanal y fletes logísticos industriales B2B para las plantas maquiladoras de la zona norte del país. La sociedad se obliga a facturar conforme a las leyes fiscales mexicanas, aceptando la aplicación de la retención del 4% de ISR sobre fletes terrestres mandada por el SAT.\n\nCLÁUSULA TERCERA: CERTIFICADOS DE APORTACIÓN Y EXCEDENTES COOPERATIVOS.\nEl capital social se representa por certificados de aportación nominativos, indivisibles y de igual valor. Queda estrictamente establecido que al término de cada ejercicio contable mensual calibrado en el software Streamlit, se deducirá un 6% bruto de ingresos para blindar el fondo de reserva contra volatilidad de diésel y un 5% neto de excedentes que se inyectará de forma transparente a la cuenta de orden de la Asociación Civil central para sufragar el sostenimiento técnico del ecosistema."
         },
-
 # ==============================================================================
 # PARTE 6 DE 17: ALMACÉN DOCUMENTAL - AGENCIA DE MICROSEGUROS (S.A.)
 # ==============================================================================
@@ -104,11 +97,8 @@ if "repositorio_institucional" not in st.session_state:
             "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS ACTUARIALES EN MICROSEGUROS (MTC-03)\n\nMide la tasa de siniestralidad de los talleres de barrio, la tasa de renovación de pólizas y proyecta modelos de vulnerabilidad ante fallas mecánicas en maquinaria pesada depreciada.",
             "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - PERCEPCIÓN DE SEGURIDAD PATRIMONIAL\n\nVARIABLE LATENTE CENTRAL: 'Aversión al Riesgo y Confianza en la Póliza Solidaria'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Puntualidad exacta en el pago de la prima mensual simulada en la plataforma.\n2. [X2] Grado de conocimiento de los talleres sobre el alcance real de las coberturas de siniestralidad.\n3. [X3] Nivel de tranquilidad manifestada por el micro-empresario respecto a la continuidad de su negocio.\n4. [X4] Frecuencia con la que el micro-taller reporta de forma preventiva riesgos de infraestructura.\n5. [X5] Confianza declarada en la velocidad de respuesta del fondo de reserva de la A.C. ante siniestros.",
             "Contrato de Incorporación y Adhesión Individual": "CONTRATO COLECTIVO DE ADHESIÓN A LA PÓLIZA DE MICROSEGUROS FRONTERIZOS (S.A.)\n\nCONTRATO que celebran la Agencia de Protección Solidaria Fronteriza, S.A. de C.V., y por la otra el Usuario Inscrito en su carácter de Titular de Unidad Productiva Popular Asegurada, al tenor de las siguientes cláusulas:\n\nPRIMERA: COBERTURA INTEGRAL. El Usuario se adhiere a la póliza comunitaria colectiva para proteger sus activos mecánicos y herramientas de taller (soldadoras, tornos, cortadoras de cuero) contra averías técnicas graves, incendios o accidentes de operación en Agua Prieta.\n\nSEGUNDA: PRIMA SOCIAL Y RETORNO. El Asegurado se obliga a cubrir la prima mensual calculada dinámicamente en el Módulo 3. Reconoce que el 20% de dicha recaudación es transferido a la A.C. matriz por concepto de Honorarios de Capacitación en Prevención de Siniestros, libre de IVA comercial.\n\nTERCERA: RECLAMACIÓN JUSTA. En caso de ocurrencia de un siniestro, el Usuario se compromete a no iniciar litigios mercantiles ordinarios, sometiéndose al Manual de Procedimientos interno de la A.C., el cual dictaminará el pago y liquidación de daños con cargo al fondo de reserva técnico de forma inmediata.",
-            
-            # COMPONENTE NUEVO REDACTADO PARA FIRMA NOTARIAL
-            "Acta Constitutiva Notarial Oficial": "ESCRITURA PÚBLICA NÚMERO: [YYYY] | VOLUMEN: [XXX]\nCONSTITUCIÓN DE SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE (RAMO RIESGOS CNSF)\n\nEn la Ciudad de Agua Prieta, Estado de Sonora, ante mí, Titular de la Notaría Pública Asociada, se formaliza la constitución de una SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE que se regirá bajo la Ley General de Sociedades Mercantiles (LGSM) y la Ley de Instituciones de Seguros y de Fianzas (LISF):\n\nCLÁUSULA PRIMERA: DENOMINACIÓN, DURACIÓN Y OBJETO REGULADO.\nLa denominación corporativa oficial será 'AGENCIA DE PROTECCIÓN SOLIDARIA FRONTERIZA', seguida de las siglas 'S.A. DE C.V.'. Su objeto exclusivo consiste en actuar como Agente de Seguros Persona Moral regulado por la CNSF, intermediando pólizas de microseguros colectivos de vida, accidentes de trabajo y daños estructurales mecánicos.\n\nCLÁUSULA SEGUNDA: CAPITAL SOCIAL Y DOMINIO DE LA ASOCIACIÓN CIVIL MATRIZ.\nEl capital social es variable, fijándose un monto mínimo obligatorio de capitalización de $50,000.00 MXN totalmente suscrito y pagado. Para blindar el patrimonio comunitario e impedir desvíos capitalistas privados, la Asociación Civil central del ecosistema retiene la titularidad del 99% de las acciones Clase 'A', teniendo el voto mayoritario absoluto en cualquier asamblea.\n\nCLÁUSULA TERCERA: GOBERNANZA, DEDUCCIONES Y CONTRATO DE RETORNO CORRETAJE.\nLa administración estará a cargo de un Administrador Único designado de forma directa por la Asamblea de la A.C. (Asociado Director). Para salvaguardar la deducibilidad de egresos mercantiles y fondear la Caja de Ahorro, la sociedad se obliga por estipulación estatutaria invulnerable a transferir el 20% de las primas brutas capturadas mensuales a la A.C. matriz bajo la figura de Honorarios de Corretaje Social y Docencia en Prevención de Accidentes."
+            "Acta Constitutiva Notarial Oficial": "ESCRITURA PÚBLICA NÚMERO: [YYYY] | VOLUMEN: [XXX]\nCONSTITUCIÓN DE SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE (RAMO RIESGOS CNSF)\n\nEn la Ciudad de Agua Prieta, Estado de Sonora, ante mí, Titular de la Notaría Pública Asociada, se formaliza la constitución de una SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE que se regirá bajo la Ley General de Sociedades Mercantiles (LGSM) y la Ley de Instituciones de Seguros y de Fianzas (LISF):\n\nCLÁUSULA PRIMERA: DENOMINACIÓN, DURACIÓN Y OBJETO REGULADO.\nLa denominación corporativa oficial será 'AGENCIA DE PROTECCIÓN SOLIDARIA FRONTERIZA', seguida de las siglas 'S.A. DE C.V.'. Su objeto exclusivo consiste en actuar como Agente de Seguros Persona Moral regulado por la CNSF, intermediando pólizas de microseguros colectivos de vida, accidentes de trabajo y daños estructurales mecánicos.\n\nCLÁUSULA SEGUNDA: CAPITAL SOCIAL Y DOMINIO DE LA ASOCIACIÓN CIVIL MATRIZ.\nEl capital social es variable, fijándose un monto mínimo obligatorio de capitalización de $50,000.00 MXN totalmente suscrito y pagado. Para blindar el patrimonio comunitario e impedir desvíos capitalistas privados, la Asociación Civil central del ecosistema retiene la titularidad del 99% de las acciones Clase 'A', teniendo el voto mayoritario absoluto en cualquier asamblea.\n\nCLÁUSULA TERCERA: GOBERNANZA, DEDUCCIONES Y CONTRATO DE RETORNO CORRETAJE.\nLa administración estará a cargo de un Administrador Único designado de forma directa por la Asamblea de la A.C. (Asociado Director). Para salvaguardar la deducibilidad de egresos mercantiles y fondeo de la Caja de Ahorro, la sociedad se obliga por estipulación estatutaria invulnerable a transferir el 20% de las primas brutas capturadas mensuales a la A.C. matriz bajo la figura de Honorarios de Corretaje Social y Docencia en Prevención de Accidentes."
         },
-
 # ==============================================================================
 # PARTE 7 DE 17: ALMACÉN DOCUMENTAL - EQUIPO DE INVESTIGACIÓN CIENTÍFICA APSON
 # ==============================================================================
@@ -120,15 +110,22 @@ if "repositorio_institucional" not in st.session_state:
             "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS EN INNOVACIÓN INDUSTRIAL (MTC-04)\n\nMapea las tecnologías emergentes de manufactura esbelta automatizada, el volumen de desperdicios utilizables por tipo de maquila y las proyecciones de crecimiento del nearshoring real.",
             "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - EFICIENCIA DE LA TRANSFERENCIA TECNOLÓGICA I+D\n\nVARIABLE LATENTE CENTRAL: 'Capacidad de Absorción del Saber Científico en Talleres de Barrio'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Tasa de adopción de manuales Lean-Barrio y diagramas de flujo técnicos dentro de los procesos diarios.\n2. [X2] Cantidad de mermas industriales recolectadas (cuero, madera) efectivamente transformadas.\n3. [X3] Frecuencia de asistencia de los artesanos a las células de co-diseño del Equipo Científico.\n4. [X4] Reducción porcentual de costos de materia prima lograda por el taller al sustituir insumos.\n5. [X5] Nivel de comprensión técnica manifestada por el micro-productor sobre el uso y cuidado de maquinaria.\n6. [X6] Cantidad de nuevos prototipos funcionales o innovaciones locales de producto generadas de forma autónoma.\n7. [X7] Incremento reportado en la calidad final de la proveeduría indirecta entregada a las plantas.",
             "Contrato de Incorporación y Adhesión Individual": "CONTRATO INDIVIDUAL DE ASIGNACIÓN CIENTÍFICA Y PROPIEDAD INTELECTUAL SOCIAL (ID-APSON)\n\nCONTRATO que celebran la Asociación Civil e Investigación Científica APSON, y por la otra el Usuario en su carácter de Investigador o Técnico de Laboratorio Comunitario, al tenor de las siguientes cláusulas:\n\nPRIMERA: OBJETO DE TRANSFERENCIA. El Investigador se compromete a ejecutar análisis de densidad económica, estudios metalúrgicos de mermas industriales de maquiladoras y modelado de variables latentes en Agua Prieta.\n\nSEGUNDA: PATENTES SOCIALES. El Usuario acepta que toda propiedad intelectual desarrollada en las células de I+D pertenece al patrimonio común de la A.C. Queda prohibido el acaparamiento privado, licenciándose a tasa cero para el beneficio de los talleres populares.\n\nTERCERA: CONDICIÓN DE REMUNERACIÓN. Las retribuciones se canalizarán a través del fondo de fideicomisos científicos autónomos administrado por la Caja de Ahorro de la A.C., justificando la materialidad docente libre de IVA ante las autoridades hacendarias.",
-            
-            # COMPONENTE NUEVO REDACTADO PARA FIRMA NOTARIAL
             "Acta Constitutiva Notarial Oficial": "PROTOCOLO NOTARIAL DE NOMBRAMIENTO Y APERTURA DE CONSEJO DE INVESTIGACIÓN CIENTÍFICA\n\nEn la Ciudad de Agua Prieta, Sonora, ante la fe del Notario Público adscrito al protocolo estatal, se formaliza el Acta de Establecimiento y Gobierno de la célula científica con base en la Ley General de Ciencias y el Código Civil vigente:\n\nCLÁUSULA PRIMERA: AUTONOMÍA OPERATIVA Y DENOMINACIÓN DE NODO.\nEl subsistema científico operará bajo el nombre de 'EQUIPO DE INVESTIGACIÓN CIENTÍFICA APSON'. Goza de una Cláusula de Autonomía de Gestión delegada por la A.C. nodriza, permitiéndole al Asociado Director celebrar minutas, convenios y acuerdos técnicos con universidades y parques industriales sin requerir autorizaciones burocráticas previas.\n\nCLÁUSULA SEGUNDA: FINES CIENTÍFICOS Y MODELADO PATRIMONIAL SOCIAL.\nEl objeto primordial consiste en ejecutar investigación econométrica de variables latentes, mapear densidades de mermas industriales y realizar ingeniería inversa metalmecánica para el diseño de productos de reciclaje. Toda patente, secreto industrial o marca colectiva resultante se registrará ante el IMPI a nombre de la Asociación Civil matriz, quedando etiquetada bajo un fideicomiso de 'Uso Social Común' perpetuo a tasa cero para beneficio de los barrios de Agua Prieta.\n\nCLÁUSULA TERCERA: GOBERNANZA PRESUPUESTAL Y CUENTAS DE ORDEN EN CAJA.\nLa dirección científica recaerá en el Asociado Director electo por el consejo. Los fondos de fomento económico o becas captadas se depositarán directamente en la cuenta de orden de la Caja de Ahorro de la A.C., amparando la completa materialidad de las investigaciones para fines científicos exentos de IVA, prohibiéndose el uso especulativo o financiero mercantil ajeno a la economía popular."
         }
     }
+# ==============================================================================
+# PARTE 8 DE 17: SUBRUTINAS DE AUDITORÍA REGISTRAL Y CONTROL FISCAL CENTRAL
+# ==============================================================================
+def registrar_descarga(modulo, archivo):
+    """Inyecta de forma síncrona la estampa de tiempo de las descargas en la bitácora contable."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state["historial_descargas"].append({
+        "Fecha y Hora": now, 
+        "Módulo": modulo, 
+        "Archivo Descargado": archivo, 
+        "Estatus": "Éxito (Generado en Servidor)"
+    })
 
-# ==============================================================================
-# PARTE 8 DE 17: PANTALLA DE ACCESO RESTRINGIDO E INTERRUPCIÓN PREVENTIVA
-# ==============================================================================
 def check_password():
     def password_entered():
         if st.session_state["password"] == st.secrets["access_control"]["password"]:
@@ -142,7 +139,6 @@ def check_password():
     if st.session_state["password_correct"]:
         return True
 
-    # Renderizado oportuno de la pantalla de login con identidad institucional limpia
     st.markdown("<br><br>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns(3)
     with col_l2:
@@ -179,7 +175,6 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
     story.append(Paragraph(resumen_texto, estilo_cuerpo))
     story.append(Spacer(1, 15))
     
-    # SOLUCIÓN CRÍTICA DEL SYNTAXERROR: Tupla explicita fija en puntos de impresión
     tabla_pdf = Table(datos_tabla, colWidths=[240.0, 240.0])
     tabla_pdf.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (1, 0), color_primario), ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
@@ -246,19 +241,16 @@ with st.sidebar:
     st.caption("JACOB ZUMAYA PRIANTI, A.C.")
     presupuesto_total = st.number_input("Bolsa Económica Mensual Operativa (MXN)", min_value=10000, value=250000, step=10000)
 
-# Partición del lienzo de trabajo: 70% Simuladores (Izquierda), 30% Almacén y Padrón (Derecha)
 col_izquierda_matriz, col_derecha_documental = st.columns([0.70, 0.30])
 
 num_talleres_global = 65
 prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
-
 # ==============================================================================
 # PARTE 12 DE 17: COLUMNA IZQUIERDA - VISOR DE MANUALES LEAN EN CALIENTE
 # ==============================================================================
 with col_izquierda_matriz:
-    # FILTRO DE SEGURIDAD ABSOLUTO ANTI-KEYERROR CONTRA RECARGAS MALICIOSAS
     if (st.session_state["ver_visor_legal"] and 
         st.session_state["entidad_seleccionada"] in st.session_state["repositorio_institucional"] and 
         st.session_state["tipo_doc_seleccionado"] in st.session_state["repositorio_institucional"][st.session_state["entidad_seleccionada"]]):
@@ -279,7 +271,8 @@ with col_izquierda_matriz:
         with b2:
             tabla_legal_dummy = [["Validación de Consistencia", "Aprobado por el Consejo"], ["Fecha de Auditoría", "2026-08-20"], ["Estatus Regulatorio", "Vigente Exento"]]
             pdf_legal = generar_informe_pdf(f"{ent} - {tdoc}", tabla_legal_dummy, texto_editable_actual)
-            st.download_button(label="📥 PDF", data=pdf_legal, file_name=f"{tdoc.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True)
+            if st.download_button(label="📥 PDF", data=pdf_legal, file_name=f"{tdoc.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
+                registrar_descarga(ent, f"{tdoc}.pdf")
         with b3:
             buffer_word = io.BytesIO(texto_editable_actual.encode('utf-8'))
             st.download_button(label="📝 Word", data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
@@ -403,7 +396,6 @@ with col_izquierda_matriz:
 # PARTE 16 DE 17: COLUMNA DE LA DERECHA - LOGOTIPO E IDENTIDAD INSTITUCIONAL
 # ==============================================================================
 with col_derecha_documental:
-    # CONTENEDOR GRÁFICO MAESTRO CON NOMBRE Y LOGO DEL REPOSITORIO
     st.markdown("""
     <div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 12px; text-align: center;'>
         <h2 style='color: #1e4620; margin-top:0; font-size:16px; font-weight:bold; text-transform: uppercase; letter-spacing: 0.5px;'>
@@ -413,17 +405,14 @@ with col_derecha_documental:
     </div>
     """, unsafe_allow_html=True)
     
-    # RENDERIZADO DEL LOGOTIPO DIRECTO DESDE EL REPOSITORIO DE GITHUB
     try:
         st.image("JZPACLOGOREDONDO.png", caption="Logotipo Oficial JZPAC", use_container_width=True)
     except Exception:
-        # Fallback de seguridad por si el archivo tarda en compilar en el contenedor de Streamlit
         st.caption("🦅 [Imagen: JZPACLOGOREDONDO.png Cargada en Repositorio]")
         
     st.markdown("<div style='padding-top:10px;'></div>", unsafe_allow_html=True)
-    st.markdown("<b style='font-size:13px; color:#495057;'>🗂️ Almacén Documental Autónomo (7 Manuales):</b>", unsafe_allow_html=True)
+    st.markdown("<b style='font-size:13px; color:#495057;'>🗂️ Almacén Documental Autónomo:</b>", unsafe_allow_html=True)
     
-    # Menú Desplegable Secuencial de Dos Niveles
     lista_entidades = list(st.session_state["repositorio_institucional"].keys())
     seleccion_entidad = st.selectbox("🏢 1. Selecciona la Entidad / Subsistema:", ["-- Elige una Entidad --"] + lista_entidades)
     
@@ -434,6 +423,7 @@ with col_derecha_documental:
         dict_marcos_libro = st.session_state["repositorio_institucional"][seleccion_entidad]
         pdf_libro_completo = generar_libro_apa7(seleccion_entidad, dict_marcos_libro)
         
+        # LA LLAMADA YA NO TIRA EL ERROR PORQUE LA FUNCIÓN YA FUE LEÍDA ARRIBA
         if st.download_button(label="📥 Descargar Libro Compendio (PDF)", data=pdf_libro_completo, file_name=f"Compendio_{seleccion_entidad.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
             registrar_descarga(seleccion_entidad, f"Compendio_{seleccion_entidad}.pdf")
             
@@ -490,14 +480,14 @@ with col_derecha_documental:
                     "Manual administrativo": "Borrador de manual administrativo.",
                     "Manual de Tendencias criticas": "Borrador de tendencias críticas.",
                     "Manual de Variables latentes con items observables": "Borrador de variables latentes.",
-                    "Contrato de Incorporación y Adhesión Individual": "Borrador de contrato de incorporación individual."
+                    "Contrato de Incorporación y Adhesión Individual": "Borrador de contrato de incorporación individual.",
+                    "Acta Constitutiva Notarial Oficial": "Borrador de acta notarial oficial."
                 }
                 st.success(f"✓ '{archivo_cargado.name}' guardado.")
                 st.button("🔄 Actualizar", key="refresh_uploader_nested")
             except Exception as e:
                 st.error("Error al indexar.")
 
-# MATRIZ INDUSTRIAL DE CIERRE INSTITUCIONAL AL PIE DEL TABLERO
 st.markdown("---")
 st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
 col_v1, col_v2, col_v3 = st.columns(3)
