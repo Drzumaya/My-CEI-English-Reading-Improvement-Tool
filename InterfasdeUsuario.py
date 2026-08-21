@@ -169,129 +169,101 @@ if "repositorio_en" not in st.session_state:
         }
     }
 # ==============================================================================
-# PARTE 12 DE 20: AUDITORÍA DE BITÁCORA Y ACCESO RESTRINGIDO INSTITUTIONAL
+# PARTE 12 DE 20: COLUMNA IZQUIERDA - VISOR DE MANUALES LEAN EN CALIENTE
 # ==============================================================================
-def registrar_descarga(modulo, archivo):
-    """Inyecta de forma síncrona la estampa de tiempo de las descargas en la bitácora contable."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    st.session_state["historial_descargas"].append({
-        "Fecha y Hora": now, "Módulo": modulo, "Archivo Descargado": archivo, "Estatus": "Éxito (Generado en Servidor)"
-    })
-
-def check_password():
-    def password_entered():
-        if st.session_state["password"] == st.secrets["access_control"]["password"]:
-            st.session_state["password_correct"] = True
-            st.session_state["show_login_error"] = False
-            del st.session_state["password"]
-        else:
-            st.session_state["password_correct"] = False
-            st.session_state["show_login_error"] = True
-
-    if st.session_state["password_correct"]:
-        return True
-
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns(3)
-    with col_l2:
-        st.title("🔐 Acceso Restringido")
-        st.subheader("Plataforma Integral de Economía Popular")
-        st.caption("JACOB ZUMAYA PRIANTI, A.C. • Régimen General Título II LISR • Agua Prieta, Sonora")
-        st.text_input("Introduce la contraseña de acceso:", type="password", on_change=password_entered, key="password")
-        if st.session_state.get("show_login_error", False):
-            st.error("❌ Credenciales inválidas. Intento bloqueado por seguridad.")
-    return False
-
-if not check_password():
-    st.stop()
-
-def logout():
-    st.session_state["password_correct"] = False
-    st.session_state["show_login_error"] = False
-    st.rerun()
+with col_izquierda_matriz:
+    # FILTRO DE SEGURIDAD ABSOLUTO ANTI-KEYERROR CONTRA RECARGAS EN BLANCO
+    if (st.session_state["ver_visor_legal"] and 
+        st.session_state["entidad_seleccionada"] in st.session_state["repositorio_institucional"] and 
+        st.session_state["tipo_doc_seleccionado"] in st.session_state["repositorio_institucional"][st.session_state["entidad_seleccionada"]]):
+        
+        ent = st.session_state["entidad_seleccionada"]
+        tdoc = st.session_state["tipo_doc_seleccionado"]
+        
+        st.info(f"📁 Ventana de Trabajo Activa: {ent} ➔ {tdoc}")
+        st.markdown("---")
+        
+        texto_editable_actual = st.text_area(
+            label="Editor Oficial de Cláusulas e Instructivos:", 
+            value=st.session_state["repositorio_institucional"][ent][tdoc], 
+            height=380
+        )
+        
+        b1, b2, b3, b4 = st.columns(4)
+        with b1:
+            if st.button("💾 Guardar Ajustes", use_container_width=True):
+                st.session_state["repositorio_institucional"][ent][tdoc] = texto_editable_actual
+                st.success("✓ Cambios guardados.")
+        with b2:
+            tabla_legal_dummy = [["Validación de Consistencia", "Aprobado por el Consejo"], ["Fecha de Auditoría", "2026-08-20"], ["Estatus Regulatorio", "Vigente Exento"]]
+            pdf_legal = generar_informe_pdf(f"{ent} - {tdoc}", tabla_legal_dummy, texto_editable_actual)
+            if st.download_button(label="📥 PDF", data=pdf_legal, file_name=f"{tdoc.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
+                registrar_descarga(ent, f"{tdoc}.pdf")
+        with b3:
+            buffer_word = io.BytesIO(texto_editable_actual.encode('utf-8'))
+            st.download_button(label="📝 Word", data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+        with b4:
+            if st.button("🛑 Cerrar Visor", use_container_width=True, type="primary"):
+                st.session_state["ver_visor_legal"] = False
+                st.rerun()
 # ==============================================================================
-# PARTE 13 DE 20: COMPILADOR INDIVIDUAL DE REPORTES PDF (CON LOGO Y FIRMAS)
+# PARTE 13 DE 20: COLUMNA IZQUIERDA - FORMULARIO FLOTANTE DE ALTA DE DIRECTORES
 # ==============================================================================
-def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
-    """Compila estados contables en un formato PDF vanguardista libre de errores de tags HTML."""
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-    styles = getSampleStyleSheet()
-    
-    color_primario = colors.HexColor("#1e4620")   # Verde Forestal JZPAC
-    color_acento = colors.HexColor("#495057")     # Gris Ejecutivo
-    
-    estilo_titulo = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=13, fontName='Helvetica-Bold', textColor=color_primario, spaceAfter=2)
-    estilo_sub = ParagraphStyle('DocSub', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=color_acento, spaceAfter=12)
-    estilo_cuerpo = ParagraphStyle('DocBody', parent=styles['Normal'], fontSize=10, fontName='Helvetica', leading=15, textColor=colors.HexColor("#212529"), spaceAfter=14)
-    estilo_firmas = ParagraphStyle('DocSign', parent=styles['Normal'], fontSize=8, fontName='Helvetica', alignment=1)
-    
-    story = []
-    
-    # --- CONSTRUCCIÓN GEOMÉTRICA SEGURA DEL ENCABEZADO ---
-    from reportlab.platypus import Image as RLImage
-    logo_flowable = ""
-    try:
-        logo_flowable = [RLImage("JZPACLOGOREDONDO.png", width=42, height=42)]
-    except Exception:
-        logo_flowable = [Paragraph("<b>🦅 JZPAC</b>", ParagraphStyle('Fb', fontSize=10, textColor=color_primario, alignment=2))]
+    elif st.session_state["ver_formulario_registro"]:
+        st.success("📝 Formulario Flotante Activo: Alta y Nombramiento de Directores Asociados")
+        st.markdown("---")
+        
+        datos_universales_mexico = {
+            "1. Asociación Civil Matriz (A.C.)": {"Regimen_SAT": "Régimen General de Ley de las Personas Morales (Título II LISR)", "Obligacion_Fiscal": "Declaración anual en marzo, pagos provisionales mensuales de ISR (30%), entero de retenciones de asimilados.", "Normativa_Clave": "Artículos 15 Fracc. IV y XII de la Ley del IVA (Exención de traslado del 16% en capacitación)."},
+            "2. Cooperativa de Logística (S.C.)": {"Regimen_SAT": "Régimen de las Personas Morales con Fines no Lucrativos (Título III LISR)", "Obligacion_Fiscal": "Facturación electrónica de fletes terrestres, aplicación obligatoria de la Retención del 4% de ISR por personas morales.", "Normativa_Clave": "Ley General de Sociedades Cooperativas (LGSC) - Responsabilidad Limitada, fondo de reserva del 6% diésel."},
+            "3. Agencia de Microseguros (S.A.)": {"Regimen_SAT": "Régimen General de Ley (Sociedades Anónimas de Capital Variable - Título II LISR)", "Obligacion_Fiscal": "Contabilidad corporativa mercantil auditada, facturación general de pólizas comerciales con desglose de IVA.", "Normativa_Clave": "Ley de Instituciones de Seguros y de Fianzas (LISF) - Cédula vigente ante la Comisión Nacional de Seguros y Fianzas (CNSF)."},
+            "4. Equipo de Investigación Científica APSON": {"Regimen_SAT": "Régimen General con asignación de Fideicomisos Tecnológicos Autónomos (Exento por Fomento)", "Obligacion_Fiscal": "Reporte de transparencia de recursos captados de Fondos de Innovación, exención de IVA en contratos de I+D.", "Normativa_Clave": "Ley General de Humanidades, Ciencias, Tecnologías e Innovación - Patentes sociales exentas."}
+        }
 
-    header_text = [
-        [Paragraph(f"<b>{titulo_modulo.upper()}</b>", estilo_titulo), logo_flowable],
-        [Paragraph("<b>JACOB ZUMAYA PRIANTI, A.C.</b> • Ecosistema de Economía Popular", estilo_sub), ""]
-    ]
-    
-    header_table = Table(header_text, colWidths=[380.0, 100.0])
-    header_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('SPAN', (1,0), (1,1)), 
-        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0), ('TOPPADDING', (0,0), (-1,-1), 0),
-    ]))
-    story.append(header_table)
-    
-    divider_line = Table([[""]], colWidths=[480.0])
-    divider_line.setStyle(TableStyle([
-        ('LINEBELOW', (0,0), (-1,-1), 1.5, color_primario),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8), ('TOPPADDING', (0,0), (-1,-1), 2),
-    ]))
-    story.append(divider_line)
-    story.append(Spacer(1, 10))
-    
-    story.append(Paragraph(resumen_texto, estilo_cuerpo))
-    story.append(Spacer(1, 8))
-    
-    tabla_pdf = Table(datos_tabla, colWidths=[240.0, 240.0])
-    tabla_pdf.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (1, 0), color_primario), ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
-        ('FONTNAME', (0, 0), (1, 0), 'Helvetica-Bold'), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 6), ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#f8f9fa"), colors.white]),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")), ('FONTSIZE', (0, 0), (-1, -1), 9),
-    ]))
-    story.append(tabla_pdf)
-    story.append(Spacer(1, 30))
-    
-    # Cuadro de firmas triples libre de tags HTML conflictivos
-    datos_firmas = [
-        ["____________________________", "____________________________", "____________________________"],
-        [Paragraph("<b>Agente Capacitador Central</b>", estilo_firmas), Paragraph("<b>Director de Subsistema</b>", estilo_firmas), Paragraph("<b>Delegación de Control SAT</b>", estilo_firmas)],
-        [Paragraph("Jacob Zumaya Prianti, A.C.", estilo_firmas), Paragraph("Gobernanza de Célula de Barrio", estilo_firmas), Paragraph("Materialidad e Inclusión Fiscal", estilo_firmas)]
-    ]
-    tabla_firmas = Table(datos_firmas, colWidths=[155.0, 170.0, 155.0])
-    tabla_firmas.setStyle(TableStyle([
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('TOPPADDING', (0,0), (-1,-1), 2), ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-    ]))
-    story.append(tabla_firmas)
-    
-    doc.build(story)
-    buffer.seek(0)
-    return buffer
+        f_nom = st.text_input("👤 Nombre Completo del Director a Registrar:", placeholder="Ej. Lic. Alejandro Anaya")
+        f_rfc = st.text_input("🆔 Clave de Registro Federal de Contribuyentes (RFC):", max_chars=13, placeholder="Ej. ANAA850423XX9")
+        f_entidad = st.selectbox("🏢 Selecciona la Entidad o Subsistema que pasará a dirigir:", list(datos_universales_mexico.keys()))
+        f_puesto = st.text_input("💼 Cargo u Oficio Directivo Asignado:", placeholder="Ej. Director General de Operaciones")
+
+        st.markdown(f"#### 🏛️ Datos Universales Obligatorios (Marco Regulatorio Mexicano - {f_entidad})")
+        st.markdown(f"""
+        <div style='background-color: #f1f3f5; padding: 15px; border-radius: 6px; border-left: 5px solid #1e4620; margin-bottom:15px;'>
+            <p style='margin-bottom:5px; font-size:13px;'><b>1. Régimen Fiscal SAT Obligatorio:</b> {datos_universales_mexico[f_entidad]['Regimen_SAT']}</p>
+            <p style='margin-bottom:5px; font-size:13px;'><b>2. Declaraciones y Retenciones Críticas:</b> {datos_universales_mexico[f_entidad]['Obligacion_Fiscal']}</p>
+            <p style='margin-bottom:0px; font-size:13px;'><b>3. Ley Federal de Control:</b> {datos_universales_mexico[f_entidad]['Normativa_Clave']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        rc1, rc2 = st.columns(2)
+        with rc1:
+            if st.button("💾 Validar e Inscribir Director", use_container_width=True, type="secondary"):
+                if f_nom and f_rfc and f_puesto:
+                    st.session_state["directores_registrados"].append({
+                        "Fecha Registro": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc.upper(), "Estatus": "Alta Exitosa / Acta Firmada"
+                    })
+                    st.success(f"✓ El {f_puesto} ha sido legalmente registrado.")
+                else:
+                    st.error("Por favor, llena todos los campos obligatorios.")
+        with rc2:
+            if st.button("🛑 Cancelar y Cerrar Formulario", use_container_width=True, type="primary"):
+                st.session_state["ver_formulario_registro"] = False
+                st.rerun()
+
+    # Eslabón explícito que renderiza la base de datos en tiempo real si el botón lateral es accionado
+    elif st.session_state["ver_padron_flotante"]:
+        st.warning("👁️ Ventana Flotante de Datos Activa: Monitoreo del Padrón de Directores en Tiempo Real")
+        st.markdown("---")
+        st.table(st.session_state["directores_registrados"])
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🛑 Ocultar Vista de Datos y Volver", use_container_width=True, type="primary"):
+            st.session_state["ver_padron_flotante"] = False
+            st.rerun()
 # ==============================================================================
 # PARTE 14 DE 20: COLUMNA IZQUIERDA - SIMULADORES FISCALES Y DE LOGÍSTICA DE RUTA
 # ==============================================================================
     else:
-        # Pestañas ordinarias de simulación macroeconómica barrial
+        # Pestañas de simulación ordinarias que se muestran si los visores flotantes se apagan
         tabs = st.tabs(["🛡️ IVA e ISR", "🔮 Módulo Logístico Cooperativo", "📊 Microseguros", "🏦 Caja de Ahorro", "📑 Historial de Descargas"])
         tab1, tab_logistica, tab4, tab5, tab_log = tabs
         
@@ -369,7 +341,7 @@ with col_derecha_documental:
         
     st.markdown("<div style='padding-top:10px;'></div>", unsafe_allow_html=True)
 # ==============================================================================
-# PARTE 17 DE 17 (NIVEL GLOBAL): CONTROL DE CONMUTACIÓN DE IDIOMA (ESPAÑOL / ENGLISH)
+# PARTE 17 DE 20: COLUMNA DERECHA - CONTROL DE CONMUTACIÓN DE IDIOMA GLOBAL
 # ==============================================================================
     st.markdown("#### 🌐 Idioma de Descarga / Language Output")
     idioma_elegido = st.radio(
@@ -390,11 +362,9 @@ with col_derecha_documental:
 # ==============================================================================
     if seleccion_entidad != "-- Elige una Entidad --":
         st.markdown("#### 📘 Compilar Libro Unificado (APA 7)")
-        st.caption("Encuaderna la totalidad de manuales y contratos en una sola monografía de un solo click.")
+        st.caption("Encuaderna la totalidad de manuales, formatos y contratos con Índice y Paginación en un solo click.")
         
         dict_marcos_libro = st.session_state["repositorio_institucional"][seleccion_entidad]
-        
-        # Ejecución del compilador inyectando la bandera bilingüe de traducción
         pdf_libro_completo = generar_libro_apa7(seleccion_entidad, dict_marcos_libro, lang_en=is_english)
         
         label_btn_libro = "📥 Download Complete Compendium (PDF)" if is_english else "📥 Descargar Libro Compendio (PDF)"
