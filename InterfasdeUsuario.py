@@ -666,7 +666,7 @@ with col_izquierda_matriz:
             st.session_state["ver_padron_flotante"] = False
             st.rerun()
 # ==============================================================================
-# PARTE 13 DE 14: COLUMNA IZQUIERDA (CENTRO) - ENTORNO ANALÍTICO CONMUTABLE
+# PARTE 13a DE 14: COLUMNA IZQUIERDA (CENTRO) - ENTORNO ANALÍTICO CONMUTABLE (PARTE 1)
 # ==============================================================================
     else:
         # --- INNOVACIÓN DE CLASE MUNDIAL: SELECTOR DE CONTEXTO OPERATIVO CENTRAL ---
@@ -689,9 +689,9 @@ with col_izquierda_matriz:
         st.markdown(f"### ⚙️ Tablero de Simulación: <span style='color:#1e4620;'>{entidad_activa_centro}</span>", unsafe_allow_html=True)
         st.markdown("---")
 
-        # RENDERIZADO DINÁMICO DE COMPONENTES INTERNOS SEGÚN LA NATURALEZA DE LA ENTIDAD
-        tabs = st.tabs(["📊 Balance del Subsistema", "🛡️ Parámetros Fiscales", "📈 Modelado Actuarial", "📑 Historial de Descargas"])
-        tab_balance, tab_fiscal, tab_actuarial, tab_log = tabs
+        # RENDERIZADO DINÁMICO DE 5 PESTAÑAS AJUSTADAS AL CONTEXTO BILINGÜE
+        tabs = st.tabs(["📊 Balance del Subsistema", "🛡️ Parámetros Fiscales", "📈 Modelado Actuarial", "🚀 Innovación y Competitividad", "📑 Historial de Descargas"])
+        tab_balance, tab_fiscal, tab_actuarial, tab_innovacion, tab_log = tabs
         
         # 1. PESTAÑA DINÁMICA: BALANCE DE LA CÉLULA ACTIVA
         with tab_balance:
@@ -730,7 +730,7 @@ with col_izquierda_matriz:
             elif "Microseguros" in entidad_activa_centro or "S.A." in entidad_activa_centro:
                 st.markdown("##### 📊 Retorno de Corretaje Social y Primas Mutuales")
                 st.caption("Mitigación de riesgos en maquinaria pesada popular y reaseguro comunitario CNSF.")
-                prima_mensual = st.number_input("Prima Mensual por Unidad de Trabajo:", min_value=50.0, value=120.0, key='pr_sa')
+                prima_mensual = st.number_input("Prima Monsual por Unidad de Trabajo:", min_value=50.0, value=120.0, key='pr_sa')
                 retorno_pct = st.slider("Porcentaje de Retorno Social Pactado para la A.C.:", min_value=5, max_value=40, value=20, key='pct_sa')
                 
                 prima_anual = float(65 * prima_mensual * 12)
@@ -761,7 +761,9 @@ with col_izquierda_matriz:
                 st.warning("⚠️ Alerta SAT: Facturación electrónica ordinaria con desglose del 16% de IVA mercantil en pólizas de daños comerciales.")
             else:
                 st.success("✓ Estatus Fiscal: Aportaciones científicas directas consideradas gastos deducibles autorizados a tasa cero.")
-
+# ==============================================================================
+# PARTE 13b DE 14: COLUMNA IZQUIERDA (CENTRO) - ENTORNO ANALÍTICO CONMUTABLE (PARTE 2)
+# ==============================================================================
         # 3. PESTAÑA DINÁMICA: MODELADO ACTUARIAL Y AJUSTE DE VARIABLES LATENTES
         with tab_actuarial:
             st.subheader("🔮 Indicadores Críticos y Variables Latentes (Escala Likert)")
@@ -775,7 +777,37 @@ with col_izquierda_matriz:
             st.progress(85)
             st.caption("Índice de Materialidad y Consistencia General del Ecosistema JZPAC: <b>85.4%</b> (Nivel Excelente)", unsafe_allow_html=True)
 
-        # 4. PESTAÑA DINÁMICA: HISTORIAL DE DESCARGAS DEL CONTEXTO
+        # 4. NUEVA PESTAÑA DE CLASE MUNDIAL: INNOVACIÓN Y DETONADORES DE COMPETITIVIDAD
+        with tab_innovacion:
+            st.subheader("🚀 Estrategia de Expansión y Ganchos de Vinculación")
+            st.caption("Rastreo predictivo de vacíos de mercado fronterizos y ventajas comerciales exclusivas de JZPAC.")
+            st.markdown("---")
+            
+            if "Matriz" in entidad_activa_centro or "A.C." in entidad_activa_centro:
+                st.markdown("### 🟢 Nodo Central: Asociación Civil Matriz")
+                st.error("❌ **El Vacío en Agua Prieta:** Las escuelas de oficios tradicionales operan de forma informal o arrastran una pesada carga fiscal que ahoga los ingresos netos de los instructores barriales.")
+                st.success("⚡ **El Servicio Detonador JZPAC:** **Escudo Fiscal Corporativo Avanzado con Nómina Asimilada (Art. 94 LISR).** Ofrece a los líderes un ecosistema que blinda sus honorarios como deducciones de Título II y exenta el 100% del traslado del 16% de IVA en capacitación (Art. 15 LIVA).")
+                st.info("🎯 **Gancho de Vinculación Ejecutiva:** Formalización patrimonial limpia y segura para captar de inmediato a los mejores capacitadores independientes de la frontera.")
+                
+            elif "Logística" in entidad_activa_centro or "S.C." in entidad_activa_centro:
+                st.markdown("### 🔵 Subsistema Operativo: Cooperativa de Logística")
+                st.error("❌ **El Vacío en Agua Prieta:** Las uniones de fletes locales carecen de analítica; cobran tarifas a ciegas y sufren pérdidas críticas debido al **Factor de Retorno Vacío (Deadhead)** en aduanas y la volatilidad del diésel.")
+                st.success("⚡ **El Servicio Detonador JZPAC:** **Logística Predictiva de Última Milla.** Software analítico integrado (Streamlit) que recalcula tarifas en caliente deduciendo factores de retorno aduanal, aislando el 4% de retención de ISR e inyectando un 6% para el fondo de amortiguación de combustible.")
+                st.info("🎯 **Gancho de Vinculación Ejecutiva:** Optimización y aumento inmediato de ganancias netas por kilómetro recorrido para atraer a choferes independientes y pequeñas flotillas de la región.")
+                
+            elif "Microseguros" in entidad_activa_centro or "S.A." in entidad_activa_centro:
+                st.markdown("### 💛 Subsistema de Riesgos: Agencia de Microseguros")
+                st.error("❌ **El Vacío en Agua Prieta:** Las aseguradoras comerciales tradicionales (AXA, GNP) exigen primas excluyentes e historial bancario que marginan a los micro-talleres, artesanos y costureras de las colonias.")
+                st.success("⚡ **El Servicio Detonador JZPAC:** **Póliza Colectiva Solidaria con Retorno de Corretaje Social.** Cobertura total de maquinaria a micro-primas accesibles, donde **el 20% de la recaudación se regresa directamente a la comunidad** bajo la figura reglamentada de Honorarios de Corretaje Social Docente.")
+                st.info("🎯 **Gancho de Vinculación Ejecutiva:** Protección patrimonial real de herramientas de trabajo con reinversión comunitaria del 20%, inutilizando la competencia de las aseguradoras comerciales capitalistas.")
+                
+            else:
+                st.markdown("### 🧪 Subsistema de I+D: Equipo Científico APSON")
+                st.error("❌ **El Vacío en Agua Prieta:** Las consultoras o universidades ejecutan estudios teóricos o descriptivos básicos, totalmente desconectados del nearshoring industrial y del aprovechamiento real de residuos.")
+                st.success("⚡ **El Servicio Detonador JZPAC:** **Modelado de Variables Latentes + Upcycling Industrial.** Ingeniería inversa metalmecánica para el reciclaje de alto valor de las mermas que desechan las grandes plantas maquiladoras de la zona fronteriza, licenciando patentes sociales a tasa cero.")
+                st.info("🎯 **Gancho de Vinculación Ejecutiva:** Alianza con corporativos extranjeros para cumplir con cuotas de Responsabilidad Social Empresarial (ESG) y reducir sus costos de confinamiento de basura industrial.")
+
+        # 5. PESTAÑA DINÁMICA: HISTORIAL DE DESCARGAS DEL CONTEXTO
         with tab_log:
             st.header("📑 Historial de Auditoría de Descargas")
             if len(st.session_state["historial_descargas"]) == 0:
@@ -794,6 +826,7 @@ with col_izquierda_matriz:
             </p>
         </div>
         """, unsafe_allow_html=True)
+
 # ==============================================================================
 # PARTE 14 DE 14: COLUMNA DERECHA - LOGOTIPO, IDIOMA BILINGÜE Y ADICIÓN DE ENTIDADES
 # ==============================================================================
