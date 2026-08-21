@@ -816,9 +816,9 @@ with col_izquierda_matriz:
                 st.table(st.session_state["historial_descargas"])
 
 # ==============================================================================
-# PARTE 13b´ DE 14: COLUMNA IZQUIERDA - SIMULADOR FINANCIERO DE LA CAJA DE AHORRO
+# PARTE 13b´ DE 14: COLUMNA IZQUIERDA - SIMULADOR MULTIRRÉGIMEN PARA TRANSPORTISTAS
 # ==============================================================================
-        # --- 🚀 REINVENCIÓN COMPLETA: SECCIÓN DE ANÁLISIS DE AHORRO MULTIREGIMEN PARA TRANSPORTISTAS ---
+        # --- SECCIÓN DE ANÁLISIS DE AHORRO FISCAL MULTIRRÉGIMEN PARA LOGÍSTICA ---
         if "Logística" in entidad_activa_centro or "S.C." in entidad_activa_centro:
             st.markdown("---")
             st.markdown("""
@@ -831,8 +831,9 @@ with col_izquierda_matriz:
             
             c_sh1, c_sh2 = st.tabs(["👤 Sección: Personas Físicas (Choferes / Hombre-Camión)", "🏢 Sección: Personas Morales (Flotillas / Transportistas)"])
             
+            # CONTROL DE PERSONAS FÍSICAS (RESICO / ACTIVIDAD EMPRESARIAL VS ASIMILADOS)
             with c_sh1:
-                st.markdown("##### 1. Simulación de Impacto Líquido Mensual (Individual)")
+                st.markdown("##### 🚛 Simulación de Impacto Líquido Mensual (Individual)")
                 flete_bruto_pf = st.number_input("Ingreso Mensual Bruto Estimado por Fletes ($ MXN):", min_value=10000, value=95000, step=5000, key="pf_bruto")
                 gasto_diesel_pf = st.number_input("Gasto Mensual Estimado en Combustible e Insumos ($ MXN):", min_value=5000, value=35000, step=2000, key="pf_diesel")
                 
@@ -854,7 +855,10 @@ with col_izquierda_matriz:
                 col_pf1.metric("Utilidad Esquema Tradicional", f"${utilidad_neta_tradicional:,.2f} MXN", delta="- Carga SAT", delta_color="inverse")
                 col_pf2.metric("Utilidad Esquema Cooperativa", f"${utilidad_neta_coop:,.2f} MXN", delta="✓ Retorno Optimizado")
                 col_pf3.metric("Ahorro Neto Mensual", f"${ahorro_liquido_pf:,.2f} MXN", delta="💵 Dinero Recuperado", delta_color="normal")
+                
+                st.caption(f"💡 <b>Nota de Retención Social:</b> Sumándote a JZPAC, capitalizas un fondo de diésel propio de <b>${fondo_diesel_coop:,.2f} MXN</b> y resguardas un saldo líquido exento en la Caja de Ahorro.", unsafe_allow_html=True)
 
+            # CONTROL DE PERSONAS MORALES (EMPRESAS TÍTULO II VS COOPERATIVA TÍTULO III JZPAC)
             with c_sh2:
                 st.markdown("##### 🏢 Simulación de Eficiencia Corporativa Anual (Empresas Flotilleras)")
                 facturacion_anual_pm = st.number_input("Facturación Bruta Anual de la Empresa ($ MXN):", min_value=100000, value=2400000, step=50000, key="pm_bruto")
@@ -876,8 +880,12 @@ with col_izquierda_matriz:
                 col_pm1.metric("Rendimiento Tradicional (Neto)", f"${utilidad_neta_pm_tradicional:,.2f} MXN", delta="-30% LISR / -10% PTU", delta_color="inverse")
                 col_pm2.metric("Rendimiento con Enlace JZPAC", f"${utilidad_retendida_ecosistema:,.2f} MXN", delta="✓ Escudo Título III")
                 col_pm3.metric("Capitalización Salvada", f"${ahorro_structural_pm:,.2f} MXN", delta="🏛️ Retención de Valor", delta_color="normal")
-
-        # --- 🏦 COMPONENTE COMPLEMENTARIO EXCLUSIVO: KIT ALTO SERVICIO DE LA CAJA DE AHORRO ---
+                
+                st.caption("💡 <b>Estrategia Nearshoring ESG:</b> La vinculación de tu persona moral al ecosistema JZPAC transforma el pago ordinario de impuestos en un gasto deducible de aportación social a tasa cero, blindando la materialidad operativa ante el SAT.", unsafe_allow_html=True)
+# ==============================================================================
+# PARTE 13b´´ DE 14: COLUMNA IZQUIERDA - RENDIMIENTO Y AMORTIZACIÓN DE LA CAJA
+# ==============================================================================
+        # --- 🏦 COMPONENTE COMPLEMENTARIO: SIMULADOR DE INTERÉS COMPUESTO Y PRÉSTAMO FIJO ---
         if "Matriz" in entidad_activa_centro or "A.C." in entidad_activa_centro:
             st.markdown("---")
             st.markdown("""
@@ -897,11 +905,9 @@ with col_izquierda_matriz:
                 tasa_social_anual = st.slider("Tasa de Rendimiento Social Estimada (% Anual):", min_value=1.0, max_value=12.0, value=6.5, step=0.5, key="caja_tasa_a")
                 años_proyeccion = st.slider("Horizonte de Tiempo para el Retiro Comunitario (Años):", min_value=1, max_value=10, value=3, key="caja_anos")
                 
-                # Cálculo Financiero Puro de Interés Compuesto en Python
                 tasa_mensual = (tasa_social_anual / 100) / 12
                 total_meses_p = años_proyeccion * 12
                 
-                # Fórmula de anualidad ordinaria capitalizable
                 capital_acumulado = deposito_mensual * (((1 + tasa_mensual)**total_meses_p - 1) / tasa_mensual)
                 total_aportado = deposito_mensual * total_meses_p
                 remanente_generado = capital_acumulado - total_aportado
@@ -909,27 +915,25 @@ with col_izquierda_matriz:
                 col_c1, col_c2, col_c3 = st.columns(3)
                 col_c1.metric("Total de Aportaciones Históricas", f"${total_aportado:,.2f} MXN", "Capital Base")
                 col_c2.metric("Rendimiento Social Acumulado", f"${remanente_generado:,.2f} MXN", "✓ 100% Exento de Impuestos")
-                col_c3.metric("Fondo de Reserva Total", f"${capital_acumulado:,.2f} MXN", "🏛️ Liquidez Comunitario")
+                col_c3.metric("Fondo de Reserva Total", f"${capital_acumulado:,.2f} MXN", "🏛️ Liquidez Comunitaria")
                 st.caption("💡 <b>Blindaje Título III:</b> Los intereses distribuidos por la Caja de Ahorro JZPAC no sufren la retención del ISR retenido por la banca comercial ordinaria, multiplicando el interés compuesto real.", unsafe_allow_html=True)
 
-            # SUB-MÓDULO PRÉSTAMOS: Amortización de Fomento Francesa a Tasa Cero
+            # SUB-MÓDULO PRÉSTAMOS: Amortización de Fomento Francesa a Tasa Cero (i=0)
             with c_caja2:
                 st.markdown("##### 🛠️ Tabla de Amortización Francesa a Tasa Cero para Maquinaria y Avío")
                 monto_solicitado = st.number_input("Monto del Crédito de Fomento Solicitado ($ MXN):", min_value=5000, value=60000, step=5000, key="caja_prest")
-                plazo_meses = st.selectbox("Plazo de Devolución Autorizado (Meses):", [6, 12, 18, 24], index=1, key="caja_meses")
                 
-                # Cálculo de Amortización Esbelta a Tasa Cero ($i=0$)
+                # CORRECCIÓN DE SINTAXIS: Eliminación definitiva de la coma huérfana
+                plazo_meses = st.selectbox("Plazo de Devolución Autorizado (Meses):", [6, 12, 18, 24, 36], index=1, key="caja_meses")
+                
                 pago_mensual_fijo = float(monto_solicitado / plazo_meses)
-                
                 st.markdown(f"**Monto Fijo Mensual de Recuperación:** <span style='color:#1e4620; font-size:16px; font-weight:bold;'>${pago_mensual_fijo:,.2f} MXN</span> (Sin intereses ni comisiones de apertura)", unsafe_allow_html=True)
                 
-                # Construcción dinámica de la Tabla de Amortización en Celdas
                 tabla_amort_datos = [["Mes", "Pago Mensual", "Interés Cargado", "Amortización Capital", "Saldo Insoluto"]]
                 saldo_restante = monto_solicitado
                 
                 for mes in range(1, plazo_meses + 1):
                     saldo_restante -= pago_mensual_fijo
-                    # Asegurar cero flotante negativo por redondeos
                     if saldo_restante < 0.01:
                         saldo_restante = 0.0
                     tabla_amort_datos.append([
@@ -949,6 +953,12 @@ with col_izquierda_matriz:
         st.markdown("""
         <div style='background-color: #f1f3f5; padding: 12px; border-radius: 6px; border-left: 5px solid #4285f4;'>
             <p style='margin-bottom:0px; font-size:12px; color: #495057;'>
+                💡 <b>Sincronización con Google Drive:</b> Para abrir cualquier manual en <b>Google Docs</b>, descarga el archivo en formato 
+                <b>.docx (Word)</b> desde el panel de la derecha, arrástralo a tu cuenta de Google Drive y elígelo con un click derecho para 
+                'Abrir con: Documentos de Google'. El formateo corporativo se mantendrá intacto y editable en la nube.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ==============================================================================
 # PARTE 14a DE 14: COLUMNA DERECHA - LOGOTIPO, IDIOMA BILINGÜE Y ALTAS DE ENTIDADES
