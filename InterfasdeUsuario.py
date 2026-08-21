@@ -156,22 +156,30 @@ prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
 # ==============================================================================
-# PARTE 8 DE 10: COLUMNA IZQUIERDA - ENTORNO INTERACTIVO DE PÁGINA FLOTANTE
+# PARTE 8 DE 12: COLUMNA IZQUIERDA - PROTOCOLO ANTI-KEYERROR EN VENTANA FLOTANTE
 # ==============================================================================
 with col_izquierda_matriz:
-    if st.session_state["ver_visor_legal"]:
+    # FILTRO DE SEGURIDAD CRÍTICO: Validar la existencia real de las llaves en el diccionario anidado
+    if (st.session_state["ver_visor_legal"] and 
+        st.session_state["entidad_seleccionada"] in st.session_state["repositorio_institucional"] and 
+        st.session_state["tipo_doc_seleccionado"] in st.session_state["repositorio_institucional"][st.session_state["entidad_seleccionada"]]):
+        
         ent = st.session_state["entidad_seleccionada"]
         tdoc = st.session_state["tipo_doc_seleccionado"]
         
         st.info(f"📁 Ventana de Trabajo Activa: {ent} ➔ {tdoc}")
         st.markdown("---")
         
+        # Extracción e inyección 100% segura del texto del manual editable
         texto_editable_actual = st.text_area(
             label="Editor Oficial de Cláusulas e Instructivos (Cambios en Caliente):",
             value=st.session_state["repositorio_institucional"][ent][tdoc],
             height=380
         )
-        
+# ==============================================================================
+# PARTE 9 DE 12: MATRIZ DE MANDATOS Y COMPILADORES DE DESCARGA (VISOR ACTIVO)
+# ==============================================================================
+        # Despliegue horizontal de la botonera de control corporativo
         b1, b2, b3, b4 = st.columns(4)
         with b1:
             if st.button("💾 Guardar Ajustes", use_container_width=True):
@@ -180,18 +188,21 @@ with col_izquierda_matriz:
         with b2:
             tabla_legal_dummy = [["Validación de Consistencia", "Aprobado por el Consejo"], ["Fecha de Auditoría", "2026-08-20"], ["Estatus Regulatorio", "Vigente Exento"]]
             pdf_legal = generar_informe_pdf(f"{ent} - {tdoc}", tabla_legal_dummy, texto_editable_actual)
-            st.download_button(label="📥 PDF", data=pdf_legal, file_name=f"{tdoc.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True)
+            if st.download_button(label="📥 Descargar PDF", data=pdf_legal, file_name=f"{tdoc.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
+                registrar_descarga(ent, f"{tdoc}.pdf")
         with b3:
             buffer_word = io.BytesIO(texto_editable_actual.encode('utf-8'))
-            st.download_button(label="📝 Word", data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+            st.download_button(label="📝 Descargar Word", data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
         with b4:
+            # Desmontar la ventana flotante de manera síncrona y recargar el entorno principal
             if st.button("🛑 Cerrar Visor", use_container_width=True, type="primary"):
                 st.session_state["ver_visor_legal"] = False
                 st.rerun()
 # ==============================================================================
-# PARTE 9 DE 10: COLUMNA IZQUIERDA - PESTAÑAS ORDINARIAS DE TRABAJO Y SIMULACIÓN
+# PARTE 10 DE 12: COLUMNA IZQUIERDA - SIMULADORES CONTABLES Y DE CAJA DE AHORRO
 # ==============================================================================
     else:
+        # Pestañas ordinarias de simulación macroeconómica barrial
         tabs = st.tabs(["🛡️ IVA e ISR", "🔮 Módulo Logístico Cooperativo", "📊 Microseguros", "🏦 Caja de Ahorro", "📑 Historial de Descargas"])
         tab1, tab_logistica, tab4, tab5, tab_log = tabs
         
@@ -225,7 +236,7 @@ with col_izquierda_matriz:
 
         with tab4:
             st.header("Subsistema de Gestión de Riesgos de la Célula Mercantil")
-            prima_mensual = st.number_input("Prima Monsual por Taller (MXN)", min_value=50.0, value=prima_individual_global)
+            prima_mensual = st.number_input("Prima Mensual por Taller (MXN)", min_value=50.0, value=prima_individual_global)
             prima_individual_global = prima_mensual
             retorno_pct = st.slider("Porcentaje de Retorno Pactado para la A.C.", min_value=5, max_value=40, value=comision_retorno_global)
             comision_retorno_global = retorno_pct
@@ -247,7 +258,7 @@ with col_izquierda_matriz:
             else:
                 st.table(st.session_state["historial_descargas"])
 # ==============================================================================
-# PARTE 10 DE 10: COLUMNA DE LA DERECHA - REPOSITORIO ANIDADO Y PIE DE PÁGINA
+# PARTE 11 DE 12: COLUMNA DE LA DERECHA - SELECTBOX SECUENCIALES DEL REPOSITORIO
 # ==============================================================================
 with col_derecha_documental:
     st.markdown("""
@@ -257,24 +268,29 @@ with col_derecha_documental:
     </div>
     """, unsafe_allow_html=True)
     
-    # MENÚ DESPLEGABLE INTERACTIVO SECUENCIAL (Nivel 1: Entidad)
+    # 1. Menú Desplegable Nivel 1: Selección del Ecosistema
     lista_entidades = list(st.session_state["repositorio_institucional"].keys())
     seleccion_entidad = st.selectbox("🏢 1. Selecciona la Entidad / Subsistema:", ["-- Elige una Entidad --"] + lista_entidades)
     
-    # MENÚ DESPLEGABLE INTERACTIVO SECUENCIAL (Nivel 2: Marcos y Manuales de la Entidad)
+    # 2. Menú Desplegable Nivel 2: Selección del Manual o Tomo Específico
     if seleccion_entidad != "-- Elige una Entidad --":
         lista_marcos = list(st.session_state["repositorio_institucional"][seleccion_entidad].keys())
         seleccion_marco = st.selectbox("📋 2. Selecciona el Documento Oficial:", ["-- Elige el Manual --"] + lista_marcos)
         
         if seleccion_marco != "-- Elige el Marco --":
-            st.session_state["ver_visor_legal"] = True
+            # Fijación reactiva del estado de sesión para el visor de la columna izquierda
             st.session_state["entidad_seleccionada"] = seleccion_entidad
             st.session_state["tipo_doc_seleccionado"] = seleccion_marco
-            st.button("⚡ Abrir Documento en Visor", key="btn_trigger_open_nested")
+            st.session_state["ver_visor_legal"] = True
             
+            if st.button("⚡ Abrir Documento en Visor", key="btn_trigger_open_nested"):
+                st.rerun()
+# ==============================================================================
+# PARTE 12 DE 12: COLUMNA DE LA DERECHA - UPLOADING DE ARCHIVOS Y MARCO DE CIERRE
+# ==============================================================================
     st.markdown("---")
     
-    # CARGADOR DE NUEVAS ESTRUCTURAS CON AUTO-INYECCIÓN DE 6 REPOSITORIOS POR DEFECTO
+    # Sistema de carga rápida de nuevos reglamentos o acuerdos de asamblea
     st.markdown("#### 📤 Uploading de Nuevas Estructuras")
     archivo_cargado = st.file_uploader("Sube un acta o instructivo complementario (.txt):", type=["txt"])
     
@@ -283,6 +299,7 @@ with col_derecha_documental:
         if nombre_archivo_crudo not in st.session_state["repositorio_institucional"]:
             try:
                 contenido_texto = archivo_cargado.read().decode("utf-8", errors="ignore")
+                # Auto-inyección obligatoria de la estructura de 6 marcos para la nueva entidad cargada
                 st.session_state["repositorio_institucional"][nombre_archivo_crudo] = {
                     "Marco conceptual y descriptivo": contenido_texto,
                     "Marco legal": "Borrador de marco legal en espera de adición fiscal.",
@@ -296,7 +313,7 @@ with col_derecha_documental:
             except Exception as e:
                 st.error("Error de decodificación.")
 
-# MATRIZ INDUSTRIAL DE CIERRE AL PIE DE LA INTERFAZ
+# MATRIZ INDUSTRIAL DE CIERRE AL PIE DE LA INTERFAZ (VÍNCULO DE INTERCONEXIÓN DE COLOR)
 st.markdown("---")
 st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
 col_v1, col_v2, col_v3 = st.columns(3)
