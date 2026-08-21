@@ -130,8 +130,58 @@ if "repositorio_institucional" not in st.session_state:
     }
 
 # ==============================================================================
-# PARTE 8 DE 14: SUBRUTINAS DE AUDITORÍA REGISTRAL Y CONTROL FISCAL CENTRAL
+# PARTE 8 DE 14: SUBRUTINAS DE AUDITORÍA REGISTRAL Y VALIDADOR MATEMÁTICO DE RFC
 # ==============================================================================
+import re
+
+def calcular_digito_verificador_sat(rfc_corto):
+    """Aplica el algoritmo oficial de ponderación Módulo 11 para verificar el RFC."""
+    # Mapeo oficial de caracteres del SAT a valores numéricos
+    tabla_sat = "0123456789ABCDEFGHIJKLMN&OPQRSTUVWXYZ Ñ"
+    valores = {char: idx for idx, char in enumerate(tabla_sat)}
+    
+    # Si es Persona Moral (11 chars antes del dígito), añadimos un espacio virtual al inicio
+    if len(rfc_corto) == 11:
+        rfc_corto = " " + rfc_corto
+        
+    suma = 0
+    # Factores de ponderación posicional inversos (de 13 a 2)
+    for i in range(12):
+        char = rfc_corto[i]
+        val = valores.get(char, 0)
+        peso = 13 - i
+        suma += val * peso
+        
+    residuo = suma % 11
+    if residuo == 0:
+        return "0"
+    elif residuo == 1:
+        return "A"
+    else:
+        digito = 11 - residuo
+        return str(digito)
+
+def validar_estructura_rfc(rfc):
+    """Valida la sintaxis regex y el dígito verificador del RFC según el estándar del SAT."""
+    rfc = rfc.upper().strip()
+    # Expresión regular oficial del SAT para Personas Físicas y Morales
+    regex_sat = r"^[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{3}$"
+    
+    if not re.match(regex_sat, rfc):
+        return False, "Estructura o fecha inválida en el RFC."
+        
+    # Extraer el dígito verificador real (último carácter) y el cuerpo corto
+    digito_real = rfc[-1]
+    rfc_corto = rfc[:-1]
+    
+    # Calcular el dígito teórico mediante Módulo 11
+    digito_calculado = calcular_digito_verificador_sat(rfc_corto)
+    
+    if digito_real != digito_calculado:
+        return False, f"Dígito verificador inválido (Esperado: {digito_calculado}, Capturado: {digito_real})."
+        
+    return True, "RFC Válido conforme al estándar oficial del SAT."
+
 def registrar_descarga(modulo, archivo):
     """Inyecta de forma síncrona la estampa de tiempo de las descargas en la bitácora contable."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -434,7 +484,7 @@ prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
 # ==============================================================================
-# PARTE 12 DE 14: COLUMNA IZQUIERDA - VISOR EDITABLE Y RESPALDO COMPATIBLE CON GOOGLE
+# PARTE 12 DE 14: COLUMNA IZQUIERDA - VISOR EDITABLE Y FORMULARIO CON VALIDADOR SAT
 # ==============================================================================
 with col_izquierda_matriz:
     # 1. ENTORNO FLOTANTE PARA EDITAR MANUALES INDIVIDUALES EN VIVO
@@ -469,7 +519,7 @@ with col_izquierda_matriz:
                 st.session_state["ver_visor_legal"] = False
                 st.rerun()
 
-    # 2. INTERFAZ DEL FORMULARIO DE ALTA DE DIRECTORES (RESPALDO EXCEL/SHEETS DIRECTO)
+    # 2. INTERFAZ DEL FORMULARIO DE ALTA DE DIRECTORES CON VALIDADOR DE RFC INTEGRADO
     elif st.session_state["ver_formulario_registro"]:
         st.success("📝 Formulario Flotante Activo: Alta y Nombramiento de Directores Asociados")
         st.markdown("---")
@@ -480,7 +530,20 @@ with col_izquierda_matriz:
             "4. Equipo de Investigación Científica APSON": {"Regimen_SAT": "Régimen General con asignación de Fideicomisos Tecnológicos", "Obligacion_Fiscal": "Reporte de fondos de Innovación, exención de IVA en contratos I+D.", "Normativa_Clave": "Ley General de Humanidades, Ciencias, Tecnologías e Innovación."}
         }
         f_nom = st.text_input("👤 Nombre Completo del Director a Registrar:", placeholder="Ej. Lic. Alejandro Anaya")
-        f_rfc = st.text_input("🆔 Clave de Registro Federal de Contribuyentes (RFC):", max_chars=13, placeholder="Ej. ANAA850423XX9")
+        
+        # Entrada de RFC con control visual
+        f_rfc = st.text_input("🆔 Clave de Registro Federal de Contribuyentes (RFC):", max_chars=13, placeholder="Ej. ANAA850423XX9").upper().strip()
+        
+        # Evaluación en caliente del RFC
+        rfc_valido = False
+        if f_rfc:
+            es_valido, mensaje_sat = validar_estructura_rfc(f_rfc)
+            if es_valido:
+                st.success(f"✓ {mensaje_sat}")
+                rfc_valido = True
+            else:
+                st.error(f"❌ {mensaje_sat}")
+        
         f_entidad = st.selectbox("🏢 Selecciona la Entidad o Subsistema que pasará a dirigir:", list(datos_universales_mexico.keys()))
         f_puesto = st.text_input("💼 Cargo u Oficio Directivo Asignado:", placeholder="Ej. Director General de Operaciones")
 
@@ -489,15 +552,21 @@ with col_izquierda_matriz:
 
         rc1, rc2 = st.columns(2)
         with rc1:
-            if st.button("💾 Validar e Inscribir Director", use_container_width=True, type="secondary"):
+            # El botón de inscripción se condiciona a la validez estricta del RFC
+            if st.button("💾 Validar e Inscribir Director", use_container_width=True, type="secondary", disabled=not rfc_valido):
                 if f_nom and f_rfc and f_puesto:
                     marca_tiempo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
-                    # Guardado en el estado interno seguro de la sesión
-                    st.session_state["directores_registrados"].append({
-                        "Fecha Registro": marca_tiempo, "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc.upper(), "Estatus": "Alta Exitosa / Acta Firmada"
-                    })
-                    st.success(f"✓ El {f_puesto} ha sido registrado de forma exitosa localmente.")
+                    # Verificación secundaria anti-duplicados por RFC en la sesión local
+                    rfc_duplicado = any(d["RFC"] == f_rfc for d in st.session_state["directores_registrados"])
+                    
+                    if rfc_duplicado:
+                        st.error("❌ Conflicto registral: Este RFC ya se encuentra asignado a un Director Activo.")
+                    else:
+                        st.session_state["directores_registrados"].append({
+                            "Fecha Registro": marca_tiempo, "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc, "Estatus": "Alta Exitosa / Acta Firmada"
+                        })
+                        st.success(f"✓ El {f_puesto} ha sido formalmente indexado en el padrón bilingüe.")
                 else:
                     st.error("Por favor, llena todos los campos obligatorios.")
         with rc2:
@@ -512,11 +581,9 @@ with col_izquierda_matriz:
         st.table(st.session_state["directores_registrados"])
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # --- CONVERSIÓN COMPATIBLE CON GOOGLE SHEETS SIN REQUERIR APPS SCRIPT ---
         import csv
         output_csv = io.StringIO()
         writer_csv = csv.writer(output_csv)
-        # Escribir encabezados oficiales exigidos por auditoría
         writer_csv.writerow(["Fecha Registro", "Nombre", "Entidad", "Puesto", "RFC", "Estatus"])
         for row in st.session_state["directores_registrados"]:
             writer_csv.writerow([row["Fecha Registro"], row["Nombre"], row["Entidad"], row["Puesto"], row["RFC"], row["Estatus"]])
@@ -525,7 +592,6 @@ with col_izquierda_matriz:
         
         c_desc1, c_desc2 = st.columns(2)
         with c_desc1:
-            # Botón de descarga universal de hoja de cálculo
             st.download_button(
                 label="📥 Descargar Padrón para Google Sheets (.csv)",
                 data=data_csv_string,
