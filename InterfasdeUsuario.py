@@ -272,7 +272,6 @@ class CanvasPaginadoLibro(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pages = []
-        self._saved_page_states = []
 
     def showPage(self):
         self.pages.append(dict(self.__dict__))
@@ -328,7 +327,6 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
     p_m5 = "<i>Internal Organization Executive Monograph for Tax Compliance Validation under Mexican Law (Title II LISR)</i>" if lang_en else "<i>Monografía Ejecutiva de Organización interna para Validación del Remanente Distribuible conforme al Título II de la LISR</i>"
 
     tabla_portada_datos = [
-        [logo_portada],
         [Paragraph("<b>JACOB ZUMAYA PRIANTI, A.C.</b>", ParagraphStyle('N1', fontName='Helvetica-Bold', fontSize=11, textColor=colors.white, alignment=1, spaceAfter=15))],
         [Paragraph(p_t1, estilo_portada_titulo)],
         [Paragraph(p_t2, ParagraphStyle('S2', parent=estilo_portada_titulo, fontSize=13, textColor=colors.white))],
@@ -348,7 +346,7 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
     story.append(tabla_portada_color)
     story.append(PageBreak())
     
-    # --- ÍNDICE GENERAL CON LLAMADOS DE REFERENCIA CRUZADA DINÁMICOS (<pageNumber>) ---
+    # --- ÍNDICE GENERAL CON REFERENCIAS CRUZADAS DINÁMICAS NATIVAS DE TEXTO ---
     lbl_idx = "<b>GENERAL CHAPTER INDEX</b>" if lang_en else "<b>ÍNDICE GENERAL DE CAPÍTULOS</b>"
     story.append(Paragraph(lbl_idx, estilo_apa_h1))
     story.append(Spacer(1, 15))
@@ -357,17 +355,16 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
     for titulo_manual in diccionario_marcos.keys():
         linea_puntos = ". " * 28
         lbl_cap = f"<b>Chapter {num_capitulo}:</b>" if lang_en else f"<b>Capítulo {num_capitulo}:</b>"
-        # Limpiar el título para usarlo como llave identificadora única (ID sin espacios)
         id_marcador = f"cap_{num_capitulo}"
         
-        # El tag HTML <pageNumber> de ReportLab jala dinámicamente el folio real asignado al target
+        # El tag <pageNumber> procesa la paginación de forma nativa e interna en el canvas
         renglon_indice = f"{lbl_cap} {titulo_manual} {linea_puntos} [ pág. <pageNumber violet=0 link={id_marcador}/> ]"
         story.append(Paragraph(renglon_indice, estilo_indice))
         num_capitulo += 1
         
     story.append(PageBreak())
     
-    # --- ENCUADERNACIÓN DE CONTENIDOS Y COLOCACIÓN DE DESTINATIONS ---
+    # --- ENCUADERNACIÓN DE CONTENIDOS EMBEBIENDO EL TAG DE ANCLA DIRECTO EN EL PÁRRAFO ---
     num_capitulo = 1
     for titulo_manual, texto_contenido in diccionario_marcos.items():
         txt_traducido = texto_contenido
@@ -377,11 +374,8 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
             txt_traducido = txt_traducido.replace("CLÁUSULA PRIMERA", "FIRST CLAUSE").replace("CLÁUSULA SEGUNDA", "SECOND CLAUSE").replace("CLÁUSULA TERCERA", "THIRD CLAUSE")
 
         id_marcador = f"cap_{num_capitulo}"
-        # Inyectar el ancla de destino invisible justo antes del título del capítulo
-        from reportlab.platypus import Destination
-        story.append(Spacer(1, 0)) # Contenedor puente
         
-        # Título Nivel 1 APA con ID de rastreo para el recuento dinámico de páginas
+        # SOLUCCIÓN AL IMPORT ERROR: El tag ancla <a name='ID'/> se define directo en el Flowable Paragraph
         story.append(Paragraph(f"<a name='{id_marcador}'/><b>{titulo_manual}</b>", estilo_apa_h1))
         story.append(Spacer(1, 10))
         
@@ -394,7 +388,7 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
         story.append(Spacer(1, 15))
         num_capitulo += 1
         
-    # Construir el compendio completo recalculando de forma síncrona el índice
+    # Construcción final inyectando el canvasmaker paginado
     doc.build(story, canvasmaker=CanvasPaginadoLibro)
     buffer_libro.seek(0)
     return buffer_libro
