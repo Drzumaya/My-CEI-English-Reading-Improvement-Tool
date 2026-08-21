@@ -42,22 +42,25 @@ if "ver_padron_flotante" not in st.session_state:
 if "directores_registrados" not in st.session_state:
     st.session_state["directores_registrados"] = [
         {
+            "Id": 1,
             "Fecha Registro": "2026-08-19 14:22:10",
             "Nombre": "Ing. Carlos Mendoza", 
             "Entidad": "4. Equipo de Investigación Científica APSON", 
             "Puesto": "Director de Transferencia Tecnológica", 
             "RFC": "MEC840512XX1", 
-            "Estatus": "Activo / Con Cédula"
+            "Estatus": "Activo"
         },
         {
+            "Id": 2,
             "Fecha Registro": "2026-08-20 09:15:43",
             "Nombre": "Sra. María Elena Ortiz", 
             "Entidad": "2. Cooperativa de Logística (S.C.)", 
             "Puesto": "Directora de Operaciones de Flete", 
             "RFC": "OIME761102XX3", 
-            "Estatus": "Activa / Juez de Distrito"
+            "Estatus": "Activo"
         }
     ]
+
 # ==============================================================================
 # PARTE 4 DE 14: ALMACÉN DOCUMENTAL INTEGRAL - JACOB ZUMAYA PRIANTI, A.C.
 # ==============================================================================
@@ -484,7 +487,8 @@ prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
 # ==============================================================================
-# PARTE 12 DE 14: COLUMNA IZQUIERDA - VISOR EDITABLE Y FORMULARIO DINÁMICO DE ALTA
+# ==============================================================================
+# PARTE 12a DE 14: COLUMNA IZQUIERDA - VISOR EDITABLE Y ALTAS DEL FORMULARIO
 # ==============================================================================
 with col_izquierda_matriz:
     # 1. ENTORNO FLOTANTE PARA EDITAR MANUALES INDIVIDUALES EN VIVO
@@ -519,17 +523,13 @@ with col_izquierda_matriz:
                 st.session_state["ver_visor_legal"] = False
                 st.rerun()
 
-    # 2. INTERFAZ DEL FORMULARIO DE ALTA DE DIRECTORES AUTO-ESCALABLE CON VALIDACIÓN SAT
+    # 2. INTERFAZ DEL FORMULARIO DE ALTA DE DIRECTORES CON VALIDACIÓN SAT
     elif st.session_state["ver_formulario_registro"]:
         st.success("📝 Formulario Flotante Activo: Alta y Nombramiento de Directores Asociados")
         st.markdown("---")
-        
         f_nom = st.text_input("👤 Nombre Completo del Director a Registrar:", placeholder="Ej. Lic. Alejandro Anaya")
-        
-        # Entrada de RFC con control visual
         f_rfc = st.text_input("🆔 Clave de Registro Federal de Contribuyentes (RFC):", max_chars=13, placeholder="Ej. ANAA850423XX9").upper().strip()
         
-        # Evaluación en caliente del RFC
         rfc_valido = False
         if f_rfc:
             es_valido, mensaje_sat = validar_estructura_rfc(f_rfc)
@@ -539,80 +539,128 @@ with col_izquierda_matriz:
             else:
                 st.error(f"❌ {mensaje_sat}")
         
-        # RESOLUCIÓN AL CATÁLOGO INCOMPLETO Y ADHESIÓN FUTURA: Lectura dinámica de llaves activas en memoria
         lista_adscripcion_activa = list(st.session_state["repositorio_institucional"].keys())
         f_entidad = st.selectbox("🏢 Selecciona la Entidad o Subsistema que pasará a dirigir:", lista_adscripcion_activa)
         f_puesto = st.text_input("💼 Cargo u Oficio Directivo Asignado:", placeholder="Ej. Director General de Operaciones")
-
-        # Mapeo descriptivo inteligente para el marco regulatorio en pantalla
-        st.markdown(f"#### 🏛️ Datos Universales Obligatorios (Marco Regulatorio Mexicano)")
-        
-        regimen_sugerido = "Régimen General de Personas Morales (Título II LISR)"
-        if "Cooperativa" in f_entidad or "S.C." in f_entidad:
-            regimen_sugerido = "Régimen de Personas Morales con Fines no Lucrativos (Título III LISR)"
-        elif "Investigación" in f_entidad or "APSON" in f_entidad:
-            regimen_sugerido = "Fideicomiso Tecnológico Autónomo exento de IVA por Fomento Científico"
-
-        st.markdown(f"""
-        <div style='background-color: #f1f3f5; padding: 15px; border-radius: 6px; border-left: 5px solid #1e4620; margin-bottom:15px;'>
-            <p style='margin-bottom:5px; font-size:13px;'><b>1. Entidad de Destino Detectada:</b> {f_entidad}</p>
-            <p style='margin-bottom:5px; font-size:13px;'><b>2. Régimen Fiscal SAT Estimado:</b> {regimen_sugerido}</p>
-            <p style='margin-bottom:0px; font-size:13px;'><b>3. Control de Materialidad:</b> Honorarios regulados bajo el blindaje estatutario de la matriz JZPAC en Agua Prieta.</p>
-        </div>
-        """, unsafe_allow_html=True)
 
         rc1, rc2 = st.columns(2)
         with rc1:
             if st.button("💾 Validar e Inscribir Director", use_container_width=True, type="secondary", disabled=not rfc_valido):
                 if f_nom and f_rfc and f_puesto:
                     marca_tiempo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    nuevo_id = max([d["Id"] for d in st.session_state["directores_registrados"]], default=0) + 1
                     
-                    # Verificación secundaria anti-duplicados por RFC
-                    rfc_duplicado = any(d["RFC"] == f_rfc for d in st.session_state["directores_registrados"])
-                    
-                    if rfc_duplicado:
-                        st.error("❌ Conflicto registral: Este RFC ya se encuentra asignado a un Director Activo.")
-                    else:
-                        st.session_state["directores_registrados"].append({
-                            "Fecha Registro": marca_tiempo, "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc, "Estatus": "Alta Exitosa / Acta Firmada"
-                        })
-                        st.success(f"✓ El {f_puesto} ha sido formalmente indexado en el padrón dinámico bilingüe.")
+                    st.session_state["directores_registrados"].append({
+                        "Id": nuevo_id, "Fecha Registro": marca_tiempo, "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc, "Estatus": "Activo"
+                    })
+                    st.success(f"✓ El {f_puesto} ha sido formalmente indexado en el padrón dinámico.")
                 else:
                     st.error("Por favor, llena todos los campos obligatorios.")
         with rc2:
             if st.button("🛑 Cancelar y Cerrar Formulario", use_container_width=True, type="primary"):
                 st.session_state["ver_formulario_registro"] = False
                 st.rerun()
-
-    # 3. MONITOREO DE PADRÓN EN TIEMPO REAL CON EXPORTADOR COMPATIBLE CON GOOGLE SHEETS
+# ==============================================================================
+# PARTE 12b DE 14: COLUMNA IZQUIERDA - DASHBOARD INTERACTIVO FRONT-END (CRUD DE SUBSISTEMAS)
+# ==============================================================================
+    # 3. INTERFAZ MAESTRA: DASHBOARD FRONT-END (CRUD + INDICADORES DE TIEMPO)
     elif st.session_state["ver_padron_flotante"]:
-        st.warning("👁️ Ventana Flotante de Datos Activa: Monitoreo del Padrón de Directores en Tiempo Real")
+        st.subheader("📊 Dashboard Maestro de Estructura y Plantilla Directiva")
+        st.caption("Panel Front-End Ejecutivo para el control de Materialidad y Estatus de Células en Agua Prieta, Sonora.")
         st.markdown("---")
-        st.table(st.session_state["directores_registrados"])
-        st.markdown("<br>", unsafe_allow_html=True)
         
-        import csv
-        output_csv = io.StringIO()
-        writer_csv = csv.writer(output_csv)
-        writer_csv.writerow(["Fecha Registro", "Nombre", "Entidad", "Puesto", "RFC", "Estatus"])
-        for row in st.session_state["directores_registrados"]:
-            writer_csv.writerow([row["Fecha Registro"], row["Nombre"], row["Entidad"], row["Puesto"], row["RFC"], row["Estatus"]])
+        dash_tab1, dash_tab2 = st.tabs(["👥 Control de Directores Asociados", "🏢 Control de Entidades / Subsistemas"])
         
-        data_csv_string = output_csv.getvalue()
-        
-        c_desc1, c_desc2 = st.columns(2)
-        with c_desc1:
+        # PESTAÑA A: OPERACIONES DE DIRECTORES (READ, UPDATE ESTATUS, DELETE)
+        with dash_tab1:
+            if not st.session_state["directores_registrados"]:
+                st.info("No se registran directores activos en el padrón actual.")
+            else:
+                for idx, dir_asoc in enumerate(st.session_state["directores_registrados"]):
+                    badge_color = "#d4edda" if dir_asoc["Estatus"] == "Activo" else "#f8d7da"
+                    text_color = "#155724" if dir_asoc["Estatus"] == "Activo" else "#721c24"
+                    status_emoji = "🟢 Activo" if dir_asoc["Estatus"] == "Activo" else "🔴 Inactivo"
+                    
+                    st.markdown(f"""
+                    <div style='background-color: {badge_color}; padding: 12px; border-radius: 6px; border-left: 5px solid {text_color}; margin-bottom: 10px;'>
+                        <span style='float: right; font-weight: bold; color: {text_color}; font-size: 13px;'>{status_emoji}</span>
+                        <h4 style='margin: 0; color: #212529; font-size: 15px;'><b>{dir_asoc['Nombre']}</b></h4>
+                        <p style='margin: 3px 0 0 0; color: #495057; font-size: 12px;'>
+                            <b>Cargo:</b> {dir_asoc['Puesto']} | <b>RFC:</b> <code style='color:#b83a14;'>{dir_asoc['RFC']}</code><br>
+                            <b>Adscripción:</b> {dir_asoc['Entidad']} | <span style='color:#6c757d;'>Inscrito: {dir_asoc['Fecha Registro']}</span>
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    c_btn1, c_btn2, c_btn3 = st.columns([0.4, 0.4, 0.2])
+                    with c_btn1:
+                        lbl_toggle = "⏸️ Cambiar a Inactivo" if dir_asoc["Estatus"] == "Activo" else "▶️ Cambiar a Activo"
+                        if st.button(lbl_toggle, key=f"tgl_dir_{dir_asoc['Id']}_{idx}", use_container_width=True):
+                            dir_asoc["Estatus"] = "Inactivo" if dir_asoc["Estatus"] == "Activo" else "Activo"
+                            st.rerun()
+                    with c_btn2:
+                        with st.expander("📝 Editar Datos"):
+                            edit_nom = st.text_input("Nombre:", value=dir_asoc["Nombre"], key=f"ed_nom_{dir_asoc['Id']}")
+                            edit_puesto = st.text_input("Puesto:", value=dir_asoc["Puesto"], key=f"ed_pst_{dir_asoc['Id']}")
+                            if st.button("💾 Aplicar Cambios", key=f"save_ed_{dir_asoc['Id']}", type="secondary"):
+                                dir_asoc["Nombre"] = edit_nom
+                                dir_asoc["Puesto"] = edit_puesto
+                                st.success("✓ Registro modificado en tiempo real.")
+                                st.rerun()
+                    with c_btn3:
+                        if st.button("🗑️ Borrar", key=f"del_dir_{dir_asoc['Id']}_{idx}", use_container_width=True, type="primary"):
+                            st.session_state["directores_registrados"].pop(idx)
+                            st.warning("✓ Director eliminado de la base de datos.")
+                            st.rerun()
+                    st.markdown("<div style='margin-bottom:15px;'></div>", unsafe_allow_html=True)
+            
+            import csv
+            output_csv = io.StringIO()
+            writer_csv = csv.writer(output_csv)
+            writer_csv.writerow(["Fecha Registro", "Nombre", "Entidad", "Puesto", "RFC", "Estatus"])
+            for row in st.session_state["directores_registrados"]:
+                writer_csv.writerow([row["Fecha Registro"], row["Nombre"], row["Entidad"], row["Puesto"], row["RFC"], row["Estatus"]])
+            data_csv_string = output_csv.getvalue()
+            
+            st.markdown("---")
             st.download_button(
-                label="📥 Descargar Padrón para Google Sheets (.csv)",
+                label="📥 Exportar Base de Datos de Directores para Google Sheets (.csv)",
                 data=data_csv_string,
-                file_name="Padron_Directores_JZPAC.csv",
+                file_name="Dashboard_Directores_JZPAC.csv",
                 mime="text/csv",
                 use_container_width=True
             )
-        with c_desc2:
-            if st.button("🛑 Ocultar Vista de Datos y Volver", use_container_width=True, type="primary"):
-                st.session_state["ver_padron_flotante"] = False
-                st.rerun()
+
+        # PESTAÑA B: OPERACIONES DE ENTIDADES (UPDATE NOMBRE, DELETE SUBSISTEMA)
+        with dash_tab2:
+            st.markdown("##### 🏢 Catálogo de Subsistemas Autónomos Indexados")
+            st.caption("Modifica o depura las sociedades que integran la matriz corporativa. Advertencia: Eliminar una entidad borrará sus manuales.")
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            lista_ent_crud = list(st.session_state["repositorio_institucional"].keys())
+            for idx_e, ent_name in enumerate(lista_ent_crud):
+                col_e1, col_e2 = st.columns([0.7, 0.3])
+                with col_e1:
+                    nuevo_nombre_ent = st.text_input(f"Entidad #{idx_e+1}:", value=ent_name, key=f"input_ent_{idx_e}")
+                    if nuevo_nombre_ent != ent_name and nuevo_nombre_ent.strip():
+                        st.session_state["repositorio_institucional"][nuevo_nombre_ent.strip()] = st.session_state["repositorio_institucional"].pop(ent_name)
+                        st.success("✓ Nombre de entidad actualizado en caliente.")
+                        st.rerun()
+                with col_e2:
+                    st.markdown("<div style='padding-top:28px;'></div>", unsafe_allow_html=True)
+                    if st.button("🗑️ Eliminar Célula", key=f"del_ent_{idx_e}", type="primary", use_container_width=True):
+                        if len(st.session_state["repositorio_institucional"]) <= 1:
+                            st.error("No se puede eliminar la última entidad del sistema; se requiere un nodo central.")
+                        else:
+                            st.session_state["repositorio_institucional"].pop(ent_name)
+                            st.warning(f"✓ '{ent_name}' y sus manuales han sido borrados.")
+                            st.rerun()
+        
+        st.markdown("---")
+        if st.button("🛑 Cerrar Dashboard Maestro y Volver a Simuladores", use_container_width=True, type="primary"):
+            st.session_state["ver_padron_flotante"] = False
+            st.rerun()
+
 # ==============================================================================
 # PARTE 13 DE 14: COLUMNA IZQUIERDA (CENTRO) - PESTAÑAS ORDINARIAS DE TRABAJO
 # ==============================================================================
