@@ -1,11 +1,12 @@
 import streamlit as st
 import io
 from datetime import datetime
-# Motores ReportLab puros para asegurar renderizado estable de PDFs en la nube
+# Motores ReportLab avanzados para paginación dinámica, imágenes y layouts APA 7
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.pdfgen import canvas
 
 # ==============================================================================
 # PARTE 1 DE 17: CONFIGURACIÓN INICIAL CON IDENTIDAD CORPORATIVA JZPAC
@@ -59,58 +60,58 @@ if "directores_registrados" not in st.session_state:
         }
     ]
 # ==============================================================================
-# PARTE 4 DE 17: ALMACÉN DOCUMENTAL - ASOCIACIÓN CIVIL MATRIZ (A.C.)
+# PARTE 4 DE 17: ALMACÉN DOCUMENTAL - JACOB ZUMAYA PRIANTI, A.C.
 # ==============================================================================
 if "repositorio_institucional" not in st.session_state:
     st.session_state["repositorio_institucional"] = {
         "1. Asociación Civil Matriz (A.C.)": {
-            "Marco conceptual y descriptivo": "ORGANIZACIÓN MATRIZ Y DE CONTENCIÓN SOCIAL\n\nFunciona como la sociedad controladora social (Holding) que coordina los subsistemas autónomos en Agua Prieta. Diseña los planes de capacitación para el trabajo de la periferia urbana.",
-            "Marco legal": "FUNDAMENTACIÓN FISCAL TÍTULO II LISR\n\nTributa en Régimen General corporativo (30% ISR). Blinda sus egresos comunitarios al 100% como deducciones mediante Nómina Asimilada (Art. 94 LISR). Exenta de trasladar el 16% de IVA en capacitación según el Art. 15 de la LIVA.",
-            "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS DE GOBERNANZA CENTRAL (MAP-01)\n\n1. Recepción de comisiones de la S.A. y aportaciones cooperativas.\n2. Validación de listas de asistencia de talleres.\n3. Dispersión mensual y timbrado de CFDI de asimilados a salarios.",
-            "Manual administrativo": "MANUAL ADMINISTRATIVO DE RECURSOS HUMANOS Y CONTROL (MAC-01)\n\nRegula las políticas de contratación de promotores barriales, el control de activos en comodato y los lineamientos de transparencia para auditorías externas del SAT.",
-            "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS Y RIESGO SOCIOECONÓMICO (MTC-01)\n\nMonitorea la inflación en la franja fronteriza, los cambios en las reglas misceláneas del SAT y el impacto del tipo de cambio peso-dólar en el poder adquisitivo de Agua Prieta.",
-            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - EVALUACIÓN DE ADOPCIÓN DE PROGRAMAS SOCIALES\n\nVARIABLE LATENTE CENTRAL: 'Aceptación Institucional del Modelo de Economía Popular'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Frecuencia con la que el asociado acude voluntariamente a las mesas de gobernanza de la A.C.\n2. [X2] Nivel de confianza percibido en la transparencia del manejo de fondos del Título II corporativo.\n3. [X3] Disposición declarada para transitar de contratos informales en efectivo a Nómina de Asimilados.\n4. [X4] Grado de recomendación del programa de capacitación de la A.C. a otros microemprendedores del barrio.\n5. [X5] Percepción de mejora en la estabilidad de su negocio tras el cobro vía recibo estatutario.",
-            "Contrato de Incorporación y Adhesión Individual": "CONTRATO INDIVIDUAL DE ADHESIÓN Y ASIMILACIÓN A SALARIOS (A.C. MATRIZ)\n\nCONTRATO que celebran por una parte la Asociación Civil Matriz, y por la otra el Usuario Inscrito por propio derecho en su carácter de Director Asociado de Célula Barrial, al tenor de las siguientes cláusulas:\n\nPRIMERA: OBJETO. El Usuario acepta la designation técnica para coordinar los talleres de capacitación para el trabajo y fomento económico en su colonia asignada de Agua Prieta.\n\nSEGUNDA: RÉGIMEN FISCAL. El Usuario manifiesta su consentimiento expreso para someter sus honorarios de apoyo al régimen de Asimilados a Salarios (Art. 94 Fracc. V de la LISR), obligándose la A.C. a retener el impuesto correlativo y timbrar el CFDI de nómina para amparar deducciones autorizadas de Título II.\n\nTERCERA: EXENCIÓN DE IVA. Las partes acuerdan que las cuotas extraordinarias que recaude el Usuario de los talleres se consideran cuotas de miembros exentas de IVA (Art. 15-XII LIVA) y se integrarán de inmediato a la cuenta de orden de la Caja de Ahorro.",
-            "Acta Constitutiva Notarial Oficial": "ESCRITURA PÚBLICA NÚMERO: [XXXX] | VOLUMEN: [XX]\nCONSTITUCIÓN DE ASOCIACIÓN CIVIL BAJO EL RÉGIMEN GENERAL (TÍTULO II LISR)\n\nEn la ciudad de Agua Prieta, Estado de Sonora, ante mí, Notario Público Número [X], comparecen los Asociados Fundadores para formalizar de manera estricta el ACTA CONSTITUTIVA de la persona moral que se regirá bajo las siguientes cláusulas formales:\n\nCLÁUSULA PRIMERA: DENOMINACIÓN, DOMICILIO Y DURACIÓN.\nLa organización se denominará 'DESARROLLO OPERATIVO DE LA ECONOMÍA POPULAR DE AGUA PRIETA', seguida de las siglas 'A.C.'. Su domicilio legal definitivo se fija en Agua Prieta, Sonora, y su duración será por tiempo indefinido.\n\nCLÁUSULA SEGUNDA: OBJETO SOCIAL Y REMANENTES DISPONIBLES.\nEl objeto primordial consiste en impartir de forma gratuita y exenta de IVA (Art. 15 LIVA) capacitación para el trabajo, educación técnica, fomento de oficios y asesoría de microcréditos para la retención del valor fronterizo. Al operar bajo el Régimen General (Título II LISR), los excedentes o remanentes de operación no se distribuirán como dividendos capitalistas, sino que se capitalizarán en cuentas de orden para subsidiar activos del barrio o se dispersarán al 100% como erogaciones salariales asimiladas (Art. 94 LISR) a los Directores Asociados.\n\nCLÁUSULA TERCERA: PATRIMONIO SOCIAL AND ASAMBLEA CENTRAL.\nEl patrimonio de la A.C. se integrará por las cuotas ordinarias y extraordinarias de recuperación aportadas por sus Miembros Adherentes (Art. 15-XII LIVA), así como por las comisiones docentes y de fomento ingresadas desde sus subsistemas secundarios filiales. El órgano supremo es la Asamblea General de Asociados, representada por el Agente Capacitador como Director General, dotado de Poder General Amplio para Pleitos, Cobranzas y Actos de Dominio."
+            "Marco conceptual y descriptivo": "ORGANIZACIÓN MATRIZ Y DE CONTENCIÓN SOCIAL EN AGUA PRIETA\\n\\nLa institución JACOB ZUMAYA PRIANTI, A.C. funciona como la sociedad controladora social (Holding) que coordina los subsistemas autónomos en la frontera norte. Diseña los planes de capacitación para el trabajo de la periferia urbana.",
+            "Marco legal": "FUNDAMENTACIÓN FISCAL DE JACOB ZUMAYA PRIANTI, A.C. (TÍTULO II LISR)\\n\\nTreatando de una persona moral constituida, JACOB ZUMAYA PRIANTI, A.C. tributa en Régimen General corporativo (30% ISR). Blinda sus egresos comunitarios al 100% como deducciones mediante Nómina Asimilada (Art. 94 LISR). Exenta de trasladar el 16% de IVA en capacitación según el Art. 15 Fracc. IV y XII de la LIVA.",
+            "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS DE GOBERNANZA CENTRAL (MAP-01) - JZPAC\\n\\n1. Recepción institucional en las cuentas de JACOB ZUMAYA PRIANTI, A.C. de las aportaciones cooperativas.\\n2. Validación de listas de asistencia de talleres.\\n3. Dispersión mensual y timbrado de CFDI de asimilados a salarios.",
+            "Manual administrativo": "MANUAL ADMINISTRATIVO DE RECURSOS HUMANOS Y CONTROL - JZPAC\\n\\nRegula las políticas de contratación de promotores barriales dentro de JACOB ZUMAYA PRIANTI, A.C., el control de activos en comodato y los lineamientos de transparencia para auditorías externas del SAT.",
+            "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS Y RIESGO SOCIOECONÓMICO - JZPAC\\n\\nMonitorea para JACOB ZUMAYA PRIANTI, A.C. la inflación en la franja fronteriza, los cambios en las reglas misceláneas del SAT y el impacto del tipo de cambio peso-dólar en el poder adquisitivo.",
+            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES JZPAC - EVALUACIÓN DE ADOPCIÓN DE PROGRAMAS SOCIALES\\n\\nVARIABLE LATENTE CENTRAL: 'Aceptación Institucional del Modelo de Economía Popular de JACOB ZUMAYA PRIANTI, A.C.'\\n\\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\\n1. [X1] Frecuencia con la que el asociado acude voluntariamente a las mesas de gobernanza de JACOB ZUMAYA PRIANTI, A.C.\\n2. [X2] Nivel de confianza percibido en la transparencia del manejo de fondos de la A.C.\\n3. [X3] Disposición declarada para transitar de contratos informales a Nómina de Asimilados de JZPAC.\\n4. [X4] Grado de recomendación del programa de capacitación de JACOB ZUMAYA PRIANTI, A.C. a otros microemprendedores del barrio.\\n5. [X5] Percepción de mejora en la estabilidad de su negocio tras el cobro vía recibo estatutario de JZPAC.",
+            "Contrato de Incorporación y Adhesión Individual": "CONTRATO INDIVIDUAL DE ADHESIÓN Y ASIMILACIÓN A SALARIOS (JACOB ZUMAYA PRIANTI, A.C.)\\n\\nCONTRATO que celebran por una parte la institución JACOB ZUMAYA PRIANTI, A.C., y por la otra el Usuario Inscrito por propio derecho en su carácter de Director Asociado de Célula Barrial, al tenor de las siguientes cláusulas:\\n\\nPRIMERA: OBJETO. El Usuario acepta la designación técnica para coordinar los talleres de capacitación de JACOB ZUMAYA PRIANTI, A.C. en su colonia asignada.\\n\\nSEGUNDA: RÉGIMEN FISCAL. El Usuario manifiesta su consentimiento expreso para someter sus honorarios de apoyo al régimen de Asimilados a Salarios (Art. 94 Fracc. V de la LISR), obligándose JACOB ZUMAYA PRIANTI, A.C. a retener el impuesto correlativo.\\n\\nTERCERA: EXENCIÓN DE IVA. Las partes acuerdan que las cuotas extraordinarias que recaude el Usuario para JACOB ZUMAYA PRIANTI, A.C. se consideran exentas de IVA (Art. 15-XII LIVA) y se integrarán a la Caja de Ahorro.",
+            "Acta Constitutiva Notarial Oficial": "ESCRITURA PÚBLICA NÚMERO: [XXXX] | VOLUMEN: [XX]\\nCONSTITUCIÓN DE ASOCIACIÓN CIVIL BAJO EL RÉGIMEN GENERAL DE JACOB ZUMAYA PRIANTI, A.C.\\n\\nEn la ciudad de Agua Prieta, Estado de Sonora, ante mí, Notario Público, comparecen los Asociados Fundadores para formalizar de manera estricta el ACTA CONSTITUTIVA de la persona moral denominada 'JACOB ZUMAYA PRIANTI', seguida de las siglas 'A.C.', sujeta a las siguientes cláusulas:\\n\\nCLÁUSULA PRIMERA: DENOMINACIÓN Y DOMICILIO.\\nLa organización se denominará 'JACOB ZUMAYA PRIANTI, A.C.'. Su domicilio legal definitivo se fija en Agua Prieta, Sonora.\\n\\nCLÁUSULA SEGUNDA: OBJETO SOCIAL Y REMANENTES DISPONIBLES.\\nEl objeto de JACOB ZUMAYA PRIANTI, A.C. consiste en impartir de forma gratuita y exenta de IVA capacitación para el trabajo. Al operar bajo el Régimen General (Título II LISR), los excedentes no se distribuirán como dividendos capitalistas, sino que se capitalizarán en cuentas de orden de JZPAC o se dispersarán al 100% como erogaciones salariales asimiladas (Art. 94 LISR) a los Directores Asociados.\\n\\nCLÁUSULA TERCERA: PATRIMONIO SOCIAL.\\nEl patrimonio de JACOB ZUMAYA PRIANTI, A.C. se integrará por las cuotas ordinarias y extraordinarias de recuperación aportadas por sus miembros (Art. 15-XII LIVA). El órgano supremo es la Asamblea General de Asociados."
         },
 # ==============================================================================
 # PARTE 5 DE 17: ALMACÉN DOCUMENTAL - COOPERATIVA DE LOGÍSTICA (S.C.)
 # ==============================================================================
         "2. Cooperativa de Logística (S.C.)": {
-            "Marco conceptual y descriptivo": "SUBSISTEMA OPERATIVO DE TRANSPORTE BARRIAL\n\nAsociación de choferes y transportistas de base popular organizados para competir en el mercado de fletes industriales B2B y última milla, absorbiendo la demanda del nearshoring maquilador.",
-            "Marco legal": "LEY GENERAL DE SOCIEDADES COOPERATIVAS (LGSC)\n\nSociedad Cooperativa de Producción de Servicios de Responsabilidad Limitada (S.C. de R.L. de C.V.). Las plantas maquiladoras contratantes efectúan la retención del 4% de ISR sobre fletes terrestres.",
-            "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS OPERATIVOS LOGÍSTICOS (MOP-02)\n\n1. Asignación de rutas comerciales en Agua Prieta.\n2. Auditoría física del Factor de Retorno Vacío (Deadhead).\n3. Retención automática del 6% para el fondo de amortiguación de diésel.",
-            "Manual administrativo": "MANUAL ADMINISTRATIVO DE FLOTILLA Y MANTENIMIENTO (MAF-02)\n\nEstablece los roles de los Asociados Directores en la administración de talleres mecánicos asignados, control de bitácoras de viaje y asignación de viáticos logísticos fronterizos.",
-            "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS DE TRANSPORTE TRANSFRONTERIZO (MTC-02)\n\nAnaliza los tiempos de espera en las aduanas, la fluctuación estacional de la producción automotriz de las maquiladoras y el impacto de aranceles comerciales en el flujo de fletes.",
-            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - EFICIENCIA OPERATIVA DE LA LOGÍSTICA DE BARRIO\n\nVARIABLE LATENTE CENTRAL: 'Cultura de Optimización de Ruta en Choferes Cooperativistas'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Índice de cumplimiento exacto de los horarios de recolección aduanal.\n2. [X2] Nivel de reducción voluntaria reportada en el Factor de Retorno Vacío.\n3. [X3] Frecuencia de registro y uso correcto de la aplicación Streamlit para el reporte del COK.\n4. [X4] Grado de apego a los lineamientos de mantenimiento preventivo y revisión de presión de neumáticos.\n5. [X5] Proporción de fletes ejecutados sin registrar incidencias o penalizaciones por retraso.\n6. [X6] Disposición del chofer para cooperar en cargas consolidadas compartidas con otros talleres.",
-            "Contrato de Incorporación y Adhesión Individual": "CONTRATO DE ADHESIÓN INDIVIDUAL DE SOCIO TRABAJADOR COOPERATIVISTA (S.C. LOGÍSTICA)\n\nCONTRATO de adhesión que celebran la Sociedad Cooperativa de Logística y Transporte de los Barrios, y por la otra el Usuario en su carácter de Socio Conductor, bajo las siguientes cláusulas:\n\nPRIMERA: ASOCIACIÓN COMUNITARIA. El Usuario aporta su trabajo personal y se adhiere formalmente a las Bases Constitutivas vigentes, bajo el régimen de Responsabilidad Limitada amparado por la Ley General de Sociedades Cooperativas (LGSC).\n\nSEGUNDA: RETENCIONES Y COK. El Socio acepta registrar cada viaje en la aplicación de control analítico Streamlit de la A.C., deduciendo el Costo de Operación por Kilómetro (COK), el Factor de Retorno Vacío, el 4% de retención de ISR y aportando de forma síncrona el 6% para el fondo de amortiguación de diésel fronterizo.\n\nTERCERA: EXCEDENTES. El Socio Conductor reconoce que los excedentes netos de fletes calculados en la plataforma se inyectarán de forma legal a la Caja de Ahorro común, teniendo derecho a retiros de rendimientos sociales según los acuerdos de la Asamblea General.",
-            "Acta Constitutiva Notarial Oficial": "INSCRIPCIÓN REGISTRAL MERCANTIL | FOJA: [XXX]\nBASES CONSTITUTIVAS DE SOCIEDAD COOPERATIVA DE RESPONSABILIDAD LIMITADA (S.C. DE R.L.)\n\nEn la Ciudad de Agua Prieta, Sonora, se formaliza el Acta de Asamblea Constitutiva de la Sociedad Cooperativa que se organiza de conformidad con la Ley General de Sociedades Cooperativas (LGSC) y el Código Comercio de México:\n\nCLÁUSULA PRIMERA: RÉGIMEN, DENOMINACIÓN Y JURISDICCIÓN.\nLa sociedad se denominará 'COOPERATIVA DE LOGÍSTICA Y TRANSPORTE TRANSFRONTERIZO DE AGUA PRIETA', operando obligatoriamente con las siglas 'S.C. DE R.L. DE C.V.'. Su responsabilidad frente a terceros queda estrictamente LIMITADA al monto de los certificados de aportación de sus miembros.\n\nCLÁUSULA SEGUNDA: OBJETO COMERCIAL Y CADENA DE VALOR B2B.\nEl objeto exclusivo consiste en prestar servicios integrales de transporte terrestre, carga pesada, distribución aduanal y fletes logísticos industriales B2B para las plantas maquiladoras de la zona norte del país. La sociedad se obliga a facturar conforme a las leyes fiscales mexicanas, aceptando la aplicación de la retención del 4% de ISR sobre fletes terrestres mandada por el SAT.\n\nCLÁUSULA TERCERA: CERTIFICADOS DE APORTACIÓN Y EXCEDENTES COOPERATIVOS.\nEl capital social se representa por certificados de aportación nominativos, indivisibles y de igual valor. Queda estrictamente establecido que al término de cada ejercicio contable mensual calibrado en el software Streamlit, se deducirá un 6% bruto de ingresos para blindar el fondo de reserva contra volatilidad de diésel y un 5% neto de excedentes que se inyectará de forma transparente a la cuenta de orden de la Asociación Civil central para sufragar el sostenimiento técnico del ecosistema."
+            "Marco conceptual y descriptivo": "SUBSISTEMA OPERATIVO DE TRANSPORTE VINCULADO A JZPAC\\n\\nAsociación de choferes y transportistas de base popular organizados para competir en el mercado de fletes industriales B2B bajo la supervisión corporativa de JACOB ZUMAYA PRIANTI, A.C.",
+            "Marco legal": "LEY GENERAL DE SOCIEDADES COOPERATIVAS (LGSC) EN ENLACE CON JZPAC\\n\\nSociedad Cooperativa de Producción de Servicios de Responsabilidad Limitada. Las plantas maquiladoras contratantes efectúan la retención del 4% de ISR sobre fletes terrestres, reportándose síncronamente en los balances de JACOB ZUMAYA PRIANTI, A.C.",
+            "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS OPERATIVOS LOGÍSTICOS ENLAZADO CON JZPAC (MOP-02)\\n\\n1. Asignación de rutas comerciales en Agua Prieta coordinadas por JACOB ZUMAYA PRIANTI, A.C.\\n2. Auditoría física del Factor de Retorno Vacío (Deadhead).\\n3. Retención automática del 6% para el fondo de amortiguación de diésel.",
+            "Manual administrativo": "MANUAL ADMINISTRATIVO DE FLOTILLA VINCULADO A JACOB ZUMAYA PRIANTI, A.C.\\n\\nEstablece los roles de los Asociados Directores en la administración de talleres mecánicos asignados por JACOB ZUMAYA PRIANTI, A.C., control de bitácoras de viaje y viáticos.",
+            "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS DE TRANSPORTE - REPORTE JZPAC (MTC-02)\\n\\nAnaliza para JACOB ZUMAYA PRIANTI, A.C. los tiempos de espera en las aduanas, la fluctuación estacional de la producción de las maquiladoras y el impacto de aranceles.",
+            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES JZPAC - EFICIENCIA OPERATIVA DE LA LOGÍSTICA\\n\\nVARIABLE LATENTE CENTRAL: 'Cultura de Optimización de Ruta bajo el Modelo JACOB ZUMAYA PRIANTI, A.C.'\\n\\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\\n1. [X1] Índice de cumplimiento de horarios reportados a la mesa de control de JACOB ZUMAYA PRIANTI, A.C.\\n2. [X2] Nivel de reducción voluntaria reportada en el Factor de Retorno Vacío.\\n3. [X3] Frecuencia de registro y uso correcto de la aplicación de JACOB ZUMAYA PRIANTI, A.C. para el COK.\\n4. [X4] Grado de apego a los lineamientos de mantenimiento preventivo dictados por JZPAC.\\n5. [X5] Proporción de fletes ejecutados sin registrar incidencias ante JACOB ZUMAYA PRIANTI, A.C.\\n6. [X6] Disposición del chofer para cooperar en cargas consolidadas organizadas por JZPAC.",
+            "Contrato de Incorporación y Adhesión Individual": "CONTRATO DE ADHESIÓN INDIVIDUAL DE SOCIO CONDUCTOR VINCULADO A JACOB ZUMAYA PRIANTI, A.C.\\n\\nCONTRATO de adhesión que celebran la Sociedad Cooperativa de Logística y Transporte, con el testimonio de validación de JACOB ZUMAYA PRIANTI, A.C., y por la otra el Socio Conductor, bajo las siguientes cláusulas:\\n\\nPRIMERA: ASOCIACIÓN COMUNITARIA. El Usuario aporta su trabajo personal bajo la supervisión institucional de JACOB ZUMAYA PRIANTI, A.C.\\n\\nSEGUNDA: RETENCIONES Y COK. El Socio acepta registrar cada viaje en la aplicación de control analítico de JACOB ZUMAYA PRIANTI, A.C., deduciendo el COK, el Factor de Retorno Vacío y el 4% de retención de ISR.\\n\\nTERCERA: EXCEDENTES. El Socio Conductor reconoce que los excedentes netos de fletes se inyectarán de forma legal a la Caja de Ahorro común de JACOB ZUMAYA PRIANTI, A.C.",
+            "Acta Constitutiva Notarial Oficial": "BASES CONSTITUTIVAS DE SOCIEDAD COOPERATIVA FILIAL DE JACOB ZUMAYA PRIANTI, A.C.\\n\\nEn la Ciudad de Agua Prieta, Sonora, se formaliza el Acta de Asamblea Constitutiva de la Sociedad Cooperativa que se organiza bajo la coordinación patrimonial de JACOB ZUMAYA PRIANTI, A.C.:\\n\\nCLÁUSULA PRIMERA: RÉGIMEN Y DENOMINACIÓN.\\nLa sociedad se denominará 'COOPERATIVA DE LOGÍSTICA Y TRANSPORTE TRANSFRONTERIZO DE AGUA PRIETA', S.C. DE R.L. DE C.V., funcionando como subsistema de JACOB ZUMAYA PRIANTI, A.C.\\n\\nCLÁUSULA SEGUNDA: OBJETO COMERCIAL Y ENLACE CORPORATIVO.\\nEl objeto exclusivo consiste en prestar servicios integrales de transporte terrestre B2B. La sociedad operará bajo la asesoría contable de JACOB ZUMAYA PRIANTI, A.C.\\n\\nCLÁUSULA TERCERA: INYECCIÓN A LA AC MATRIZ.\\nQueda estrictamente establecido que al término de cada ejercicio contable mensual calibrado por JACOB ZUMAYA PRIANTI, A.C., se deducirá un 5% neto de excedentes que se inyectará a la cuenta de orden de JACOB ZUMAYA PRIANTI, A.C. para sufragar el sostenimiento técnico del ecosistema."
         },
 # ==============================================================================
 # PARTE 6 DE 17: ALMACÉN DOCUMENTAL - AGENCIA DE MICROSEGUROS (S.A.)
 # ==============================================================================
         "3. Agencia de Microseguros (S.A.)": {
-            "Marco conceptual y descriptivo": "SUBSISTEMA DE CONTROL DE RIESGOS COMERCIAL\n\nEntidad financiera diseñada para proteger los activos mecánicos de los talleres populares y mitigar vulnerabilidades por accidentes de trabajo o fallecimiento de líderes comunitarios.",
-            "Marco legal": "LEY DE INSTITUCIONES DE SEGUROS Y DE FIANZAS (LISF)\n\nSociedad Anónima regulada por la CNSF. Transfiere legalmente el 20% de las primas a la A.C. mediante contratos de Corretaje Social y capacitación en prevención de accidentes.",
-            "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS Y ATENCIÓN DE SINIESTROS (MAP-03)\n\n1. Reporte técnico de avería mecánica o accidente en las colonias.\n2. Evaluación social del riesgo y dictamen del Asociado Director.\n3. Liquidación de la reparación con cargo al fondo de reserva.",
-            "Manual administrative": "MANUAL ADMINISTRATIVO DE RESERVAS TÉCNICAS Y RECAUDACIÓN (MAR-03)\n\nRegula el proceso de cobranza mensual de las primas a través de plataformas digitales y el resguardo seguro del capital de reserva en instrumentos de renta fija de bajo riesgo.",
-            "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS ACTUARIALES EN MICROSEGUROS (MTC-03)\n\nMide la tasa de siniestralidad de los talleres de barrio, la tasa de renovación de pólizas y proyecta modelos de vulnerabilidad ante fallas mecánicas en maquinaria pesada depreciada.",
-            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - PERCEPCIÓN DE SEGURIDAD PATRIMONIAL\n\nVARIABLE LATENTE CENTRAL: 'Aversión al Riesgo y Confianza en la Póliza Solidaria'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Puntualidad exacta en el pago de la prima mensual simulada en la plataforma.\n2. [X2] Grado de conocimiento de los talleres sobre el alcance real de las coberturas de siniestralidad.\n3. [X3] Nivel de tranquilidad manifestada por el micro-empresario respecto a la continuidad de su negocio.\n4. [X4] Frecuencia con la que el micro-taller reporta de forma preventiva riesgos de infraestructura.\n5. [X5] Confianza declarada en la velocidad de respuesta del fondo de reserva de la A.C. ante siniestros.",
-            "Contrato de Incorporación y Adhesión Individual": "CONTRATO COLECTIVO DE ADHESIÓN A LA PÓLIZA DE MICROSEGUROS FRONTERIZOS (S.A.)\n\nCONTRATO que celebran la Agencia de Protección Solidaria Fronteriza, S.A. de C.V., y por la otra el Usuario Inscrito en su carácter de Titular de Unidad Productiva Popular Asegurada, al tenor de las siguientes cláusulas:\n\nPRIMERA: COBERTURA INTEGRAL. El Usuario se adhiere a la póliza comunitaria colectiva para proteger sus activos mecánicos y herramientas de taller (soldadoras, tornos, cortadoras de cuero) contra averías técnicas graves, incendios o accidentes de operación en Agua Prieta.\n\nSEGUNDA: PRIMA SOCIAL Y RETORNO. El Asegurado se obliga a cubrir la prima mensual calculada dinámicamente en el Módulo 3. Reconoce que el 20% de dicha recaudación es transferido a la A.C. matriz por concepto de Honorarios de Capacitación en Prevención de Siniestros, libre de IVA comercial.\n\nTERCERA: RECLAMACIÓN JUSTA. En caso de ocurrencia de un siniestro, el Usuario se compromete a no iniciar litigios mercantiles ordinarios, sometiéndose al Manual de Procedimientos interno de la A.C., el cual dictaminará el pago y liquidación de daños con cargo al fondo de reserva técnico de forma inmediata.",
-            "Acta Constitutiva Notarial Oficial": "ESCRITURA PÚBLICA NÚMERO: [YYYY] | VOLUMEN: [XXX]\nCONSTITUCIÓN DE SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE (RAMO RIESGOS CNSF)\n\nEn la Ciudad de Agua Prieta, Estado de Sonora, ante mí, Titular de la Notaría Pública Asociada, se formaliza la constitución de una SOCIEDAD ANÓNIMA DE CAPITAL VARIABLE que se regirá bajo la Ley General de Sociedades Mercantiles (LGSM) y la Ley de Instituciones de Seguros y de Fianzas (LISF):\n\nCLÁUSULA PRIMERA: DENOMINACIÓN, DURACIÓN Y OBJETO REGULADO.\nLa denominación corporativa oficial será 'AGENCIA DE PROTECCIÓN SOLIDARIA FRONTERIZA', seguida de las siglas 'S.A. DE C.V.'. Su objeto exclusivo consiste en actuar como Agente de Seguros Persona Moral regulado por la CNSF, intermediando pólizas de microseguros colectivos de vida, accidentes de trabajo y daños estructurales mecánicos.\n\nCLÁUSULA SEGUNDA: CAPITAL SOCIAL Y DOMINIO DE LA ASOCIACIÓN CIVIL MATRIZ.\nEl capital social es variable, fijándose un monto mínimo obligatorio de capitalización de $50,000.00 MXN totalmente suscrito y pagado. Para blindar el patrimonio comunitario e impedir desvíos capitalistas privados, la Asociación Civil central del ecosistema retiene la titularidad del 99% de las acciones Clase 'A', teniendo el voto mayoritario absoluto en cualquier asamblea.\n\nCLÁUSULA TERCERA: GOBERNANZA, DEDUCCIONES Y CONTRATO DE RETORNO CORRETAJE.\nLa administración estará a cargo de un Administrador Único designado de forma directa por la Asamblea de la A.C. (Asociado Director). Para salvaguardar la deducibilidad de egresos mercantiles y fondeo de la Caja de Ahorro, la sociedad se obliga por estipulación estatutaria invulnerable a transferir el 20% de las primas brutas capturadas mensuales a la A.C. matriz bajo la figura de Honorarios de Corretaje Social y Docencia en Prevención de Accidentes."
+            "Marco conceptual y descriptivo": "SUBSISTEMA DE CONTROL DE RIESGOS FILIAL DE JZPAC\\n\\nEntidad financiera coordinada por JACOB ZUMAYA PRIANTI, A.C. diseñada para proteger los activos mecánicos de los talleres populares y mitigar vulnerabilidades por accidentes de trabajo.",
+            "Marco legal": "LEY DE INSTITUCIONES DE SEGUROS Y CONTRATO DE ENLACE CON JZPAC\\n\\nSociedad Anónima regulada por la CNSF. Transfiere legalmente el 20% de las primas a JACOB ZUMAYA PRIANTI, A.C. mediante contratos de Corretaje Social y capacitación en prevención de accidentes.",
+            "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS Y ATENCIÓN DE SINIESTROS DE JZPAC (MAP-03)\\n\\n1. Reporte técnico de avería mecánica o accidente enviado a JACOB ZUMAYA PRIANTI, A.C.\\n2. Evaluación social del riesgo y dictamen del Asociado Director.\\n3. Liquidación de la reparación con cargo al fondo de reserva de JZPAC.",
+            "Manual administrative": "MANUAL ADMINISTRATIVO DE RESERVAS TÉCNICAS E INTERFACES CON JZPAC (MAR-03)\\n\\nRegula el proceso de cobranza mensual de las primas e interconexión de datos con JACOB ZUMAYA PRIANTI, A.C., y el resguardo seguro del capital de reserva.",
+            "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS ACTUARIALES - REPORTE JZPAC (MTC-03)\\n\\nMide para JACOB ZUMAYA PRIANTI, A.C. la tasa de siniestralidad de los talleres de barrio, la tasa de renovación de pólizas y proyecta modelos de vulnerabilidad.",
+            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES JZPAC - PERCEPCIÓN DE SEGURIDAD PATRIMONIAL\\n\\nVARIABLE LATENTE CENTRAL: 'Confianza en la Póliza Solidaria de JACOB ZUMAYA PRIANTI, A.C.'\\n\\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\\n1. [X1] Puntualidad exacta en el pago de la prima mensual simulada en la plataforma de JACOB ZUMAYA PRIANTI, A.C.\\n2. [X2] Grado de conocimiento de los talleres sobre el alcance de las coberturas dictadas por JZPAC.\\n3. [X3] Nivel de tranquilidad manifestada por el micro-empresario respecto al respaldo de JACOB ZUMAYA PRIANTI, A.C.\\n4. [X4] Frecuencia con la que el micro-taller reporta de forma preventiva riesgos al Asociado Director de JZPAC.\\n5. [X5] Confianza declarada en la velocidad de respuesta del fondo de reserva de JACOB ZUMAYA PRIANTI, A.C.",
+            "Contrato de Incorporación y Adhesión Individual": "CONTRATO COLECTIVO DE ADHESIÓN A LA PÓLIZA DE MICROSEGUROS DE JACOB ZUMAYA PRIANTI, A.C.\\n\\nCONTRATO que celebran la Agencia de Protección Solidaria Fronteriza, y por la otra el Usuario Inscrito, bajo las siguientes cláusulas institucionales:\\n\\nPRIMERA: COBERTURA. El Usuario se adhiere a la póliza comunitaria colectiva validada por JACOB ZUMAYA PRIANTI, A.C. para proteger sus activos mecánicos y herramientas.\\n\\nSEGUNDA: PRIMA SOCIAL Y RETORNO. El Asegurado reconoce que el 20% de dicha recaudación es transferido a JACOB ZUMAYA PRIANTI, A.C. por concepto de Honorarios de Capacitación, libre de IVA comercial.\\n\\nTERCERA: RECLAMACIÓN. En caso de siniestro, el Usuario se somete al Manual de Procedimientos de JACOB ZUMAYA PRIANTI, A.C., el cual dictaminará el pago inmediato.",
+            "Acta Constitutiva Notarial Oficial": "CONSTITUCIÓN DE SOCIEDAD ANÓNIMA FILIAL PATRIMONIAL DE JACOB ZUMAYA PRIANTI, A.C.\\n\\nEn la Ciudad de Agua Prieta, Estado de Sonora, ante mí, Notario, se formaliza la constitución de la Sociedad Anónima subordinada patrimonialmente a JACOB ZUMAYA PRIANTI, A.C.:\\n\\nCLÁUSULA PRIMERA: DENOMINACIÓN CORPORATIVA.\\nLa denominación oficial será 'AGENCIA DE PROTECCIÓN SOLIDARIA FRONTERIZA', S.A. DE C.V., operando bajo el control institucional de JACOB ZUMAYA PRIANTI, A.C.\\n\\nCLÁUSULA SEGUNDA: CAPITAL SOCIAL Y DOMINIO DE JACOB ZUMAYA PRIANTI, A.C.\\nEl capital social es variable. Para blindar el patrimonio e impedir desvíos capitalistas, la institución JACOB ZUMAYA PRIANTI, A.C. retiene la titularidad del 99% de las acciones Clase 'A', teniendo el voto mayoritario absoluto.\\n\\nCLÁUSULA TERCERA: GOBERNANZA Y RETORNO CORRETAJE A LA AC.\\nLa sociedad se obliga por estipulación estatutaria a transferir el 20% de las primas brutas capturadas mensuales a JACOB ZUMAYA PRIANTI, A.C. bajo el rubro de Honorarios de Corretaje Social y Docencia."
         },
 # ==============================================================================
 # PARTE 7 DE 17: ALMACÉN DOCUMENTAL - EQUIPO DE INVESTIGACIÓN CIENTÍFICA APSON
 # ==============================================================================
         "4. Equipo de Investigación Científica APSON": {
-            "Marco conceptual y descriptivo": "SUBSISTEMA DE INVESTIGACIÓN, DESARROLLO E INNOVACIÓN (I+D)\n\nCélula científica encargada de realizar estudios de densidad económica, análisis metalúrgicos para el reciclaje (Upcycling) de las mermas de las maquiladoras y optimización de modelos predictivos de crédito social.",
-            "Marco legal": "LEY GENERAL DE HUMANIDADES, CIENCIAS, TECNOLOGÍAS E INNOVACIÓN\n\nOpera bajo el amparo de la Cláusula Estatutaria de Autonomía de los Asociados Directores. Los fondos de investigación científica se consideran aportaciones de fomento exentas de IVA.",
-            "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS EN RECOLECCIÓN Y PROCESAMIENTO (MAP-04)\n\n1. Recolección de muestras de mermas industriales (cueros, maderas, polímeros) en las maquiladoras.\n2. Pruebas de resistencia en laboratorios comunitarios.\n3. Transferencia de patentes sociales a los talleres.",
-            "Manual administrative": "MANUAL ADMINISTRATIVO DE PROYECTOS Y FIDEICOMISOS CIENTÍFICOS (MAP-04)\n\nCoordina la gobernanza presupuestal de los laboratorios, la asignación de becas de investigación a estudiantes de Agua Prieta y el inventario de reactivos técnicos.",
-            "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS EN INNOVACIÓN INDUSTRIAL (MTC-04)\n\nMapea las tecnologías emergentes de manufactura esbelta automatizada, el volumen de desperdicios utilizables por tipo de maquila y las proyecciones de crecimiento del nearshoring real.",
-            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES - EFICIENCIA DE LA TRANSFERENCIA TECNOLÓGICA I+D\n\nVARIABLE LATENTE CENTRAL: 'Capacidad de Absorción del Saber Científico en Talleres de Barrio'\n\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\n1. [X1] Tasa de adopción de manuales Lean-Barrio y diagramas de flujo técnicos dentro de los procesos diarios.\n2. [X2] Cantidad de mermas industriales recolectadas (cuero, madera) efectivamente transformadas.\n3. [X3] Frecuencia de asistencia de los artesanos a las células de co-diseño del Equipo Científico.\n4. [X4] Reducción porcentual de costos de materia prima lograda por el taller al sustituir insumos.\n5. [X5] Nivel de comprensión técnica manifestada por el micro-productor sobre el uso y cuidado de maquinaria.\n6. [X6] Cantidad de nuevos prototipos funcionales o innovaciones locales de producto generadas de forma autónoma.\n7. [X7] Incremento reportado en la calidad final de la proveeduría indirecta entregada a las plantas.",
-            "Contrato de Incorporación y Adhesión Individual": "CONTRATO INDIVIDUAL DE ASIGNACIÓN CIENTÍFICA Y PROPIEDAD INTELECTUAL SOCIAL (ID-APSON)\n\nCONTRATO que celebran la Asociación Civil e Investigación Científica APSON, y por la otra el Usuario en su carácter de Investigador o Técnico de Laboratorio Comunitario, al tenor de las siguientes cláusulas:\n\nPRIMERA: OBJETO DE TRANSFERENCIA. El Investigador se compromete a ejecutar análisis de densidad económica, estudios metalúrgicos de mermas industriales de maquiladoras y modelado de variables latentes en Agua Prieta.\n\nSEGUNDA: PATENTES SOCIALES. El Usuario acepta que toda propiedad intelectual desarrollada en las células de I+D pertenece al patrimonio común de la A.C. Queda prohibido el acaparamiento privado, licenciándose a tasa cero para el beneficio de los talleres populares.\n\nTERCERA: CONDICIÓN DE REMUNERACIÓN. Las retribuciones se canalizarán a través del fondo de fideicomisos científicos autónomos administrado por la Caja de Ahorro de la A.C., justificando la materialidad docente libre de IVA ante las autoridades hacendarias.",
-            "Acta Constitutiva Notarial Oficial": "PROTOCOLO NOTARIAL DE NOMBRAMIENTO Y APERTURA DE CONSEJO DE INVESTIGACIÓN CIENTÍFICA\n\nEn la Ciudad de Agua Prieta, Sonora, ante la fe del Notario Público adscrito al protocolo estatal, se formaliza el Acta de Establecimiento y Gobierno de la célula científica con base en la Ley General de Ciencias y el Código Civil vigente:\n\nCLÁUSULA PRIMERA: AUTONOMÍA OPERATIVA Y DENOMINACIÓN DE NODO.\nEl subsistema científico operará bajo el nombre de 'EQUIPO DE INVESTIGACIÓN CIENTÍFICA APSON'. Goza de una Cláusula de Autonomía de Gestión delegada por la A.C. nodriza, permitiéndole al Asociado Director celebrar minutas, convenios y acuerdos técnicos con universidades y parques industriales sin requerir autorizaciones burocráticas previas.\n\nCLÁUSULA SEGUNDA: FINES CIENTÍFICOS Y MODELADO PATRIMONIAL SOCIAL.\nEl objeto primordial consiste en ejecutar investigación econométrica de variables latentes, mapear densidades de mermas industriales y realizar ingeniería inversa metalmecánica para el diseño de productos de reciclaje. Toda patente, secreto industrial o marca colectiva resultante se registrará ante el IMPI a nombre de la Asociación Civil matriz, quedando etiquetada bajo un fideicomiso de 'Uso Social Común' perpetuo a tasa cero para beneficio de los barrios de Agua Prieta.\n\nCLÁUSULA TERCERA: GOBERNANZA PRESUPUESTAL Y CUENTAS DE ORDEN EN CAJA.\nLa dirección científica recaerá en el Asociado Director electo por el consejo. Los fondos de fomento económico o becas captadas se depositarán directamente en la cuenta de orden de la Caja de Ahorro de la A.C., amparando la completa materialidad de las investigaciones para fines científicos exentos de IVA, prohibiéndose el uso especulativo o financiero mercantil ajeno a la economía popular."
+            "Marco conceptual y descriptivo": "SUBSISTEMA DE INVESTIGACIÓN, DESARROLLO E INNOVACIÓN DE JZPAC\\n\\nCélula científica de JACOB ZUMAYA PRIANTI, A.C. encargada de realizar estudios de densidad económica, análisis metalúrgicos para el reciclaje de mermas y optimización de modelos predictivos.",
+            "Marco legal": "LEY DE CIENCIA E INNOVACIÓN - ESTATUTOS INTERNOS DE JACOB ZUMAYA PRIANTI, A.C.\\n\\nOpera bajo el amparo de la Cláusula Estatutaria de Autonomía delegada por JACOB ZUMAYA PRIANTI, A.C. Los fondos captados se consideran aportaciones de fomento exentas de IVA en las declaraciones de JZPAC.",
+            "Manual de procedimientos": "MANUAL DE PROCEDIMIENTOS EN PROCESAMIENTO CIENTÍFICO DE JZPAC (MAP-04)\\n\\n1. Recolección de muestras de mermas industriales bajo convenios de JACOB ZUMAYA PRIANTI, A.C.\\n2. Pruebas de resistencia en laboratorios comunitarios.\\n3. Transferencia de patentes sociales a los talleres vinculados a JZPAC.",
+            "Manual administrative": "MANUAL ADMINISTRATIVO DE PROYECTOS CIENTÍFICOS DE JACOB ZUMAYA PRIANTI, A.C.\\n\\nCoordina la gobernanza presupuestal de los laboratorios, la asignación de becas de investigación otorgadas por JACOB ZUMAYA PRIANTI, A.C. a estudiantes universitarios de Agua Prieta y reactivos.",
+            "Manual de Tendencias criticas": "MANUAL DE TENDENCIAS CRÍTICAS INDUSTRIALES - REPORTE JZPAC (MTC-04)\\n\\nMapea para JACOB ZUMAYA PRIANTI, A.C. las tecnologías emergentes de manufactura esbelta, el volumen de desperdicios utilizables por tipo de maquila y el nearshoring real.",
+            "Manual de Variables latentes con items observables": "MANUAL DE VARIABLES LATENTES JZPAC - EFICIENCIA DE LA TRANSFERENCIA TECNOLÓGICA\\n\\nVARIABLE LATENTE CENTRAL: 'Capacidad de Absorción del Saber Científico de JACOB ZUMAYA PRIANTI, A.C.'\\n\\nÍTEMS OBSERVABLES DE CAMPO (Evaluación Escala Likert 1-5):\\n1. [X1] Tasa de adopción de manuales de JACOB ZUMAYA PRIANTI, A.C. dentro de los procesos diarios del taller.\\n2. [X2] Cantidad de mermas industriales transformadas bajo asesoría de JACOB ZUMAYA PRIANTI, A.C.\\n3. [X3] Frecuencia de asistencia de los artesanos a las células de co-diseño de JACOB ZUMAYA PRIANTI, A.C.\\n4. [X4] Reducción porcentual de costos de materia prima lograda mediante el reciclaje de JZPAC.\\n5. [X5] Nivel de comprensión técnica sobre maquinaria pesada financiada por JACOB ZUMAYA PRIANTI, A.C.\\n6. [X6] Cantidad de innovaciones locales generadas de forma autónoma por la comunidad de JZPAC.\\n7. [X7] Incremento reportado en la calidad final entregada a las plantas maquiladoras transnacionales.",
+            "Contrato de Incorporación y Adhesión Individual": "CONTRATO INDIVIDUAL DE ASIGNACIÓN CIENTÍFICA (EQUIPO APSON - JZPAC)\\n\\nCONTRATO que celebran la institución JACOB ZUMAYA PRIANTI, A.C., y por la otra el Investigador o Técnico de Laboratorio Comunitario, al tenor de las siguientes cláusulas:\\n\\nPRIMERA: OBJETO. El Investigador se compromete a ejecutar análisis y modelado de variables latentes bajo los planes rectores de JACOB ZUMAYA PRIANTI, A.C.\\n\\nSEGUNDA: PATENTES SOCIALES. El Usuario acepta que toda propiedad intelectual desarrollada pertenece al patrimonio común de JACOB ZUMAYA PRIANTI, A.C., licenciándose a tasa cero para el beneficio de los talleres populares.\\n\\nTERCERA: REMUNERACIÓN. Las retribuciones se canalizarán a través de la Caja de Ahorro de JACOB ZUMAYA PRIANTI, A.C., justificando la materialidad docente ante el SAT.",
+            "Acta Constitutiva Notarial Oficial": "PROTOCOLO NOTARIAL DE NOMBRAMIENTO DEL CONSEJO CIENTÍFICO DE JACOB ZUMAYA PRIANTI, A.C.\\n\\nEn la Ciudad de Agua Prieta, Sonora, ante la fe del Notario Público, se formaliza el Acta de Establecimiento de la célula científica constituida por acuerdo de la Asamblea General de JACOB ZUMAYA PRIANTI, A.C.:\\n\\nCLÁUSULA PRIMERA: AUTONOMÍA OPERATIVA.\\nEl subsistema científico operará bajo el nombre de 'EQUIPO DE INVESTIGACIÓN CIENTÍFICA APSON'. Goza de una Cláusula de Autonomía delegada por JACOB ZUMAYA PRIANTI, A.C.\\n\\nCLÁUSULA SEGUNDA: FINES CIENTÍFICOS Y PROPIEDAD DE JZPAC.\\nEl objeto consiste en ejecutar investigación econométrica. Toda patente resultante se registrará ante el IMPI a nombre de la institución JACOB ZUMAYA PRIANTI, A.C., quedando bajo un fideicomiso social de JZPAC.\\n\\nCLÁUSULA TERCERA: GOVERNANZA PRESUPUESTAL.\\nLos fondos captados se depositarán directamente en la cuenta de orden de la Caja de Ahorro de JACOB ZUMAYA PRIANTI, A.C., amparando la materialidad de las investigaciones exentas de IVA."
         }
     }
 # ==============================================================================
@@ -155,25 +156,61 @@ def check_password():
 if not check_password():
     st.stop()
 # ==============================================================================
-# PARTE 9 DE 17: MOTOR DE COMPILACIÓN DE INFORMES ANALÍTICOS (PDF MONOPÁGINA)
+# PARTE 9 DE 17: MOTOR DE COMPILACIÓN DE INFORMES ANALÍTICOS (PDF MONOPÁGINA CON LOGO)
 # ==============================================================================
+class NumberedCanvasMono(canvas.Canvas):
+    """Lienzo de dos pasadas para imprimir logo, AC y numeración exacta en informes."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_decorations(num_pages)
+            super().showPage()
+        super().save()
+
+    def draw_page_decorations(self, page_count):
+        self.saveState()
+        # Encabezado Formal APA 7: Nombre de la AC e Imagotipo
+        self.setFont("Helvetica-Bold", 8)
+        self.setFillColor(colors.HexColor("#1e4620"))
+        self.drawString(40, 755, "JACOB ZUMAYA PRIANTI, A.C.")
+        self.setFont("Helvetica", 8)
+        self.setFillColor(colors.gray)
+        self.drawRightString(572, 755, f"Página {self._pageNumber} de {page_count}")
+        self.setStrokeColor(colors.HexColor("#dee2e6"))
+        self.setLineWidth(0.5)
+        self.line(40, 747, 572, 747)
+        
+        # Estampar el logotipo institucional redondo a escala en la cabecera
+        try:
+            self.drawImage("JZPACLOGOREDONDO.png", 40, 760, width=25, height=24, mask='auto')
+        except Exception:
+            pass
+        self.restoreState()
+
 def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
-    """Compila estados financieros o analíticos en un formato PDF de una sola página."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    # Ajuste de margen superior para dar espacio a la cabecera de JZPAC
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=65, bottomMargin=40)
     styles = getSampleStyleSheet()
     color_primario = colors.HexColor("#1e4620")
     
-    estilo_titulo = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=14, textColor=color_primario, spaceAfter=12)
-    estilo_sub = ParagraphStyle('DocSub', parent=styles['Normal'], fontSize=9, textColor=colors.gray, spaceAfter=12)
+    estilo_titulo = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=13, textColor=color_primario, spaceAfter=10)
     estilo_cuerpo = ParagraphStyle('DocBody', parent=styles['Normal'], fontSize=10, leading=14, spaceAfter=12)
     
     story = []
     story.append(Paragraph(f"<b>{titulo_modulo}</b>", estilo_titulo))
-    story.append(Paragraph("Ecosistema de Economía Popular AP-AC | Validación Documental Oficial", estilo_sub))
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 5))
     story.append(Paragraph(resumen_texto, estilo_cuerpo))
-    story.append(Spacer(1, 15))
+    story.append(Spacer(1, 10))
     
     tabla_pdf = Table(datos_tabla, colWidths=[240.0, 240.0])
     tabla_pdf.setStyle(TableStyle([
@@ -183,49 +220,109 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto):
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")), ('FONTSIZE', (0, 0), (-1, -1), 9),
     ]))
     story.append(tabla_pdf)
-    doc.build(story)
+    
+    # Invocar usando el lienzo numerado interactivo de JZPAC
+    doc.build(story, canvasmaker=NumberedCanvasMono)
     buffer.seek(0)
     return buffer
 # ==============================================================================
-# PARTE 10 DE 17: MOTOR DE ENCUADERNACIÓN DE MONOGRAFÍAS CORPORATIVAS (APA 7)
+# PARTE 10 DE 17: COMPILADOR DE LIBROS COMPENDIOS CON ÍNDICE DE CONTENIDOS APA 7
 # ==============================================================================
+class NumberedCanvasLibro(canvas.Canvas):
+    """Lienzo avanzado de dos pasadas para compendios corporativos JZPAC."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            # La portada (Página 1) no lleva encabezado tipográfico según la norma APA 7
+            if self._pageNumber > 1:
+                self.draw_libro_decorations(num_pages)
+            super().showPage()
+        super().save()
+
+    def draw_libro_decorations(self, page_count):
+        self.saveState()
+        self.setFont("Helvetica-Bold", 8)
+        self.setFillColor(colors.HexColor("#1e4620"))
+        self.drawString(72, 745, "JACOB ZUMAYA PRIANTI, A.C.")
+        self.setFont("Helvetica", 8)
+        self.setFillColor(colors.gray)
+        self.drawRightString(540, 745, f"Página {self._pageNumber} de {page_count}")
+        self.setStrokeColor(colors.HexColor("#dee2e6"))
+        self.setLineWidth(0.5)
+        self.line(72, 737, 540, 737)
+        try:
+            self.drawImage("JZPACLOGOREDONDO.png", 72, 750, width=22, height=21, mask='auto')
+        except Exception:
+            pass
+        self.restoreState()
+
 def generar_libro_apa7(nombre_entidad, diccionario_marcos):
-    """Compila y encuaderna toda la documentación de una entidad en un libro estilo APA 7."""
     buffer_libro = io.BytesIO()
-    doc = SimpleDocTemplate(buffer_libro, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
+    doc = SimpleDocTemplate(buffer_libro, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=85, bottomMargin=72)
     styles = getSampleStyleSheet()
     color_corporativo = colors.HexColor("#1e4620")
     
-    estilo_portada_titulo = ParagraphStyle('CoverTitle', fontName='Helvetica-Bold', fontSize=24, leading=28, textColor=color_corporativo, alignment=1, spaceAfter=20)
-    estilo_portada_meta = ParagraphStyle('CoverMeta', fontName='Helvetica', fontSize=11, leading=16, textColor=colors.HexColor("#495057"), alignment=1, spaceAfter=12)
-    estilo_apa_h1 = ParagraphStyle('APAH1', fontName='Helvetica-Bold', fontSize=16, leading=20, textColor=colors.black, alignment=1, spaceBefore=24, spaceAfter=12)
-    estilo_apa_h2 = ParagraphStyle('APAH2', fontName='Helvetica-Bold', fontSize=13, leading=16, textColor=colors.black, alignment=0, spaceBefore=18, spaceAfter=8)
-    estilo_apa_parrafo = ParagraphStyle('APABody', fontName='Helvetica', fontSize=11, leading=22, textColor=colors.HexColor("#212529"), spaceAfter=14, firstLineIndent=36)
+    estilo_portada_titulo = ParagraphStyle('CovT', fontName='Helvetica-Bold', fontSize=22, leading=26, textColor=color_corporativo, alignment=1, spaceAfter=20)
+    estilo_portada_meta = ParagraphStyle('CovM', fontName='Helvetica', fontSize=11, leading=16, textColor=colors.HexColor("#495057"), alignment=1, spaceAfter=12)
+    estilo_apa_h1 = ParagraphStyle('APAH1', fontName='Helvetica-Bold', fontSize=15, leading=18, textColor=colors.black, alignment=1, spaceBefore=20, spaceAfter=12)
+    estilo_apa_h2 = ParagraphStyle('APAH2', fontName='Helvetica-Bold', fontSize=12, leading=15, textColor=colors.black, alignment=0, spaceBefore=15, spaceAfter=6)
+    estilo_apa_parrafo = ParagraphStyle('APABody', fontName='Helvetica', fontSize=11, leading=20, textColor=colors.HexColor("#212529"), spaceAfter=14, firstLineIndent=36)
     
     story = []
-    story.append(Spacer(1, 100))
+    # --- 1. PORTADA ---
+    story.append(Spacer(1, 80))
     story.append(Paragraph(f"<b>COMPENDIO INSTITUCIONAL INTEGRAL VINCULADO</b>", estilo_portada_titulo))
-    story.append(Paragraph(f"<b>{nombre_entidad.upper()}</b>", ParagraphStyle('SubC', parent=estilo_portada_titulo, fontSize=16, textColor=colors.black)))
+    story.append(Paragraph(f"<b>{nombre_entidad.upper()}</b>", ParagraphStyle('SubC', parent=estilo_portada_titulo, fontSize=15, textColor=colors.black)))
     story.append(Spacer(1, 40))
-    story.append(Paragraph("<b>Línea de Investigación:</b> Crecimiento Endógeno y Retención de Valor Fronterizo", estilo_portada_meta))
-    story.append(Paragraph("<b>Autor Corporativo:</b> Asociación Civil Matriz - Agente Capacitador", estilo_portada_meta))
-    story.append(Paragraph("<b>Adscripción:</b> Subsistema Autónomo de Desarrollo Económico Popular", estilo_portada_meta))
-    story.append(Paragraph(f"<b>Fecha de Cierre:</b> {datetime.now().strftime('%d de %B de %Y')}", estilo_portada_meta))
-    
+    story.append(Paragraph("<b>Autor Corporativo:</b> JACOB ZUMAYA PRIANTI, A.C.", estilo_portada_meta))
+    story.append(Paragraph("<b>Línea:</b> Crecimiento Endógeno y Retención de Valor Fronterizo", estilo_portada_meta))
+    story.append(Paragraph("<b>Jurisdicción:</b> Agua Prieta, Sonora, México", estilo_portada_meta))
+    story.append(Paragraph(f"<b>Fecha de Emisión:</b> {datetime.now().strftime('%d de %B de %Y')}", estilo_portada_meta))
     story.append(PageBreak())
     
+    # --- 2. ÍNDICE GENERAL AUTOMATIZADO (TABLA DE CONTENIDOS APA 7) ---
+    story.append(Paragraph("<b>Tabla de Contenidos (Índice General)</b>", estilo_apa_h1))
+    story.append(Spacer(1, 10))
+    story.append(Paragraph("A continuación se detallan las secciones y manuales normativos constitutivos validados para la presente célula:", ParagraphStyle('IdxB', fontName='Helvetica', fontSize=10, spaceAfter=15)))
+    
+    tabla_indice_datos = [["Sección / Documento Oficial Regulado", "Estatus Contable", "Referencia"]]
+    for titulo_manual in diccionario_marcos.keys():
+        tabla_indice_datos.append([titulo_manual, "Validado SAT Título II", "Indexado síncrono"])
+        
+    tabla_idx = Table(tabla_indice_datos, colWidths=[240.0, 130.0, 110.0])
+    tabla_idx.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f8f9fa")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), color_corporativo),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+    ]))
+    story.append(tabla_idx)
+    story.append(PageBreak())
+    
+    # --- 3. CONTENIDO EN CASCADA ---
     for titulo_manual, texto_contenido in diccionario_marcos.items():
         story.append(Paragraph(f"<b>{titulo_manual}</b>", estilo_apa_h1))
-        story.append(Spacer(1, 10))
+        story.append(Spacer(1, 8))
         for fragmento in texto_contenido.split('\n\n'):
             if fragmento.strip():
-                if fragmento.strip().startswith("ARTÍCULO") or fragmento.strip().startswith("MÓDULO") or ":" in fragmento.split('\n'):
+                if fragmento.strip().startswith("ARTÍCULO") or fragmento.strip().startswith("CLÁUSULA") or ":" in fragmento.split('\n'):
                     story.append(Paragraph(f"<b>{fragmento.strip()}</b>", estilo_apa_h2))
                 else:
                     story.append(Paragraph(fragmento.strip(), estilo_apa_parrafo))
-        story.append(Spacer(1, 15))
+        story.append(Spacer(1, 10))
         
-    doc.build(story)
+    doc.build(story, canvasmaker=NumberedCanvasLibro)
     buffer_libro.seek(0)
     return buffer_libro
 # ==============================================================================
@@ -288,10 +385,10 @@ with col_izquierda_matriz:
         st.markdown("---")
         
         datos_universales_mexico = {
-            "1. Asociación Civil Matriz (A.C.)": {"Regimen_SAT": "Régimen General de Ley de las Personas Morales (Título II LISR)", "Obligacion_Fiscal": "Declaración anual en marzo, pagos provisionales mensuales de ISR (30%), entero de retenciones de asimilados.", "Normativa_Clave": "Artículos 15 Fracc. IV y XII de la Ley del IVA (Exención de traslado del 16% en capacitación)."},
-            "2. Cooperativa de Logística (S.C.)": {"Regimen_SAT": "Régimen de las Personas Morales con Fines no Lucrativos (Título III LISR)", "Obligacion_Fiscal": "Facturación electrónica de fletes terrestres, aplicación obligatoria de la Retención del 4% de ISR por personas morales.", "Normativa_Clave": "Ley General de Sociedades Cooperativas (LGSC) - Responsabilidad Limitada, fondo de reserva del 6% diésel."},
-            "3. Agencia de Microseguros (S.A.)": {"Regimen_SAT": "Régimen General de Ley (Sociedades Anónimas de Capital Variable - Título II LISR)", "Obligacion_Fiscal": "Contabilidad corporativa mercantil auditada, facturación general de pólizas comerciales con desglose de IVA.", "Normativa_Clave": "Ley de Instituciones de Seguros y de Fianzas (LISF) - Cédula vigente ante la Comisión Nacional de Seguros y Fianzas (CNSF)."},
-            "4. Equipo de Investigación Científica APSON": {"Regimen_SAT": "Régimen General con asignación de Fideicomisos Tecnológicos Autónomos (Exento por Fomento)", "Obligacion_Fiscal": "Reporte de transparencia de recursos captados de Fondos de Innovación, exención de IVA en contratos de I+D.", "Normativa_Clave": "Ley General de Humanidades, Ciencias, Tecnologías e Innovación - Patentes sociales exentas."}
+            "1. Asociación Civil Matriz (A.C.)": {"Regimen_SAT": "Régimen General de Ley de las Personas Morales (Título II LISR)", "Obligacion_Fiscal": "Declaración anual en marzo, pagos provisionales mensuales de ISR (30%), entero de retenciones de asimilados.", "Normativa_Clave": "Artículos 15 Fracc. IV y XII de la Ley del IVA (Exención de traslado del 16% en capacitación de JACOB ZUMAYA PRIANTI, A.C.)."},
+            "2. Cooperativa de Logística (S.C.)": {"Regimen_SAT": "Régimen de las Personas Morales con Fines no Lucrativos (Título III LISR)", "Obligacion_Fiscal": "Facturación electrónica de fletes terrestres, aplicación obligatoria de la Retención del 4% de ISR por personas morales.", "Normativa_Clave": "Ley General de Sociedades Cooperativas (LGSC) - Responsabilidad Limitada, fondo de reserva del 6% diésel vinculada a JZPAC."},
+            "3. Agencia de Microseguros (S.A.)": {"Regimen_SAT": "Régimen General de Ley (Sociedades Anónimas de Capital Variable - Título II LISR)", "Obligacion_Fiscal": "Contabilidad corporativa mercantil auditada, facturación general de pólizas con desglose de IVA.", "Normativa_Clave": "Ley de Instituciones de Seguros y de Fianzas (LISF) - Cédula vigente ante la Comisión Nacional de Seguros y Fianzas (CNSF)."},
+            "4. Equipo de Investigación Científica APSON": {"Regimen_SAT": "Régimen General con asignación de Fideicomisos Tecnológicos Autónomos (Exento por Fomento)", "Obligacion_Fiscal": "Reporte de transparencia de recursos captados de Fondos de Innovación de JACOB ZUMAYA PRIANTI, A.C., exención de IVA en contratos de I+D.", "Normativa_Clave": "Ley General de Humanidades, Ciencias, Tecnologías e Innovación - Patentes sociales exentas."}
         }
 
         f_nom = st.text_input("👤 Nombre Completo del Director a Registrar:", placeholder="Ej. Lic. Alejandro Anaya")
@@ -314,9 +411,9 @@ with col_izquierda_matriz:
                 if f_nom and f_rfc and f_puesto:
                     st.session_state["directores_registrados"].append({
                         "Fecha Registro": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc.upper(), "Estatus": "Alta Exitosa / Acta Firmada"
+                        "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc.upper(), "Estatus": "Alta Exitosa / Acta Firmada / JZPAC"
                     })
-                    st.success(f"✓ El {f_puesto} ha sido legalmente registrado.")
+                    st.success(f"✓ El {f_puesto} ha sido legalmente registrado en JACOB ZUMAYA PRIANTI, A.C.")
                 else:
                     st.error("Por favor, llena todos los campos obligatorios.")
         with rc2:
@@ -327,7 +424,18 @@ with col_izquierda_matriz:
 # PARTE 14 DE 17: COLUMNA IZQUIERDA - VISOR DE DATOS EN TIEMPO REAL (PADRÓN)
 # ==============================================================================
     elif st.session_state["ver_padron_flotante"]:
-        st.warning("👁️ Ventana Flotante de Datos Activa: Monitoreo del Padrón de Directores en Tiempo Real")
+        st.warning("👁️ Ventana Flotante de Datos Activa: Monitoreo del Padrón de Directores de JACOB ZUMAYA PRIANTI, A.C.")
+        st.markdown("---")
+        st.table(st.session_state["directores_registrados"])
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🛑 Ocultar Vista de Datos y Volver", use_container_width=True, type="primary"):
+            st.session_state["ver_padron_flotante"] = False
+            st.rerun()
+# ==============================================================================
+# PARTE 14 DE 17: COLUMNA IZQUIERDA - VISOR DE DATOS EN TIEMPO REAL (PADRÓN)
+# ==============================================================================
+    elif st.session_state["ver_padron_flotante"]:
+        st.warning("👁️ Ventana Flotante de Datos Activa: Monitoreo del Padrón de Directores de JACOB ZUMAYA PRIANTI, A.C.")
         st.markdown("---")
         st.table(st.session_state["directores_registrados"])
         st.markdown("<br>", unsafe_allow_html=True)
@@ -396,6 +504,7 @@ with col_izquierda_matriz:
 # PARTE 16 DE 17: COLUMNA DE LA DERECHA - LOGOTIPO E IDENTIDAD INSTITUCIONAL
 # ==============================================================================
 with col_derecha_documental:
+    # Contenedor gráfico maestro con nombre de la A.C.
     st.markdown("""
     <div style='background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 12px; text-align: center;'>
         <h2 style='color: #1e4620; margin-top:0; font-size:16px; font-weight:bold; text-transform: uppercase; letter-spacing: 0.5px;'>
@@ -405,6 +514,7 @@ with col_derecha_documental:
     </div>
     """, unsafe_allow_html=True)
     
+    # Renderizado del logotipo directo del repositorio
     try:
         st.image("JZPACLOGOREDONDO.png", caption="Logotipo Oficial JZPAC", use_container_width=True)
     except Exception:
@@ -418,14 +528,14 @@ with col_derecha_documental:
     
     if seleccion_entidad != "-- Elige una Entidad --":
         st.markdown("#### 📘 Compilar Libro Unificado (APA 7)")
-        st.caption("Encuaderna la totalidad de manuales y contratos en una sola monografía oficial de un solo click.")
+        st.caption("Encuaderna la totalidad de manuales, formatos y contratos con Índice y Paginación en un solo click.")
         
         dict_marcos_libro = st.session_state["repositorio_institucional"][seleccion_entidad]
         pdf_libro_completo = generar_libro_apa7(seleccion_entidad, dict_marcos_libro)
         
-        # LA LLAMADA YA NO TIRA EL ERROR PORQUE LA FUNCIÓN YA FUE LEÍDA ARRIBA
+        # Invocación segura sin NameError (la función ya fue declarada al inicio del archivo)
         if st.download_button(label="📥 Descargar Libro Compendio (PDF)", data=pdf_libro_completo, file_name=f"Compendio_{seleccion_entidad.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
-            registrar_descarga(seleccion_entidad, f"Compendio_{seleccion_entidad}.pdf")
+            registrar_descarga(seleccion_entidad, f"Compendio_{seleccion_entidad.replace(' ', '_')}.pdf")
             
         st.markdown("---")
         
@@ -444,6 +554,7 @@ with col_derecha_documental:
     st.markdown("---")
     st.markdown("#### 👔 Gobernanza e Historiales")
     
+    # Botonera Central de control de altas y visibilidad de base de datos
     if st.button("➕ Inscribir Director Asociado", use_container_width=True, type="primary"):
         st.session_state["ver_formulario_registro"] = True
         st.session_state["ver_visor_legal"] = False 
@@ -475,7 +586,7 @@ with col_derecha_documental:
                 contenido_texto = archivo_cargado.read().decode("utf-8", errors="ignore")
                 st.session_state["repositorio_institucional"][nombre_archivo_crudo] = {
                     "Marco conceptual y descriptivo": contenido_texto,
-                    "Marco legal": "Borrador de marco legal en espera de adición fiscal.",
+                    "Marco legal": f"Borrador de marco legal en espera de adición fiscal para JACOB ZUMAYA PRIANTI, A.C.",
                     "Manual de procedimientos": "Borrador de manual de procedimientos en espera de adición operativa.",
                     "Manual administrativo": "Borrador de manual administrativo.",
                     "Manual de Tendencias criticas": "Borrador de tendencias críticas.",
@@ -488,11 +599,12 @@ with col_derecha_documental:
             except Exception as e:
                 st.error("Error al indexar.")
 
+# INFOGRAFÍA CORPORATIVA DE TRANSPARENCIA CONTABLE
 st.markdown("---")
 st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
 col_v1, col_v2, col_v3 = st.columns(3)
 with col_v1:
-    st.markdown("<div style='background-color: #d4edda; padding: 12px; border-radius: 6px; border-left: 5px solid #28a745;'><h4 style='color: #155724; margin-top:0; font-size:14px;'>🟢 Nodo Central: Asociación Civil</h4><p style='color: #1c7430; font-size: 12px;'><b>Estatus:</b> 0% IVA / Escudo 30% ISR vía Asimilados.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div style='background-color: #d4edda; padding: 12px; border-radius: 6px; border-left: 5px solid #28a745;'><h4 style='color: #155724; margin-top:0; font-size:14px;'>🟢 Nodo Central: JACOB ZUMAYA PRIANTI, A.C.</h4><p style='color: #1c7430; font-size: 12px;'><b>Estatus:</b> 0% IVA / Escudo 30% ISR vía Asimilados.</p></div>", unsafe_allow_html=True)
 with col_v2:
     st.markdown("<div style='background-color: #d1ecf1; padding: 12px; border-radius: 6px; border-left: 5px solid #17a2b8;'><h4 style='color: #0c5460; margin-top:0; font-size:14px;'>🔵 Brazo Fuerte: Caja de Ahorro</h4><p style='color: #117a8b; font-size: 12px;'><b>Impacto:</b> Capitaliza excedentes netos de fletes e intermediación libre de ISR.</p></div>", unsafe_allow_html=True)
 with col_v3:
