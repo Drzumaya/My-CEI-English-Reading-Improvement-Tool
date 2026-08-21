@@ -960,9 +960,74 @@ with col_izquierda_matriz:
                 
                 st.caption("💡 <b>Estrategia Nearshoring ESG:</b> La vinculación de tu persona moral al ecosistema JZPAC transforma el pago ordinario de impuestos en un gasto deducible de aportación social a tasa cero, blindando la materialidad operativa ante el SAT.", unsafe_allow_html=True)
 # ==============================================================================
-# PARTE 13b´´ DE 14: COLUMNA IZQUIERDA - RENDIMIENTO Y AMORTIZACIÓN DE LA CAJA
+# PARTE 13b´´ DE 14: COLUMNA IZQUIERDA - SIMULADORES DE CAMIONES Y FLETES B2B
 # ==============================================================================
-        # --- 🏦 COMPONENTE COMPLEMENTARIO: SIMULADOR DE INTERÉS COMPUESTO Y PRÉSTAMO FIJO ---
+        # --- 🚀 SECCIÓN DE ANÁLISIS DE AHORRO FISCAL MULTIRRÉGIMEN PARA LOGÍSTICA ---
+        if "Logística" in entidad_activa_centro or "S.C." in entidad_activa_centro:
+            st.markdown("---")
+            st.markdown("""
+            <div style='background-color: #0c5460; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 20px;'>
+                <h3 style='color: white; margin: 0; font-size: 14px; font-weight: bold;'>
+                    💰 SIMULADOR DE RETENCIÓN DE VALOR Y AHORRO FISCAL (COOPERATIVA JZPAC)
+                </h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            c_sh1, c_sh2 = st.tabs(["👤 Sección: Personas Físicas (Choferes / Hombre-Camión)", "🏢 Sección: Personas Morales (Flotillas / Transportistas)"])
+            
+            with c_sh1:
+                st.markdown("##### 🚛 Simulación de Impacto Líquido Mensual (Individual)")
+                flete_bruto_pf = st.number_input("Ingreso Mensual Bruto Estimado por Fletes ($ MXN):", min_value=10000, value=95000, step=5000, key="pf_bruto")
+                gasto_diesel_pf = st.number_input("Gasto Mensual Estimado en Combustible e Insumos ($ MXN):", min_value=5000, value=35000, step=2000, key="pf_diesel")
+                
+                tasa_isr_tradicional = 0.025 if flete_bruto_pf <= 25000 else 0.15
+                isr_tradicional = flete_bruto_pf * tasa_isr_tradicional
+                retencion_4_sat = flete_bruto_pf * 0.04
+                fuga_iva_no_deducible = (gasto_diesel_pf * 0.16) * 0.40
+                
+                utilidad_neta_tradicional = flete_bruto_pf - gasto_diesel_pf - isr_tradicional - retencion_4_sat - fuga_iva_no_deducible
+                
+                fondo_diesel_coop = flete_bruto_pf * 0.06
+                ahorrio_caja_coop = flete_bruto_pf * 0.05
+                retencion_coop_asimilados = (flete_bruto_pf - gasto_diesel_pf) * 0.03
+                
+                utilidad_neta_coop = flete_bruto_pf - gasto_diesel_pf - retencion_coop_asimilados - fondo_diesel_coop
+                ahorro_liquido_pf = utilidad_neta_coop - utilidad_neta_tradicional
+                
+                col_pf1, col_pf2, col_pf3 = st.columns(3)
+                col_pf1.metric("Utilidad Esquema Tradicional", f"${utilidad_neta_tradicional:,.2f} MXN", delta="- Carga SAT", delta_color="inverse")
+                col_pf2.metric("Utilidad Esquema Cooperativa", f"${utilidad_neta_coop:,.2f} MXN", delta="✓ Retorno Optimizado")
+                col_pf3.metric("Ahorro Neto Mensual", f"${ahorro_liquido_pf:,.2f} MXN", delta="💵 Dinero Recuperado", delta_color="normal")
+                
+                st.caption(f"💡 <b>Nota de Retención Social:</b> Sumándote a JZPAC, capitalizas un fondo de diésel propio de <b>${fondo_diesel_coop:,.2f} MXN</b> y resguardas un saldo líquido exento en la Caja de Ahorro.", unsafe_allow_html=True)
+
+            with c_sh2:
+                st.markdown("##### 🏢 Simulación de Eficiencia Corporativa Anual (Empresas Flotilleras)")
+                facturacion_anual_pm = st.number_input("Facturación Bruta Anual de la Empresa ($ MXN):", min_value=100000, value=2400000, step=50000, key="pm_bruto")
+                costo_operativo_pm = st.number_input("Costos de Operación Totales (COK + Choferes + Seguros):", min_value=50000, value=1300000, step=50000, key="pm_costo")
+                
+                utilidad_antes_impuestos = facturacion_anual_pm - costo_operativo_pm
+                isr_corporativo_30 = utilidad_antes_impuestos * 0.30
+                ptu_trabajadores_10 = utilidad_antes_impuestos * 0.10
+                
+                utilidad_neta_pm_tradicional = utilidad_antes_impuestos - isr_corporativo_30 - ptu_trabajadores_10
+                
+                excedente_reinvertido_ac = utilidad_antes_impuestos * 0.85
+                reserva_legal_coop = utilidad_antes_impuestos * 0.15
+                
+                utilidad_retendida_ecosistema = excedente_reinvertido_ac + (reserva_legal_coop * 0.70)
+                ahorro_estructural_pm = utilidad_retendida_ecosistema - utilidad_neta_pm_tradicional
+                
+                col_pm1, col_pm2, col_pm3 = st.columns(3)
+                col_pm1.metric("Rendimiento Tradicional (Neto)", f"${utilidad_neta_pm_tradicional:,.2f} MXN", delta="-30% LISR / -10% PTU", delta_color="inverse")
+                col_pm2.metric("Rendimiento con Enlace JZPAC", f"${utilidad_retendida_ecosistema:,.2f} MXN", delta="✓ Escudo Título III")
+                col_pm3.metric("Capitalización Salvada", f"${ahorro_structural_pm:,.2f} MXN", delta="🏛️ Retención de Valor", delta_color="normal")
+                
+                st.caption("💡 <b>Estrategia Nearshoring ESG:</b> La vinculación de tu persona moral al ecosistema JZPAC transforma el pago ordinario de impuestos en un gasto deducible de aportación social a tasa cero, blindando la materialidad operativa ante el SAT.", unsafe_allow_html=True)
+# ==============================================================================
+# PARTE 13b´´´ DE 14: COLUMNA IZQUIERDA - SIMULADOR INTERACTIVO DE LA CAJA DE AHORRO
+# ==============================================================================
+        # --- 🏦 COMPONENTE OCULTABLE: SE MUESTRA SÓLO SI LA ASOCIACIÓN/CAJA ESTÁ SELECCIONADA ---
         if "Matriz" in entidad_activa_centro or "A.C." in entidad_activa_centro:
             st.markdown("---")
             st.markdown("""
@@ -975,7 +1040,7 @@ with col_izquierda_matriz:
             
             c_caja1, c_caja2 = st.tabs(["📈 Proyección de Rendimiento Social (Ahorro)", "🧮 Tabla de Amortización (Crédito de Fomento)"])
             
-            # SUB-MÓDULO AHORRO: Interés Compuesto Capitalizable Exento (Título III)
+            # SUB-MÓDULO AHORRO: Interés Compuesto Capitalizable Exento (Título III LISR)
             with c_caja1:
                 st.markdown("##### 🚀 Modelado de Crecimiento de Fondos Colectivos (Exento LISR)")
                 deposito_mensual = st.number_input("Aportación Mensual Estimada de la Base Social ($ MXN):", min_value=1000, value=55000, step=5000, key="caja_dep_m")
@@ -1000,8 +1065,8 @@ with col_izquierda_matriz:
                 st.markdown("##### 🛠️ Tabla de Amortización Francesa a Tasa Cero para Maquinaria y Avío")
                 monto_solicitado = st.number_input("Monto del Crédito de Fomento Solicitado ($ MXN):", min_value=5000, value=60000, step=5000, key="caja_prest")
                 
-                # CORRECCIÓN DE SINTAXIS: Eliminación definitiva de la coma huérfana
-                plazo_meses = st.selectbox("Plazo de Devolución Autorizado (Meses):", [6, 12, 18, 24, 36], index=1, key="caja_meses")
+                # CORRECCIÓN DE SINTAXIS MAESTRA: Se removió la coma duplicada para evitar fallos de compilación
+                plazo_meses = st.selectbox("Plazo de Devolución Autorizado (Meses):", [6, 12, 18, 24], index=1, key="caja_meses")
                 
                 pago_mensual_fijo = float(monto_solicitado / plazo_meses)
                 st.markdown(f"**Monto Fijo Mensual de Recuperación:** <span style='color:#1e4620; font-size:16px; font-weight:bold;'>${pago_mensual_fijo:,.2f} MXN</span> (Sin intereses ni comisiones de apertura)", unsafe_allow_html=True)
