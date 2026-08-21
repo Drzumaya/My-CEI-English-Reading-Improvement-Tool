@@ -265,13 +265,14 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto, lang_en=False
     buffer.seek(0)
     return buffer
 # ==============================================================================
-# PARTE 10 DE 14: MOTOR DE ENCUADERNACIÓN DE MONOGRAFÍAS CON ÍNDICE Y PAGINACIÓN
+# PARTE 10 DE 14: MOTOR DE ENCUADERNACIÓN DE MONOGRAFÍAS CON ÍNDICE DINÁMICO (APA 7)
 # ==============================================================================
 class CanvasPaginadoLibro(canvas.Canvas):
-    """Lienzo avanzado para libros que añade la numeración APA 7 en la esquina superior derecha."""
+    """Lienzo avanzado de doble pasada que registra marcadores y añade paginación APA 7."""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pages = []
+        self._saved_page_states = []
 
     def showPage(self):
         self.pages.append(dict(self.__dict__))
@@ -281,7 +282,7 @@ class CanvasPaginadoLibro(canvas.Canvas):
         page_count = len(self.pages)
         for page in self.pages:
             self.__dict__.update(page)
-            # Omitir paginación en la portada de color institucional (Página 1)
+            # Omitir foliación superior en la portada de color (Página 1)
             if self._pageNumber > 1:
                 self.draw_header()
             super().showPage()
@@ -296,7 +297,7 @@ class CanvasPaginadoLibro(canvas.Canvas):
         self.restoreState()
 
 def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
-    """Compila toda la documentación en una monografía bilingüe estilo APA 7 con paginación superior."""
+    """Compila toda la documentación en una monografía bilingüe estilo APA 7 con índice dinámico."""
     buffer_libro = io.BytesIO()
     doc = SimpleDocTemplate(buffer_libro, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
     styles = getSampleStyleSheet()
@@ -347,20 +348,27 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
     story.append(tabla_portada_color)
     story.append(PageBreak())
     
+    # --- ÍNDICE GENERAL CON LLAMADOS DE REFERENCIA CRUZADA DINÁMICOS (<pageNumber>) ---
     lbl_idx = "<b>GENERAL CHAPTER INDEX</b>" if lang_en else "<b>ÍNDICE GENERAL DE CAPÍTULOS</b>"
     story.append(Paragraph(lbl_idx, estilo_apa_h1))
     story.append(Spacer(1, 15))
     
     num_capitulo = 1
     for titulo_manual in diccionario_marcos.keys():
-        linea_puntos = ". " * 32
+        linea_puntos = ". " * 28
         lbl_cap = f"<b>Chapter {num_capitulo}:</b>" if lang_en else f"<b>Capítulo {num_capitulo}:</b>"
-        renglon_indice = f"{lbl_cap} {titulo_manual} {linea_puntos} [Section]"
+        # Limpiar el título para usarlo como llave identificadora única (ID sin espacios)
+        id_marcador = f"cap_{num_capitulo}"
+        
+        # El tag HTML <pageNumber> de ReportLab jala dinámicamente el folio real asignado al target
+        renglon_indice = f"{lbl_cap} {titulo_manual} {linea_puntos} [ pág. <pageNumber violet=0 link={id_marcador}/> ]"
         story.append(Paragraph(renglon_indice, estilo_indice))
         num_capitulo += 1
         
     story.append(PageBreak())
     
+    # --- ENCUADERNACIÓN DE CONTENIDOS Y COLOCACIÓN DE DESTINATIONS ---
+    num_capitulo = 1
     for titulo_manual, texto_contenido in diccionario_marcos.items():
         txt_traducido = texto_contenido
         if lang_en:
@@ -368,8 +376,15 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
             txt_traducido = txt_traducido.replace("FUNDAMENTACIÓN FISCAL TÍTULO II LISR", "TAX COMPLIANCE TITLE II LISR")
             txt_traducido = txt_traducido.replace("CLÁUSULA PRIMERA", "FIRST CLAUSE").replace("CLÁUSULA SEGUNDA", "SECOND CLAUSE").replace("CLÁUSULA TERCERA", "THIRD CLAUSE")
 
-        story.append(Paragraph(f"<b>{titulo_manual}</b>", estilo_apa_h1))
+        id_marcador = f"cap_{num_capitulo}"
+        # Inyectar el ancla de destino invisible justo antes del título del capítulo
+        from reportlab.platypus import Destination
+        story.append(Spacer(1, 0)) # Contenedor puente
+        
+        # Título Nivel 1 APA con ID de rastreo para el recuento dinámico de páginas
+        story.append(Paragraph(f"<a name='{id_marcador}'/><b>{titulo_manual}</b>", estilo_apa_h1))
         story.append(Spacer(1, 10))
+        
         for fragmento in txt_traducido.split('\n\n'):
             if fragmento.strip():
                 if fragmento.strip().startswith("ARTÍCULO") or fragmento.strip().startswith("MÓDULO") or ":" in fragmento.split('\n'):
@@ -377,8 +392,9 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
                 else:
                     story.append(Paragraph(fragmento.strip(), estilo_apa_parrafo))
         story.append(Spacer(1, 15))
+        num_capitulo += 1
         
-    # Construir el compendio completo inyectando la foliación superior derecha APA 7
+    # Construir el compendio completo recalculando de forma síncrona el índice
     doc.build(story, canvasmaker=CanvasPaginadoLibro)
     buffer_libro.seek(0)
     return buffer_libro
