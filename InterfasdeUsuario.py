@@ -484,7 +484,7 @@ prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
 # ==============================================================================
-# PARTE 12 DE 14: COLUMNA IZQUIERDA - VISOR EDITABLE Y FORMULARIO CON VALIDADOR SAT
+# PARTE 12 DE 14: COLUMNA IZQUIERDA - VISOR EDITABLE Y FORMULARIO DINÁMICO DE ALTA
 # ==============================================================================
 with col_izquierda_matriz:
     # 1. ENTORNO FLOTANTE PARA EDITAR MANUALES INDIVIDUALES EN VIVO
@@ -519,16 +519,11 @@ with col_izquierda_matriz:
                 st.session_state["ver_visor_legal"] = False
                 st.rerun()
 
-    # 2. INTERFAZ DEL FORMULARIO DE ALTA DE DIRECTORES CON VALIDADOR DE RFC INTEGRADO
+    # 2. INTERFAZ DEL FORMULARIO DE ALTA DE DIRECTORES AUTO-ESCALABLE CON VALIDACIÓN SAT
     elif st.session_state["ver_formulario_registro"]:
         st.success("📝 Formulario Flotante Activo: Alta y Nombramiento de Directores Asociados")
         st.markdown("---")
-        datos_universales_mexico = {
-            "1. Asociación Civil Matriz (A.C.)": {"Regimen_SAT": "Régimen General (Título II LISR)", "Obligacion_Fiscal": "Declaración anual en marzo, retenciones asimilados.", "Normativa_Clave": "Artículos 15 Fracc. IV y XII de la Ley del IVA (Exención de traslado del 16% en capacitación)."},
-            "2. Cooperativa de Logística (S.C.)": {"Regimen_SAT": "Régimen Título III LISR (Fines no Lucrativos)", "Obligacion_Fiscal": "Facturación electrónica fletes, Retención del 4% de ISR.", "Normativa_Clave": "Ley General de Sociedades Cooperativas (LGSC) - Resp. Limitada."},
-            "3. Agencia de Microseguros (S.A.)": {"Regimen_SAT": "Régimen General de Ley (Título II LISR)", "Obligacion_Fiscal": "Contabilidad mercantil auditada, desglose general de IVA.", "Normativa_Clave": "Ley de Instituciones de Seguros y de Fianzas (CNSF)."},
-            "4. Equipo de Investigación Científica APSON": {"Regimen_SAT": "Régimen General con asignación de Fideicomisos Tecnológicos", "Obligacion_Fiscal": "Reporte de fondos de Innovación, exención de IVA en contratos I+D.", "Normativa_Clave": "Ley General de Humanidades, Ciencias, Tecnologías e Innovación."}
-        }
+        
         f_nom = st.text_input("👤 Nombre Completo del Director a Registrar:", placeholder="Ej. Lic. Alejandro Anaya")
         
         # Entrada de RFC con control visual
@@ -544,20 +539,35 @@ with col_izquierda_matriz:
             else:
                 st.error(f"❌ {mensaje_sat}")
         
-        f_entidad = st.selectbox("🏢 Selecciona la Entidad o Subsistema que pasará a dirigir:", list(datos_universales_mexico.keys()))
+        # RESOLUCIÓN AL CATÁLOGO INCOMPLETO Y ADHESIÓN FUTURA: Lectura dinámica de llaves activas en memoria
+        lista_adscripcion_activa = list(st.session_state["repositorio_institucional"].keys())
+        f_entidad = st.selectbox("🏢 Selecciona la Entidad o Subsistema que pasará a dirigir:", lista_adscripcion_activa)
         f_puesto = st.text_input("💼 Cargo u Oficio Directivo Asignado:", placeholder="Ej. Director General de Operaciones")
 
-        st.markdown(f"#### 🏛️ Datos Universales Obligatorios (Marco Regulatorio Mexicano - {f_entidad})")
-        st.markdown(f"<div style='background-color: #f1f3f5; padding: 15px; border-radius: 6px; border-left: 5px solid #1e4620; margin-bottom:15px;'><p style='margin-bottom:5px; font-size:13px;'><b>1. Régimen Fiscal SAT Obligatorio:</b> {datos_universales_mexico[f_entidad]['Regimen_SAT']}</p><p style='margin-bottom:5px; font-size:13px;'><b>2. Declaraciones Críticas:</b> {datos_universales_mexico[f_entidad]['Obligacion_Fiscal']}</p><p style='margin-bottom:0px; font-size:13px;'><b>3. Ley Federal de Control:</b> {datos_universales_mexico[f_entidad]['Normativa_Clave']}</p></div>", unsafe_allow_html=True)
+        # Mapeo descriptivo inteligente para el marco regulatorio en pantalla
+        st.markdown(f"#### 🏛️ Datos Universales Obligatorios (Marco Regulatorio Mexicano)")
+        
+        regimen_sugerido = "Régimen General de Personas Morales (Título II LISR)"
+        if "Cooperativa" in f_entidad or "S.C." in f_entidad:
+            regimen_sugerido = "Régimen de Personas Morales con Fines no Lucrativos (Título III LISR)"
+        elif "Investigación" in f_entidad or "APSON" in f_entidad:
+            regimen_sugerido = "Fideicomiso Tecnológico Autónomo exento de IVA por Fomento Científico"
+
+        st.markdown(f"""
+        <div style='background-color: #f1f3f5; padding: 15px; border-radius: 6px; border-left: 5px solid #1e4620; margin-bottom:15px;'>
+            <p style='margin-bottom:5px; font-size:13px;'><b>1. Entidad de Destino Detectada:</b> {f_entidad}</p>
+            <p style='margin-bottom:5px; font-size:13px;'><b>2. Régimen Fiscal SAT Estimado:</b> {regimen_sugerido}</p>
+            <p style='margin-bottom:0px; font-size:13px;'><b>3. Control de Materialidad:</b> Honorarios regulados bajo el blindaje estatutario de la matriz JZPAC en Agua Prieta.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
         rc1, rc2 = st.columns(2)
         with rc1:
-            # El botón de inscripción se condiciona a la validez estricta del RFC
             if st.button("💾 Validar e Inscribir Director", use_container_width=True, type="secondary", disabled=not rfc_valido):
                 if f_nom and f_rfc and f_puesto:
                     marca_tiempo = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
-                    # Verificación secundaria anti-duplicados por RFC en la sesión local
+                    # Verificación secundaria anti-duplicados por RFC
                     rfc_duplicado = any(d["RFC"] == f_rfc for d in st.session_state["directores_registrados"])
                     
                     if rfc_duplicado:
@@ -566,7 +576,7 @@ with col_izquierda_matriz:
                         st.session_state["directores_registrados"].append({
                             "Fecha Registro": marca_tiempo, "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc, "Estatus": "Alta Exitosa / Acta Firmada"
                         })
-                        st.success(f"✓ El {f_puesto} ha sido formalmente indexado en el padrón bilingüe.")
+                        st.success(f"✓ El {f_puesto} ha sido formalmente indexado en el padrón dinámico bilingüe.")
                 else:
                     st.error("Por favor, llena todos los campos obligatorios.")
         with rc2:
@@ -676,7 +686,7 @@ with col_izquierda_matriz:
         """, unsafe_allow_html=True)
 
 # ==============================================================================
-# PARTE 14 DE 14: COLUMNA DERECHA - LOGOTIPO, IDIOMA BILINGÜE Y MATRIZ CONTABLE DE CIERRE
+# PARTE 14 DE 14: COLUMNA DERECHA - LOGOTIPO, IDIOMA BILINGÜE Y ADICIÓN DE ENTIDADES
 # ==============================================================================
 with col_derecha_documental:
     st.markdown("""
@@ -702,7 +712,7 @@ with col_derecha_documental:
     
     if seleccion_entidad != "-- Elige una Entidad --":
         st.markdown("#### 📘 Compilar Libro Unificado (APA 7)")
-        st.caption("Encuaderna los 7 manuales, el padrón y el contrato con Índice y Paginación en una sola monografía de color forestal.")
+        st.caption("Encuaderna los manuales, el padrón y el contrato con Índice y Paginación en una sola monografía de color forestal.")
         
         dict_marcos_libro = st.session_state["repositorio_institucional"][seleccion_entidad]
         pdf_libro_completo = generar_libro_apa7(seleccion_entidad, dict_marcos_libro, lang_en=is_english)
@@ -744,9 +754,35 @@ with col_derecha_documental:
             st.session_state["ver_formulario_registro"] = False
             st.rerun()
 
+    # --- ENTORNO EXPANDIDO: OPCIÓN DE ADHERIR NUEVAS ENTIDADES EN EL TIEMPO ---
     st.markdown("---")
-    st.markdown("#### 📤 Uploading de Nuevas Actas")
-    archivo_cargado = st.file_uploader("Sube un acta complementaria (.txt):", type=["txt"])
+    st.markdown("#### ➕ Escalar Ecosistema (Nuevas Entidades)")
+    with st.expander("🛠️ Registrar Nuevo Subsistema en Blanco"):
+        nueva_ent_nombre = st.text_input("Nombre de la Nueva Entidad / Cooperativa:", placeholder="Ej. 5. Cooperativa de Calzado APSON (S.C.)")
+        if st.button("🚀 Dar de Alta Entidad Estatus Activo", use_container_width=True):
+            if nueva_ent_nombre and nueva_ent_nombre.strip():
+                nombre_limpio = nueva_ent_nombre.strip()
+                if nombre_limpio not in st.session_state["repositorio_institucional"]:
+                    st.session_state["repositorio_institucional"][nombre_limpio] = {
+                        "Marco conceptual y descriptivo": "Borrador de marco operativo del nuevo subsistema de Agua Prieta.",
+                        "Marco legal": "Borrador de marco legal en espera de adición fiscal para JACOB ZUMAYA PRIANTI, A.C.",
+                        "Manual de procedimientos": "Borrador de manual de procedimientos.",
+                        "Manual administrativo": "Borrador de manual administrativo.",
+                        "Manual de Tendencias criticas": "Borrador de tendencias.",
+                        "Manual de Variables latentes con items observables": "Borrador de variables latentes.",
+                        "Contrato de Incorporación y Adhesión Individual": "Borrador de contrato individual.",
+                        "Acta Constitutiva Notarial Oficial": "Borrador de sub-acta constitutiva notarial oficial para firma de asamblea.",
+                        "Directores Asociados Registrados (Padrón Oficial)": "Padrón oficial del nuevo subsistema en espera de altas reglamentarias."
+                    }
+                    st.success(f"✓ '{nombre_limpio}' añadida de forma permanente al almacén.")
+                    st.rerun()
+                else:
+                    st.warning("Esta entidad ya existe en el almacén documental.")
+            else:
+                st.error("Por favor, introduce un nombre válido.")
+
+    st.markdown("#### 📤 Uploading de Nuevas Actas (.txt)")
+    archivo_cargado = st.file_uploader("Sube un acta complementaria:", type=["txt"])
     if archivo_cargado is not None:
         nombre_archivo_crudo = archivo_cargado.name.replace(".txt", "")
         if nombre_archivo_crudo not in st.session_state["repositorio_institucional"]:
@@ -760,12 +796,13 @@ with col_derecha_documental:
                     "Manual de Tendencias criticas": "Borrador de tendencias críticas.",
                     "Manual de Variables latentes con items observables": "Borrador de variables latentes.",
                     "Contrato de Incorporación y Adhesión Individual": "Borrador de contrato de incorporación individual.",
-                    "Acta Constitutiva Notarial Oficial": "Borrador de acta notarial oficial."
+                    "Acta Constitutiva Notarial Oficial": "Borrador de acta notarial oficial.",
+                    "Directores Asociados Registrados (Padrón Oficial)": "Padrón oficial en espera de altas."
                 }
-                st.success(f"✓ '{archivo_cargado.name}' guardado.")
-                st.button("🔄 Actualizar", key="refresh_uploader_nested")
-            except Exception as e:
-                st.error("Error al indexar.")
+                st.success(f"✓ '{archivo_cargado.name}' guardado e indexado.")
+                st.rerun()
+            except Exception:
+                st.error("Error al indexar el archivo complementario.")
 
 # MATRIZ FINANCIERA DE CIERRE AL PIE DE LA INTERFAZ
 st.markdown("---")
