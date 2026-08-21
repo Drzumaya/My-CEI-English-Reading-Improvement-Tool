@@ -413,47 +413,35 @@ prima_individual_global = 120.0
 comision_retorno_global = 20
 excedente_coop_calculado = 0.0
 # ==============================================================================
-# PARTE 24 DE 28: COLUMNA IZQUIERDA - VISOR DE MANUALES EDITABLES INTERACTIVOS
+# PARTE 24 DE 28: COLUMNA DERECHA - SELECTOR BILINGÜE Y SELECTBOX DE ENTIDAD
 # ==============================================================================
-with col_izquierda_matriz:
-    # FILTRO DE SEGURIDAD CONTRA KEYERROR
-    if (st.session_state["ver_visor_legal"] and 
-        st.session_state["entidad_seleccionada"] in st.session_state["repositorio_institucional"] and 
-        st.session_state["tipo_doc_seleccionado"] in st.session_state["repositorio_institucional"][st.session_state["entidad_seleccionada"]]):
-        
-        ent = st.session_state["entidad_seleccionada"]
-        tdoc = st.session_state["tipo_doc_seleccionado"]
-        
-        st.info(f"📁 Ventana de Trabajo Activa: {ent} ➔ {tdoc}")
-        st.markdown("---")
-        
-        texto_editable_actual = st.text_area(
-            label="Editor Oficial de Cláusulas e Instructivos (Cambios en Caliente):",
-            value=st.session_state["repositorio_institucional"][ent][tdoc],
-            height=380
-        )
-        
-        b1, b2, b3, b4 = st.columns(4)
-        with b1:
-            if st.button("💾 Guardar Ajustes", use_container_width=True):
-                st.session_state["repositorio_institucional"][ent][tdoc] = texto_editable_actual
-                st.success("✓ Cambios guardados.")
-        with b2:
-            tabla_legal_dummy = [["Validación de Consistencia", "Aprobado por el Consejo"], ["Fecha de Auditoría", "2026-08-20"], ["Estatus Regulatorio", "Vigente Exento"]]
-            # Se inyecta falso por default para la vista mono-hoja
-            pdf_legal = generar_informe_pdf(f"{ent} - {tdoc}", tabla_legal_dummy, texto_editable_actual)
-            if st.download_button(label="📥 PDF", data=pdf_legal, file_name=f"{tdoc.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
-                registrar_descarga(ent, f"{tdoc}.pdf")
-        with b3:
-            buffer_word = io.BytesIO(texto_editable_actual.encode('utf-8'))
-            st.download_button(label="📝 Word", data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
-        with b4:
-            if st.button("🛑 Cerrar Visor", use_container_width=True, type="primary"):
-                st.session_state["ver_visor_legal"] = False
-                st.rerun()
+with col_derecha_documental:
+    # 1. Selector de conmutación de lenguajes colocado en la parte alta del panel derecho
+    st.markdown("#### 🌐 Idioma de Descarga / Language Output")
+    idioma_elegido = st.radio(
+        "Selecciona el idioma para compilar tus PDFs y Words:",
+        ["Español (ES)", "English (EN)"],
+        horizontal=True,
+        key="selector_idioma_global"
+    )
+    
+    # Declaración inmediata de la variable para evitar NameErrors en cascada
+    is_english = (idioma_elegido == "English (EN)")
+    
+    st.markdown("---")
+    st.markdown("<b style='font-size:13px; color:#495057;'>🗂️ Almacén Documental Autónomo:</b>", unsafe_allow_html=True)
+    
+    # CORRECCIÓN MAESTRA: Se declara y asigna formalmente la variable en memoria de forma lineal
+    lista_entidades = list(st.session_state["repositorio_institucional"].keys())
+    seleccion_entidad = st.selectbox(
+        "🏢 1. Selecciona la Entidad / Subsistema:", 
+        ["-- Elige una Entidad --"] + lista_entidades
+    )
+
 # ==============================================================================
 # PARTE 25 DE 28: COLUMNA DERECHA - DISPARADOR DE LIBROS COMPENDIOS EN APA 7
 # ==============================================================================
+    # Ahora la condición es 100% segura porque 'seleccion_entidad' ya existe en el paso anterior
     if seleccion_entidad != "-- Elige una Entidad --":
         st.markdown("#### 📘 Compilar Libro Unificado (APA 7)")
         st.caption("Encuaderna la totalidad de manuales, formatos y contratos con Índice y Paginación en un solo click.")
