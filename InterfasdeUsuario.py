@@ -435,92 +435,96 @@ with col_izquierda_matriz:
                 st.session_state["ver_formulario_registro"] = False
                 st.rerun()
 # ==============================================================================
-# PARTE 21 DE 25: COLUMNA IZQUIERDA - VISOR DE DATOS EN TIEMPO REAL (PADRÓN)
+# PARTE 21 DE 25: COLUMNA DE LA DERECHA - SELECTOR BILINGÜE DE IDIOMA GLOBAL
 # ==============================================================================
-    elif st.session_state["ver_padron_flotante"]:
-        st.warning("👁️ Ventana Flotante de Datos Activa: Monitoreo del Padrón de Directores en Tiempo Real")
+with col_derecha_documental:
+    # Selector de conmutación de lenguajes colocado en la parte alta del panel derecho
+    st.markdown("#### 🌐 Idioma de Descarga / Language Output")
+    idioma_elegido = st.radio(
+        "Selecciona el idioma para compilar tus PDFs y Words:",
+        ["Español (ES)", "English (EN)"],
+        horizontal=True,
+        key="selector_idioma_global"
+    )
+    
+    # DECLARACIÓN INMEDIATA DE LA VARIABLE PARA EVITAR NAMEERROR
+    is_english = (idioma_elegido == "English (EN)")
+    
+    st.markdown("---")
+    st.markdown("<b style='font-size:13px; color:#495057;'>🗂️ Almacén Documental Autónomo:</b>", unsafe_allow_html=True)
+    
+    lista_entidades = list(st.session_state["repositorio_institucional"].keys())
+    seleccion_entidad = st.selectbox("🏢 1. Selecciona la Entidad / Subsistema:", ["-- Elige una Entidad --"] + lista_entidades)
+
+# ==============================================================================
+# PARTE 22 DE 25: COLUMNA DERECHA - COMPILADOR Y ENCUADERNADOR DE LIBROS APA 7
+# ==============================================================================
+    if seleccion_entidad != "-- Elige una Entidad --":
+        st.markdown("#### 📘 Compilar Libro Unificado (APA 7)")
+        st.caption("Encuaderna la totalidad de manuales, formatos y contratos con Índice y Paginación en un solo click.")
+        
+        dict_marcos_libro = st.session_state["repositorio_institucional"][seleccion_entidad]
+        
+        # Inyección de la variable bilingüe al motor de encuadernación de ReportLab
+        pdf_libro_completo = generar_libro_apa7(seleccion_entidad, dict_marcos_libro, lang_en=is_english)
+        
+        label_btn_libro = "📥 Download Complete Compendium (PDF)" if is_english else "📥 Descargar Libro Compendio (PDF)"
+        if st.download_button(label=label_btn_libro, data=pdf_libro_completo, file_name=f"Compendio_{seleccion_entidad.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
+            registrar_descarga(seleccion_entidad, f"Compendio_{seleccion_entidad.replace(' ', '_')}.pdf")
+            
         st.markdown("---")
-        st.table(st.session_state["directores_registrados"])
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🛑 Ocultar Vista de Datos y Volver", use_container_width=True, type="primary"):
+
+# ==============================================================================
+# PARTE 23 DE 25: COLUMNA DERECHA - SELECTOR INDIVIDUAL Y BOTONERA DE GOBERNANZA
+# ==============================================================================
+        lista_marcos = list(st.session_state["repositorio_institucional"][seleccion_entidad].keys())
+        seleccion_marco = st.selectbox("📋 2. O editar un documento individual:", ["-- Elige el Manual --"] + lista_marcos)
+        
+        if seleccion_marco != "-- Elige el Manual --":
+            st.session_state["entidad_seleccionada"] = seleccion_entidad
+            st.session_state["tipo_doc_seleccionado"] = seleccion_marco
+            st.session_state["ver_visor_legal"] = True
+            st.session_state["ver_formulario_registro"] = False
+            st.session_state["ver_padron_flotante"] = False
+            if st.button("⚡ Abrir Documento en Visor", key="btn_trigger_open_nested"):
+                st.rerun()
+            
+    st.markdown("---")
+    st.markdown("#### 👔 Gobernanza e Historiales")
+    
+    if st.button("➕ Inscribir Director Asociado", use_container_width=True, type="primary"):
+        st.session_state["ver_formulario_registro"] = True
+        st.session_state["ver_visor_legal"] = False 
+        st.session_state["ver_padron_flotante"] = False
+        st.rerun()
+        
+    st.markdown("<div style='padding-top:5px;'></div>", unsafe_allow_html=True)
+    
+    if st.session_state.get("ver_padron_flotante", False):
+        if st.button("🙈 Ocultar Padrón de Datos", use_container_width=True, type="secondary"):
             st.session_state["ver_padron_flotante"] = False
             st.rerun()
-# ==============================================================================
-# PARTE 22 DE 25: COLUMNA IZQUIERDA - PESTAÑAS MAESTRAS DE SIMULACIÓN FISCAL
-# ==============================================================================
     else:
-        # El else condicional maestro se activa si las ventanas flotantes están en falso
-        tabs = st.tabs(["🛡️ IVA e ISR", "🔮 Módulo Logístico Cooperativo", "📊 Microseguros", "🏦 Caja de Ahorro", "📑 Historial de Descargas"])
-        tab1, tab_logistica, tab4, tab5, tab_log = tabs
-        
-        with tab1:
-            st.header("Control Fiscal de Operaciones de la Base Social")
-            num_talleres = st.slider("Talleres Populares Integrados", min_value=5, max_value=300, value=num_talleres_global)
-            num_talleres_global = num_talleres
-            cuota_calculada = float(presupuesto_total / num_talleres)
-            st.metric("Cuota Extraordinaria de Recuperación", f"${cuota_calculada:,.2f} MXN", "0% IVA (Exento)")
+        if st.button("👁️ Hacer Visible Padrón de Datos", use_container_width=True, type="secondary"):
+            st.session_state["ver_padron_flotante"] = True
+            st.session_state["ver_visor_legal"] = False
+            st.session_state["ver_formulario_registro"] = False
+            st.rerun()
 
-        with tab_logistica:
-            st.header("🔮 Parametrización de Fletes y Logística de Última Milla")
-            viajes_mensuales = st.number_input("Número de Fletes Ejecutados al Mes:", min_value=1, value=48)
-            distancia_viaje = st.slider("Distancia Promedio por Viaje (Kilómetros):", min_value=10, max_value=150, value=45)
-            tarifa_por_km = st.number_input("Tarifa Base de Cobro por Kilómetro (MXN):", min_value=10.0, value=85.0)
-            costo_operacion_km = st.number_input("Costo de Operación por Kilómetro (COK):", min_value=5.0, value=32.5)
-            factor_vacio = st.slider("Factor de Retorno Vacío (% de Km):", min_value=0, max_value=50, value=25)
-            reserva_combustible_pct = st.slider("Fondo de Amortiguación de Diésel (% Tarifa):", min_value=2, max_value=15, value=6)
-            
-            ingreso_bruto_fletes = viajes_mensuales * distancia_viaje * tarifa_por_km
-            kilometros_gastados_reales = (viajes_mensuales * distancia_viaje) * (1 + (factor_vacio / 100))
-            costo_operativo_total = kilometros_gastados_reales * costo_operacion_km
-            retencion_isr_4pct = ingreso_bruto_fletes * 0.04
-            fondo_diesel_retenido = ingreso_bruto_fletes * (reserva_combustible_pct / 100)
-            excedente_neto_cooperativa = ingreso_bruto_fletes - costo_operativo_total - retencion_isr_4pct - fondo_diesel_retenido
-            excedente_coop_calculado = excedente_neto_cooperativa
-            
-            l_m1, l_m2 = st.columns(2)
-            l_m1.metric("Ingresos Brutos por Fletes", f"${ingreso_bruto_fletes:,.2f} MXN")
-            l_m2.metric("Excedente Neto Líquido Cooperativo", f"${excedente_neto_cooperativa:,.2f} MXN", delta="Disponible para Caja")
-# ==============================================================================
-# PARTE 23 DE 25: COLUMNA IZQUIERDA - SIMULADORES DE MICROSEGUROS Y FONDOS MULTUALES
-# ==============================================================================
-        with tab4:
-            st.header("Subsistema de Gestión de Riesgos de la Célula Mercantil")
-            prima_mensual = st.number_input("Prima Mensual por Taller (MXN)", min_value=50.0, value=prima_individual_global)
-            prima_individual_global = prima_mensual
-            retorno_pct = st.slider("Porcentaje de Retorno Pactado para la A.C.", min_value=5, max_value=40, value=comision_retorno_global)
-            comision_retorno_global = retorno_pct
-            prima_anual = float(num_talleres_global * prima_mensual * 12)
-            retorno_anual_ac = prima_anual * (retorno_pct / 100)
-            st.metric("Retorno de Comisión Anual para la A.C.", f"${retorno_anual_ac:,.2f} MXN")
-
-        with tab5:
-            st.header("Caja de Ahorro (El Brazo Fuerte Financiero Interconectado)")
-            ahorrio_mensual = st.number_input("Ahorros Directos de los Trabajadores", min_value=0.0, value=55000.0)
-            comision_seguros_mensual = float(retorno_anual_ac / 12)
-            capital_mensual_total = ahorrio_mensual + comision_seguros_mensual + excedente_coop_calculado
-            st.metric("Fondo de Emprendimiento Mensual Consolidado Abierto", f"${capital_mensual_total:,.2f} MXN")
-
-        with tab_log:
-            st.header("📑 Historial de Auditoría de Descargas")
-            if len(st.session_state["historial_descargas"]) == 0:
-                st.info("No se registran descargas en el ciclo actual.")
-            else:
-                st.table(st.session_state["historial_descargas"])
 # ==============================================================================
 # PARTE 24 DE 25: COLUMNA DERECHA - GESTOR DE CARGA RECONVERTIDO CON AUTO-INYECCIÓN
 # ==============================================================================
     st.markdown("---")
-    label_upload = "📤 Upload Complementary Deeds (.txt)" if is_english else "📤 Uploading de Nuevas Actas (.txt)"
+    label_upload = "📥 Upload Complementary Deeds (.txt)" if is_english else "📥 Uploading de Nuevas Actas (.txt)"
     archivo_cargado = st.file_uploader(label_upload, type=["txt"])
     
     if archivo_cargado is not None:
         nombre_archivo_crudo = archivo_cargado.name.replace(".txt", "")
         if nombre_archivo_crudo not in st.session_state["repositorio_institucional"]:
             try:
-                # Leer el buffer del archivo en caliente decodificando en UTF-8
                 contenido_texto = archivo_cargado.read().decode("utf-8", errors="ignore")
                 
-                # Inyección automatizada de las 8 carpetas obligatorias del Agente Capacitador JZPAC
+                # Auto-inyección obligatoria de los 8 manuales reglamentarios con filiación institucional
                 st.session_state["repositorio_institucional"][nombre_archivo_crudo] = {
                     "Marco conceptual y descriptivo": contenido_texto,
                     "Marco legal": "Borrador de marco legal en espera de adición fiscal para JACOB ZUMAYA PRIANTI, A.C.",
@@ -539,9 +543,10 @@ with col_izquierda_matriz:
                 if st.button(label_refresh, key="refresh_uploader_nested_final"):
                     st.rerun()
             except Exception as e:
-                st.error("Error al decodificar o indexar el archivo txt.")
+                st.error("Error al decodificación o indexar el archivo txt.")
+
 # ==============================================================================
-# PARTE 25 DE 25: PIE DE PÁGINA - INFOGRAFÍA DE LA MATRIZ DEL VÍNCULO FINANCIERO
+# PARTE 25 DE 25: PIE DE PÁGINA - INFOGRAFÍA DE LA MATRIZ DEL VÍNCOLO FINANCIERO
 # ==============================================================================
 st.markdown("---")
 st.markdown("### 🗂️ Arquitectura de la Matriz del Vínculo Financiero")
@@ -567,6 +572,6 @@ with col_v3:
     st.markdown("""
     <div style='background-color: #fff3cd; padding: 12px; border-radius: 6px; border-left: 5px solid #ffc107; height: 110px;'>
         <h4 style='color: #856404; margin-top:0; font-size:14px; font-weight:bold;'>💛 Riesgos: Agencia de Microseguros (S.A.)</h4>
-        <p style='color: #9e7e1a; font-size: 12px; margin-bottom:0;'><b>Vínculo CNSF:</b> Intermediario de Pólizas Colectivas de Maquinaria.<br><b>Impacto:</b> Transforma utilidades mercantiles en transferencias del 20% vía Corretaje Social Docente.</p>
+        <p style='color: #9e7e1a; font-size: 12px; margin-bottom:0;'><b>Vínculo CNSF:</b> Intermediario de Pólizas Colectivas de Maquinaria.<br><b>Impacto:</b> Transforma utilidades de la S.A. en fondos de fomento social mediante Corretaje Social Docente.</p>
     </div>
     """, unsafe_allow_html=True)
