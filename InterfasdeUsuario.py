@@ -158,12 +158,41 @@ def logout():
     st.session_state["show_login_error"] = False
     st.rerun()
 # ==============================================================================
-# PARTE 9 DE 14: MOTOR DE COMPILACIÓN VANGUARDISTA CORREGIDO (SIN ERRORES DE TAGS)
+# PARTE 9 DE 14: MOTOR DE COMPILACIÓN VANGUARDISTA CON NÚMERO DE PÁGINA COMÚN
 # ==============================================================================
+from reportlab.pdfgen import canvas
+
+class CanvasPaginadoIndividual(canvas.Canvas):
+    """Lienzo de doble pasada para calcular y estampar el número de página exacto."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pages = []
+
+    def showPage(self):
+        self.pages.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        page_count = len(self.pages)
+        for page in self.pages:
+            self.__dict__.update(page)
+            self.draw_footer(page_count)
+            super().showPage()
+        super().save()
+
+    def draw_footer(self, page_count):
+        self.saveState()
+        self.setFont("Helvetica", 9)
+        self.setFillColor(colors.HexColor("#495057"))
+        # Estampar número de página centrado al calce (puntos de imprenta)
+        texto_pagina = f"Página {self._pageNumber} de {page_count}"
+        self.drawCentredString(306, 25, texto_pagina)
+        self.restoreState()
+
 def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto, lang_en=False):
-    """Compila estados contables en un formato PDF de vanguardia libre de errores de tags HTML."""
+    """Compila estados contables en un formato PDF de vanguardia con foliación de páginas."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=50)
     styles = getSampleStyleSheet()
     
     color_primario = colors.HexColor("#1e4620")   # Verde Forestal JZPAC
@@ -176,7 +205,6 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto, lang_en=False
     
     story = []
     
-    # Procesar el logotipo como un objeto Flowable real dentro de una lista de celdas
     from reportlab.platypus import Image as RLImage
     logo_flowable = ""
     try:
@@ -192,19 +220,14 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto, lang_en=False
     
     header_table = Table(header_text, colWidths=[380.0, 100.0])
     header_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('SPAN', (1,0), (1,1)), 
-        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-        ('TOPPADDING', (0,0), (-1,-1), 0),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('SPAN', (1,0), (1,1)), ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0), ('TOPPADDING', (0,0), (-1,-1), 0),
     ]))
     story.append(header_table)
     
     divider_line = Table([[""]], colWidths=[480.0])
     divider_line.setStyle(TableStyle([
-        ('LINEBELOW', (0,0), (-1,-1), 1.5, color_primario),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('LINEBELOW', (0,0), (-1,-1), 1.5, color_primario), ('BOTTOMPADDING', (0,0), (-1,-1), 8), ('TOPPADDING', (0,0), (-1,-1), 2),
     ]))
     story.append(divider_line)
     story.append(Spacer(1, 10))
@@ -237,14 +260,43 @@ def generar_informe_pdf(titulo_modulo, datos_tabla, resumen_texto, lang_en=False
     ]))
     story.append(tabla_firmas)
     
-    doc.build(story)
+    # Inyectar el lienzo paginado personalizado al momento de construir el PDF
+    doc.build(story, canvasmaker=CanvasPaginadoIndividual)
     buffer.seek(0)
     return buffer
 # ==============================================================================
-# PARTE 10 DE 14: MOTOR DE ENCUADERNACIÓN DE MONOGRAFÍAS CON ÍNDICE SEGURO (APA 7)
+# PARTE 10 DE 14: MOTOR DE ENCUADERNACIÓN DE MONOGRAFÍAS CON ÍNDICE Y PAGINACIÓN
 # ==============================================================================
+class CanvasPaginadoLibro(canvas.Canvas):
+    """Lienzo avanzado para libros que añade la numeración APA 7 en la esquina superior derecha."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pages = []
+
+    def showPage(self):
+        self.pages.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        page_count = len(self.pages)
+        for page in self.pages:
+            self.__dict__.update(page)
+            # Omitir paginación en la portada de color institucional (Página 1)
+            if self._pageNumber > 1:
+                self.draw_header()
+            super().showPage()
+        super().save()
+
+    def draw_header(self):
+        self.saveState()
+        self.setFont("Helvetica", 10)
+        self.setFillColor(colors.HexColor("#495057"))
+        # Numeración en la esquina superior derecha (Normativa oficial APA 7)
+        self.drawRightString(540, 750, str(self._pageNumber))
+        self.restoreState()
+
 def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
-    """Compila e imprime toda la documentación de una entidad en un libro estilo APA 7 con Índice Seguro."""
+    """Compila toda la documentación en una monografía bilingüe estilo APA 7 con paginación superior."""
     buffer_libro = io.BytesIO()
     doc = SimpleDocTemplate(buffer_libro, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
     styles = getSampleStyleSheet()
@@ -261,11 +313,11 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
     story.append(Spacer(1, 20))
     
     from reportlab.platypus import Image as RLImage
+    logo_portada = ""
     try:
-        story.append(RLImage("JZPACLOGOREDONDO.png", width=60, height=65))
-        story.append(Spacer(1, 15))
+        logo_portada = RLImage("JZPACLOGOREDONDO.png", width=60, height=65)
     except Exception:
-        pass
+        logo_portada = Paragraph("<b>🦅 JZPAC</b>", ParagraphStyle('Pld', fontSize=16, textColor=colors.white, alignment=1))
         
     p_t1 = "<b>INTEGRATED COMPENDIO INSTITUTIONAL MANUAL</b>" if lang_en else "<b>COMPENDIO INSTITUCIONAL INTEGRAL DE CONTROL VINCULADO</b>"
     p_t2 = f"<b>Technical-Legal Subsystem: {nombre_entidad.upper()}</b>" if lang_en else f"<b>Subsistema Técnico-Legal: {nombre_entidad.upper()}</b>"
@@ -275,6 +327,7 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
     p_m5 = "<i>Internal Organization Executive Monograph for Tax Compliance Validation under Mexican Law (Title II LISR)</i>" if lang_en else "<i>Monografía Ejecutiva de Organización interna para Validación del Remanente Distribuible conforme al Título II de la LISR</i>"
 
     tabla_portada_datos = [
+        [logo_portada],
         [Paragraph("<b>JACOB ZUMAYA PRIANTI, A.C.</b>", ParagraphStyle('N1', fontName='Helvetica-Bold', fontSize=11, textColor=colors.white, alignment=1, spaceAfter=15))],
         [Paragraph(p_t1, estilo_portada_titulo)],
         [Paragraph(p_t2, ParagraphStyle('S2', parent=estilo_portada_titulo, fontSize=13, textColor=colors.white))],
@@ -325,7 +378,8 @@ def generar_libro_apa7(nombre_entidad, diccionario_marcos, lang_en=False):
                     story.append(Paragraph(fragmento.strip(), estilo_apa_parrafo))
         story.append(Spacer(1, 15))
         
-    doc.build(story)
+    # Construir el compendio completo inyectando la foliación superior derecha APA 7
+    doc.build(story, canvasmaker=CanvasPaginadoLibro)
     buffer_libro.seek(0)
     return buffer_libro
 # ==============================================================================
