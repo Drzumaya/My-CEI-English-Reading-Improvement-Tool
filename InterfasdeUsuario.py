@@ -561,7 +561,7 @@ with col_izquierda_matriz:
                 st.session_state["ver_formulario_registro"] = False
                 st.rerun()
 # ==============================================================================
-# PARTE 12b DE 14: COLUMNA IZQUIERDA - DASHBOARD INTERACTIVO FRONT-END (CRUD DE SUBSISTEMAS)
+# PARTE 12b DE 14: COLUMNA IZQUIERDA - DASHBOARD INTERACTIVO FRONT-END (CRUD)
 # ==============================================================================
     # 3. INTERFAZ MAESTRA: DASHBOARD FRONT-END (CRUD + INDICADORES DE TIEMPO)
     elif st.session_state["ver_padron_flotante"]:
@@ -577,6 +577,10 @@ with col_izquierda_matriz:
                 st.info("No se registran directores activos en el padrón actual.")
             else:
                 for idx, dir_asoc in enumerate(st.session_state["directores_registrados"]):
+                    # BLINDAJE ANTI-KEYERROR: Si el registro no tiene ID por sesiones previas, se asigna dinámicamente
+                    if "Id" not in dir_asoc:
+                        dir_asoc["Id"] = idx + 1
+                    
                     badge_color = "#d4edda" if dir_asoc["Estatus"] == "Activo" else "#f8d7da"
                     text_color = "#155724" if dir_asoc["Estatus"] == "Activo" else "#721c24"
                     status_emoji = "🟢 Activo" if dir_asoc["Estatus"] == "Activo" else "🔴 Inactivo"
@@ -660,7 +664,6 @@ with col_izquierda_matriz:
         if st.button("🛑 Cerrar Dashboard Maestro y Volver a Simuladores", use_container_width=True, type="primary"):
             st.session_state["ver_padron_flotante"] = False
             st.rerun()
-
 # ==============================================================================
 # PARTE 13 DE 14: COLUMNA IZQUIERDA (CENTRO) - PESTAÑAS ORDINARIAS DE TRABAJO
 # ==============================================================================
