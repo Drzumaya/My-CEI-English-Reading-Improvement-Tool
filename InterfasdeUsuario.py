@@ -707,6 +707,82 @@ with col_izquierda_matriz:
                 c_m1.metric("Fondo de Sostenimiento Docente", f"${presupuesto_total:,.2f} MXN")
                 c_m2.metric("Subsidio Asimilado por Taller", f"${cuota_recup:,.2f} MXN", "0% IVA Exento (Art. 15 LIVA)")
                 
+                # --- 📝 SUB-MÓDULO EXCLUSIVO VANGUARDISTA: SIMULADOR DE RECIBOS Y TIMBRADO CFDI ART. 94 ---
+                st.markdown("---")
+                st.markdown("##### 🧾 Estructuración y Simulación de Recibo CFDI (Asimilados a Salarios)")
+                st.caption("Herramienta de alta fidelidad para calcular retenciones de ISR progresivas sobre honorarios de Directores Asociados.")
+                
+                col_cfdi1, col_cfdi2 = st.columns(2)
+                with col_cfdi1:
+                    dir_seleccionado_cfdi = st.selectbox(
+                        "Selecciona el Director para emitir borrador de recibo:",
+                        [d["Nombre"] for d in st.session_state["directores_registrados"]] if st.session_state["directores_registrados"] else ["-- No hay directores registrados --"]
+                    )
+                    honorario_bruto_propuesto = st.number_input("Honorario Mensual Bruto Asignado ($ MXN):", min_value=3000, value=28500, step=1000)
+                
+                # Algoritmo de Tarifa Progresiva Mensual del SAT (Módulo de Cálculo Art. 96 LISR)
+                ingreso_evaluar = honorario_bruto_propuesto
+                if ingreso_evaluar <= 746.04:
+                    lim_inf, cuota_f, pct_m = 0.01, 0.0, 0.0192
+                elif ingreso_evaluar <= 6332.05:
+                    lim_inf, cuota_f, pct_m = 746.05, 14.32, 0.064
+                elif ingreso_evaluar <= 11128.01:
+                    lim_inf, cuota_f, pct_m = 6332.06, 371.83, 0.1088
+                elif ingreso_evaluar <= 12935.82:
+                    lim_inf, cuota_f, pct_m = 11128.02, 893.63, 0.16
+                elif ingreso_evaluar <= 15487.71:
+                    lim_inf, cuota_f, pct_m = 12935.83, 1182.88, 0.1792
+                elif ingreso_evaluar <= 31236.49:
+                    lim_inf, cuota_f, pct_m = 15487.72, 1640.11, 0.2136
+                elif ingreso_evaluar <= 49233.00:
+                    lim_inf, cuota_f, pct_m = 31236.50, 5004.12, 0.2352
+                elif ingreso_evaluar <= 93993.90:
+                    lim_inf, cuota_f, pct_m = 49233.01, 9236.89, 0.30
+                else:
+                    lim_inf, cuota_f, pct_m = 93993.91, 22665.17, 0.32
+                
+                excedente_lim = ingreso_evaluar - lim_inf
+                impuesto_marginal = excedente_lim * pct_m
+                retencion_isr_exacta = cuota_f + impuesto_marginal
+                honorario_neto_liquidar = ingreso_evaluar - retencion_isr_exacta
+                
+                with col_cfdi2:
+                    st.markdown("<div style='padding-top:10px;'></div>", unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style='background-color: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #ced4da;'>
+                        <p style='margin:0; font-size:12px; color:#495057;'><b>Estructura de Retención Fiscal:</b></p>
+                        <h3 style='margin:5px 0; color:#1e4620; font-size:18px;'>Neto: ${honorario_neto_liquidar:,.2f} MXN</h3>
+                        <p style='margin:0; font-size:11px; color:#6c757d;'>
+                            <b>ISR Retenido (Art. 96):</b> ${retencion_isr_exacta:,.2f} MXN<br>
+                            <b>IVA Trasladado:</b> $0.00 MXN (Exento)<br>
+                            <b>Tasa Marginal Aplicada:</b> {(pct_m*100):.2f}%
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                if dir_seleccionado_cfdi != "-- No hay directores registrados --":
+                    tabla_cfdi_reporte = [
+                        ["Concepto de Nómina", "Monto Pesos Mexicanos"],
+                        ["Percepción Bruta Estatutaria", f"${honorario_bruto_propuesto:,.2f}"],
+                        ["Retención de ISR Progresivo (SAT)", f"-${retencion_isr_exacta:,.2f}"],
+                        ["Impuesto al Valor Agregado (IVA)", "$0.00 (Exento)"],
+                        ["Total Neto Líquido Dispersado", f"${honorario_neto_liquidar:,.2f}"]
+                    ]
+                    texto_cfdi_resumen = f"RECIBO DIGITAL DE HONORARIOS ASIMILADOS A SALARIOS - BORRADOR DE SIMULACIÓN\n\nPor medio del presente documento, se hace constar el precálculo de dispersión correspondiente a favor de {dir_seleccionado_cfdi}. Este recibo ampara la materialidad de la contraprestación por servicios técnicos y capacitación para el trabajo coordinados en la periferia urbana de Agua Prieta, Sonora, bajo el amparo de la Escritura Notarial de la matriz central."
+                    
+                    pdf_recibo_buffer = generar_informe_pdf(f"CFDI Asimilados - {dir_seleccionado_cfdi}", tabla_cfdi_reporte, texto_cfdi_resumen)
+                    
+                    st.markdown("<div style='padding-top:5px;'></div>", unsafe_allow_html=True)
+                    st.download_button(
+                        label=f"📥 Descargar Borrador Recibo PDF ({dir_seleccionado_cfdi})",
+                        data=pdf_recibo_buffer,
+                        file_name=f"Recibo_Asimilado_{dir_seleccionado_cfdi.replace(' ', '_')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+# ==============================================================================
+# PARTE 13a´ DE 14: COLUMNA IZQUIERDA (CENTRO) - ENTORNO ANALÍTICO CONMUTABLE (PARTE 2)
+# ==============================================================================
             elif "Logística" in entidad_activa_centro or "S.C." in entidad_activa_centro:
                 st.markdown("##### 🔮 Control Operativo de Fletes Industriales B2B")
                 st.caption("Cálculo de eficiencia de ruta deduciendo Costo por Kilómetro (COK) y factores de retorno aduanales.")
@@ -730,7 +806,7 @@ with col_izquierda_matriz:
             elif "Microseguros" in entidad_activa_centro or "S.A." in entidad_activa_centro:
                 st.markdown("##### 📊 Retorno de Corretaje Social y Primas Mutuales")
                 st.caption("Mitigación de riesgos en maquinaria pesada popular y reaseguro comunitario CNSF.")
-                prima_mensual = st.number_input("Prima Monsual por Unidad de Trabajo:", min_value=50.0, value=120.0, key='pr_sa')
+                prima_mensual = st.number_input("Prima Mensual por Unidad de Trabajo:", min_value=50.0, value=120.0, key='pr_sa')
                 retorno_pct = st.slider("Porcentaje de Retorno Social Pactado para la A.C.:", min_value=5, max_value=40, value=20, key='pct_sa')
                 
                 prima_anual = float(65 * prima_mensual * 12)
@@ -761,7 +837,8 @@ with col_izquierda_matriz:
                 st.warning("⚠️ Alerta SAT: Facturación electrónica ordinaria con desglose del 16% de IVA mercantil en pólizas de daños comerciales.")
             else:
                 st.success("✓ Estatus Fiscal: Aportaciones científicas directas consideradas gastos deducibles autorizados a tasa cero.")
-# ==============================================================================
+
+        # ==============================================================================
 # PARTE 13b DE 14: COLUMNA IZQUIERDA (CENTRO) - MODELADO LIKERT Y COMPETITIVIDAD
 # ==============================================================================
         # 3. PESTAÑA DINÁMICA: MODELADO ACTUARIAL Y AJUSTE DE VARIABLES LATENTES
