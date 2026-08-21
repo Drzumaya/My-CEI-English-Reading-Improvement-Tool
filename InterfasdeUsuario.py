@@ -159,10 +159,21 @@ def logout():
     st.session_state["show_login_error"] = False
     st.rerun()
 # ==============================================================================
-# SUBPARTE 8 DE 10: COLUMNA IZQUIERDA - VISOR DE MANUALES Y ACUERDOS EN CALIENTE
+# SUBPARTE 8 DE 11: CONTROL PRESUPUESTAL Y ARQUITECTURA BI-COLUMNA MAESTRA
 # ==============================================================================
+
+# Definiendo variables analíticas puente globales en formato float decimal
+num_talleres_global = 65
+prima_individual_global = 120.0
+comision_retorno_global = 20
+excedente_coop_calculado = 0.0
+
+# SOLUCIÓN DE RAÍZ AL NAMEERROR: Inicialización obligatoria de las columnas en la memoria del servidor
+col_izquierda_matriz, col_derecha_documental = st.columns([0.70, 0.30])
+
+# Apertura inmediata y controlada de la columna central (Izquierda)
 with col_izquierda_matriz:
-    # FILTRO DE SEGURIDAD ABSOLUTO ANTI-KEYERROR: Valida existencia real de llaves en memoria
+    # CASO A: ENTORNO FLOTANTE PARA EDITAR MANUALES INDIVIDUALES EN VIVO
     if (st.session_state["ver_visor_legal"] and 
         st.session_state["entidad_seleccionada"] in st.session_state["repositorio_institucional"] and 
         st.session_state["tipo_doc_seleccionado"] in st.session_state["repositorio_institucional"][st.session_state["entidad_seleccionada"]]):
@@ -173,75 +184,42 @@ with col_izquierda_matriz:
         st.info(f"📁 Ventana de Trabajo Activa: {ent} ➔ {tdoc}")
         st.markdown("---")
         
-        # Cuadro de edición de texto enriquecido con actualización en caliente
         texto_editable_actual = st.text_area(
             label="Editor Oficial de Cláusulas e Instructivos (Cambios en Caliente):", 
             value=st.session_state["repositorio_institucional"][ent][tdoc], 
             height=380
         )
         
-        # Matriz horizontal de comandos de descarga y guardado corporativo
         b1, b2, b3, b4 = st.columns(4)
         with b1:
             if st.button("💾 Guardar Ajustes", use_container_width=True):
                 st.session_state["repositorio_institucional"][ent][tdoc] = texto_editable_actual
                 st.success("✓ Cambios guardados.")
-                
         with b2:
-            # Evaluar de forma oportuna la conmutación de lenguaje capturada en la barra derecha
             is_eng_pdf = (st.session_state.get("selector_idioma_global", "Español (ES)") == "English (EN)")
-            tabla_legal_dummy = [
-                ["Validación de Consistencia", "Aprobado por el Consejo"], 
-                ["Fecha de Auditoría", "2026-08-20"], 
-                ["Estatus Regulatorio", "Vigente Exento"]
-            ]
-            # Compilación síncrona del informe monopágina vanguardista con logo
+            tabla_legal_dummy = [["Validación de Consistencia", "Aprobado por el Consejo"], ["Fecha de Auditoría", "2026-08-20"], ["Estatus Regulatorio", "Vigente Exento"]]
             pdf_legal = generar_informe_pdf(f"{ent} - {tdoc}", tabla_legal_dummy, texto_editable_actual, lang_en=is_eng_pdf)
-            
-            label_pdf = "📥 PDF" if is_eng_pdf else "📥 Descargar PDF"
-            if st.download_button(label=label_pdf, data=pdf_legal, file_name=f"{tdoc.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
+            if st.download_button(label="📥 PDF", data=pdf_legal, file_name=f"{tdoc.replace(' ', '_')}.pdf", mime="application/pdf", use_container_width=True):
                 registrar_descarga(ent, f"{tdoc}.pdf")
-                
         with b3:
-            is_eng_word = (st.session_state.get("selector_idioma_global", "Español (ES)") == "English (EN)")
             buffer_word = io.BytesIO(texto_editable_actual.encode('utf-8'))
-            label_word = "📝 Word" if is_eng_word else "📝 Descargar Word"
-            st.download_button(label=label_word, data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
-            
+            st.download_button(label="📝 Word", data=buffer_word, file_name=f"{tdoc.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
         with b4:
-            # Desmontar síncronamente la pantalla flotante regresando al usuario al centro analítico
             if st.button("🛑 Cerrar Visor", use_container_width=True, type="primary"):
                 st.session_state["ver_visor_legal"] = False
                 st.rerun()
 # ==============================================================================
-# SUBPARTE 9 DE 10: COLUMNA IZQUIERDA - FORMULARIO DE ALTA Y PADRÓN EN TIEMPO REAL
+# SUBPARTE 9 DE 11: COLUMNA IZQUIERDA - FORMULARIO FLOTANTE DE ALTA Y PADRÓN
 # ==============================================================================
-    # CASO B: FORMULARIO FLOTANTE DE ALTA DE DIRECTORES CON DATOS UNIVERSALES MEXICANOS
     elif st.session_state["ver_formulario_registro"]:
         st.success("📝 Formulario Flotante Activo: Alta y Nombramiento de Directores Asociados")
         st.markdown("---")
         
         datos_universales_mexico = {
-            "1. Asociación Civil Matriz (A.C.)": {
-                "Regimen_SAT": "Régimen General de Ley de las Personas Morales (Título II LISR)", 
-                "Obligacion_Fiscal": "Declaración anual en marzo, pagos provisionales mensuales de ISR (30%), entero de retenciones de asimilados.", 
-                "Normativa_Clave": "Artículos 15 Fracc. IV y XII de la Ley del IVA (Exención de traslado del 16% en capacitación)."
-            },
-            "2. Cooperativa de Logística (S.C.)": {
-                "Regimen_SAT": "Régimen de las Personas Morales con Fines no Lucrativos (Título III LISR)", 
-                "Obligacion_Fiscal": "Facturación electrónica de fletes terrestres, aplicación obligatoria de la Retención del 4% de ISR por personas morales.", 
-                "Normativa_Clave": "Ley General de Sociedades Cooperativas (LGSC) - Responsabilidad Limitada, fondo de reserva del 6% diésel."
-            },
-            "3. Agencia de Microseguros (S.A.)": {
-                "Regimen_SAT": "Régimen General de Ley (Sociedades Anónimas de Capital Variable - Título II LISR)", 
-                "Obligacion_Fiscal": "Contabilidad corporativa mercantil auditada, facturación general de pólizas comerciales con desglose de IVA.", 
-                "Normativa_Clave": "Ley de Instituciones de Seguros y de Fianzas (LISF) - Cédula vigente ante la Comisión Nacional de Seguros y Fianzas (CNSF)."
-            },
-            "4. Equipo de Investigación Científica APSON": {
-                "Regimen_SAT": "Régimen General con asignación de Fideicomisos Tecnológicos Autónomos (Exento por Fomento)", 
-                "Obligacion_Fiscal": "Reporte de transparencia de recursos captados de Fondos de Innovación, exención de IVA en contratos de I+D.", 
-                "Normativa_Clave": "Ley General de Humanidades, Ciencias, Tecnologías e Innovación - Patentes sociales exentas."
-            }
+            "1. Asociación Civil Matriz (A.C.)": {"Regimen_SAT": "Régimen General de Ley de las Personas Morales (Título II LISR)", "Obligacion_Fiscal": "Declaración anual en marzo, pagos provisionales mensuales de ISR (30%), entero de retenciones de asimilados.", "Normativa_Clave": "Artículos 15 Fracc. IV y XII de la Ley del IVA (Exención de traslado del 16% en capacitación)."},
+            "2. Cooperativa de Logística (S.C.)": {"Regimen_SAT": "Régimen de las Personas Morales con Fines no Lucrativos (Título III LISR)", "Obligacion_Fiscal": "Facturación electrónica de fletes terrestres, aplicación obligatoria de la Retención del 4% de ISR por personas morales.", "Normativa_Clave": "Ley General de Sociedades Cooperativas (LGSC) - Responsabilidad Limitada, fondo de reserva del 6% diésel."},
+            "3. Agencia de Microseguros (S.A.)": {"Regimen_SAT": "Régimen General de Ley (Sociedades Anónimas de Capital Variable - Título II LISR)", "Obligacion_Fiscal": "Contabilidad corporativa mercantil auditada, facturación general de pólizas comerciales con desglose de IVA.", "Normativa_Clave": "Ley de Instituciones de Seguros y de Fianzas (LISF) - Cédula vigente ante la Comisión Nacional de Seguros y Fianzas (CNSF)."},
+            "4. Equipo de Investigación Científica APSON": {"Regimen_SAT": "Régimen General con asignación de Fideicomisos Tecnológicos Autónomos (Exento por Fomento)", "Obligacion_Fiscal": "Reporte de transparencia de recursos captados de Fondos de Innovación, exención de IVA en contratos de I+D.", "Normativa_Clave": "Ley General de Humanidades, Ciencias, Tecnologías e Innovación - Patentes sociales exentas."}
         }
 
         f_nom = st.text_input("👤 Nombre Completo del Director a Registrar:", placeholder="Ej. Lic. Alejandro Anaya")
@@ -264,11 +242,7 @@ with col_izquierda_matriz:
                 if f_nom and f_rfc and f_puesto:
                     st.session_state["directores_registrados"].append({
                         "Fecha Registro": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                        "Nombre": f_nom, 
-                        "Entidad": f_entidad, 
-                        "Puesto": f_puesto, 
-                        "RFC": f_rfc.upper(), 
-                        "Estatus": "Alta Exitosa / Acta Firmada"
+                        "Nombre": f_nom, "Entidad": f_entidad, "Puesto": f_puesto, "RFC": f_rfc.upper(), "Estatus": "Alta Exitosa / Acta Firmada"
                     })
                     st.success(f"✓ El {f_puesto} ha sido legalmente registrado.")
                 else:
@@ -288,10 +262,10 @@ with col_izquierda_matriz:
             st.session_state["ver_padron_flotante"] = False
             st.rerun()
 # ==============================================================================
-# SUBPARTE 10 DE 11: COLUMNA IZQUIERDA (CENTRO) - SIMULADORES CONTABLES Y LOGÍSTICOS
+# SUBPARTE 10 DE 11: COLUMNA IZQUIERDA (CENTRO) - PESTAÑAS ORDINARIAS DE TRABAJO
 # ==============================================================================
     else:
-        # PESTAÑAS ORDINARIAS POR DEFECTO: El corazón analítico de la columna central
+        # PESTAÑAS ORDINARIAS POR DEFECTO: El "centro" analítico e interactivo del tablero
         tabs = st.tabs(["🛡️ IVA e ISR", "🔮 Módulo Logístico Cooperativo", "📊 Microseguros", "🏦 Caja de Ahorro", "📑 Historial de Descargas"])
         tab1, tab_logistica, tab4, tab5, tab_log = tabs
         
@@ -313,7 +287,7 @@ with col_izquierda_matriz:
             
             ingreso_bruto_fletes = viajes_mensuales * distancia_viaje * tarifa_por_km
             kilometros_gastados_reales = (viajes_mensuales * distancia_viaje) * (1 + (factor_vacio / 100))
-            costo_operativo_total = kilometros_gastados_reales * costo_operacion_km
+            costo_operativo_total = App_km_gastados = kilometros_gastados_reales * costo_operacion_km
             retencion_isr_4pct = ingreso_bruto_fletes * 0.04
             fondo_diesel_retenido = ingreso_bruto_fletes * (reserva_combustible_pct / 100)
             excedente_neto_cooperativa = ingreso_bruto_fletes - costo_operativo_total - retencion_isr_4pct - fondo_diesel_retenido
@@ -332,13 +306,6 @@ with col_izquierda_matriz:
             prima_anual = float(num_talleres_global * prima_mensual * 12)
             retorno_anual_ac = prima_anual * (retorno_pct / 100)
             st.metric("Retorno de Comisión Anual para la A.C.", f"${retorno_anual_ac:,.2f} MXN")
-
-        with tab5:
-            st.header("Caja de Ahorro (El Brazo Fuerte Financiero Interconectado)")
-            ahorrio_mensual = st.number_input("Ahorros Directos de los Trabajadores", min_value=0.0, value=55000.0)
-            comision_seguros_mensual = float(retorno_anual_ac / 12)
-            capital_mensual_total = ahorrio_mensual + comision_seguros_mensual + excedente_coop_calculado
-            st.metric("Fondo de Emprendimiento Mensual Consolidado Abierto", f"${capital_mensual_total:,.2f} MXN")
 
         with tab_log:
             st.header("📑 Historial de Auditoría de Descargas")
