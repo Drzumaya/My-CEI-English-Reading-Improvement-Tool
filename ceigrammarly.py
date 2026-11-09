@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
+# --- CONEXIÓN A GOOGLE SHEETS (AUDIOS DE ESTUDIANTES) ---
 def get_google_sheet():
     scopes = [
         "https://googleapis.com",
@@ -29,6 +29,41 @@ def get_google_sheet():
     )
     client = gspread.authorize(creds)
     return client.open("English_Grammar_Audios").sheet1
+
+# --- FUNCIONES DE LOGO PERMANENTE EN GOOGLE SHEETS ---
+@st.cache_data(ttl=300)
+def load_permanent_logo():
+    try:
+        scopes = [
+            "https://googleapis.com",
+            "https://googleapis.com"
+        ]
+        creds = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"], scopes=scopes
+        )
+        client = gspread.authorize(creds)
+        sheet_logo = client.open("English_Grammar_Audios").worksheet("Config_Logo")
+        records = sheet_logo.get_all_records()
+        if records:
+            return records[-1]
+    except Exception:
+        pass
+    return None
+
+def save_permanent_logo(b64_str, mime, width, shape):
+    scopes = [
+        "https://googleapis.com",
+        "https://googleapis.com"
+    ]
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=scopes
+    )
+    client = gspread.authorize(creds)
+    sheet_logo = client.open("English_Grammar_Audios").worksheet("Config_Logo")
+    sheet_logo.clear()
+    sheet_logo.append_row(["Logo_Base64", "Mime_Type", "Width", "Shape"])
+    sheet_logo.append_row([b64_str, mime, width, shape])
+    load_permanent_logo.clear()
 
 # --- DETECCIÓN DE DISPOSITIVO (MÓVIL VS ESCRITORIO) ---
 user_agent = st.context.headers.get("User-Agent", "").lower()
@@ -55,7 +90,6 @@ if st.session_state.app_exited:
         st.session_state.app_exited = False
         st.rerun()
     st.stop()
-# --- PARTE 1: BARRA IZQUIERDA (LOGO EDITABLE E INPUTS EN ESPAÑOL/INGLÉS) ---
 # --- PARTE 1: BARRA IZQUIERDA (LIMPIA, SOLO INPUTS DEL ALGORITMO) ---
 with st.sidebar:
     st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
@@ -104,20 +138,57 @@ with st.sidebar:
     st.markdown("---")
     generar_btn = st.button("🚀 Generate B1 Lesson", type="primary", use_container_width=True)
 
-# --- CABECERA INSTITUCIONAL (LOGO EDITABLE IN-SITU + TÍTULO + QR + SALIR) ---
+# --- CABECERA INSTITUCIONAL (LOGO PERMANENTE + EDICIÓN IN-SITU + TÍTULO + QR + SALIR) ---
+saved_logo = load_permanent_logo()
+
+default_width = int(saved_logo["Width"]) if saved_logo and saved_logo.get("Width") else 115
+default_shape = saved_logo["Shape"] if saved_logo and saved_logo.get("Shape") else "Original"
+shape_options = ["Original", "Redondeado", "Circular"]
+default_shape_idx = shape_options.index(default_shape) if default_shape in shape_options else 0
+
 col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
 
 with col_logo:
-    # Menú flotante (popover) para editar o subir el logo directamente en su lugar
     with st.popover("✏️ Editar Logo", use_container_width=True):
-        logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
-        logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=115, step=5)
-        logo_shape = st.radio("Forma:", ["Original", "Redondeado", "Circular"], horizontal=True)
+        logo_file = st.file_uploader("Subir imagen nueva (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
+        logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
+        logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True)
+        
+        if st.button("💾 Guardar Logo Permanente", type="primary", use_container_width=True):
+            b64_to_save = None
+            mime_to_save = None
+            
+            if logo_file is not None:
+                b64_to_save = base64.b64encode(logo_file.getvalue()).decode("utf-8")
+                mime_to_save = logo_file.type
+            elif saved_logo and saved_logo.get("Logo_Base64"):
+                b64_to_save = saved_logo["Logo_Base64"]
+                mime_to_save = saved_logo["Mime_Type"]
+                
+            if b64_to_save:
+                if len(b64_to_save) > 49000:
+                    st.error("⚠️ La imagen pesa demasiado (máx. 35 KB). Comprímela antes de subirla.")
+                else:
+                    try:
+                        with st.spinner("Fijando logo..."):
+                            save_permanent_logo(b64_to_save, mime_to_save, logo_width, logo_shape)
+                            st.success("✅ ¡Logo guardado permanentemente!")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar en Config_Logo: {e}")
+            else:
+                st.warning("⚠️ Sube una imagen primero.")
 
-    # Renderizado del logo en su posición junto al título
+    active_b64 = None
+    active_mime = None
     if logo_file is not None:
-        b64_logo = base64.b64encode(logo_file.getvalue()).decode("utf-8")
-        mime_type = logo_file.type
+        active_b64 = base64.b64encode(logo_file.getvalue()).decode("utf-8")
+        active_mime = logo_file.type
+    elif saved_logo and saved_logo.get("Logo_Base64"):
+        active_b64 = saved_logo["Logo_Base64"]
+        active_mime = saved_logo["Mime_Type"]
+
+    if active_b64:
         radius = "0px"
         if logo_shape == "Redondeado":
             radius = "15px"
@@ -125,7 +196,7 @@ with col_logo:
             radius = "50%"
             
         st.markdown(
-            f'<div style="text-align: center;"><img src="data:{mime_type};base64,{b64_logo}" style="width: {logo_width}px; height: auto; border-radius: {radius}; object-fit: cover;"></div>',
+            f'<div style="text-align: center;"><img src="data:{active_mime};base64,{active_b64}" style="width: {logo_width}px; height: auto; border-radius: {radius}; object-fit: cover;"></div>',
             unsafe_allow_html=True
         )
     else:
@@ -161,8 +232,6 @@ with col_exit:
         st.rerun()
 
 st.divider()
-
-
 # --- LÓGICA DE GENERACIÓN DE IA (INPUT ES/EN -> OUTPUT 100% EN) ---
 if generar_btn:
     if "OPENAI_API_KEY" not in st.secrets:
@@ -321,7 +390,6 @@ with col_tools_right:
         safe_text = text.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 8, txt=safe_text)
         
-        # Pie de página con derechos reservados en el PDF
         pdf.ln(10)
         pdf.set_font("Times", "I", 10)
         pdf.cell(0, 10, txt="© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Creado por JACOB ZUMAYA PRIANTI.", ln=True, align="C")
