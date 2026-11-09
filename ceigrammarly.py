@@ -12,7 +12,7 @@ import pandas as pd
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="MY ENGLISH GRAMMAR FAN TOOL",
+    page_title="MY ENGLISH GRAMMAR FAN TOOL - Career English Institute",
     page_icon="🇬🇧",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -49,49 +49,28 @@ if "show_saved_audios" not in st.session_state:
 # --- PANTALLA DE SALIDA ---
 if st.session_state.app_exited:
     st.title("👋 Session Ended")
-    st.info("Thank you for using MY ENGLISH GRAMMAR FAN TOOL. You may close this tab now.")
+    st.info("Thank you for using MY ENGLISH GRAMMAR FAN TOOL by CAREER ENGLISH INSTITUTE. You may close this tab now.")
+    st.caption("© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Creado por JACOB ZUMAYA PRIANTI.")
     if st.button("Restart Application"):
         st.session_state.app_exited = False
         st.rerun()
     st.stop()
-# --- CABECERA Y PARTE 6 (QR DINÁMICO + BOTÓN SALIR) ---
-col_title, col_qr, col_exit = st.columns([6, 2, 1.5])
-
-with col_title:
-    st.title("🇬🇧 MY ENGLISH GRAMMAR FAN TOOL")
-    st.caption("CEFR Level B1 Adaptive Learning System | APA Style Output")
-
-with col_qr:
-    if not is_mobile:
-        APP_URL = "https://myceigrammarly.streamlit.app" 
-        qr = qrcode.QRCode(version=1, box_size=4, border=1)
-        qr.add_data(APP_URL)
-        qr.make(fit=True)
-        img_qr = qr.make_image(fill_color="black", back_color="white")
-        buf = io.BytesIO()
-        img_qr.save(buf, format="PNG")
-        st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
-
-with col_exit:
-    st.write("")
-    if st.button("🚪 Salir", type="secondary", use_container_width=True):
-        st.session_state.app_exited = True
-        st.rerun()
-
-st.divider()
-
-# --- PARTE 1: BARRA IZQUIERDA (ALIMENTADORES DEL ALGORITMO) ---
+# --- PARTE 1: BARRA IZQUIERDA (LOGO E INPUTS EN ESPAÑOL/INGLÉS) ---
 with st.sidebar:
+    st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
+    logo_file = st.file_uploader("🖼️ Subir Logo Institucional (PNG/JPG):", type=["png", "jpg", "jpeg"])
+    st.divider()
+
     st.header("⚙️ Configuration & Inputs")
     
-    usuario = st.text_input("👤 Usuario (Nombre del Estudiante):", placeholder="e.g., Ana López")
+    usuario = st.text_input("👤 Usuario (Nombre del Estudiante):", placeholder="Ej: Ana López")
     
-    st.subheader("1. Context & Characters")
-    contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="e.g., At a busy airport in London")
-    personas = st.text_input("Personas / Personajes:", placeholder="e.g., A tourist and a flight attendant")
+    st.subheader("1. Context & Characters (Español / English)")
+    contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="Ej: En un aeropuerto en Londres / At an airport")
+    personas = st.text_input("Personas / Personajes:", placeholder="Ej: Un turista y una azafata / A tourist and a pilot")
     
-    st.subheader("2. Subject Matter")
-    asunto = st.text_input("Asunto / Materia:", placeholder="e.g., Lost luggage and travel insurance")
+    st.subheader("2. Subject Matter (Español / English)")
+    asunto = st.text_input("Asunto / Materia:", placeholder="Ej: Equipaje perdido / Lost luggage")
     
     st.subheader("3. CEFR B1 Grammar Topics")
     gramatica_b1 = st.selectbox(
@@ -124,7 +103,47 @@ with st.sidebar:
     
     st.markdown("---")
     generar_btn = st.button("🚀 Generate B1 Lesson", type="primary", use_container_width=True)
-# --- LÓGICA DE GENERACIÓN DE IA ---
+
+# --- CABECERA INSTITUCIONAL Y PARTE 6 (LOGO + QR DINÁMICO + BOTÓN SALIR) ---
+col_logo, col_title, col_qr, col_exit = st.columns([1.4, 5.1, 2, 1.5])
+
+with col_logo:
+    if logo_file is not None:
+        st.image(logo_file, width=115)
+    else:
+        st.markdown(
+            """
+            <div style="border: 1px dashed #888; border-radius: 8px; padding: 14px; text-align: center; color: #888; font-size: 12px;">
+                <b>CAREER ENGLISH<br>INSTITUTE</b><br>Logo Space
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+with col_title:
+    st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
+    st.title("🇬🇧 MY ENGLISH GRAMMAR FAN TOOL")
+    st.caption("CEFR Level B1 Adaptive Learning System | APA Style Output")
+
+with col_qr:
+    if not is_mobile:
+        APP_URL = "https://streamlit.app" 
+        qr = qrcode.QRCode(version=1, box_size=4, border=1)
+        qr.add_data(APP_URL)
+        qr.make(fit=True)
+        img_qr = qr.make_image(fill_color="black", back_color="white")
+        buf = io.BytesIO()
+        img_qr.save(buf, format="PNG")
+        st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
+
+with col_exit:
+    st.write("")
+    if st.button("🚪 Salir", type="secondary", use_container_width=True):
+        st.session_state.app_exited = True
+        st.rerun()
+
+st.divider()
+# --- LÓGICA DE GENERACIÓN DE IA (INPUT ES/EN -> OUTPUT 100% EN) ---
 if generar_btn:
     if "OPENAI_API_KEY" not in st.secrets:
         st.sidebar.error("⚠️ API Key no configurada en st.secrets.")
@@ -133,29 +152,40 @@ if generar_btn:
     else:
         client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
-        with st.spinner("Generating CEFR B1 content, audio, and illustration..."):
+        with st.spinner("Translating inputs and generating CEFR B1 content in English..."):
             prompt_texto = f"""
-            Act as an expert English teacher specializing in the CEFR B1 level.
-            Create an educational text in English based on these parameters:
+            You are an expert English teacher at CAREER ENGLISH INSTITUTE specializing in CEFR Level B1.
+            The user may provide the input parameters in Spanish, English, or a mix of both.
+            
+            USER INPUTS (Translate/adapt internally to English if written in Spanish):
             - Context/Place: {contexto}
             - Characters: {personas}
             - Subject/Topic: {asunto}
             - Target B1 Grammar: {gramatica_b1}
-            - Format/Mode: {tipo_texto}
+            - Discourse Format: {tipo_texto}
             
-            STRICT FORMATTING RULES:
-            1. Write strictly at a CEFR B1 level. Highlight the target grammar structures in **bold**.
-            2. Structure the output following APA Style guidelines (Running head/Title, Clear Headings, academic tone, and a mock APA Reference list at the bottom).
+            STRICT OUTPUT RULES:
+            1. LANGUAGE: Your ENTIRE output MUST be written 100% in natural, accurate English. Do NOT include a single word of Spanish anywhere in the title, headings, body, or references.
+            2. CEFR B1 LEVEL: Adapt all vocabulary and sentence structures strictly to CEFR Level B1. Highlight the target grammar structures ({gramatica_b1}) in **bold**.
+            3. APA FORMAT: Structure the output following APA Style conventions (Academic Title in English, Clear Headings, formal/semi-formal tone, and a simulated APA Reference list in English at the end).
             """
             
             response_text = client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt_texto}],
+                messages=[
+                    {"role": "system", "content": "You are a strict English-only CEFR B1 content generator. Regardless of the input language (Spanish or English), you always output 100% in English."},
+                    {"role": "user", "content": prompt_texto}
+                ],
                 temperature=0.7
             )
             st.session_state.generated_text = response_text.choices.message.content
             
-            prompt_imagen = f"Educational illustration for an English lesson. Scene: {contexto}. Characters: {personas}. Topic: {asunto}. Clean, modern textbook illustration style, no text inside the image."
+            prompt_imagen = (
+                f"Educational textbook illustration for an English class. "
+                f"Translate this scene concept into visuals: Setting is '{contexto}', "
+                f"characters are '{personas}', action/theme is '{asunto}'. "
+                f"Clean, modern, colorful flat-vector educational style. NO text, letters, or words inside the image."
+            )
             response_img = client.images.generate(
                 model="dall-e-3",
                 prompt=prompt_imagen,
@@ -171,17 +201,17 @@ if generar_btn:
             tts.write_to_fp(audio_fp)
             st.session_state.audio_bytes = audio_fp.getvalue()
 
-# --- PARTE 2: CENTRO Y PANEL DERECHO ---
+# --- PARTE 2: CENTRO (DIVIDIDO VERTICALMENTE: ARRIBA MÁS ALTA QUE ABAJO) ---
 col_main_center, col_tools_right = st.columns([7, 3.5])
 
 with col_main_center:
-    st.subheader("📄 Generated Content (APA Format)")
+    st.subheader("📄 Generated Content (APA Format - 100% English)")
     top_container = st.container(height=450, border=True)
     with top_container:
         if st.session_state.generated_text:
             st.markdown(st.session_state.generated_text)
         else:
-            st.info("👈 Configure the parameters on the left sidebar and click **Generate B1 Lesson** to start.")
+            st.info("👈 Escribe los datos en Español o Inglés en la barra izquierda y presiona **Generate B1 Lesson**.")
 
     st.subheader("🖼️ Visual Context")
     bottom_container = st.container(height=280, border=True)
@@ -189,7 +219,7 @@ with col_main_center:
         if st.session_state.image_url:
             st.image(st.session_state.image_url, use_container_width=True)
         else:
-            st.caption("The illustrative image will appear here once generated.")
+            st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
 # --- PANEL DERECHO: AUDIO IA, GRABACIÓN ESTUDIANTE, GOOGLE SHEETS Y PDF ---
 with col_tools_right:
     # 1. AUDIO DE REFERENCIA (IA)
@@ -221,6 +251,7 @@ with col_tools_right:
                         tema_completo = f"{asunto} ({gramatica_b1})" if asunto else gramatica_b1
                         fecha_subida = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         
+                        # Columnas: Usuario | Tema | Audio | Fecha_de_subida
                         fila = [usuario, tema_completo, audio_b64, fecha_subida]
                         sheet.append_row(fila)
                         st.success("✅ ¡Audio guardado en la base de datos!")
@@ -263,9 +294,17 @@ with col_tools_right:
     def create_pdf(text):
         pdf = FPDF()
         pdf.add_page()
+        pdf.set_font("Times", "B", 14)
+        pdf.cell(0, 10, txt="CAREER ENGLISH INSTITUTE - CEFR B1 Lesson", ln=True, align="C")
+        pdf.ln(5)
         pdf.set_font("Times", size=12)
         safe_text = text.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 8, txt=safe_text)
+        
+        # Pie de página con derechos reservados en el PDF
+        pdf.ln(10)
+        pdf.set_font("Times", "I", 10)
+        pdf.cell(0, 10, txt="© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Creado por JACOB ZUMAYA PRIANTI.", ln=True, align="C")
         return pdf.output(dest='S').encode('latin-1')
 
     if st.session_state.generated_text:
@@ -273,7 +312,7 @@ with col_tools_right:
         st.download_button(
             label="📥 Descargar PDF",
             data=pdf_bytes,
-            file_name="English_B1_Lesson_APA.pdf",
+            file_name="Career_English_Institute_B1_Lesson.pdf",
             mime="application/pdf",
             type="primary",
             use_container_width=True
@@ -289,3 +328,15 @@ with col_tools_right:
         st.session_state.audio_bytes = None
         st.session_state.show_saved_audios = False
         st.rerun()
+
+# --- PIE DE PÁGINA INSTITUCIONAL Y DERECHOS DE AUTOR ---
+st.divider()
+st.markdown(
+    """
+    <div style="text-align: center; color: #666; font-size: 13px; padding: 10px;">
+        © 2026 <b>CAREER ENGLISH INSTITUTE</b> | Todos los derechos reservados.<br>
+        Creado y desarrollado por <b>JACOB ZUMAYA PRIANTI</b>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
