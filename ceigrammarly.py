@@ -216,7 +216,7 @@ with col_title:
 
 with col_qr:
     if not is_mobile:
-        APP_URL = "https://streamlit.app" 
+        APP_URL = "https://myceigrammarly.streamlit.app" 
         qr = qrcode.QRCode(version=1, box_size=4, border=1)
         qr.add_data(APP_URL)
         qr.make(fit=True)
