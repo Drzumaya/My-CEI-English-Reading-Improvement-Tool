@@ -56,16 +56,9 @@ if st.session_state.app_exited:
         st.rerun()
     st.stop()
 # --- PARTE 1: BARRA IZQUIERDA (LOGO EDITABLE E INPUTS EN ESPAÑOL/INGLÉS) ---
+# --- PARTE 1: BARRA IZQUIERDA (LIMPIA, SOLO INPUTS DEL ALGORITMO) ---
 with st.sidebar:
     st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
-    logo_file = st.file_uploader("🖼️ Subir Logo Institucional (PNG/JPG):", type=["png", "jpg", "jpeg"])
-    
-    # Controles de edición del logo (aparecen al subir una imagen)
-    if logo_file is not None:
-        with st.expander("🎨 Editar apariencia del Logo", expanded=True):
-            logo_width = st.slider("Tamaño del logo (px):", min_value=60, max_value=250, value=120, step=10)
-            logo_shape = st.radio("Estilo de borde:", ["Original", "Redondeado", "Circular"], horizontal=True)
-    
     st.divider()
 
     st.header("⚙️ Configuration & Inputs")
@@ -111,11 +104,18 @@ with st.sidebar:
     st.markdown("---")
     generar_btn = st.button("🚀 Generate B1 Lesson", type="primary", use_container_width=True)
 
-# --- CABECERA INSTITUCIONAL DINÁMICA (SIN ESPACIO VACÍO SI NO HAY LOGO) ---
-if logo_file is not None:
-    col_logo, col_title, col_qr, col_exit = st.columns([1.5, 5.0, 2, 1.5])
-    with col_logo:
-        # Aplicar estilo de recorte/borde seleccionado
+# --- CABECERA INSTITUCIONAL (LOGO EDITABLE IN-SITU + TÍTULO + QR + SALIR) ---
+col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
+
+with col_logo:
+    # Menú flotante (popover) para editar o subir el logo directamente en su lugar
+    with st.popover("✏️ Editar Logo", use_container_width=True):
+        logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
+        logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=115, step=5)
+        logo_shape = st.radio("Forma:", ["Original", "Redondeado", "Circular"], horizontal=True)
+
+    # Renderizado del logo en su posición junto al título
+    if logo_file is not None:
         b64_logo = base64.b64encode(logo_file.getvalue()).decode("utf-8")
         mime_type = logo_file.type
         radius = "0px"
@@ -125,12 +125,18 @@ if logo_file is not None:
             radius = "50%"
             
         st.markdown(
-            f'<img src="data:{mime_type};base64,{b64_logo}" style="width: {logo_width}px; height: auto; border-radius: {radius}; object-fit: cover;">',
+            f'<div style="text-align: center;"><img src="data:{mime_type};base64,{b64_logo}" style="width: {logo_width}px; height: auto; border-radius: {radius}; object-fit: cover;"></div>',
             unsafe_allow_html=True
         )
-else:
-    # Si no hay logo, eliminamos la columna izquierda y el título ocupa todo ese espacio
-    col_title, col_qr, col_exit = st.columns([6.5, 2, 1.5])
+    else:
+        st.markdown(
+            f"""
+            <div style="border: 1px dashed #888; border-radius: 8px; padding: 12px; text-align: center; color: #888; font-size: 11px; width: {logo_width}px; margin: auto;">
+                <b>CAREER ENGLISH<br>INSTITUTE</b>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 with col_title:
     st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
