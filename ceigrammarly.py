@@ -2,10 +2,13 @@ import streamlit as st
 from openai import OpenAI
 from gtts import gTTS
 import qrcode
-from PIL import Image
 from fpdf import FPDF
 import io
-import requests
+import base64
+from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
+import pandas as pd
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
@@ -15,12 +18,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- CONEXIÓN A GOOGLE SHEETS ---
+def get_google_sheet():
+    scopes = [
+        "https://googleapis.com",
+        "https://googleapis.com"
+    ]
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=scopes
+    )
+    client = gspread.authorize(creds)
+    return client.open("English_Grammar_Audios").sheet1
+
 # --- DETECCIÓN DE DISPOSITIVO (MÓVIL VS ESCRITORIO) ---
-# Usamos los headers para detectar si el usuario entra desde un celular
 user_agent = st.context.headers.get("User-Agent", "").lower()
 is_mobile = any(device in user_agent for device in ["iphone", "android", "ipad", "mobile"])
 
-# --- INICIALIZACIÓN DE ESTADOS (SESSION STATE) ---
+# --- INICIALIZACIÓN DE ESTADOS ---
 if "generated_text" not in st.session_state:
     st.session_state.generated_text = ""
 if "image_url" not in st.session_state:
@@ -29,6 +43,8 @@ if "audio_bytes" not in st.session_state:
     st.session_state.audio_bytes = None
 if "app_exited" not in st.session_state:
     st.session_state.app_exited = False
+if "show_saved_audios" not in st.session_state:
+    st.session_state.show_saved_audios = False
 
 # --- PANTALLA DE SALIDA ---
 if st.session_state.app_exited:
@@ -38,30 +54,26 @@ if st.session_state.app_exited:
         st.session_state.app_exited = False
         st.rerun()
     st.stop()
-
 # --- CABECERA Y PARTE 6 (QR DINÁMICO + BOTÓN SALIR) ---
-col_title, col_qr, col_exit = st.columns([6, 2, 1])
+col_title, col_qr, col_exit = st.columns([6, 2, 1.5])
 
 with col_title:
     st.title("🇬🇧 MY ENGLISH GRAMMAR FAN TOOL")
     st.caption("CEFR Level B1 Adaptive Learning System | APA Style Output")
 
 with col_qr:
-    # El QR solo se muestra si NO es un dispositivo móvil (Pantalla del Teacher)
     if not is_mobile:
-        # Cambia esta URL por el enlace real de tu app cuando la subas a Streamlit Cloud
-        APP_URL = "https://streamlit.app" 
+        APP_URL = "https://myceigrammarly.streamlit.app" 
         qr = qrcode.QRCode(version=1, box_size=4, border=1)
         qr.add_data(APP_URL)
         qr.make(fit=True)
         img_qr = qr.make_image(fill_color="black", back_color="white")
-        
         buf = io.BytesIO()
         img_qr.save(buf, format="PNG")
         st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
 
 with col_exit:
-    st.write("") # Espaciador
+    st.write("")
     if st.button("🚪 Salir", type="secondary", use_container_width=True):
         st.session_state.app_exited = True
         st.rerun()
@@ -72,8 +84,7 @@ st.divider()
 with st.sidebar:
     st.header("⚙️ Configuration & Inputs")
     
-    # API Key de OpenAI (Se recomienda usar st.secrets en producción)
-    api_key = st.text_input("OpenAI API Key:", type="password", help="Enter your OpenAI key to power the AI.")
+    usuario = st.text_input("👤 Usuario (Nombre del Estudiante):", placeholder="e.g., Ana López")
     
     st.subheader("1. Context & Characters")
     contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="e.g., At a busy airport in London")
@@ -113,18 +124,16 @@ with st.sidebar:
     
     st.markdown("---")
     generar_btn = st.button("🚀 Generate B1 Lesson", type="primary", use_container_width=True)
-
 # --- LÓGICA DE GENERACIÓN DE IA ---
 if generar_btn:
-    if not api_key:
-        st.sidebar.error("⚠️ Please enter your OpenAI API Key first.")
+    if "OPENAI_API_KEY" not in st.secrets:
+        st.sidebar.error("⚠️ API Key no configurada en st.secrets.")
     elif not contexto or not asunto:
-        st.sidebar.warning("⚠️ Please fill in the Context and Subject fields.")
+        st.sidebar.warning("⚠️ Completa los campos de Contexto y Asunto.")
     else:
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         
         with st.spinner("Generating CEFR B1 content, audio, and illustration..."):
-            # 1. Generación de Texto en formato APA
             prompt_texto = f"""
             Act as an expert English teacher specializing in the CEFR B1 level.
             Create an educational text in English based on these parameters:
@@ -136,8 +145,7 @@ if generar_btn:
             
             STRICT FORMATTING RULES:
             1. Write strictly at a CEFR B1 level. Highlight the target grammar structures in **bold**.
-            2. Structure the output following APA Style guidelines (Running head/Title, Clear Headings, Double-spaced academic tone, indented paragraphs simulation, and a mock/placeholder APA Reference list at the bottom based on the topic).
-            3. Note: Apply latest APA academic standards (APA 7th/8th edition conventions).
+            2. Structure the output following APA Style guidelines (Running head/Title, Clear Headings, academic tone, and a mock APA Reference list at the bottom).
             """
             
             response_text = client.chat.completions.create(
@@ -145,9 +153,8 @@ if generar_btn:
                 messages=[{"role": "user", "content": prompt_texto}],
                 temperature=0.7
             )
-            st.session_state.generated_text = response_text.choices[0].message.content
+            st.session_state.generated_text = response_text.choices.message.content
             
-            # 2. Generación de Imagen Ilustrativa (DALL-E 3)
             prompt_imagen = f"Educational illustration for an English lesson. Scene: {contexto}. Characters: {personas}. Topic: {asunto}. Clean, modern textbook illustration style, no text inside the image."
             response_img = client.images.generate(
                 model="dall-e-3",
@@ -156,21 +163,18 @@ if generar_btn:
                 quality="standard",
                 n=1
             )
-            st.session_state.image_url = response_img.data[0].url
+            st.session_state.image_url = response_img.data.url
             
-            # 3. Generación de Audio (Parte 4)
-            # Limpiamos asteriscos de markdown para que el lector de voz no los lea
             clean_text_for_audio = st.session_state.generated_text.replace("*", "").replace("#", "")
             tts = gTTS(text=clean_text_for_audio, lang='en', slow=False)
             audio_fp = io.BytesIO()
             tts.write_to_fp(audio_fp)
             st.session_state.audio_bytes = audio_fp.getvalue()
 
-# --- PARTE 2: CENTRO (DIVIDIDO EN DOS VERTICALMENTE: ARRIBA MÁS ALTA QUE ABAJO) ---
-col_main_center, col_tools_right = st.columns([4, 1])
+# --- PARTE 2: CENTRO Y PANEL DERECHO ---
+col_main_center, col_tools_right = st.columns([7, 3.5])
 
 with col_main_center:
-    # SECCIÓN SUPERIOR (Más alta - Contenedor con altura fija de 450px y scroll)
     st.subheader("📄 Generated Content (APA Format)")
     top_container = st.container(height=450, border=True)
     with top_container:
@@ -179,7 +183,6 @@ with col_main_center:
         else:
             st.info("👈 Configure the parameters on the left sidebar and click **Generate B1 Lesson** to start.")
 
-    # SECCIÓN INFERIOR (Más baja - Imagen Ilustrativa)
     st.subheader("🖼️ Visual Context")
     bottom_container = st.container(height=280, border=True)
     with bottom_container:
@@ -187,33 +190,86 @@ with col_main_center:
             st.image(st.session_state.image_url, use_container_width=True)
         else:
             st.caption("The illustrative image will appear here once generated.")
-
-# --- PANEL DERECHO: PARTE 4 (AUDIO) Y PARTE 5 (BORRAR Y PDF) ---
+# --- PANEL DERECHO: AUDIO IA, GRABACIÓN ESTUDIANTE, GOOGLE SHEETS Y PDF ---
 with col_tools_right:
-    st.subheader("🎧 Audio & Export")
-    
-    # PARTE 4: Reproductor de Audio
-    st.markdown("**Listening Practice:**")
+    # 1. AUDIO DE REFERENCIA (IA)
+    st.subheader("🎧 AI Model Audio")
     if st.session_state.audio_bytes:
         st.audio(st.session_state.audio_bytes, format="audio/mp3")
     else:
         st.caption("Audio will be ready after generation.")
         
     st.divider()
+
+    # 2. GRABACIÓN DEL ESTUDIANTE Y GOOGLE SHEETS
+    st.subheader("🎙️ Student Speaking Practice")
+    student_audio = st.audio_input("Graba tu lectura aquí:")
     
-    # PARTE 5: Función para generar PDF
+    if st.button("☁️ Guardar Audio en Google Sheets", use_container_width=True, disabled=(student_audio is None)):
+        if not usuario:
+            st.warning("⚠️ Por favor escribe tu Usuario en la barra izquierda antes de guardar.")
+        else:
+            try:
+                with st.spinner("Guardando en Google Sheets..."):
+                    sheet = get_google_sheet()
+                    audio_bytes = student_audio.getvalue()
+                    audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+                    
+                    if len(audio_b64) > 49000:
+                        st.error("⚠️ El audio es muy largo para la celda. Graba un fragmento más corto (10-15 segundos).")
+                    else:
+                        tema_completo = f"{asunto} ({gramatica_b1})" if asunto else gramatica_b1
+                        fecha_subida = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        fila = [usuario, tema_completo, audio_b64, fecha_subida]
+                        sheet.append_row(fila)
+                        st.success("✅ ¡Audio guardado en la base de datos!")
+            except Exception as e:
+                st.error(f"Error al conectar con Google Sheets: {e}")
+
+    # BOTÓN PARA VER AUDIOS GUARDADOS
+    if st.button("📂 Ver Audios Guardados", use_container_width=True):
+        st.session_state.show_saved_audios = not st.session_state.show_saved_audios
+
+    if st.session_state.show_saved_audios:
+        with st.container(height=250, border=True):
+            st.markdown("**Historial de Grabaciones:**")
+            try:
+                sheet = get_google_sheet()
+                records = sheet.get_all_records()
+                if not records:
+                    st.info("Aún no hay grabaciones guardadas.")
+                else:
+                    df = pd.DataFrame(records)
+                    if usuario:
+                        df = df[df["Usuario"].astype(str).str.contains(usuario, case=False, na=False)]
+                    
+                    if df.empty:
+                        st.warning(f"No se encontraron audios para '{usuario}'.")
+                    else:
+                        for idx, row in df.tail(5).iloc[::-1].iterrows():
+                            st.caption(f"👤 **{row['Usuario']}** | 📅 {row['Fecha_de_subida']}")
+                            st.caption(f"📘 *{row['Tema']}*")
+                            if row.get("Audio"):
+                                decoded_audio = base64.b64decode(row["Audio"])
+                                st.audio(decoded_audio, format="audio/wav")
+                            st.divider()
+            except Exception as e:
+                st.error(f"No se pudieron cargar los registros: {e}")
+
+    st.divider()
+    
+    # 3. EXPORTAR PDF Y BORRAR
     def create_pdf(text):
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Times", size=12) # Times New Roman es estándar APA
-        # Codificación segura para caracteres básicos en FPDF
+        pdf.set_font("Times", size=12)
         safe_text = text.encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 8, txt=safe_text)
         return pdf.output(dest='S').encode('latin-1')
 
     if st.session_state.generated_text:
         pdf_bytes = create_pdf(st.session_state.generated_text.replace("*", ""))
-        
         st.download_button(
             label="📥 Descargar PDF",
             data=pdf_bytes,
@@ -225,11 +281,11 @@ with col_tools_right:
     else:
         st.button("📥 Descargar PDF", disabled=True, use_container_width=True)
 
-    st.write("") # Espaciador
+    st.write("")
 
-    # PARTE 5: Botón de Borrar
     if st.button("🗑️ Borrar Todo", type="secondary", use_container_width=True):
         st.session_state.generated_text = ""
         st.session_state.image_url = None
         st.session_state.audio_bytes = None
+        st.session_state.show_saved_audios = False
         st.rerun()
