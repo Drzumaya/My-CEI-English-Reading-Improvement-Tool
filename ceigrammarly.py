@@ -22,14 +22,11 @@ st.set_page_config(
 
 # --- CLIENTE GLOBAL DE GOOGLE SHEETS ---
 def get_gspread_client():
-    scopes = [
-        "https://googleapis.com",
-        "https://googleapis.com"
-    ]
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=scopes
-    )
-    return gspread.authorize(creds)
+    # Convertimos el bloque de secrets a un diccionario estándar de Python
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    # Usamos el método nativo de gspread que gestiona los scopes y tokens automáticamente
+    return gspread.service_account_from_dict(creds_dict)
+
 
 def get_google_sheet():
     return get_gspread_client().open("English_Grammar_Audios").sheet1
