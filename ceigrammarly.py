@@ -342,8 +342,15 @@ with col_exit:
 st.divider()
 # --- LÓGICA DE GENERACIÓN GRATUITA CON RESPALDO AUTOMÁTICO (GEMINI + POLLINATIONS.AI) ---
 def generar_con_respaldo(client, prompt_contenido, instruccion_sistema=None):
-    modelos_disponibles = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+    # Modelos vigentes en Google AI Studio (actualizado a la serie 3.8 y 2.5)
+    modelos_disponibles = [
+        "gemini-3.8-flash",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-pro"
+    ]
     ultimo_error = None
+
     
     for modelo in modelos_disponibles:
         try:
