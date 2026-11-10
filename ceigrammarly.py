@@ -9,7 +9,6 @@ import base64
 import urllib.parse
 from datetime import datetime
 import gspread
-from google.oauth2.service_account import Credentials
 import pandas as pd
 
 # --- CONFIGURACIÓN DE PÁGINA ---
@@ -52,7 +51,6 @@ def save_permanent_logo(b64_str, mime, width, shape):
     sheet_logo.append_row(["Logo_Base64", "Mime_Type", "Width", "Shape"])
     sheet_logo.append_row([b64_str, mime, width, shape])
     load_permanent_logo.clear()
-
 
 # --- DETECCIÓN DE DISPOSITIVO (MÓVIL/QR VS ESCRITORIO) ---
 user_agent = st.context.headers.get("User-Agent", "").lower()
@@ -280,7 +278,7 @@ with col_title:
 
 with col_qr:
     if not is_mobile:
-        APP_URL = "https://myceigrammarly.streamlit.app" 
+        APP_URL = "https://streamlit.app" 
         qr = qrcode.QRCode(version=1, box_size=4, border=1)
         qr.add_data(APP_URL)
         qr.make(fit=True)
@@ -342,7 +340,31 @@ with col_exit:
         st.rerun()
 
 st.divider()
-# --- LÓGICA DE GENERACIÓN GRATUITA (GEMINI + POLLINATIONS.AI) ---
+# --- LÓGICA DE GENERACIÓN GRATUITA CON RESPALDO AUTOMÁTICO (GEMINI + POLLINATIONS.AI) ---
+def generar_con_respaldo(client, prompt_contenido, instruccion_sistema=None):
+    modelos_disponibles = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+    ultimo_error = None
+    
+    for modelo in modelos_disponibles:
+        try:
+            config = types.GenerateContentConfig(temperature=0.7)
+            if instruccion_sistema:
+                config = types.GenerateContentConfig(
+                    system_instruction=instruccion_sistema,
+                    temperature=0.7
+                )
+            respuesta = client.models.generate_content(
+                model=modelo,
+                contents=prompt_contenido,
+                config=config
+            )
+            return respuesta.text
+        except Exception as e:
+            ultimo_error = e
+            continue
+            
+    raise ultimo_error
+
 if generar_btn:
     if "GEMINI_API_KEY" not in st.secrets:
         st.sidebar.error("⚠️ GEMINI_API_KEY no configurada en st.secrets.")
@@ -352,47 +374,45 @@ if generar_btn:
         client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
         
         with st.spinner("Translating inputs and generating CEFR B1 content in English..."):
-            prompt_texto = f"""
-            You are an expert English teacher at CAREER ENGLISH INSTITUTE specializing in CEFR Level B1.
-            The user may provide the input parameters in Spanish, English, or a mix of both.
-            
-            USER INPUTS (Translate/adapt internally to English if written in Spanish):
-            - Context/Place: {contexto}
-            - Characters: {personas}
-            - Subject/Topic: {asunto}
-            - Target B1 Grammar: {gramatica_b1}
-            - Discourse Format: {tipo_texto}
-            
-            STRICT OUTPUT RULES:
-            1. LANGUAGE: Your ENTIRE output MUST be written 100% in natural, accurate English. Do NOT include a single word of Spanish anywhere in the title, headings, body, or references.
-            2. CEFR B1 LEVEL: Adapt all vocabulary and sentence structures strictly to CEFR Level B1. Highlight the target grammar structures ({gramatica_b1}) in **bold**.
-            3. APA FORMAT: Structure the output following APA Style conventions (Academic Title in English, Clear Headings, formal/semi-formal tone, and a simulated APA Reference list in English at the end).
-            """
-            
-            response_text = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt_texto,
-                config=types.GenerateContentConfig(
-                    system_instruction="You are a strict English-only CEFR B1 content generator. Regardless of the input language (Spanish or English), you always output 100% in English.",
-                    temperature=0.7
+            try:
+                prompt_texto = f"""
+                You are an expert English teacher at CAREER ENGLISH INSTITUTE specializing in CEFR Level B1.
+                The user may provide the input parameters in Spanish, English, or a mix of both.
+                
+                USER INPUTS (Translate/adapt internally to English if written in Spanish):
+                - Context/Place: {contexto}
+                - Characters: {personas}
+                - Subject/Topic: {asunto}
+                - Target B1 Grammar: {gramatica_b1}
+                - Discourse Format: {tipo_texto}
+                
+                STRICT OUTPUT RULES:
+                1. LANGUAGE: Your ENTIRE output MUST be written 100% in natural, accurate English. Do NOT include a single word of Spanish anywhere in the title, headings, body, or references.
+                2. CEFR B1 LEVEL: Adapt all vocabulary and sentence structures strictly to CEFR Level B1. Highlight the target grammar structures ({gramatica_b1}) in **bold**.
+                3. APA FORMAT: Structure the output following APA Style conventions (Academic Title in English, Clear Headings, formal/semi-formal tone, and a simulated APA Reference list in English at the end).
+                """
+                
+                st.session_state.generated_text = generar_con_respaldo(
+                    client,
+                    prompt_texto,
+                    instruccion_sistema="You are a strict English-only CEFR B1 content generator. Regardless of the input language (Spanish or English), you always output 100% in English."
                 )
-            )
-            st.session_state.generated_text = response_text.text
-            
-            # Generación de Imagen Ilustrativa Gratuita (Pollinations.ai)
-            img_prompt_resp = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=f"Write a short 15-word image description in English for an educational textbook illustration about: setting '{contexto}', characters '{personas}', topic '{asunto}'. Flat vector style, no text in image."
-            )
-            encoded_prompt = urllib.parse.quote(img_prompt_resp.text.strip())
-            st.session_state.image_url = f"https://pollinations.ai{encoded_prompt}?width=800&height=500&nologo=true"
-            
-            # Generación de Audio Gratuita (gTTS en Inglés)
-            clean_text_for_audio = st.session_state.generated_text.replace("*", "").replace("#", "")
-            tts = gTTS(text=clean_text_for_audio, lang='en', slow=False)
-            audio_fp = io.BytesIO()
-            tts.write_to_fp(audio_fp)
-            st.session_state.audio_bytes = audio_fp.getvalue()
+                
+                img_desc = generar_con_respaldo(
+                    client,
+                    f"Write a short 15-word image description in English for an educational textbook illustration about: setting '{contexto}', characters '{personas}', topic '{asunto}'. Flat vector style, no text in image."
+                )
+                encoded_prompt = urllib.parse.quote(img_desc.strip())
+                st.session_state.image_url = f"https://pollinations.ai{encoded_prompt}?width=800&height=500&nologo=true"
+                
+                clean_text_for_audio = st.session_state.generated_text.replace("*", "").replace("#", "")
+                tts = gTTS(text=clean_text_for_audio, lang='en', slow=False)
+                audio_fp = io.BytesIO()
+                tts.write_to_fp(audio_fp)
+                st.session_state.audio_bytes = audio_fp.getvalue()
+                
+            except Exception as e:
+                st.error(f"⚠️ Los servidores de IA están experimentando alta demanda temporal. Intenta presionar 'Generate B1 Lesson' nuevamente en unos segundos. (Detalle: {e})")
 
 # --- PARTE 2: CENTRO (DIVIDIDO VERTICALMENTE: ARRIBA MÁS ALTA QUE ABAJO) ---
 col_main_center, col_tools_right = st.columns([7, 3.5])
