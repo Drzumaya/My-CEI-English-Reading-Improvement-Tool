@@ -20,8 +20,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CONEXIÓN A GOOGLE SHEETS (AUDIOS DE ESTUDIANTES) ---
-def get_google_sheet():
+# --- CLIENTE GLOBAL DE GOOGLE SHEETS ---
+def get_gspread_client():
     scopes = [
         "https://googleapis.com",
         "https://googleapis.com"
@@ -29,22 +29,19 @@ def get_google_sheet():
     creds = Credentials.from_service_account_info(
         st.secrets["gcp_service_account"], scopes=scopes
     )
-    client = gspread.authorize(creds)
-    return client.open("English_Grammar_Audios").sheet1
+    return gspread.authorize(creds)
+
+def get_google_sheet():
+    return get_gspread_client().open("English_Grammar_Audios").sheet1
+
+def get_padron_sheet():
+    return get_gspread_client().open("English_Grammar_Audios").worksheet("Padron_Estudiantes")
 
 # --- FUNCIONES DE LOGO PERMANENTE EN GOOGLE SHEETS ---
 @st.cache_data(ttl=300)
 def load_permanent_logo():
     try:
-        scopes = [
-            "https://googleapis.com",
-            "https://googleapis.com"
-        ]
-        creds = Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"], scopes=scopes
-        )
-        client = gspread.authorize(creds)
-        sheet_logo = client.open("English_Grammar_Audios").worksheet("Config_Logo")
+        sheet_logo = get_gspread_client().open("English_Grammar_Audios").worksheet("Config_Logo")
         records = sheet_logo.get_all_records()
         if records:
             return records[-1]
@@ -53,15 +50,7 @@ def load_permanent_logo():
     return None
 
 def save_permanent_logo(b64_str, mime, width, shape):
-    scopes = [
-        "https://googleapis.com",
-        "https://googleapis.com"
-    ]
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=scopes
-    )
-    client = gspread.authorize(creds)
-    sheet_logo = client.open("English_Grammar_Audios").worksheet("Config_Logo")
+    sheet_logo = get_gspread_client().open("English_Grammar_Audios").worksheet("Config_Logo")
     sheet_logo.clear()
     sheet_logo.append_row(["Logo_Base64", "Mime_Type", "Width", "Shape"])
     sheet_logo.append_row([b64_str, mime, width, shape])
@@ -72,6 +61,12 @@ user_agent = st.context.headers.get("User-Agent", "").lower()
 is_mobile = any(device in user_agent for device in ["iphone", "android", "ipad", "mobile"])
 
 # --- INICIALIZACIÓN DE ESTADOS ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "current_user" not in st.session_state:
+    st.session_state.current_user = ""
+if "user_role" not in st.session_state:
+    st.session_state.user_role = "Estudiante"
 if "generated_text" not in st.session_state:
     st.session_state.generated_text = ""
 if "image_url" not in st.session_state:
@@ -88,18 +83,82 @@ if st.session_state.app_exited:
     st.title("👋 Session Ended")
     st.info("Thank you for using MY ENGLISH GRAMMAR FAN TOOL by CAREER ENGLISH INSTITUTE. You may close this tab now.")
     st.caption("© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Creado por JACOB ZUMAYA PRIANTI.")
-    if st.button("Restart Application"):
+    if st.button("Volver al Inicio de Sesión"):
         st.session_state.app_exited = False
+        st.session_state.authenticated = False
         st.rerun()
     st.stop()
-# --- PARTE 1: BARRA IZQUIERDA (LIMPIA, SOLO INPUTS DEL ALGORITMO) ---
+
+# --- PANTALLA DE CONTROL DE ACCESO (LOGIN CONTRA PADRÓN DE ESTUDIANTES) ---
+if not st.session_state.authenticated:
+    col_l, col_c, col_r = st.columns([1, 1.5, 1])
+    with col_c:
+        saved_logo = load_permanent_logo()
+        if saved_logo and saved_logo.get("Logo_Base64"):
+            st.markdown(
+                f'<div style="text-align: center;"><img src="data:{saved_logo["Mime_Type"]};base64,{saved_logo["Logo_Base64"]}" style="width: 110px; border-radius: 10px;"></div>',
+                unsafe_allow_html=True
+            )
+        st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🇬🇧 MY ENGLISH GRAMMAR FAN TOOL</h2>", unsafe_allow_html=True)
+        st.divider()
+        
+        with st.form("login_form"):
+            st.subheader("🔐 Acceso de Estudiantes y Docentes")
+            input_user = st.text_input("👤 Usuario registrado:")
+            input_pass = st.text_input("🔑 Clave de Acceso:", type="password")
+            submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", use_container_width=True)
+            
+            if submit_login:
+                if not input_user or not input_pass:
+                    st.warning("⚠️ Ingresa tu Usuario y Clave de Acceso.")
+                else:
+                    try:
+                        with st.spinner("Verificando en el padrón..."):
+                            sheet_padron = get_padron_sheet()
+                            registros = sheet_padron.get_all_records()
+                            acceso_valido = False
+                            
+                            for reg in registros:
+                                u_db = str(reg.get("Usuario", "")).strip()
+                                c_db = str(reg.get("Clave", "")).strip()
+                                e_db = str(reg.get("Estatus", "Activo")).strip().lower()
+                                r_db = str(reg.get("Rol", "Estudiante")).strip()
+                                
+                                if u_db.lower() == input_user.strip().lower() and c_db == input_pass.strip():
+                                    if e_db == "activo":
+                                        st.session_state.authenticated = True
+                                        st.session_state.current_user = u_db
+                                        st.session_state.user_role = r_db
+                                        acceso_valido = True
+                                        break
+                                    else:
+                                        st.error("⛔ Tu cuenta está inactiva. Contacta a CAREER ENGLISH INSTITUTE.")
+                                        acceso_valido = None
+                                        break
+                            
+                            if acceso_valido is True:
+                                st.rerun()
+                            elif acceso_valido is False:
+                                st.error("❌ Usuario o Clave incorrectos. Verifica tu registro en el padrón.")
+                    except Exception as e:
+                        st.error(f"Error al conectar con la pestaña 'Padron_Estudiantes': {e}")
+        
+        st.markdown(
+            "<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>© 2026 CAREER ENGLISH INSTITUTE | Creado por JACOB ZUMAYA PRIANTI</div>",
+            unsafe_allow_html=True
+        )
+    st.stop()
+# --- PARTE 1: BARRA IZQUIERDA (INPUTS DEL ALGORITMO) ---
 with st.sidebar:
     st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
+    st.success(f"👤 **{st.session_state.current_user}** ({st.session_state.user_role})")
     st.divider()
 
     st.header("⚙️ Configuration & Inputs")
     
-    usuario = st.text_input("👤 Usuario (Nombre del Estudiante):", placeholder="Ej: Ana López")
+    # El usuario queda fijo con el nombre con el que inició sesión
+    usuario = st.session_state.current_user
     
     st.subheader("1. Context & Characters (Español / English)")
     contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="Ej: En un aeropuerto en Londres / At an airport")
@@ -140,7 +199,7 @@ with st.sidebar:
     st.markdown("---")
     generar_btn = st.button("🚀 Generate B1 Lesson", type="primary", use_container_width=True)
 
-# --- CABECERA INSTITUCIONAL (LOGO PERMANENTE + EDICIÓN IN-SITU + TÍTULO + QR + SALIR) ---
+# --- CABECERA INSTITUCIONAL (LOGO + TÍTULO + PADRÓN ADMIN + QR + SALIR) ---
 saved_logo = load_permanent_logo()
 
 default_width = int(saved_logo["Width"]) if saved_logo and saved_logo.get("Width") else 115
@@ -151,35 +210,40 @@ default_shape_idx = shape_options.index(default_shape) if default_shape in shape
 col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
 
 with col_logo:
-    with st.popover("✏️ Editar Logo", use_container_width=True):
-        logo_file = st.file_uploader("Subir imagen nueva (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
-        logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
-        logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True)
-        
-        if st.button("💾 Guardar Logo Permanente", type="primary", use_container_width=True):
-            b64_to_save = None
-            mime_to_save = None
+    # Solo el Admin puede editar el logo permanente
+    if st.session_state.user_role.lower() == "admin":
+        with st.popover("✏️ Editar Logo", use_container_width=True):
+            logo_file = st.file_uploader("Subir imagen nueva (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
+            logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
+            logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True)
             
-            if logo_file is not None:
-                b64_to_save = base64.b64encode(logo_file.getvalue()).decode("utf-8")
-                mime_to_save = logo_file.type
-            elif saved_logo and saved_logo.get("Logo_Base64"):
-                b64_to_save = saved_logo["Logo_Base64"]
-                mime_to_save = saved_logo["Mime_Type"]
-                
-            if b64_to_save:
-                if len(b64_to_save) > 49000:
-                    st.error("⚠️ La imagen pesa demasiado (máx. 35 KB). Comprímela antes de subirla.")
+            if st.button("💾 Guardar Logo Permanente", type="primary", use_container_width=True):
+                b64_to_save = None
+                mime_to_save = None
+                if logo_file is not None:
+                    b64_to_save = base64.b64encode(logo_file.getvalue()).decode("utf-8")
+                    mime_to_save = logo_file.type
+                elif saved_logo and saved_logo.get("Logo_Base64"):
+                    b64_to_save = saved_logo["Logo_Base64"]
+                    mime_to_save = saved_logo["Mime_Type"]
+                    
+                if b64_to_save:
+                    if len(b64_to_save) > 49000:
+                        st.error("⚠️ La imagen pesa demasiado (máx. 35 KB).")
+                    else:
+                        try:
+                            with st.spinner("Fijando logo..."):
+                                save_permanent_logo(b64_to_save, mime_to_save, logo_width, logo_shape)
+                                st.success("✅ ¡Logo guardado!")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
                 else:
-                    try:
-                        with st.spinner("Fijando logo..."):
-                            save_permanent_logo(b64_to_save, mime_to_save, logo_width, logo_shape)
-                            st.success("✅ ¡Logo guardado permanentemente!")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al guardar en Config_Logo: {e}")
-            else:
-                st.warning("⚠️ Sube una imagen primero.")
+                    st.warning("⚠️ Sube una imagen primero.")
+    else:
+        logo_file = None
+        logo_width = default_width
+        logo_shape = default_shape
 
     active_b64 = None
     active_mime = None
@@ -196,7 +260,6 @@ with col_logo:
             radius = "15px"
         elif logo_shape == "Circular":
             radius = "50%"
-            
         st.markdown(
             f'<div style="text-align: center;"><img src="data:{active_mime};base64,{active_b64}" style="width: {logo_width}px; height: auto; border-radius: {radius}; object-fit: cover;"></div>',
             unsafe_allow_html=True
@@ -228,9 +291,35 @@ with col_qr:
         st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
 
 with col_exit:
-    st.write("")
+    # Botón exclusivo para Admin/Docente: Gestionar Padrón de Estudiantes
+    if st.session_state.user_role.lower() == "admin":
+        with st.popover("📋 Padrón", use_container_width=True):
+            st.markdown("**Registrar Nuevo Estudiante**")
+            new_est_user = st.text_input("Nombre Completo / Usuario:", key="new_u")
+            new_est_pass = st.text_input("Clave asignada:", key="new_p")
+            new_est_rol = st.selectbox("Rol:", ["Estudiante", "Admin"], key="new_r")
+            if st.button("➕ Dar de Alta", type="primary", use_container_width=True):
+                if new_est_user and new_est_pass:
+                    try:
+                        p_sheet = get_padron_sheet()
+                        p_sheet.append_row([new_est_user.strip(), new_est_pass.strip(), new_est_rol, "Activo"])
+                        st.success(f"✅ {new_est_user} registrado en el padrón.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+                else:
+                    st.warning("Completa usuario y clave.")
+            
+            st.divider()
+            if st.checkbox("Ver lista registrada"):
+                try:
+                    df_p = pd.DataFrame(get_padron_sheet().get_all_records())
+                    st.dataframe(df_p[["Usuario", "Rol", "Estatus"]], use_container_width=True, hide_index=True)
+                except Exception as e:
+                    st.error(f"Error al leer padrón: {e}")
+
     if st.button("🚪 Salir", type="secondary", use_container_width=True):
         st.session_state.app_exited = True
+        st.session_state.authenticated = False
         st.rerun()
 
 st.divider()
@@ -321,27 +410,24 @@ with col_tools_right:
     student_audio = st.audio_input("Graba tu lectura aquí:")
     
     if st.button("☁️ Guardar Audio en Google Sheets", use_container_width=True, disabled=(student_audio is None)):
-        if not usuario:
-            st.warning("⚠️ Por favor escribe tu Usuario en la barra izquierda antes de guardar.")
-        else:
-            try:
-                with st.spinner("Guardando en Google Sheets..."):
-                    sheet = get_google_sheet()
-                    audio_bytes = student_audio.getvalue()
-                    audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+        try:
+            with st.spinner("Guardando en Google Sheets..."):
+                sheet = get_google_sheet()
+                audio_bytes = student_audio.getvalue()
+                audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
+                
+                if len(audio_b64) > 49000:
+                    st.error("⚠️ El audio es muy largo para la celda. Graba un fragmento más corto (10-15 segundos).")
+                else:
+                    tema_completo = f"{asunto} ({gramatica_b1})" if asunto else gramatica_b1
+                    fecha_subida = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
-                    if len(audio_b64) > 49000:
-                        st.error("⚠️ El audio es muy largo para la celda. Graba un fragmento más corto (10-15 segundos).")
-                    else:
-                        tema_completo = f"{asunto} ({gramatica_b1})" if asunto else gramatica_b1
-                        fecha_subida = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        
-                        # Columnas: Usuario | Tema | Audio | Fecha_de_subida
-                        fila = [usuario, tema_completo, audio_b64, fecha_subida]
-                        sheet.append_row(fila)
-                        st.success("✅ ¡Audio guardado en la base de datos!")
-            except Exception as e:
-                st.error(f"Error al conectar con Google Sheets: {e}")
+                    # Columnas: Usuario | Tema | Audio | Fecha_de_subida
+                    fila = [usuario, tema_completo, audio_b64, fecha_subida]
+                    sheet.append_row(fila)
+                    st.success("✅ ¡Audio guardado en la base de datos!")
+        except Exception as e:
+            st.error(f"Error al conectar con Google Sheets: {e}")
 
     # BOTÓN PARA VER AUDIOS GUARDADOS
     if st.button("📂 Ver Audios Guardados", use_container_width=True):
@@ -357,8 +443,9 @@ with col_tools_right:
                     st.info("Aún no hay grabaciones guardadas.")
                 else:
                     df = pd.DataFrame(records)
-                    if usuario:
-                        df = df[df["Usuario"].astype(str).str.contains(usuario, case=False, na=False)]
+                    # Si es estudiante ve solo sus audios; si es Admin ve los de toda la clase
+                    if st.session_state.user_role.lower() != "admin":
+                        df = df[df["Usuario"].astype(str).str.lower() == usuario.lower()]
                     
                     if df.empty:
                         st.warning(f"No se encontraron audios para '{usuario}'.")
@@ -381,6 +468,8 @@ with col_tools_right:
         pdf.add_page()
         pdf.set_font("Times", "B", 14)
         pdf.cell(0, 10, txt="CAREER ENGLISH INSTITUTE - CEFR B1 Lesson", ln=True, align="C")
+        pdf.set_font("Times", "I", 11)
+        pdf.cell(0, 8, txt=f"Student: {usuario}", ln=True, align="C")
         pdf.ln(5)
         pdf.set_font("Times", size=12)
         safe_text = text.encode('latin-1', 'replace').decode('latin-1')
@@ -396,7 +485,7 @@ with col_tools_right:
         st.download_button(
             label="📥 Descargar PDF",
             data=pdf_bytes,
-            file_name="Career_English_Institute_B1_Lesson.pdf",
+            file_name=f"CEI_B1_Lesson_{usuario.replace(' ', '_')}.pdf",
             mime="application/pdf",
             type="primary",
             use_container_width=True
