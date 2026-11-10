@@ -20,25 +20,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CLIENTE GLOBAL DE GOOGLE SHEETS ---
+# --- CLIENTE GLOBAL DE GOOGLE SHEETS (CONEXIÓN DIRECTA POR ID) ---
 def get_gspread_client():
-    # Convertimos el bloque de secrets a un diccionario estándar de Python
     creds_dict = dict(st.secrets["gcp_service_account"])
-    # Usamos el método nativo de gspread que gestiona los scopes y tokens automáticamente
     return gspread.service_account_from_dict(creds_dict)
 
+def get_spreadsheet():
+    return get_gspread_client().open_by_key(st.secrets["spreadsheet_key"])
 
 def get_google_sheet():
-    return get_gspread_client().open("English_Grammar_Audios").sheet1
+    return get_spreadsheet().sheet1
 
 def get_padron_sheet():
-    return get_gspread_client().open("English_Grammar_Audios").worksheet("Padron_Estudiantes")
+    return get_spreadsheet().worksheet("Padron_Estudiantes")
 
 # --- FUNCIONES DE LOGO PERMANENTE EN GOOGLE SHEETS ---
 @st.cache_data(ttl=300)
 def load_permanent_logo():
     try:
-        sheet_logo = get_gspread_client().open("English_Grammar_Audios").worksheet("Config_Logo")
+        sheet_logo = get_spreadsheet().worksheet("Config_Logo")
         records = sheet_logo.get_all_records()
         if records:
             return records[-1]
@@ -47,11 +47,12 @@ def load_permanent_logo():
     return None
 
 def save_permanent_logo(b64_str, mime, width, shape):
-    sheet_logo = get_gspread_client().open("English_Grammar_Audios").worksheet("Config_Logo")
+    sheet_logo = get_spreadsheet().worksheet("Config_Logo")
     sheet_logo.clear()
     sheet_logo.append_row(["Logo_Base64", "Mime_Type", "Width", "Shape"])
     sheet_logo.append_row([b64_str, mime, width, shape])
     load_permanent_logo.clear()
+
 
 # --- DETECCIÓN DE DISPOSITIVO (MÓVIL/QR VS ESCRITORIO) ---
 user_agent = st.context.headers.get("User-Agent", "").lower()
