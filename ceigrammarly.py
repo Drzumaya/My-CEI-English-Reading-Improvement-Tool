@@ -3,7 +3,7 @@ from google import genai
 from google.genai import types
 from gtts import gTTS
 import qrcode
-from PIL import Image
+from PIL import Image, ImageDraw
 from fpdf import FPDF
 import io
 import os
@@ -30,6 +30,16 @@ st.set_page_config(
 
 DEFAULT_ADDRESS = "Calle 34, Av. 27, S/N, D2, Col. Buenos Aires, Agua Prieta, Son. C.P. 84269. | Tel. / Contacto: 6331349339"
 ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado"]
+
+GRADOS_ACADEMICOS = [
+    "Preescolar",
+    "Primaria",
+    "Secundaria",
+    "Preparatoria / Bachillerato",
+    "Licenciatura / Universidad",
+    "Maestría / Posgrado",
+    "Doctorado / Investigación"
+]
 
 CAPABILITY_COLS = [
     "Ver_Panel_Admin",
@@ -67,9 +77,9 @@ def get_padron_sheet():
 def get_certificados_sheet():
     ss = get_spreadsheet()
     try:
-        return ss.worksheet("Certificados_Emitidos")
+        return ss.worksheet("Certificados")
     except Exception:
-        ws = ss.add_worksheet(title="Certificados_Emitidos", rows=200, cols=9)
+        ws = ss.add_worksheet(title="Certificados", rows=200, cols=9)
         ws.append_row([
             "Folio_Certificado", "Clave_Alumno", "Nombre_Estudiante", "Nivel_CEFR",
             "Programa_Curso", "Calificacion", "Fecha_Emision", "Sello_Digital_SHA256", "Estatus"
@@ -104,7 +114,7 @@ def load_permissions_matrix():
     except Exception:
         pass
     return {
-        row: {cap: (row[i + 1] == "SI") for i, cap in enumerate(CAPABILITY_COLS)}
+        row[0]: {cap: (row[i + 1] == "SI") for i, cap in enumerate(CAPABILITY_COLS)}
         for row in DEFAULT_PERMISSIONS_MATRIX
     }
 
@@ -336,6 +346,7 @@ def normalize_cefr(raw_val):
 for key, default in [
     ("authenticated", False), ("current_user", ""), ("user_role", "Estudiante"),
     ("user_permissions", "Basico"), ("user_assigned_level", "B1 (Intermediate)"),
+    ("user_academic_grade", "Licenciatura / Universidad"),
     ("generated_text", ""), ("image_bytes", None), ("audio_bytes", None),
     ("app_exited", False), ("show_saved_audios", False), ("quiz_data", None),
     ("quiz_graded", False), ("quiz_score", None), ("quiz_user_answers", {}),
@@ -439,12 +450,14 @@ if not st.session_state.authenticated and not st.session_state.app_exited:
                         r_db = str(reg.get("Rol", "Estudiante")).strip()
                         p_db = resolve_permission_profile(reg.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
                         lvl_norm = normalize_cefr(reg.get("Nivel", "B1"))
+                        g_db = str(reg.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
                         
                         st.session_state.authenticated = True
                         st.session_state.current_user = str(reg.get("Usuario", "")).strip()
                         st.session_state.user_role = r_db
                         st.session_state.user_permissions = p_db
                         st.session_state.user_assigned_level = lvl_norm
+                        st.session_state.user_academic_grade = g_db
                         st.session_state.selected_cefr = lvl_norm
                         st.rerun()
         except Exception:
@@ -497,6 +510,7 @@ if not st.session_state.authenticated:
                                 r_db = str(reg.get("Rol", "Estudiante")).strip()
                                 p_db = resolve_permission_profile(reg.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
                                 n_db = normalize_cefr(reg.get("Nivel", "B1"))
+                                g_db = str(reg.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
                                 
                                 if u_db.lower() == input_user.strip().lower() and c_db == input_pass.strip():
                                     if e_db == "activo":
@@ -505,6 +519,7 @@ if not st.session_state.authenticated:
                                         st.session_state.user_role = r_db
                                         st.session_state.user_permissions = p_db
                                         st.session_state.user_assigned_level = n_db
+                                        st.session_state.user_academic_grade = g_db
                                         st.session_state.selected_cefr = n_db
                                         if remember_me:
                                             payload = json.dumps({"u": u_db, "c": c_db}).encode("utf-8")
@@ -525,7 +540,7 @@ if not st.session_state.authenticated:
                         st.error(f"Error al conectar con 'Padron_Estudiantes': {e}")
         st.markdown(f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>", unsafe_allow_html=True)
     st.stop()
-# --- EVALUACIÓN DINÁMICA DE CAPACIDADES (SIN CÓDIGO RÍGIDO) ---
+# --- EVALUACIÓN DINÁMICA DE CAPACIDADES ---
 user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
 def can(capability_name):
     return bool(user_caps.get(capability_name, False))
@@ -546,12 +561,16 @@ with st.sidebar:
     usuario = st.session_state.current_user
 
     if can("Previsualizar_A1_C2") and (not is_mobile):
-        st.subheader("🎯 CEFR Preview Level (Faculty)")
+        st.subheader("🎯 CEFR & Academic Preview (Faculty)")
         default_idx = cefr_options.index(st.session_state.user_assigned_level) if st.session_state.user_assigned_level in cefr_options else 2
         cefr_level = st.selectbox("Select CEFR Level (A1 - C2):", cefr_options, index=default_idx)
+        
+        g_idx = GRADOS_ACADEMICOS.index(st.session_state.user_academic_grade) if st.session_state.user_academic_grade in GRADOS_ACADEMICOS else 4
+        academic_grade = st.selectbox("Select Academic Grade:", GRADOS_ACADEMICOS, index=g_idx)
     else:
         cefr_level = st.session_state.user_assigned_level
-        st.info(f"🎯 **Assigned Student Level:** {cefr_level}")
+        academic_grade = st.session_state.user_academic_grade
+        st.info(f"🎯 **CEFR Level:** {cefr_level}\n\n🎓 **Academic Grade:** {academic_grade}")
 
     st.subheader("1. Context & Characters (Español / English)")
     contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="Ej: En un aeropuerto en Londres / At an airport")
@@ -560,7 +579,7 @@ with st.sidebar:
     st.subheader("2. Subject Matter (Español / English)")
     asunto = st.text_input("Asunto / Materia:", placeholder="Ej: Equipaje perdido / Lost luggage")
     
-    st.subheader(f"3. Grammar Topics ({cefr_level.split()})")
+    st.subheader(f"3. Grammar Topics ({cefr_level.split()[0]})")
     gramatica_b1 = st.selectbox(
         "Selecciona el tema gramatical:",
         [
@@ -594,7 +613,7 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    generar_btn = st.button(f"🚀 Generate {cefr_level.split()} Lesson", type="primary", width="stretch")
+    generar_btn = st.button(f"🚀 Generate {cefr_level.split()[0]} Lesson", type="primary", width="stretch")
 
 # --- CABECERA INSTITUCIONAL ---
 default_width = int(saved_cfg["Width"]) if saved_cfg and saved_cfg.get("Width") else 115
@@ -649,7 +668,7 @@ with col_logo:
 with col_title:
     st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
     st.caption(f"📍 {institute_address}")
-    st.title(f"🎓 CEFR {cefr_level.split()} ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
+    st.title(f"🎓 CEFR {cefr_level.split()[0]} ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
     st.caption("Author: Jacob Zumaya Prianti | Applied Linguistics & Proficiency Assessment | APA Style")
 
 with col_qr:
@@ -675,7 +694,7 @@ with col_exit:
         st.session_state.authenticated = False
         st.rerun()
 
-# --- BUSCADOR DE FOLIOS (CONTROLADO POR CAPACIDAD DE REÚSO) ---
+# --- BUSCADOR DE FOLIOS ---
 with st.container(border=True):
     col_f1, col_f2, col_f3 = st.columns([2.5, 1.2, 2.3])
     with col_f1:
@@ -746,7 +765,7 @@ st.divider()
 # --- PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL DE PERMISOS ---
 if is_faculty_desktop and st.session_state.show_teacher_registry:
     with st.container(border=True):
-        col_head_reg, col_close_reg = st.columns(2)
+        col_head_reg, col_close_reg = st.columns([4.5, 1])
         with col_head_reg:
             st.markdown("### 🛡️ PANEL DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL RBAC")
         with col_close_reg:
@@ -756,12 +775,12 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
 
         tab_certificados, tab_reg_usuarios, tab_matriz_perm, tab_datos_inst = st.tabs([
             "🏅 Certificados (Timbre y QR)",
-            "👥 Registro y Padrón",
+            "👥 Inscripción y Padrón",
             "🔐 Matriz Global de Permisos",
             "🏛️ Datos del Instituto"
         ])
 
-        # 1. PESTAÑA EMISIÓN, HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
+        # 1. PESTAÑA EMISIÓN, HISTORIAL Y REVOCACIÓN DE CERTIFICADOS (HOJA: Certificados)
         with tab_certificados:
             if not can("Emitir_Certificados"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
@@ -770,7 +789,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                 try:
                     regs_cert = get_padron_sheet().get_all_records()
                     opciones_claves = {
-                        f"{str(r.get('Clave', '')).strip()} — {str(r.get('Usuario', '')).strip()} ({str(r.get('Nivel', 'B1')).strip()})": r
+                        f"{str(r.get('Clave', '')).strip()} — {str(r.get('Usuario', '')).strip()} ({str(r.get('Nivel', 'B1')).strip()} | {str(r.get('Grado_Academico', 'N/A')).strip()})": r
                         for r in regs_cert if str(r.get("Clave", "")).strip()
                     }
                     if not opciones_claves:
@@ -783,12 +802,13 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             clave_sel = str(datos_alumno.get("Clave", "")).strip()
                             nombre_sel = str(datos_alumno.get("Usuario", "")).strip()
                             nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
-                            st.info(f"**Titular:** {nombre_sel}\n\n**Clave:** `{clave_sel}` | **Nivel:** {nivel_sel}")
+                            grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
+                            st.info(f"**Titular:** {nombre_sel}\n\n**Clave:** `{clave_sel}` | **CEFR:** {nivel_sel}\n\n**Grado Académico:** {grado_sel}")
 
                         with col_c2:
                             programa_cert = st.text_input(
                                 "📚 Programa / Curso Acreditado:",
-                                value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse Program",
+                                value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse Program ({grado_sel})",
                                 key="cert_prog_input"
                             )
                             calif_cert = st.text_input(
@@ -814,7 +834,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     st.session_state["last_cert_pdf"] = pdf_cert_bytes
                                     st.session_state["last_cert_name"] = f"Certificado_{folio_c}_{nombre_sel.replace(' ', '_')}.pdf"
                                     st.session_state["last_cert_folio"] = folio_c
-                                    st.success(f"✅ ¡Certificado timbrado! Folio: **{folio_c}**")
+                                    st.success(f"✅ ¡Certificado timbrado en pestaña 'Certificados'! Folio: **{folio_c}**")
 
                         if st.session_state.get("last_cert_pdf"):
                             st.download_button(
@@ -826,7 +846,6 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 width="stretch"
                             )
 
-                    # Historial y Revocación de Certificados Emitidos
                     st.divider()
                     st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
                     cert_ws = get_certificados_sheet()
@@ -852,26 +871,29 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                         st.rerun()
                 except Exception as e:
                     st.error(f"Error en módulo de certificados: {e}")
-        # 2. PESTAÑA REGISTRO, ROLES Y ASIGNACIÓN DE PERMISOS
+        # 2. PESTAÑA INSCRIPCIÓN, ROLES, NIVEL ACADÉMICO Y PERMISOS
         with tab_reg_usuarios:
             if not can("Registrar_Usuarios"):
-                st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
+                st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para inscribir o modificar usuarios.")
             else:
                 permisos_disponibles = PERMISOS_LISTA if can("Editar_Permisos") else ["Basico"]
-                col_form_reg, col_tabla_reg = st.columns([1.2, 1.9])
+                col_form_reg, col_tabla_reg = st.columns([1.25, 1.85])
                 with col_form_reg:
-                    st.markdown("#### ➕ Alta de Usuario")
+                    st.markdown("#### ➕ Formulario de Inscripción")
                     with st.form("form_registro_estudiante", clear_on_submit=True):
                         reg_usuario = st.text_input("👤 Nombre Completo / Usuario:", placeholder="Ej: Carlos Mendoza")
                         reg_clave = st.text_input("🔑 Clave de Acceso asignada:", placeholder="Ej: CEI-2026-05")
+                        
                         c_r1, c_r2 = st.columns(2)
                         with c_r1:
                             reg_rol = st.selectbox("Rol:", ROLES_LISTA if can("Editar_Permisos") else ["Estudiante"], index=0)
                         with c_r2:
                             reg_nivel = st.selectbox("Nivel CEFR:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2)
+                        
+                        reg_grado = st.selectbox("🎓 Nivel Académico (Preescolar a Doctorado):", GRADOS_ACADEMICOS, index=1)
                         reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", permisos_disponibles, index=0)
                         
-                        if st.form_submit_button("💾 Guardar en Padrón", type="primary", width="stretch"):
+                        if st.form_submit_button("💾 Inscribir en Padrón", type="primary", width="stretch"):
                             if reg_usuario.strip() and reg_clave.strip():
                                 try:
                                     p_sheet = get_padron_sheet()
@@ -879,8 +901,9 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     if reg_usuario.strip().lower() in existentes:
                                         st.error("⚠️ El usuario ya está registrado.")
                                     else:
-                                        p_sheet.append_row([reg_usuario.strip(), reg_clave.strip(), reg_rol, "Activo", reg_nivel, reg_permiso])
-                                        st.success(f"✅ {reg_usuario.strip()} registrado ({reg_rol} - {reg_permiso}).")
+                                        # Columnas: Usuario | Clave | Rol | Estatus | Nivel | Permisos | Grado_Academico
+                                        p_sheet.append_row([reg_usuario.strip(), reg_clave.strip(), reg_rol, "Activo", reg_nivel, reg_permiso, reg_grado])
+                                        st.success(f"✅ {reg_usuario.strip()} inscrito ({reg_grado} - CEFR {reg_nivel}).")
                                         st.rerun()
                                 except Exception as e:
                                     st.error(f"Error: {e}")
@@ -888,25 +911,29 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 st.warning("Completa usuario y clave.")
 
                 with col_tabla_reg:
-                    st.markdown("#### 📋 Tabla de Registros Activos")
+                    st.markdown("#### 📋 Padrón General de Inscritos")
                     try:
                         p_sheet = get_padron_sheet()
                         records_p = p_sheet.get_all_records()
                         if records_p:
                             df_p = pd.DataFrame(records_p)
-                            cols_mostrar = [c for c in ["Usuario", "Clave", "Rol", "Nivel", "Permisos", "Estatus"] if c in df_p.columns]
+                            cols_mostrar = [c for c in ["Usuario", "Clave", "Rol", "Nivel", "Grado_Academico", "Permisos", "Estatus"] if c in df_p.columns]
                             st.dataframe(df_p[cols_mostrar], height=195, width="stretch", hide_index=True)
                             
-                            c_ed1, c_ed2, c_ed3, c_ed4, c_ed5 = st.columns([1.3, 1.0, 0.7, 1.0, 0.9])
+                            c_ed1, c_ed2, c_ed3 = st.columns([1.4, 1.1, 0.9])
                             with c_ed1:
                                 user_to_edit = st.selectbox("Usuario:", df_p["Usuario"].tolist(), key="edit_u_sel")
                             with c_ed2:
-                                new_rol_edit = st.selectbox("Rol:", ROLES_LISTA if can("Editar_Permisos") else ["Estudiante"], key="edit_rl_sel")
+                                new_grado_edit = st.selectbox("Grado Académico:", GRADOS_ACADEMICOS, index=1, key="edit_gr_sel")
                             with c_ed3:
-                                new_lvl_edit = st.selectbox("Nivel:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2, key="edit_lv_sel")
+                                new_lvl_edit = st.selectbox("Nivel CEFR:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2, key="edit_lv_sel")
+
+                            c_ed4, c_ed5, c_ed6 = st.columns([1.1, 1.1, 1.0])
                             with c_ed4:
-                                new_perm_edit = st.selectbox("Permiso:", permisos_disponibles, key="edit_pm_sel")
+                                new_rol_edit = st.selectbox("Rol:", ROLES_LISTA if can("Editar_Permisos") else ["Estudiante"], key="edit_rl_sel")
                             with c_ed5:
+                                new_perm_edit = st.selectbox("Permiso:", permisos_disponibles, key="edit_pm_sel")
+                            with c_ed6:
                                 new_status = st.selectbox("Estatus:", ["Activo", "Inactivo"], key="edit_st_sel")
                                 
                             if st.button("🔄 Actualizar Registro", width="stretch"):
@@ -916,6 +943,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     p_sheet.update_cell(cell.row, 4, new_status)
                                     p_sheet.update_cell(cell.row, 5, new_lvl_edit)
                                     p_sheet.update_cell(cell.row, 6, new_perm_edit)
+                                    p_sheet.update_cell(cell.row, 7, new_grado_edit)
                                     st.success(f"✅ Registro de {user_to_edit} actualizado.")
                                     st.rerun()
                     except Exception as e:
@@ -924,8 +952,6 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
         # 3. PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
-            st.caption("Cualquier perfil que crees aquí aparecerá automáticamente en el registro de usuarios sin necesidad de modificar el código.")
-            
             df_mat = pd.DataFrame([
                 {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
                 for k, v in PERMISSIONS_MATRIX.items()
@@ -974,7 +1000,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                     if st.form_submit_button("💾 Guardar Información Institucional", type="primary"):
                         if nueva_direccion.strip():
                             try:
-                                b64_c = saved_cfg["Logo_Base64"] if (saved_cfg and saved_cfg.get("Logo_Base64")) else (get_default_logo_b64() or "")
+                                b64_c = saved_cfg["Logo_Base64"] if (saved_cfg and saved_cfg.get("Logo_Base64")) else (get_default_logo_b64()[0] or "")
                                 mime_c = saved_cfg["Mime_Type"] if (saved_cfg and saved_cfg.get("Mime_Type")) else "image/png"
                                 w_c = int(saved_cfg["Width"]) if (saved_cfg and saved_cfg.get("Width")) else 115
                                 s_c = saved_cfg["Shape"] if (saved_cfg and saved_cfg.get("Shape")) else "Circular"
@@ -1013,29 +1039,70 @@ def generar_con_maxima_potencia(client, prompt_contenido, instruccion_sistema=No
             continue
     raise ultimo_error
 
-# --- GENERACIÓN DE IMAGEN COMPRIMIDA ---
-def generar_imagen_estable(prompt_ingles):
+# --- VISUAL CONTEXT DE TRIPLE RESPALDO GARANTIZADO (100% INFALIBLE) ---
+def generar_imagen_garantizada(client, prompt_ingles, titulo_tema, nivel_cefr, grado_acad):
     clean_p = "".join(c for c in prompt_ingles if c.isalnum() or c in " ,.-").strip()
-    encoded = urllib.parse.quote(clean_p)
-    urls_intento = [
-        f"https://pollinations.ai{encoded}?width=640&height=400&nologo=true&seed={datetime.now().second}",
-        f"https://pollinations.ai{encoded}?model=turbo&width=640&height=400&nologo=true"
-    ]
-    headers = {"User-Agent": "Mozilla/5.0"}
-    for u in urls_intento:
+    
+    # NIVEL 1: Gemini Imagen API (usando tu propia GEMINI_API_KEY)
+    try:
+        res_img = client.models.generate_images(
+            model="imagen-3.0-generate-002",
+            prompt=f"Educational illustration for {grado_acad} students: {clean_p}. Colorful, clear, no text.",
+            config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
+        )
+        if res_img and res_img.generated_images:
+            raw_b = res_img.generated_images.image.image_bytes
+            return compress_bytes_image(raw_b)
+    except Exception:
+        pass
+
+    # NIVEL 2: Servidores externos de respaldo
+    encoded = urllib.parse.quote(f"{clean_p}, educational illustration, flat vector, no text")
+    keywords = urllib.parse.quote(clean_p.split(",")[:25].replace(" ", ","))
+    for url_ext in [
+        f"https://pollinations.ai{encoded}?model=turbo&width=640&height=360&nologo=true&seed={random.randint(1, 999)}",
+        f"https://loremflickr.com{keywords}"
+    ]:
         try:
-            resp = requests.get(u, headers=headers, timeout=16)
+            resp = requests.get(url_ext, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
             if resp.status_code == 200 and len(resp.content) > 4000:
                 return compress_bytes_image(resp.content)
         except Exception:
             continue
-    return None
 
-def generar_quiz_leccion(texto_leccion, tema_gramatical, nivel_cefr, evitar_preguntas=None):
+    # NIVEL 3: Tarjeta Visual Educativa Generada Localmente (Garantía 100%)
+    img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
+    draw = ImageDraw.Draw(img_card)
+    draw.rectangle(, outline=(218, 165, 32), width=3)
+    draw.rectangle(, fill=(25, 65, 125))
+    draw.text((35, 38), f"CAREER ENGLISH INSTITUTE | CEFR {nivel_cefr.split()} | {grado_acad.upper()}", fill=(255, 215, 0))
+    draw.text((35, 115), "VISUAL CONTEXT & LESSON TOPIC:", fill=(180, 210, 255))
+    
+    palabras = titulo_tema.upper().split()
+    lineas, linea_act = [], ""
+    for p in palabras:
+        if len(linea_act + " " + p) <= 38:
+            linea_act = (linea_act + " " + p).strip()
+        else:
+            lineas.append(linea_act)
+            linea_act = p
+    if linea_act:
+        lineas.append(linea_act)
+    
+    y_txt = 150
+    for l in lineas[:4]:
+        draw.text((35, y_txt), l, fill=(255, 255, 255))
+        y_txt += 30
+
+    draw.text((35, 310), "Applied Linguistics & Visual Support - Jacob Zumaya Prianti", fill=(160, 190, 220))
+    buf_card = io.BytesIO()
+    img_card.save(buf_card, format="JPEG", quality=85)
+    return buf_card.getvalue()
+def generar_quiz_leccion(texto_leccion, tema_gramatical, nivel_cefr, grado_acad, evitar_preguntas=None):
     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     evitar_txt = f"IMPORTANT: Create COMPLETELY DIFFERENT questions from: {evitar_preguntas}" if evitar_preguntas else ""
     prompt_quiz = f"""
-    Based on this CEFR Level {nivel_cefr} English lesson, create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr}, evaluating comprehension and target grammar ({tema_gramatical}).
+    Based on this CEFR Level {nivel_cefr} English lesson tailored for {grado_acad} students, create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr} and {grado_acad} cognitive level, evaluating comprehension and target grammar ({tema_gramatical}).
     {evitar_txt}
     LESSON TEXT:
     {texto_leccion}
@@ -1047,7 +1114,8 @@ def generar_quiz_leccion(texto_leccion, tema_gramatical, nivel_cefr, evitar_preg
     if cleaned.startswith("```"):
         cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)
     return json.loads(cleaned.strip())
-# --- EJECUCIÓN DE GENERACIÓN CON ASIGNACIÓN DE FOLIO Y FECHA EN HOJA 1 ---
+
+# --- EJECUCIÓN DE GENERACIÓN CALIBRADA A NIVEL CEFR + GRADO ACADÉMICO ---
 if generar_btn:
     if "GEMINI_API_KEY" not in st.secrets:
         st.sidebar.error("⚠️ GEMINI_API_KEY no configurada.")
@@ -1055,7 +1123,7 @@ if generar_btn:
         st.sidebar.warning("⚠️ Completa Contexto y Asunto.")
     else:
         client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-        with st.spinner(f"🧠 Generating CEFR {cefr_level} Lesson, Folio & Audio..."):
+        with st.spinner(f"🧠 Generating CEFR {cefr_level} ({academic_grade}) Lesson, Visual & Audio..."):
             try:
                 nuevo_folio = f"CEI-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
                 fecha_creacion = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1072,33 +1140,48 @@ if generar_btn:
                 nivel_corto = cefr_level.split()
                 guia_nivel = cefr_guidelines.get(nivel_corto, cefr_guidelines["B1"])
 
+                grade_pedagogy = {
+                    "Preescolar": "Adapt tone for early childhood (ages 4-6): playful, warm, concrete sensory imagery, friendly characters, and joyful storytelling.",
+                    "Primaria": "Adapt tone for elementary school children (ages 6-12): engaging, imaginative, clear visual descriptions, everyday school/family situations, and encouraging tone.",
+                    "Secundaria": "Adapt tone for middle school teenagers (ages 12-15): relatable, dynamic, practical real-world situations, and clear explanations.",
+                    "Preparatoria / Bachillerato": "Adapt tone for high school students (ages 15-18): analytical, communicative, real-life scenarios, and structured arguments.",
+                    "Licenciatura / Universidad": "Adapt tone for university undergraduate students: formal academic register, critical thinking, professional contexts, and analytical depth.",
+                    "Maestría / Posgrado": "Adapt tone for graduate/Master's students: advanced scholarly discourse, theoretical frameworks, research-oriented examples, and formal academic style.",
+                    "Doctorado / Investigación": "Adapt tone for Doctoral/PhD researchers: rigorous academic prose, epistemological precision, scholarly critique, and specialized terminology."
+                }
+                guia_grado = grade_pedagogy.get(academic_grade, grade_pedagogy["Licenciatura / Universidad"])
+
                 sys_prompt = (
                     f"You are a Senior Applied Linguist at CAREER ENGLISH INSTITUTE. "
-                    f"Translate any Spanish inputs and write 100% in natural English calibrated STRICTLY to CEFR Level {cefr_level}. "
-                    f"LINGUISTIC CALIBRATION RULE: {guia_nivel} "
+                    f"Translate any Spanish inputs and write 100% in natural English calibrated STRICTLY to CEFR Level {cefr_level} AND Academic Level: {academic_grade}. "
+                    f"CEFR RULE: {guia_nivel} "
+                    f"PEDAGOGICAL ADAPTATION RULE: {guia_grado} "
                     f"Follow strict APA Style. The official author of every generated academic document MUST be Jacob Zumaya Prianti. "
                     f"Zero Spanish words allowed."
                 )
                 prompt_texto = f"""
-                Create a CEFR Level {cefr_level} English lesson artifact authored by Jacob Zumaya Prianti:
+                Create a CEFR Level {cefr_level} English lesson artifact tailored for {academic_grade} students, authored by Jacob Zumaya Prianti:
                 - Folio ID: {nuevo_folio} | Creation Date: {fecha_creacion}
+                - Academic Level: {academic_grade} | CEFR Level: {cefr_level}
                 - Context: {contexto} | Characters: {personas} | Subject: {asunto}
                 - Target Grammar: {gramatica_b1} | Discourse Mode: {tipo_texto}
                 
                 STRICT RULES:
-                1. 100% English only. Calibrate vocabulary and grammar strictly to CEFR {cefr_level}. Highlight all {gramatica_b1} structures in **bold**.
+                1. 100% English only. Calibrate vocabulary and grammar strictly to CEFR {cefr_level} and pedagogical tone to {academic_grade}. Highlight all {gramatica_b1} structures in **bold**.
                 2. APA Header & Byline: Include the academic title in bold, followed immediately by:
                    **Folio:** {nuevo_folio} | **Creation Date:** {fecha_creacion}  
-                   **Author:** Jacob Zumaya Prianti | **Institution:** Career English Institute (2026) | **CEFR Level:** {cefr_level}  
+                   **Author:** Jacob Zumaya Prianti | **Institution:** Career English Institute (2026)  
+                   **CEFR Level:** {cefr_level} | **Academic Level:** {academic_grade}  
                    **Campus & Contact:** {institute_address}
                 3. Bibliography / APA References Section: At the end of the lesson, include a formal section titled **Bibliography (Consulted Academic & Linguistic Sources)** formatted in strict APA 7th edition. List:
-                   - Primary instructional module: Zumaya Prianti, J. (2026). *{asunto.title()}: CEFR {nivel_corto} Applied Grammar & Discourse Module* (Folio {nuevo_folio}). Career English Institute.
-                   - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto}" and "{gramatica_b1}".
+                   - Primary instructional module: Zumaya Prianti, J. (2026). *{asunto.title()}: CEFR {nivel_corto} ({academic_grade}) Applied Grammar & Discourse Module* (Folio {nuevo_folio}). Career English Institute.
+                   - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto}", "{gramatica_b1}", and {academic_grade} education.
                 """
                 texto_gen, mod_usado = generar_con_maxima_potencia(client, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
                 st.session_state.active_model_name = mod_usado
                 st.session_state.selected_cefr = cefr_level
+                st.session_state.selected_academic_grade = academic_grade
                 st.session_state.current_folio = nuevo_folio
                 st.session_state.current_pdf_link = pdf_url_directo
                 st.session_state.current_creation_date = fecha_creacion
@@ -1109,9 +1192,11 @@ if generar_btn:
                 
                 img_desc, _ = generar_con_maxima_potencia(
                     client,
-                    f"Simple 10-word English flat vector illustration prompt: {contexto}, {personas}, {asunto}. No text."
+                    f"Simple 10-word English visual illustration description for {academic_grade}: {contexto}, {personas}, {asunto}. No text."
                 )
-                st.session_state.image_bytes = generar_imagen_estable(img_desc)
+                st.session_state.image_bytes = generar_imagen_garantizada(
+                    client, img_desc, f"{asunto} - {contexto}", cefr_level, academic_grade
+                )
                 
                 tts = gTTS(text=texto_gen.replace("*", "").replace("#", ""), lang='en', slow=False)
                 audio_fp = io.BytesIO()
@@ -1122,10 +1207,11 @@ if generar_btn:
                     "text": texto_gen,
                     "quiz": None,
                     "cefr": cefr_level,
+                    "grade": academic_grade,
                     "created_at": fecha_creacion
                 }, ensure_ascii=False)
                 
-                tema_reg = f"[{nivel_corto}] {asunto} ({gramatica_b1})"
+                tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto} ({gramatica_b1})"
                 get_google_sheet().append_row([
                     nuevo_folio, usuario, tema_reg, "", fecha_creacion, paquete_guardado[:48000], 0, pdf_url_directo
                 ])
@@ -1152,11 +1238,12 @@ with col_main_center:
     # --- QUIZ INTERACTIVO DE LA LECCIÓN ---
     if st.session_state.generated_text:
         if st.session_state.quiz_data is None:
-            if st.button(f"📝 Generar Quiz de la Lección (CEFR {st.session_state.selected_cefr.split()} Assessment)", type="primary", width="stretch"):
+            if st.button(f"📝 Generar Quiz ({st.session_state.selected_cefr.split()} - {st.session_state.selected_academic_grade})", type="primary", width="stretch"):
                 with st.spinner("Generando preguntas de evaluación y vinculando al Folio..."):
                     try:
                         q_gen = generar_quiz_leccion(
-                            st.session_state.generated_text, gramatica_b1, st.session_state.selected_cefr
+                            st.session_state.generated_text, gramatica_b1,
+                            st.session_state.selected_cefr, st.session_state.selected_academic_grade
                         )
                         st.session_state.quiz_data = q_gen
                         
@@ -1168,6 +1255,7 @@ with col_main_center:
                                     "text": st.session_state.generated_text,
                                     "quiz": q_gen,
                                     "cefr": st.session_state.selected_cefr,
+                                    "grade": st.session_state.selected_academic_grade,
                                     "created_at": st.session_state.current_creation_date
                                 }, ensure_ascii=False)
                                 s1.update_cell(celda_f.row, 6, paq_act[:48000])
@@ -1202,7 +1290,8 @@ with col_main_center:
                             try:
                                 prev_qs = [q["question"] for q in st.session_state.quiz_data]
                                 q_new = generar_quiz_leccion(
-                                    st.session_state.generated_text, gramatica_b1, st.session_state.selected_cefr, prev_qs
+                                    st.session_state.generated_text, gramatica_b1,
+                                    st.session_state.selected_cefr, st.session_state.selected_academic_grade, prev_qs
                                 )
                                 st.session_state.quiz_data = q_new
                                 st.session_state.quiz_graded = False
@@ -1217,6 +1306,7 @@ with col_main_center:
                                             "text": st.session_state.generated_text,
                                             "quiz": q_new,
                                             "cefr": st.session_state.selected_cefr,
+                                            "grade": st.session_state.selected_academic_grade,
                                             "created_at": st.session_state.current_creation_date
                                         }, ensure_ascii=False)
                                         s1.update_cell(celda_f.row, 6, paq_act[:48000])
@@ -1227,13 +1317,17 @@ with col_main_center:
                 if st.session_state.quiz_graded and st.session_state.quiz_score:
                     st.info(f"🏆 **Calificación Obtenida / Final Score:** {st.session_state.quiz_score}")
 
-    st.subheader("🖼️ Visual Context")
+    st.subheader(f"🖼️ Visual Context ({st.session_state.selected_academic_grade})")
     bottom_container = st.container(height=280, border=True)
     with bottom_container:
         if st.session_state.image_bytes:
             st.image(st.session_state.image_bytes, width="stretch")
         elif st.session_state.generated_text:
-            st.info("ℹ️ Visual context unloaded or unavailable for recovered folio.")
+            fallback_img = generar_imagen_garantizada(
+                None, st.session_state.generated_text[:60],
+                f"Folio {st.session_state.current_folio}", st.session_state.selected_cefr, st.session_state.selected_academic_grade
+            )
+            st.image(fallback_img, width="stretch")
         else:
             st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
 # --- PANEL DERECHO EN ORDEN PROFESIONAL ---
@@ -1373,7 +1467,7 @@ with col_tools_right:
                         st.success(f"✅ ¡Audio guardado y vinculado al Folio {folio_act}!")
                     else:
                         folio_nuevo = folio_act or f"CEI-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
-                        tema_completo = f"[{st.session_state.selected_cefr.split()}] {asunto} ({gramatica_b1})" if asunto else gramatica_b1
+                        tema_completo = f"[{st.session_state.selected_cefr.split()} | {st.session_state.selected_academic_grade}] {asunto} ({gramatica_b1})" if asunto else gramatica_b1
                         fecha_subida = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         link_pdf = f"https://streamlit.app{folio_nuevo}"
                         sheet.append_row([folio_nuevo, usuario, tema_completo, audio_b64, fecha_subida, "", 0, link_pdf])
@@ -1381,11 +1475,12 @@ with col_tools_right:
         except Exception as e:
             st.error(f"Error al guardar audio: {e}")
 
-    # FUNCIÓN GENERADORA DE PDF EN TIEMPO REAL
+    # FUNCIÓN GENERADORA DE PDF EN TIEMPO REAL CON GRADO ACADÉMICO, FOLIO Y FECHA
     def create_pdf(text, quiz_items=None, user_ans=None, score=None):
         folio_doc = st.session_state.current_folio or "SIN-FOLIO"
         link_doc = st.session_state.current_pdf_link or f"https://streamlit.app{folio_doc}"
         fecha_doc = st.session_state.current_creation_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        grado_doc = st.session_state.selected_academic_grade
         
         pdf = FPDF()
         pdf.set_author("Jacob Zumaya Prianti")
@@ -1397,14 +1492,14 @@ with col_tools_right:
         pdf.set_font("Times", "I", 9)
         pdf.cell(0, 6, txt=institute_address.encode("latin-1", "replace").decode("latin-1"), ln=True, align="C")
         pdf.set_font("Times", "B", 11)
-        pdf.cell(0, 7, txt=f"CEFR {st.session_state.selected_cefr} Academic Grammar & Discourse System", ln=True, align="C")
+        pdf.cell(0, 7, txt=f"CEFR {st.session_state.selected_cefr} ({grado_doc}) Academic Grammar & Discourse System", ln=True, align="C")
         pdf.set_font("Times", "B", 11)
         pdf.cell(0, 7, txt=f"FOLIO DE REGISTRO: {folio_doc}", ln=True, align="C")
         pdf.set_font("Times", "B", 10)
         pdf.cell(0, 6, txt="Author: Jacob Zumaya Prianti", ln=True, align="C")
         pdf.set_font("Times", "I", 9)
         pdf.cell(0, 6, txt=f"Creation Date / Fecha de Creacion: {fecha_doc}", ln=True, align="C")
-        pdf.cell(0, 6, txt=f"Student / User: {usuario} ({st.session_state.user_role}) | Level: {st.session_state.selected_cefr}", ln=True, align="C")
+        pdf.cell(0, 6, txt=f"Student / User: {usuario} ({st.session_state.user_role}) | Grade: {grado_doc} | Level: {st.session_state.selected_cefr}", ln=True, align="C")
         pdf.set_font("Times", "U", 9)
         pdf.cell(0, 6, txt=f"Recovery Link: {link_doc}", ln=True, align="C", link=link_doc)
         pdf.ln(5)
@@ -1456,7 +1551,6 @@ with col_tools_right:
         )
     else:
         st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
-
     # BOTÓN VER AUDIOS Y FOLIOS GUARDADOS
     if st.button("📂 Ver Audios y Folios Guardados", width="stretch"):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
