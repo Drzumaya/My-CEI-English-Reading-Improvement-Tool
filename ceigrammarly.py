@@ -356,6 +356,9 @@ for key, default in [
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
+    if "show_qr" not in st.session_state:
+       st.session_state.show_qr = True
+
 
 # --- CARGAR CONFIGURACIÓN DEL INSTITUTO ---
 saved_cfg = load_permanent_logo()
@@ -675,14 +678,18 @@ with col_title:
 
 with col_qr:
     if not is_mobile:
-        APP_URL = "https://myceigrammarly.streamlit.app" 
-        qr = qrcode.QRCode(version=1, box_size=4, border=1)
-        qr.add_data(APP_URL)
-        qr.make(fit=True)
-        img_qr = qr.make_image(fill_color="black", back_color="white")
-        buf = io.BytesIO()
-        img_qr.save(buf, format="PNG")
-        st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
+        btn_qr_txt = "🙈 Ocultar QR" if st.session_state.show_qr else "📱 Mostrar QR"
+        if st.button(btn_qr_txt, use_container_width=True, key="toggle_qr_btn"):
+            st.session_state.show_qr = not st.session_state.show_qr
+            st.rerun()
+
+        if st.session_state.show_qr:
+            qr = qrcode.QRCode(version=1, box_size=4, border=1)
+            qr.add_data("https://streamlit.app")
+            qr.make(fit=True)
+            buf = io.BytesIO()
+            qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
+            st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
 
 with col_exit:
     if is_faculty_desktop:
