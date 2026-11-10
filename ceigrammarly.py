@@ -746,7 +746,7 @@ st.divider()
 # --- PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL DE PERMISOS ---
 if is_faculty_desktop and st.session_state.show_teacher_registry:
     with st.container(border=True):
-        col_head_reg, col_close_reg = st.columns([5, 1])
+        col_head_reg, col_close_reg = st.columns(2)
         with col_head_reg:
             st.markdown("### 🛡️ PANEL DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL RBAC")
         with col_close_reg:
