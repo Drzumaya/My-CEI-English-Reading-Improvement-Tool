@@ -341,18 +341,28 @@ with col_exit:
 
 st.divider()
 # --- LÓGICA DE GENERACIÓN GRATUITA CON RESPALDO AUTOMÁTICO (GEMINI + POLLINATIONS.AI) ---
+# --- LÓGICA DE GENERACIÓN GRATUITA CON AUTO-DETECCIÓN DE MODELOS ACTIVOS ---
 def generar_con_respaldo(client, prompt_contenido, instruccion_sistema=None):
-    # Modelos vigentes en Google AI Studio (actualizado a la serie 3.8 y 2.5)
-    modelos_disponibles = [
+    # 1. Lista prioritaria con los modelos vigentes recomendados por Google AI Studio
+    modelos_prioritarios = [
+        "gemini-3.1-pro-preview",
         "gemini-3.8-flash",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-pro"
+        "gemini-3.1-flash-lite-preview",
+        "gemini-2.5-flash"
     ]
-    ultimo_error = None
-
     
-    for modelo in modelos_disponibles:
+    # 2. Auto-descubrimiento: agregamos cualquier otro modelo Gemini activo en tu cuenta
+    try:
+        for m in client.models.list():
+            nombre_limpio = m.name.replace("models/", "")
+            if "gemini" in nombre_limpio and "embedding" not in nombre_limpio and "imagen" not in nombre_limpio:
+                if nombre_limpio not in modelos_prioritarios:
+                    modelos_prioritarios.append(nombre_limpio)
+    except Exception:
+        pass
+
+    ultimo_error = None
+    for modelo in modelos_prioritarios:
         try:
             config = types.GenerateContentConfig(temperature=0.7)
             if instruccion_sistema:
@@ -365,7 +375,8 @@ def generar_con_respaldo(client, prompt_contenido, instruccion_sistema=None):
                 contents=prompt_contenido,
                 config=config
             )
-            return respuesta.text
+            if respuesta and respuesta.text:
+                return respuesta.text
         except Exception as e:
             ultimo_error = e
             continue
@@ -399,12 +410,14 @@ if generar_btn:
                 3. APA FORMAT: Structure the output following APA Style conventions (Academic Title in English, Clear Headings, formal/semi-formal tone, and a simulated APA Reference list in English at the end).
                 """
                 
+                # 1. Generación de Texto con auto-selección de modelo vigente
                 st.session_state.generated_text = generar_con_respaldo(
                     client,
                     prompt_texto,
                     instruccion_sistema="You are a strict English-only CEFR B1 content generator. Regardless of the input language (Spanish or English), you always output 100% in English."
                 )
                 
+                # 2. Generación de Imagen Ilustrativa Gratuita (Pollinations.ai)
                 img_desc = generar_con_respaldo(
                     client,
                     f"Write a short 15-word image description in English for an educational textbook illustration about: setting '{contexto}', characters '{personas}', topic '{asunto}'. Flat vector style, no text in image."
@@ -412,6 +425,7 @@ if generar_btn:
                 encoded_prompt = urllib.parse.quote(img_desc.strip())
                 st.session_state.image_url = f"https://pollinations.ai{encoded_prompt}?width=800&height=500&nologo=true"
                 
+                # 3. Generación de Audio Gratuita (gTTS en Inglés)
                 clean_text_for_audio = st.session_state.generated_text.replace("*", "").replace("#", "")
                 tts = gTTS(text=clean_text_for_audio, lang='en', slow=False)
                 audio_fp = io.BytesIO()
@@ -419,7 +433,7 @@ if generar_btn:
                 st.session_state.audio_bytes = audio_fp.getvalue()
                 
             except Exception as e:
-                st.error(f"⚠️ Los servidores de IA están experimentando alta demanda temporal. Intenta presionar 'Generate B1 Lesson' nuevamente en unos segundos. (Detalle: {e})")
+                st.error(f"⚠️ No se pudo conectar con el modelo de IA en este momento. Detalle técnico: {e}")
 
 # --- PARTE 2: CENTRO (DIVIDIDO VERTICALMENTE: ARRIBA MÁS ALTA QUE ABAJO) ---
 col_main_center, col_tools_right = st.columns([7, 3.5])
