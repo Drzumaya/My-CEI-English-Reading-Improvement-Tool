@@ -1073,8 +1073,8 @@ def generar_imagen_garantizada(client, prompt_ingles, titulo_tema, nivel_cefr, g
     # NIVEL 3: Tarjeta Visual Educativa Generada Localmente (Garantía 100%)
     img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
     draw = ImageDraw.Draw(img_card)
-    draw.rectangle(, outline=(218, 165, 32), width=3)
-    draw.rectangle(, fill=(25, 65, 125))
+    draw.rectangle((15, 15, 625, 345), outline=(218, 165, 32), width=3)
+    draw.rectangle((18, 18, 622, 85), fill=(25, 65, 125))
     draw.text((35, 38), f"CAREER ENGLISH INSTITUTE | CEFR {nivel_cefr.split()} | {grado_acad.upper()}", fill=(255, 215, 0))
     draw.text((35, 115), "VISUAL CONTEXT & LESSON TOPIC:", fill=(180, 210, 255))
     
