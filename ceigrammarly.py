@@ -14,8 +14,8 @@ import pandas as pd
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="MY ENGLISH GRAMMAR FAN TOOL - Career English Institute",
-    page_icon="🇬🇧",
+    page_title="CEFR B1 Academic Grammar & Discourse System - Career English Institute",
+    page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -56,7 +56,7 @@ def save_permanent_logo(b64_str, mime, width, shape):
     sheet_logo.append_row([b64_str, mime, width, shape])
     load_permanent_logo.clear()
 
-# --- DETECCIÓN DE DISPOSITIVO (MÓVIL VS ESCRITORIO) ---
+# --- DETECCIÓN DE DISPOSITIVO (MÓVIL/QR VS ESCRITORIO) ---
 user_agent = st.context.headers.get("User-Agent", "").lower()
 is_mobile = any(device in user_agent for device in ["iphone", "android", "ipad", "mobile"])
 
@@ -80,8 +80,8 @@ if "show_saved_audios" not in st.session_state:
 
 # --- PANTALLA DE SALIDA ---
 if st.session_state.app_exited:
-    st.title("👋 Session Ended")
-    st.info("Thank you for using MY ENGLISH GRAMMAR FAN TOOL by CAREER ENGLISH INSTITUTE. You may close this tab now.")
+    st.title("👋 Academic Session Ended")
+    st.info("Thank you for using the CEFR B1 Academic Grammar & Discourse System by CAREER ENGLISH INSTITUTE. You may close this tab now.")
     st.caption("© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Creado por JACOB ZUMAYA PRIANTI.")
     if st.button("Volver al Inicio de Sesión"):
         st.session_state.app_exited = False
@@ -100,11 +100,11 @@ if not st.session_state.authenticated:
                 unsafe_allow_html=True
             )
         st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
-        st.markdown("<h2 style='text-align: center;'>🇬🇧 MY ENGLISH GRAMMAR FAN TOOL</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🎓 CEFR B1 ACADEMIC GRAMMAR & DISCOURSE SYSTEM</h2>", unsafe_allow_html=True)
         st.divider()
         
         with st.form("login_form"):
-            st.subheader("🔐 Acceso de Estudiantes y Docentes")
+            st.subheader("🔐 Control de Acceso Académico")
             input_user = st.text_input("👤 Usuario registrado:")
             input_pass = st.text_input("🔑 Clave de Acceso:", type="password")
             submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", use_container_width=True)
@@ -114,7 +114,7 @@ if not st.session_state.authenticated:
                     st.warning("⚠️ Ingresa tu Usuario y Clave de Acceso.")
                 else:
                     try:
-                        with st.spinner("Verificando en el padrón..."):
+                        with st.spinner("Verificando credenciales en el padrón..."):
                             sheet_padron = get_padron_sheet()
                             registros = sheet_padron.get_all_records()
                             acceso_valido = False
@@ -133,7 +133,7 @@ if not st.session_state.authenticated:
                                         acceso_valido = True
                                         break
                                     else:
-                                        st.error("⛔ Tu cuenta está inactiva. Contacta a CAREER ENGLISH INSTITUTE.")
+                                        st.error("⛔ Tu cuenta se encuentra inactiva. Contacta a CAREER ENGLISH INSTITUTE.")
                                         acceso_valido = None
                                         break
                             
@@ -145,19 +145,18 @@ if not st.session_state.authenticated:
                         st.error(f"Error al conectar con la pestaña 'Padron_Estudiantes': {e}")
         
         st.markdown(
-            "<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>© 2026 CAREER ENGLISH INSTITUTE | Creado por JACOB ZUMAYA PRIANTI</div>",
+            "<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>© 2026 CAREER ENGLISH INSTITUTE | Todos los derechos reservados.<br>Creado por JACOB ZUMAYA PRIANTI</div>",
             unsafe_allow_html=True
         )
     st.stop()
 # --- PARTE 1: BARRA IZQUIERDA (INPUTS DEL ALGORITMO) ---
 with st.sidebar:
     st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
-    st.success(f"👤 **{st.session_state.current_user}** ({st.session_state.user_role})")
+    st.success(f"👤 **{st.session_state.current_user}** | *{st.session_state.user_role}*")
     st.divider()
 
-    st.header("⚙️ Configuration & Inputs")
+    st.header("⚙️ Academic Parameters")
     
-    # El usuario queda fijo con el nombre con el que inició sesión
     usuario = st.session_state.current_user
     
     st.subheader("1. Context & Characters (Español / English)")
@@ -199,7 +198,7 @@ with st.sidebar:
     st.markdown("---")
     generar_btn = st.button("🚀 Generate B1 Lesson", type="primary", use_container_width=True)
 
-# --- CABECERA INSTITUCIONAL (LOGO + TÍTULO + PADRÓN ADMIN + QR + SALIR) ---
+# --- CABECERA INSTITUCIONAL (LOGO + TÍTULO ACADÉMICO + FACULTY BACKEND + QR + SALIR) ---
 saved_logo = load_permanent_logo()
 
 default_width = int(saved_logo["Width"]) if saved_logo and saved_logo.get("Width") else 115
@@ -207,11 +206,13 @@ default_shape = saved_logo["Shape"] if saved_logo and saved_logo.get("Shape") el
 shape_options = ["Original", "Redondeado", "Circular"]
 default_shape_idx = shape_options.index(default_shape) if default_shape in shape_options else 0
 
+# Solo se habilita el modo Teacher/Backend en escritorio (se oculta en dispositivos móviles que escanean el QR)
+is_teacher_desktop = (st.session_state.user_role.strip().lower() in ["teacher", "admin"]) and (not is_mobile)
+
 col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
 
 with col_logo:
-    # Solo el Admin puede editar el logo permanente
-    if st.session_state.user_role.lower() == "admin":
+    if is_teacher_desktop:
         with st.popover("✏️ Editar Logo", use_container_width=True):
             logo_file = st.file_uploader("Subir imagen nueva (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
             logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
@@ -276,8 +277,8 @@ with col_logo:
 
 with col_title:
     st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
-    st.title("🇬🇧 MY ENGLISH GRAMMAR FAN TOOL")
-    st.caption("CEFR Level B1 Adaptive Learning System | APA Style Output")
+    st.title("🎓 CEFR B1 ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
+    st.caption("Applied Linguistics & B1 Proficiency Assessment Platform | APA Style Output")
 
 with col_qr:
     if not is_mobile:
@@ -291,31 +292,51 @@ with col_qr:
         st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
 
 with col_exit:
-    # Botón exclusivo para Admin/Docente: Gestionar Padrón de Estudiantes
-    if st.session_state.user_role.lower() == "admin":
-        with st.popover("📋 Padrón", use_container_width=True):
-            st.markdown("**Registrar Nuevo Estudiante**")
-            new_est_user = st.text_input("Nombre Completo / Usuario:", key="new_u")
-            new_est_pass = st.text_input("Clave asignada:", key="new_p")
-            new_est_rol = st.selectbox("Rol:", ["Estudiante", "Admin"], key="new_r")
-            if st.button("➕ Dar de Alta", type="primary", use_container_width=True):
-                if new_est_user and new_est_pass:
-                    try:
-                        p_sheet = get_padron_sheet()
-                        p_sheet.append_row([new_est_user.strip(), new_est_pass.strip(), new_est_rol, "Activo"])
-                        st.success(f"✅ {new_est_user} registrado en el padrón.")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-                else:
-                    st.warning("Completa usuario y clave.")
+    # --- BACKEND EXCLUSIVO PARA EL TEACHER EN ESCRITORIO (OCULTO EN MÓVILES/QR) ---
+    if is_teacher_desktop:
+        with st.popover("🎓 Faculty Backend", use_container_width=True):
+            st.markdown("### 📚 Student Enrollment & Access Registry")
+            st.caption("Panel exclusivo del Docente / Teacher")
             
-            st.divider()
-            if st.checkbox("Ver lista registrada"):
+            tab_alta, tab_gestion = st.tabs(["➕ Nuevo Registro", "⚙️ Gestionar Estatus"])
+            
+            with tab_alta:
+                new_est_user = st.text_input("Nombre / Usuario:", key="new_u")
+                new_est_pass = st.text_input("Clave de Acceso:", key="new_p")
+                new_est_rol = st.selectbox("Rol Académico:", ["Estudiante", "Teacher"], key="new_r")
+                if st.button("Registrar en Padrón", type="primary", use_container_width=True):
+                    if new_est_user and new_est_pass:
+                        try:
+                            p_sheet = get_padron_sheet()
+                            p_sheet.append_row([new_est_user.strip(), new_est_pass.strip(), new_est_rol, "Activo"])
+                            st.success(f"✅ {new_est_user} registrado ({new_est_rol}).")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                    else:
+                        st.warning("Completa usuario y clave.")
+            
+            with tab_gestion:
                 try:
-                    df_p = pd.DataFrame(get_padron_sheet().get_all_records())
-                    st.dataframe(df_p[["Usuario", "Rol", "Estatus"]], use_container_width=True, hide_index=True)
+                    p_sheet = get_padron_sheet()
+                    records_p = p_sheet.get_all_records()
+                    if records_p:
+                        df_p = pd.DataFrame(records_p)
+                        st.dataframe(df_p[["Usuario", "Rol", "Estatus"]], use_container_width=True, hide_index=True)
+                        
+                        st.markdown("**Activar / Desactivar Acceso:**")
+                        user_to_edit = st.selectbox("Seleccionar Usuario:", df_p["Usuario"].tolist(), key="edit_u_sel")
+                        new_status = st.radio("Nuevo Estatus:", ["Activo", "Inactivo"], horizontal=True, key="edit_st_rad")
+                        
+                        if st.button("Actualizar Estatus", use_container_width=True):
+                            cell = p_sheet.find(user_to_edit)
+                            if cell:
+                                p_sheet.update_cell(cell.row, 4, new_status)
+                                st.success(f"Estatus de {user_to_edit} cambiado a {new_status}.")
+                                st.rerun()
+                    else:
+                        st.info("No hay registros en el padrón.")
                 except Exception as e:
-                    st.error(f"Error al leer padrón: {e}")
+                    st.error(f"Error al cargar padrón: {e}")
 
     if st.button("🚪 Salir", type="secondary", use_container_width=True):
         st.session_state.app_exited = True
@@ -443,8 +464,8 @@ with col_tools_right:
                     st.info("Aún no hay grabaciones guardadas.")
                 else:
                     df = pd.DataFrame(records)
-                    # Si es estudiante ve solo sus audios; si es Admin ve los de toda la clase
-                    if st.session_state.user_role.lower() != "admin":
+                    # Si es estudiante ve solo sus audios; si es Teacher/Admin ve los de toda la clase
+                    if st.session_state.user_role.strip().lower() not in ["teacher", "admin"]:
                         df = df[df["Usuario"].astype(str).str.lower() == usuario.lower()]
                     
                     if df.empty:
@@ -467,9 +488,11 @@ with col_tools_right:
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Times", "B", 14)
-        pdf.cell(0, 10, txt="CAREER ENGLISH INSTITUTE - CEFR B1 Lesson", ln=True, align="C")
-        pdf.set_font("Times", "I", 11)
-        pdf.cell(0, 8, txt=f"Student: {usuario}", ln=True, align="C")
+        pdf.cell(0, 10, txt="CAREER ENGLISH INSTITUTE", ln=True, align="C")
+        pdf.set_font("Times", "B", 11)
+        pdf.cell(0, 7, txt="CEFR B1 Academic Grammar & Discourse System", ln=True, align="C")
+        pdf.set_font("Times", "I", 10)
+        pdf.cell(0, 7, txt=f"Student / Candidate: {usuario}", ln=True, align="C")
         pdf.ln(5)
         pdf.set_font("Times", size=12)
         safe_text = text.encode('latin-1', 'replace').decode('latin-1')
@@ -485,7 +508,7 @@ with col_tools_right:
         st.download_button(
             label="📥 Descargar PDF",
             data=pdf_bytes,
-            file_name=f"CEI_B1_Lesson_{usuario.replace(' ', '_')}.pdf",
+            file_name=f"CEI_B1_Academic_Lesson_{usuario.replace(' ', '_')}.pdf",
             mime="application/pdf",
             type="primary",
             use_container_width=True
