@@ -277,7 +277,7 @@ col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
 
 with col_logo:
     if is_teacher_desktop:
-        with st.popover("✏️ Editar Logo", use_container_width=True):
+        with st.popover("✏️ Editar Logo", width="stretch"):
             logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
             logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
             logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True)
