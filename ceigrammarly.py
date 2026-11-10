@@ -12,6 +12,7 @@ import urllib.parse
 from datetime import datetime
 import gspread
 import pandas as pd
+from streamlit_js_eval import streamlit_js_eval
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
@@ -98,15 +99,28 @@ for key, default in [
     ("authenticated", False), ("current_user", ""), ("user_role", "Estudiante"),
     ("generated_text", ""), ("image_url", None), ("audio_bytes", None),
     ("app_exited", False), ("show_saved_audios", False), ("quiz_data", None),
-    ("quiz_graded", False), ("quiz_score", None), ("quiz_user_answers", {})
+    ("quiz_graded", False), ("quiz_score", None), ("quiz_user_answers", {}),
+    ("pending_ls_token", None)
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
 
-# --- RECUPERACIÓN AUTOMÁTICA DE SESIÓN RECORDADA ---
+# --- LIMPIEZA AUTOMÁTICA DE URL SI HABÍA PARÁMETROS ANTIGUOS ---
+if st.query_params:
+    st.query_params.clear()
+
+# --- ESCRITURA INVISIBLE EN LOCALSTORAGE TRAS LOGIN EXITOSO ---
+if st.session_state.pending_ls_token is not None:
+    if st.session_state.pending_ls_token == "REMOVE":
+        streamlit_js_eval(js_expressions="localStorage.removeItem('cei_auth_token')", key="rm_ls_init")
+    else:
+        streamlit_js_eval(js_expressions=f"localStorage.setItem('cei_auth_token', '{st.session_state.pending_ls_token}')", key="sv_ls_init")
+    st.session_state.pending_ls_token = None
+
+# --- RECUPERACIÓN INVISIBLE DE SESIÓN DESDE EL NAVEGADOR (LOCALSTORAGE) ---
 if not st.session_state.authenticated and not st.session_state.app_exited:
-    saved_token = st.query_params.get("auth_token", "")
-    if saved_token:
+    saved_token = streamlit_js_eval(js_expressions="localStorage.getItem('cei_auth_token')", key="get_ls_token")
+    if saved_token and isinstance(saved_token, str):
         try:
             decoded_json = base64.urlsafe_b64decode(saved_token.encode("utf-8")).decode("utf-8")
             token_data = json.loads(decoded_json)
@@ -119,12 +133,13 @@ if not st.session_state.authenticated and not st.session_state.app_exited:
                         st.session_state.authenticated = True
                         st.session_state.current_user = str(reg.get("Usuario", "")).strip()
                         st.session_state.user_role = str(reg.get("Rol", "Estudiante")).strip()
-                        break
+                        st.rerun()
         except Exception:
-            st.query_params.clear()
+            pass
 
 # --- PANTALLA DE SALIDA ---
 if st.session_state.app_exited:
+    streamlit_js_eval(js_expressions="localStorage.removeItem('cei_auth_token')", key="exit_rm_ls")
     st.title("👋 Academic Session Ended")
     st.info("Thank you for using the CEFR B1 Academic Grammar & Discourse System by CAREER ENGLISH INSTITUTE.")
     st.caption("© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Creado por JACOB ZUMAYA PRIANTI.")
@@ -174,9 +189,9 @@ if not st.session_state.authenticated:
                                         st.session_state.user_role = r_db
                                         if remember_me:
                                             payload = json.dumps({"u": u_db, "c": c_db}).encode("utf-8")
-                                            st.query_params["auth_token"] = base64.urlsafe_b64encode(payload).decode("utf-8")
+                                            st.session_state.pending_ls_token = base64.urlsafe_b64encode(payload).decode("utf-8")
                                         else:
-                                            st.query_params.clear()
+                                            st.session_state.pending_ls_token = "REMOVE"
                                         acceso_valido = True
                                         break
                                     else:
@@ -342,7 +357,6 @@ with col_exit:
                     st.error(f"Error: {e}")
 
     if st.button("🚪 Salir", type="secondary", width="stretch"):
-        st.query_params.clear()
         st.session_state.app_exited = True
         st.session_state.authenticated = False
         st.rerun()
@@ -604,7 +618,7 @@ with col_tools_right:
         pdf.cell(0, 10, txt="© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Creado por JACOB ZUMAYA PRIANTI.", ln=True, align="C")
         return pdf.output(dest="S").encode("latin-1")
 
-    # BOTÓN DESCARGAR PDF EN TIEMPO REAL (JUSTO ENTRE GUARDAR AUDIO Y VER AUDIOS GUARDADOS)
+    # BOTÓN DESCARGAR PDF EN TIEMPO REAL
     if st.session_state.generated_text:
         pdf_bytes = create_pdf(
             st.session_state.generated_text.replace("*", ""),
