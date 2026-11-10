@@ -779,7 +779,7 @@ with col_tools_right:
         }};
         </script>
         """
-        st.components.v1.html(video_recorder_html, height=315)
+        st.iframe(video_recorder_html, height=315)
 
     st.write("")
     # 3. BOTONES EN ORDEN PROFESIONAL:
