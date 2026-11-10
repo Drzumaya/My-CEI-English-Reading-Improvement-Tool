@@ -112,11 +112,10 @@ def normalize_cefr(raw_val):
 for key, default in [
     ("authenticated", False), ("current_user", ""), ("user_role", "Estudiante"),
     ("user_assigned_level", "B1 (Intermediate)"), ("generated_text", ""),
-    ("real_sources", []), ("image_bytes", None), ("audio_bytes", None),
-    ("app_exited", False), ("show_saved_audios", False), ("quiz_data", None),
-    ("quiz_graded", False), ("quiz_score", None), ("quiz_user_answers", {}),
-    ("pending_ls_token", None), ("selected_cefr", "B1 (Intermediate)"),
-    ("show_teacher_registry", False)
+    ("image_bytes", None), ("audio_bytes", None), ("app_exited", False),
+    ("show_saved_audios", False), ("quiz_data", None), ("quiz_graded", False),
+    ("quiz_score", None), ("quiz_user_answers", {}), ("pending_ls_token", None),
+    ("selected_cefr", "B1 (Intermediate)"), ("show_teacher_registry", False)
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -133,7 +132,7 @@ if st.session_state.pending_ls_token is not None:
         streamlit_js_eval(js_expressions=f"localStorage.setItem('cei_auth_token', '{st.session_state.pending_ls_token}')", key="sv_ls_init")
     st.session_state.pending_ls_token = None
 
-# --- RECUPERACIÓN INVISIBLE DE SESIÓN ---
+# --- RECUPERACIÓN INVISIBLE DE SESIÓN (ACTUALIZA NIVEL DESDE EL PADRÓN) ---
 if not st.session_state.authenticated and not st.session_state.app_exited:
     saved_token = streamlit_js_eval(js_expressions="localStorage.getItem('cei_auth_token')", key="get_ls_token")
     if saved_token and isinstance(saved_token, str):
@@ -678,16 +677,16 @@ with col_tools_right:
         
     st.divider()
 
-    # 2. PRÁCTICA DE LECTURA: GRABAR AUDIO Y GRABAR VIDEO EN VIVO CON CÁMARA
+    # 2. PRÁCTICA DE LECTURA: GRABAR AUDIO Y GRABAR VIDEO EN FORMATO MP4
     st.subheader("🎙️ 2. Speaking & Video Practice")
-    tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
+    tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video (MP4)"])
     
     with tab_rec_audio:
         student_audio = st.audio_input("Graba tu voz leyendo el texto:")
         
     with tab_rec_video:
-        st.caption("Activa tu cámara, graba tu lectura y descárgala en tu dispositivo:")
-        safe_user_filename = f"CEI_Video_{usuario.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.webm"
+        st.caption("Activa tu cámara, graba tu lectura y descárgala en formato MP4:")
+        safe_user_filename = f"CEI_Video_{usuario.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.mp4"
         video_recorder_html = f"""
         <div style="font-family: sans-serif; text-align: center; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fafafa;">
             <video id="preview" width="100%" height="180" autoplay muted playsinline style="border-radius: 8px; background: #000; object-fit: cover;"></video>
@@ -697,7 +696,7 @@ with col_tools_right:
                 <button id="btnStop" disabled style="background:#6c757d; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏹️ Detener</button>
             </div>
             <p id="statusTxt" style="font-size: 12px; color: #555; margin: 6px 0;">Presiona "Activar Cámara" para iniciar</p>
-            <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video en Dispositivo</a>
+            <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video MP4</a>
         </div>
 
         <script>
@@ -712,6 +711,22 @@ with col_tools_right:
         const statusTxt = document.getElementById('statusTxt');
         const downloadLink = document.getElementById('downloadLink');
 
+        function getSupportedMp4MimeType() {{
+            const types = [
+                'video/mp4;codecs=avc1,mp4a.40.2',
+                'video/mp4;codecs=h264,aac',
+                'video/mp4',
+                'video/webm;codecs=h264',
+                'video/webm'
+            ];
+            for (const t of types) {{
+                if (MediaRecorder.isTypeSupported(t)) {{
+                    return t;
+                }}
+            }}
+            return '';
+        }}
+
         btnStartCam.onclick = async () => {{
             try {{
                 stream = await navigator.mediaDevices.getUserMedia({{ video: true, audio: true }});
@@ -720,7 +735,7 @@ with col_tools_right:
                 preview.controls = false;
                 btnRec.disabled = false;
                 btnStartCam.disabled = true;
-                statusTxt.innerText = "Cámara activa. Listo para grabar.";
+                statusTxt.innerText = "Cámara activa. Listo para grabar en MP4.";
             }} catch (err) {{
                 statusTxt.innerText = "⚠️ Permiso de cámara/micrófono denegado o no disponible.";
             }}
@@ -729,12 +744,16 @@ with col_tools_right:
         btnRec.onclick = () => {{
             recordedChunks = [];
             downloadLink.style.display = 'none';
-            mediaRecorder = new MediaRecorder(stream);
+            
+            const mime = getSupportedMp4MimeType();
+            const options = mime ? {{ mimeType: mime }} : {{}};
+            
+            mediaRecorder = new MediaRecorder(stream, options);
             mediaRecorder.ondataavailable = (e) => {{
                 if (e.data.size > 0) recordedChunks.push(e.data);
             }};
             mediaRecorder.onstop = () => {{
-                const blob = new Blob(recordedChunks, {{ type: 'video/webm' }});
+                const blob = new Blob(recordedChunks, {{ type: 'video/mp4' }});
                 const url = URL.createObjectURL(blob);
                 preview.srcObject = null;
                 preview.src = url;
@@ -743,7 +762,7 @@ with col_tools_right:
                 downloadLink.href = url;
                 downloadLink.download = "{safe_user_filename}";
                 downloadLink.style.display = 'inline-block';
-                statusTxt.innerText = "✅ Video grabado. Haz clic abajo para descargarlo.";
+                statusTxt.innerText = "✅ Video MP4 grabado. Haz clic abajo para descargarlo.";
                 stream.getTracks().forEach(track => track.stop());
                 btnStartCam.disabled = false;
                 btnStartCam.innerText = "🔄 Grabar Otro";
@@ -751,7 +770,7 @@ with col_tools_right:
             mediaRecorder.start();
             btnRec.disabled = true;
             btnStop.disabled = false;
-            statusTxt.innerText = "🔴 Grabando lectura en vivo...";
+            statusTxt.innerText = "🔴 Grabando lectura en MP4...";
         }};
 
         btnStop.onclick = () => {{
@@ -773,14 +792,14 @@ with col_tools_right:
                 if len(audio_b64) > 49000:
                     st.error("⚠️ El audio supera los 15 seg. Graba un fragmento más corto.")
                 else:
-                    tema_completo = f"[{st.session_state.selected_cefr.split()}] {asunto} ({gramatica_b1})" if asunto else gramatica_b1
+                    tema_completo = f"[{st.session_state.selected_cefr.split()[0]}] {asunto} ({gramatica_b1})" if asunto else gramatica_b1
                     fecha_subida = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     sheet.append_row([usuario, tema_completo, audio_b64, fecha_subida])
                     st.success("✅ ¡Audio guardado en Google Sheets!")
         except Exception as e:
             st.error(f"Error al guardar audio: {e}")
 
-    # FUNCIÓN GENERADORA DE PDF EN TIEMPO REAL CON AUTORÍA JACOB ZUMAYA PRIANTI
+    # FUNCIÓN GENERADORA DE PDF EN TIEMPO REAL CON AUTORÍA JACOB ZUMAYA PRIANTI Y BIBLIOGRAFÍA
     def create_pdf(text, quiz_items=None, user_ans=None, score=None):
         pdf = FPDF()
         pdf.set_author("Jacob Zumaya Prianti")
