@@ -9,3 +9,7 @@ fpdf
 google-auth
 gspread
 google-genai
+streamlit-js-eval
+
+
+
