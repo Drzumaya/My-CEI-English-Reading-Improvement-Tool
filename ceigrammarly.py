@@ -112,10 +112,11 @@ def normalize_cefr(raw_val):
 for key, default in [
     ("authenticated", False), ("current_user", ""), ("user_role", "Estudiante"),
     ("user_assigned_level", "B1 (Intermediate)"), ("generated_text", ""),
-    ("image_bytes", None), ("audio_bytes", None), ("app_exited", False),
-    ("show_saved_audios", False), ("quiz_data", None), ("quiz_graded", False),
-    ("quiz_score", None), ("quiz_user_answers", {}), ("pending_ls_token", None),
-    ("selected_cefr", "B1 (Intermediate)"), ("show_teacher_registry", False)
+    ("real_sources", []), ("image_bytes", None), ("audio_bytes", None),
+    ("app_exited", False), ("show_saved_audios", False), ("quiz_data", None),
+    ("quiz_graded", False), ("quiz_score", None), ("quiz_user_answers", {}),
+    ("pending_ls_token", None), ("selected_cefr", "B1 (Intermediate)"),
+    ("show_teacher_registry", False)
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -132,7 +133,7 @@ if st.session_state.pending_ls_token is not None:
         streamlit_js_eval(js_expressions=f"localStorage.setItem('cei_auth_token', '{st.session_state.pending_ls_token}')", key="sv_ls_init")
     st.session_state.pending_ls_token = None
 
-# --- RECUPERACIÓN INVISIBLE DE SESIÓN (ACTUALIZA NIVEL DESDE EL PADRÓN) ---
+# --- RECUPERACIÓN INVISIBLE DE SESIÓN ---
 if not st.session_state.authenticated and not st.session_state.app_exited:
     saved_token = streamlit_js_eval(js_expressions="localStorage.getItem('cei_auth_token')", key="get_ls_token")
     if saved_token and isinstance(saved_token, str):
@@ -542,7 +543,7 @@ if generar_btn:
                     f"You are a Senior Applied Linguist at CAREER ENGLISH INSTITUTE. "
                     f"Translate any Spanish inputs and write 100% in natural English calibrated STRICTLY to CEFR Level {cefr_level}. "
                     f"LINGUISTIC CALIBRATION RULE: {guia_nivel} "
-                    f"Follow strict APA Style. The official author of every generated academic document MUST be Jacob Zumaya Prianti (APA citation: Zumaya Prianti, J., 2026). "
+                    f"Follow strict APA Style. The official author of every generated academic document MUST be Jacob Zumaya Prianti. "
                     f"Zero Spanish words allowed."
                 )
                 prompt_texto = f"""
@@ -555,8 +556,9 @@ if generar_btn:
                 2. APA Header & Byline: Include the academic title in bold, followed immediately by:
                    **Author:** Jacob Zumaya Prianti  
                    **Institution:** Career English Institute (2026) | **CEFR Level:** {cefr_level}
-                3. APA References: Include an APA Reference list at the end, listing as primary source:
-                   Zumaya Prianti, J. (2026). *{asunto.title()}: CEFR {nivel_corto} Applied Grammar & Discourse Module*. Career English Institute.
+                3. Bibliography / APA References Section: At the end of the lesson, include a formal section titled **Bibliography (Consulted Academic & Linguistic Sources)** formatted in strict APA 7th edition. List:
+                   - Primary instructional module: Zumaya Prianti, J. (2026). *{asunto.title()}: CEFR {nivel_corto} Applied Grammar & Discourse Module*. Career English Institute.
+                   - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works (e.g., Council of Europe CEFR Companion Volume, Cambridge English Grammar, Oxford University Press, or verified academic sources directly relevant to "{asunto}" and "{gramatica_b1}") that support the linguistic and thematic content generated.
                 """
                 texto_gen, mod_usado = generar_con_maxima_potencia(client, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
@@ -676,7 +678,7 @@ with col_tools_right:
         
     st.divider()
 
-    # 2. PRÁCTICA DE LECTURA: GRABAR AUDIO Y GRABAR/DESCARGAR VIDEO
+    # 2. PRÁCTICA DE LECTURA: GRABAR AUDIO Y GRABAR VIDEO EN VIVO CON CÁMARA
     st.subheader("🎙️ 2. Speaking & Video Practice")
     tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
     
@@ -684,28 +686,83 @@ with col_tools_right:
         student_audio = st.audio_input("Graba tu voz leyendo el texto:")
         
     with tab_rec_video:
-        st.caption("Graba o selecciona tu video de lectura:")
-        student_video = st.file_uploader(
-            "Activar Cámara / Video (MP4/MOV/WEBM):",
-            type=["mp4", "mov", "webm"],
-            accept_multiple_files=False,
-            key="video_rec_uploader"
-        )
-        if student_video is not None:
-            st.video(student_video)
-            st.download_button(
-                label="📥 Descargar Video en Dispositivo",
-                data=student_video.getvalue(),
-                file_name=f"CEI_Video_{usuario.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.mp4",
-                mime=student_video.type or "video/mp4",
-                type="primary",
-                width="stretch"
-            )
-        else:
-            st.button("📥 Descargar Video en Dispositivo", disabled=True, width="stretch")
+        st.caption("Activa tu cámara, graba tu lectura y descárgala en tu dispositivo:")
+        safe_user_filename = f"CEI_Video_{usuario.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.webm"
+        video_recorder_html = f"""
+        <div style="font-family: sans-serif; text-align: center; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fafafa;">
+            <video id="preview" width="100%" height="180" autoplay muted playsinline style="border-radius: 8px; background: #000; object-fit: cover;"></video>
+            <div style="margin-top: 8px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
+                <button id="btnStartCam" style="background:#0d6efd; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">📷 Activar Cámara</button>
+                <button id="btnRec" disabled style="background:#dc3545; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏺️ Grabar</button>
+                <button id="btnStop" disabled style="background:#6c757d; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏹️ Detener</button>
+            </div>
+            <p id="statusTxt" style="font-size: 12px; color: #555; margin: 6px 0;">Presiona "Activar Cámara" para iniciar</p>
+            <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video en Dispositivo</a>
+        </div>
+
+        <script>
+        let stream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+
+        const preview = document.getElementById('preview');
+        const btnStartCam = document.getElementById('btnStartCam');
+        const btnRec = document.getElementById('btnRec');
+        const btnStop = document.getElementById('btnStop');
+        const statusTxt = document.getElementById('statusTxt');
+        const downloadLink = document.getElementById('downloadLink');
+
+        btnStartCam.onclick = async () => {{
+            try {{
+                stream = await navigator.mediaDevices.getUserMedia({{ video: true, audio: true }});
+                preview.srcObject = stream;
+                preview.muted = true;
+                preview.controls = false;
+                btnRec.disabled = false;
+                btnStartCam.disabled = true;
+                statusTxt.innerText = "Cámara activa. Listo para grabar.";
+            }} catch (err) {{
+                statusTxt.innerText = "⚠️ Permiso de cámara/micrófono denegado o no disponible.";
+            }}
+        }};
+
+        btnRec.onclick = () => {{
+            recordedChunks = [];
+            downloadLink.style.display = 'none';
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = (e) => {{
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            }};
+            mediaRecorder.onstop = () => {{
+                const blob = new Blob(recordedChunks, {{ type: 'video/webm' }});
+                const url = URL.createObjectURL(blob);
+                preview.srcObject = null;
+                preview.src = url;
+                preview.muted = false;
+                preview.controls = true;
+                downloadLink.href = url;
+                downloadLink.download = "{safe_user_filename}";
+                downloadLink.style.display = 'inline-block';
+                statusTxt.innerText = "✅ Video grabado. Haz clic abajo para descargarlo.";
+                stream.getTracks().forEach(track => track.stop());
+                btnStartCam.disabled = false;
+                btnStartCam.innerText = "🔄 Grabar Otro";
+            }};
+            mediaRecorder.start();
+            btnRec.disabled = true;
+            btnStop.disabled = false;
+            statusTxt.innerText = "🔴 Grabando lectura en vivo...";
+        }};
+
+        btnStop.onclick = () => {{
+            mediaRecorder.stop();
+            btnStop.disabled = true;
+        }};
+        </script>
+        """
+        st.components.v1.html(video_recorder_html, height=315)
 
     st.write("")
-
     # 3. BOTONES EN ORDEN PROFESIONAL:
     # (A) GUARDAR AUDIO -> (B) DESCARGAR PDF EN TIEMPO REAL -> (C) VER AUDIOS GUARDADOS
     if st.button("☁️ Guardar Audio en Google Sheets", type="primary", width="stretch", disabled=(student_audio is None)):
@@ -716,7 +773,7 @@ with col_tools_right:
                 if len(audio_b64) > 49000:
                     st.error("⚠️ El audio supera los 15 seg. Graba un fragmento más corto.")
                 else:
-                    tema_completo = f"[{st.session_state.selected_cefr.split()[0]}] {asunto} ({gramatica_b1})" if asunto else gramatica_b1
+                    tema_completo = f"[{st.session_state.selected_cefr.split()}] {asunto} ({gramatica_b1})" if asunto else gramatica_b1
                     fecha_subida = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     sheet.append_row([usuario, tema_completo, audio_b64, fecha_subida])
                     st.success("✅ ¡Audio guardado en Google Sheets!")
