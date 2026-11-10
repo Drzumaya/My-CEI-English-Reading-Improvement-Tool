@@ -418,13 +418,26 @@ if generar_btn:
         client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
         with st.spinner("🧠 Generating CEFR B1 Lesson, Image & Audio..."):
             try:
-                sys_prompt = "You are a Senior Applied Linguist at CAREER ENGLISH INSTITUTE. Translate any Spanish inputs and write 100% in natural CEFR B1 English following APA format. Zero Spanish words."
+                sys_prompt = (
+                    "You are a Senior Applied Linguist at CAREER ENGLISH INSTITUTE. "
+                    "Translate any Spanish inputs and write 100% in natural CEFR B1 English following strict APA Style. "
+                    "The official author of every generated academic document MUST be Jacob Zumaya Prianti (APA citation: Zumaya Prianti, J., 2026). "
+                    "Zero Spanish words allowed."
+                )
                 prompt_texto = f"""
-                Create a CEFR Level B1 English lesson:
+                Create a CEFR Level B1 English lesson artifact authored by Jacob Zumaya Prianti:
                 - Context: {contexto} | Characters: {personas} | Subject: {asunto}
                 - Target B1 Grammar: {gramatica_b1} | Mode: {tipo_texto}
-                Rules: 100% English, highlight all {gramatica_b1} structures in **bold**, use APA Academic Title, Headings, and APA References at the end.
+                
+                STRICT RULES:
+                1. 100% English only. Highlight all {gramatica_b1} structures in **bold**.
+                2. APA Header & Byline: Include the academic title in bold, followed immediately by:
+                   **Author:** Jacob Zumaya Prianti  
+                   **Institution:** Career English Institute (2026)
+                3. APA References: Include an APA 7th/8th edition Reference list at the end, listing as primary source:
+                   Zumaya Prianti, J. (2026). *{asunto.title()}: CEFR B1 Applied Grammar & Discourse Module*. Career English Institute.
                 """
+
                 texto_gen, mod_usado = generar_con_maxima_potencia(client, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
                 st.session_state.active_model_name = mod_usado
@@ -586,9 +599,12 @@ with col_tools_right:
         pdf.cell(0, 10, txt="CAREER ENGLISH INSTITUTE", ln=True, align="C")
         pdf.set_font("Times", "B", 11)
         pdf.cell(0, 7, txt="CEFR B1 Academic Grammar & Discourse System", ln=True, align="C")
+        pdf.set_font("Times", "B", 10)
+        pdf.cell(0, 7, txt="Author: Jacob Zumaya Prianti", ln=True, align="C")
         pdf.set_font("Times", "I", 10)
         pdf.cell(0, 7, txt=f"Student: {usuario} | Date: {datetime.now().strftime('%Y-%m-%d')}", ln=True, align="C")
         pdf.ln(5)
+
         
         pdf.set_font("Times", size=12)
         pdf.multi_cell(0, 8, txt=text.encode("latin-1", "replace").decode("latin-1"))
