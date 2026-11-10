@@ -889,12 +889,12 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                         reg_clave = st.text_input("🔑 Clave de Acceso asignada:", placeholder="Ej: CEI-2026-05")
                         c_r1, c_r2 = st.columns(2)
                         with c_r1:
-                            reg_rol = st.selectbox("Rol:", ROLES_LISTA if can("Editar_Permisos") else ["Estudiante"], index=0)
+                            reg_rol = st.selectbox("Rol:", ROLES_LISTA, index=0)
                         with c_r2:
                             reg_nivel = st.selectbox("Nivel CEFR:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2)
                         
                         reg_grado = st.selectbox("🎓 Nivel Académico:", GRADOS_ACADEMICOS, index=1)
-                        reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", permisos_disponibles, index=0)
+                        reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", PERMISOS_LISTA, index=0)
                         
                         if st.form_submit_button("💾 Guardar Inscripción", type="primary", width="stretch"):
                             if reg_usuario.strip() and reg_clave.strip():
@@ -925,7 +925,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             with c_ed1:
                                 user_to_edit = st.selectbox("Usuario:", df_p["Usuario"].tolist(), key="edit_u_sel")
                             with c_ed2:
-                                new_rol_edit = st.selectbox("Rol:", ROLES_LISTA if can("Editar_Permisos") else ["Estudiante"], key="edit_rl_sel")
+                                new_rol_edit = st.selectbox("Rol:", ROLES_LISTA, key="edit_rl_sel")
                             with c_ed3:
                                 new_grado_edit = st.selectbox("Nivel Académico:", GRADOS_ACADEMICOS, index=1, key="edit_gr_sel")
 
@@ -933,7 +933,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             with c_ed4:
                                 new_lvl_edit = st.selectbox("CEFR:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2, key="edit_lv_sel")
                             with c_ed5:
-                                new_perm_edit = st.selectbox("Permiso:", permisos_disponibles, key="edit_pm_sel")
+                                new_perm_edit = st.selectbox("Permiso:", PERMISOS_LISTA, key="edit_pm_sel")
                             with c_ed6:
                                 new_status = st.selectbox("Estatus:", ["Activo", "Inactivo"], key="edit_st_sel")
                                 
