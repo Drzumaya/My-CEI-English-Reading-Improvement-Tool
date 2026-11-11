@@ -1662,6 +1662,47 @@ with col_main_center:
                 if st.session_state.quiz_graded and st.session_state.quiz_score:
                     st.info(f"🏆 **Calificación Obtenida / Final Score:** {st.session_state.quiz_score}")
 
+                st.divider()
+                col_q_aud1, col_q_aud2 = st.columns(2)
+                with col_q_aud1:
+                    if st.button("🔊 Generar Audio del Quiz", key="btn_gen_quiz_audio", width="stretch"):
+                        with st.spinner("Sintetizando audio del cuestionario en inglés..."):
+                            try:
+                                lineas_audio = [
+                                    f"Lesson Comprehension and Grammar Quiz. Folio {st.session_state.current_folio or ''}."
+                                ]
+                                for idx_q, q_item in enumerate(st.session_state.quiz_data, start=1):
+                                    lineas_audio.append(f"Question {idx_q}: {q_item['question']}")
+                                    for opt_txt in q_item["options"]:
+                                        lineas_audio.append(opt_txt)
+                                    if st.session_state.quiz_graded:
+                                        lineas_audio.append(f"Correct answer: {q_item['answer']}.")
+                                
+                                guion_quiz = " ".join(lineas_audio).replace("*", "").replace("#", "")
+                                tts_q = gTTS(text=guion_quiz, lang="en", slow=False)
+                                buf_q = io.BytesIO()
+                                tts_q.write_to_fp(buf_q)
+                                st.session_state.quiz_audio_bytes = buf_q.getvalue()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al generar audio del quiz: {e}")
+
+                with col_q_aud2:
+                    if st.session_state.get("quiz_audio_bytes"):
+                        st.download_button(
+                            label="📥 Descargar Audio del Quiz (MP3)",
+                            data=st.session_state.quiz_audio_bytes,
+                            file_name=f"CEI_Quiz_Audio_{st.session_state.current_folio or 'Practice'}.mp3",
+                            mime="audio/mp3",
+                            width="stretch"
+                        )
+                    else:
+                        st.button("📥 Descargar Audio del Quiz (MP3)", disabled=True, width="stretch")
+
+                if st.session_state.get("quiz_audio_bytes"):
+                    st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
+
+
     st.subheader(f"🖼️ Visual Context ({st.session_state.selected_academic_grade})")
     bottom_container = st.container(height=280, border=True)
     with bottom_container:
@@ -1877,37 +1918,26 @@ with col_tools_right:
         pdf.cell(0, 6, text=_safe_latin1(f"Recovery Link: {link_doc}"), new_x="LMARGIN", new_y="NEXT", align="C", link=link_doc)
         pdf.ln(5)
 
-        # --- INSERCIÓN DE LA ILUSTRACIÓN CON GLOBOS DE DIÁLOGO EN EL PDF ---
+        # --- INSERCIÓN DE LA ILUSTRACIÓN EN EL PDF ---
         img_to_embed = st.session_state.get("image_bytes")
-        if not img_to_embed and text:
-            # Si el usuario recuperó un folio antiguo sin imagen en sesión, genera la tarjeta con diálogos
-            img_to_embed = generar_imagen_garantizada(
-                None,
-                text[:120],
-                f"Folio {folio_doc}",
-                st.session_state.selected_cefr,
-                grado_doc
-            )
-
         if img_to_embed:
             try:
                 img_buf = io.BytesIO(img_to_embed)
-                # Ancho de 130 mm centrado en hoja A4 (210 mm de ancho -> margen izq = 40 mm)
                 y_img = pdf.get_y()
                 pdf.image(img_buf, x=40, y=y_img, w=130)
-                # Dibuja un marco elegante alrededor de la ilustración (proporción 16:9 -> alto ~73.1 mm)
                 pdf.set_draw_color(11, 37, 69)
                 pdf.set_line_width(0.4)
                 pdf.rect(40, y_img, 130, 73.1)
                 pdf.set_y(y_img + 78)
             except Exception:
                 pdf.ln(3)
-        
-        # Cuerpo de la lección
+
+        # --- CUERPO DE LA LECCIÓN ---
+        pdf.set_x(pdf.l_margin)
         pdf.set_font("Times", size=12)
-        pdf.multi_cell(0, 8, text=_safe_latin1(text))
-        
-        # Quiz interactivo y respuestas (si existe)
+        pdf.multi_cell(pdf.epw, 8, text=_safe_latin1(text), new_x="LMARGIN", new_y="NEXT")
+
+        # --- QUIZ INTERACTIVO Y CALIFICACIÓN ---
         if quiz_items:
             pdf.ln(8)
             pdf.set_x(pdf.l_margin)
