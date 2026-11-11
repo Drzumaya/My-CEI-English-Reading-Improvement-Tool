@@ -1,0 +1,11 @@
+# Credenciales y secretos locales
+.streamlit/secrets.toml
+*.json
+.env
+
+# Archivos temporales de Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
