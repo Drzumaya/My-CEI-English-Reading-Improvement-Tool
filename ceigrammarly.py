@@ -1906,23 +1906,29 @@ with col_tools_right:
         # Quiz interactivo y respuestas (si existe)
         if quiz_items:
             pdf.ln(8)
+            pdf.set_x(pdf.l_margin)
             pdf.set_font("Times", "B", 13)
-            pdf.cell(0, 10, text=_safe_latin1(f"LESSON COMPREHENSION & GRAMMAR QUIZ (FOLIO: {folio_doc})"), new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(pdf.epw, 10, text=_safe_latin1(f"LESSON COMPREHENSION & GRAMMAR QUIZ (FOLIO: {folio_doc})"), new_x="LMARGIN", new_y="NEXT")
             if score:
+                pdf.set_x(pdf.l_margin)
                 pdf.set_font("Times", "B", 11)
-                pdf.cell(0, 8, text=_safe_latin1(f"Final Grade / Calificacion Obtenida: {score}"), new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(pdf.epw, 8, text=_safe_latin1(f"Final Grade / Calificacion Obtenida: {score}"), new_x="LMARGIN", new_y="NEXT")
             pdf.ln(3)
             for i, q in enumerate(quiz_items):
+                pdf.set_x(pdf.l_margin)
                 pdf.set_font("Times", "B", 11)
-                pdf.multi_cell(0, 7, text=_safe_latin1(f"{i+1}. {q['question']}"))
+                pdf.multi_cell(pdf.epw, 7, text=_safe_latin1(f"{i+1}. {q['question']}"), new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("Times", size=10)
                 for opt in q["options"]:
-                    pdf.multi_cell(0, 6, text=_safe_latin1(f"   {opt}"))
+                    pdf.set_x(pdf.l_margin + 4)
+                    pdf.multi_cell(pdf.epw - 4, 6, text=_safe_latin1(str(opt)), new_x="LMARGIN", new_y="NEXT")
                 u_choice = user_ans.get(i) if user_ans else "None"
-                ans_line = f"   -> Student Answer: {u_choice or 'None'} | Correct: {q['answer']}"
+                ans_line = f"-> Student Answer: {u_choice or 'None'} | Correct: {q['answer']}"
+                pdf.set_x(pdf.l_margin + 4)
                 pdf.set_font("Times", "I", 10)
-                pdf.multi_cell(0, 6, text=_safe_latin1(ans_line))
+                pdf.multi_cell(pdf.epw - 4, 6, text=_safe_latin1(ans_line), new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(3)
+
 
         # Pie de página
         pdf.ln(10)
