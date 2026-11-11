@@ -772,12 +772,13 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str, nivel_cefr: str, grado_acad: str) -> bytes:
-    """Genera una ilustración educativa real con Nano Banana / Gemini Image y escenario completo."""
+    """Genera ilustración escénica real con Gemini/Imagen o respaldo visual Flux con personajes y ambiente."""
+    st.session_state["last_img_error"] = None
     clean_p = "".join(c for c in escena_y_dialogos if c.isalnum() or c in " ,.?!'-:").strip()
     
     prompt_comic = (
         f"Warm, colorful, friendly educational comic-book illustration in 16:9 widescreen format for {grado_acad} English learners. "
-        f"Show a rich, detailed physical environment (furniture, room background, warm lighting) and expressive characters interacting naturally. "
+        f"Show a rich, detailed physical environment (room background, furniture, warm lighting) and expressive characters interacting naturally. "
         f"Include clean comic speech bubbles with legible English dialogue text. "
         f"Scene details: {clean_p}"
     )
@@ -785,67 +786,52 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
     errores_img = []
 
     if client is not None:
-        # 1. Modelos nativos Nano Banana / Gemini Image (sin ImageConfig restrictivo para máxima compatibilidad)
-        modelos_imagen_nativos = [
-            "gemini-2.5-flash-image",
-            "gemini-3.1-flash-image-preview",
-            "gemini-2.0-flash-preview-image-generation",
-            "gemini-2.0-flash-exp-image-generation"
-        ]
-        try:
-            for m in client.models.list():
-                nombre = m.name.replace("models/", "")
-                if "image" in nombre.lower() and "imagen" not in nombre.lower() and nombre not in modelos_imagen_nativos:
-                    modelos_imagen_nativos.append(nombre)
-        except Exception:
-            pass
-
-        for img_model in modelos_imagen_nativos:
+        # 1. Modelos nativos Gemini Image (Nano Banana)
+        modelos_nativos = ["gemini-2.5-flash-image", "gemini-3.1-flash-image-preview", "gemini-2.0-flash-exp-image-generation"]
+        for img_model in modelos_nativos:
             try:
                 res_native = client.models.generate_content(
                     model=img_model,
                     contents=prompt_comic,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"]
-                    )
+                    config=types.GenerateContentConfig(response_modalities=["IMAGE"])
                 )
                 if res_native and res_native.candidates:
-                    for part in res_native.candidates.content.parts:
+                    for part in res_native.candidates[0].content.parts:
                         if getattr(part, "inline_data", None) and part.inline_data.data:
                             return compress_bytes_image(part.inline_data.data)
             except Exception as e:
-                errores_img.append(f"{img_model}: {e}")
-                continue
+                errores_img.append(f"{img_model}: {str(e)[:120]}")
 
-        # 2. Respaldo con Google Imagen 3 / Imagen 4 (generate_images)
-        modelos_imagen_api = ["imagen-3.0-generate-002", "imagen-4.0-generate-001"]
+        # 2. Google Imagen 3
         try:
-            for m in client.models.list():
-                nombre = m.name.replace("models/", "")
-                if "imagen-" in nombre.lower() and nombre not in modelos_imagen_api:
-                    modelos_imagen_api.append(nombre)
-        except Exception:
-            pass
+            res_img = client.models.generate_images(
+                model="imagen-3.0-generate-002",
+                prompt=prompt_comic,
+                config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
+            )
+            if res_img and res_img.generated_images:
+                return compress_bytes_image(res_img.generated_images[0].image.image_bytes)
+        except Exception as e:
+            errores_img.append(f"imagen-3.0: {str(e)[:120]}")
 
-        for im_model in modelos_imagen_api:
-            try:
-                res_img = client.models.generate_images(
-                    model=im_model,
-                    prompt=prompt_comic,
-                    config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
-                )
-                if res_img and res_img.generated_images:
-                    raw_b = res_img.generated_images.image.image_bytes
-                    return compress_bytes_image(raw_b)
-            except Exception as e:
-                errores_img.append(f"{im_model}: {e}")
-                continue
-
-        # Si todos los modelos de Google fallaron, guarda el motivo para diagnósticos
         if errores_img:
-            st.session_state["last_img_error"] = errores_img
+            st.session_state["last_img_error"] = " | ".join(errores_img)
 
-    # 3. Tarjeta de emergencia solo si la API no tiene cuota de imagen
+    # 3. Motor Visual Escénico Gratuito (Dibuja personajes, oficina/ambiente y diálogos sin cuota de Google)
+    prompt_flux = urllib.parse.quote(
+        f"friendly educational comic illustration, {clean_p}, detailed room background, expressive people talking, speech bubbles, warm colors, digital art"[:400]
+    )
+    seed_rnd = random.randint(1, 99999)
+    for model_web in ["flux", "turbo"]:
+        try:
+            url_web = f"https://pollinations.ai{prompt_flux}?model={model_web}&width=768&height=432&nologo=true&seed={seed_rnd}"
+            resp = requests.get(url_web, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+            if resp.status_code == 200 and len(resp.content) > 5000:
+                return compress_bytes_image(resp.content)
+        except Exception:
+            continue
+
+    # 4. Tarjeta local únicamente si todos los servidores externos están caídos
     import re
     img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
     draw = ImageDraw.Draw(img_card)
@@ -868,25 +854,16 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
         x_right = 505 if idx_d % 2 == 0 else 605
         bg_bubble = (255, 255, 255) if idx_d % 2 == 0 else (230, 242, 255)
         draw.rounded_rectangle((x_left, y_box, x_right, y_box + 68), radius=14, fill=bg_bubble, outline=(218, 165, 32), width=2)
-        
         txt_clean = frase.strip()[:85]
         l1, l2 = txt_clean[:44], txt_clean[44:85]
         draw.text((x_left + 15, y_box + 16), f'"{l1}', fill=(11, 37, 69))
         if l2:
             draw.text((x_left + 15, y_box + 36), f'{l2}"', fill=(11, 37, 69))
-        else:
-            draw.text((x_left + 15 + len(l1)*6, y_box + 16), '"', fill=(11, 37, 69))
         y_box += 85
 
-    draw.text((28, 322), "Applied Linguistics & Visual Dialogue Context - Jacob Zumaya Prianti", fill=(160, 190, 220))
     buf_card = io.BytesIO()
     img_card.save(buf_card, format="JPEG", quality=85)
-    if st.session_state.get("last_img_error"):
-        st.caption(f"ℹ️ Diagnóstico API Imagen: {st.session_state['last_img_error']}")
-    
     return buf_card.getvalue()
-
-
 
 
 def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
