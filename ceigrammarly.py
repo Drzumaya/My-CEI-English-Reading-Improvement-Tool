@@ -592,50 +592,58 @@ if not st.session_state.authenticated:
             remember_me = st.checkbox("💾 Recordar mi usuario y contraseña en este navegador", value=True)
             submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", use_container_width=True)
             
-            if submit_login:
-                if not input_user or not input_pass:
-                    st.warning("⚠️ Ingresa tu Usuario y Clave de Acceso.")
+                        if submit_login:
+                if not input_user.strip() or not input_pass.strip():
+                    st.warning("⚠️ Por favor, ingresa tanto tu **Usuario** como tu **Clave de Acceso**.")
                 else:
                     try:
                         with st.spinner("Verificando credenciales, grado académico y permisos..."):
                             load_padron_records.clear()
                             registros = load_padron_records()
-                            acceso_valido = False
+                            usuario_encontrado = None
+                            
                             for reg in registros:
                                 u_db = str(reg.get("Usuario", "")).strip()
                                 c_db = str(reg.get("Clave", "")).strip()
-                                e_db = str(reg.get("Estatus", "Activo")).strip().lower()
-                                r_db = str(reg.get("Rol", "Estudiante")).strip()
-                                p_db = resolve_permission_profile(reg.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
-                                n_db = normalize_cefr(reg.get("Nivel", "B1"))
-                                g_db = str(reg.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
-                                
                                 if u_db.lower() == input_user.strip().lower() and c_db == input_pass.strip():
-                                    if e_db == "activo":
-                                        st.session_state.authenticated = True
-                                        st.session_state.current_user = u_db
-                                        st.session_state.user_role = r_db
-                                        st.session_state.user_permissions = p_db
-                                        st.session_state.user_assigned_level = n_db
-                                        st.session_state.selected_cefr = n_db
-                                        st.session_state.user_academic_grade = g_db
-                                        st.session_state.selected_academic_grade = g_db
-                                        if remember_me:
-                                            st.session_state.pending_ls_token = _sign_session_token(u_db, c_db)
-                                        else:
-                                            st.session_state.pending_ls_token = "REMOVE"
-                                        acceso_valido = True
-                                        break
+                                    usuario_encontrado = reg
+                                    break
+                            
+                            if usuario_encontrado is None:
+                                st.toast("Acceso denegado: credenciales incorrectas.", icon="🚨")
+                                st.error(
+                                    "🚨 **Credenciales Incorrectas:** El **Usuario** o la **Clave de Acceso** no coinciden con nuestros registros.\n\n"
+                                    "Verifica que no tengas activado el bloqueo de mayúsculas o solicita asistencia a tu Teacher / Administrador."
+                                )
+                            else:
+                                e_db = str(usuario_encontrado.get("Estatus", "Activo")).strip().lower()
+                                if e_db != "activo":
+                                    st.toast("Cuenta inactiva.", icon="⛔")
+                                    st.error("⛔ **Acceso Restringido:** Tu cuenta existe, pero se encuentra **Inactiva**. Contacta a la administración del instituto.")
+                                else:
+                                    u_db = str(usuario_encontrado.get("Usuario", "")).strip()
+                                    c_db = str(usuario_encontrado.get("Clave", "")).strip()
+                                    r_db = str(usuario_encontrado.get("Rol", "Estudiante")).strip()
+                                    p_db = resolve_permission_profile(usuario_encontrado.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
+                                    n_db = normalize_cefr(usuario_encontrado.get("Nivel", "B1"))
+                                    g_db = str(usuario_encontrado.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
+                                    
+                                    st.session_state.authenticated = True
+                                    st.session_state.current_user = u_db
+                                    st.session_state.user_role = r_db
+                                    st.session_state.user_permissions = p_db
+                                    st.session_state.user_assigned_level = n_db
+                                    st.session_state.selected_cefr = n_db
+                                    st.session_state.user_academic_grade = g_db
+                                    st.session_state.selected_academic_grade = g_db
+                                    
+                                    if remember_me:
+                                        st.session_state.pending_ls_token = _sign_session_token(u_db, c_db)
                                     else:
-                                        st.error("⛔ Tu cuenta se encuentra inactiva.")
-                                        acceso_valido = None
-                                        break
-                            if acceso_valido is True:
-                                st.rerun()
-                            elif acceso_valido is False:
-                                st.error("❌ Usuario o Clave incorrectos.")
+                                        st.session_state.pending_ls_token = "REMOVE"
+                                    st.rerun()
                     except Exception as e:
-                        st.error(f"Error al conectar con 'Padron_Estudiantes': {e}")
+                        st.error(f"❌ Error de conexión al verificar credenciales en la base de datos: {e}")
         st.markdown(
             f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>",
             unsafe_allow_html=True
@@ -644,10 +652,22 @@ if not st.session_state.authenticated:
 # --- 9. MOTOR DE IA MULTIMODAL ---
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
     modelos_potentes = [
+        "gemini-3.8-flash",
+        "gemini-3.5-pro",
+        "gemini-3.1-pro-preview",
         "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash"
+        "gemini-2.5-flash"
     ]
+    # Añade automáticamente cualquier otro modelo Gemini activo en tu cuenta como respaldo
+    try:
+        for m in client.models.list():
+            nombre = m.name.replace("models/", "")
+            if "gemini" in nombre and not any(x in nombre for x in ["embedding", "imagen", "aqa", "tts", "audio", "2.0"]):
+                if nombre not in modelos_potentes:
+                    modelos_potentes.append(nombre)
+    except Exception:
+        pass
+
     ultimo_error = None
     for modelo in modelos_potentes:
         try:
