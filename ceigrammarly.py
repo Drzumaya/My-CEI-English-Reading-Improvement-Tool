@@ -776,20 +776,22 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
     clean_p = "".join(c for c in escena_y_dialogos if c.isalnum() or c in " ,.?!'-:").strip()
     
     prompt_comic = (
-        f"Create a warm, colorful, detailed educational comic-book illustration for {grado_acad} English students. "
-        f"MUST SHOW THE FULL PHYSICAL ENVIRONMENT AND EXPRESSIVE CHARACTERS IN ACTION (do not use a plain solid background). "
-        f"Include clean comic speech bubbles with clear, legible English text. "
-        f"Scene and dialogue: {clean_p}"
+        f"Warm, colorful, friendly educational comic-book illustration in 16:9 widescreen format for {grado_acad} English learners. "
+        f"Show a rich, detailed physical environment (furniture, room background, warm lighting) and expressive characters interacting naturally. "
+        f"Include clean comic speech bubbles with legible English dialogue text. "
+        f"Scene details: {clean_p}"
     )
 
+    errores_img = []
+
     if client is not None:
-        # 1. Lista prioritaria de modelos Nano Banana / Gemini Native Image
+        # 1. Modelos nativos Nano Banana / Gemini Image (sin ImageConfig restrictivo para máxima compatibilidad)
         modelos_imagen_nativos = [
             "gemini-2.5-flash-image",
             "gemini-3.1-flash-image-preview",
-            "gemini-3-pro-image-preview"
+            "gemini-2.0-flash-preview-image-generation",
+            "gemini-2.0-flash-exp-image-generation"
         ]
-        # Detecta dinámicamente cualquier modelo con 'image' activo en tu API Key
         try:
             for m in client.models.list():
                 nombre = m.name.replace("models/", "")
@@ -804,15 +806,15 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
                     model=img_model,
                     contents=prompt_comic,
                     config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"],
-                        image_config=types.ImageConfig(aspect_ratio="16:9")
+                        response_modalities=["IMAGE"]
                     )
                 )
                 if res_native and res_native.candidates:
-                    for part in res_native.candidates[0].content.parts:
+                    for part in res_native.candidates.content.parts:
                         if getattr(part, "inline_data", None) and part.inline_data.data:
                             return compress_bytes_image(part.inline_data.data)
-            except Exception:
+            except Exception as e:
+                errores_img.append(f"{img_model}: {e}")
                 continue
 
         # 2. Respaldo con Google Imagen 3 / Imagen 4 (generate_images)
@@ -833,10 +835,15 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
                     config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
                 )
                 if res_img and res_img.generated_images:
-                    raw_b = res_img.generated_images[0].image.image_bytes
+                    raw_b = res_img.generated_images.image.image_bytes
                     return compress_bytes_image(raw_b)
-            except Exception:
+            except Exception as e:
+                errores_img.append(f"{im_model}: {e}")
                 continue
+
+        # Si todos los modelos de Google fallaron, guarda el motivo para diagnósticos
+        if errores_img:
+            st.session_state["last_img_error"] = errores_img
 
     # 3. Tarjeta de emergencia solo si la API no tiene cuota de imagen
     import re
@@ -874,6 +881,9 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
     draw.text((28, 322), "Applied Linguistics & Visual Dialogue Context - Jacob Zumaya Prianti", fill=(160, 190, 220))
     buf_card = io.BytesIO()
     img_card.save(buf_card, format="JPEG", quality=85)
+    if st.session_state.get("last_img_error"):
+        st.caption(f"ℹ️ Diagnóstico API Imagen: {st.session_state['last_img_error']}")
+    
     return buf_card.getvalue()
 
 
