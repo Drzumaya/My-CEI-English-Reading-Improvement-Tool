@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 from gtts import gTTS
@@ -1723,7 +1722,7 @@ with col_tools_right:
         }};
         </script>
         """
-        components.html(video_recorder_html, height=320)
+        st.iframe(video_recorder_html, height=320)
 
     st.write("")
     if st.button("☁️ Guardar Audio en Google Sheets", type="primary", use_container_width=True, disabled=(student_audio is None)):
