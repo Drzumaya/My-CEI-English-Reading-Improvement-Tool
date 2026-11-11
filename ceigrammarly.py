@@ -1843,6 +1843,10 @@ with col_main_center:
 
     bottom_container = st.container(height=280, border=True)
     with bottom_container:
+        if st.session_state.get("last_img_error"):
+        with st.expander("ℹ️ Detalle técnico del motor de imagen"):
+            st.caption(st.session_state["last_img_error"])
+
         if st.session_state.image_bytes:
             st.image(st.session_state.image_bytes, width="stretch")
         elif st.session_state.generated_text:
