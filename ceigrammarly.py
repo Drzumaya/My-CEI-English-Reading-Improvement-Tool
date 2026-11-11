@@ -592,7 +592,7 @@ if not st.session_state.authenticated:
             remember_me = st.checkbox("💾 Recordar mi usuario y contraseña en este navegador", value=True)
             submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", use_container_width=True)
             
-                        if submit_login:
+            if submit_login:
                 if not input_user.strip() or not input_pass.strip():
                     st.warning("⚠️ Por favor, ingresa tanto tu **Usuario** como tu **Clave de Acceso**.")
                 else:
