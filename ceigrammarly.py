@@ -409,7 +409,9 @@ DEFAULT_SESSION_STATES = [
     ("pending_ls_token", None), ("selected_cefr", "B1 (Intermediate)"),
     ("show_teacher_registry", False), ("current_folio", ""),
     ("current_pdf_link", ""), ("current_creation_date", ""),
-    ("show_qr", True), ("url_folio_checked", False)
+    ("show_qr", True), ("url_folio_checked", False),
+    ("quiz_audio_bytes", None)
+
 ]
 
 for key, default in DEFAULT_SESSION_STATES:
@@ -1500,21 +1502,23 @@ if generar_btn:
                 
                 try:
                     prompt_escena = f"""
-                    Read the English lesson below and write a concise visual prompt (max 35 words) describing:
-                    1. The exact scene and characters from the lesson ({contexto}, {personas}).
-                    2. Exactly TWO short, natural English speech bubbles taken from the lesson's key dialogue or main idea, enclosed in double quotes.
-                    Example format: A friendly barista and a tourist at a London cafe. Speech bubble 1: "Have you ever tried English tea?" Speech bubble 2: "Yes, I have!"
+                    Read the English lesson below and write a rich visual illustration prompt (40-50 words) for an educational comic-book scene:
+                    1. ENVIRONMENT & SETTING: Describe in vivid detail the physical background, objects, furniture, and atmosphere of '{contexto}' (e.g., modern office desks, computers, airport terminal, classroom).
+                    2. CHARACTERS & ACTION: Describe '{personas}' interacting naturally in that setting with expressive faces and body language.
+                    3. DIALOGUE BUBBLES: Include two short, clear English speech bubbles taken from the lesson enclosed in double quotes.
+                    Example: Inside a bright modern office with glass walls, laptops, and bookshelves, a manager and a coworker discuss a project at a desk. Speech bubble 1: "Have you finished the report yet?" Speech bubble 2: "Yes, I just sent it!"
                     
                     LESSON:
                     {texto_gen[:2500]}
                     """
                     img_desc, _ = generar_con_maxima_potencia(client, prompt_escena)
                 except Exception:
-                    img_desc = f'Scene in {contexto} with {personas}. Speech bubble 1: "Welcome to our lesson on {asunto}!"'
+                    img_desc = f'Detailed setting of {contexto} with furniture and objects. {personas} talking. Speech bubble 1: "Welcome to our lesson on {asunto}!"'
                     
                 st.session_state.image_bytes = generar_imagen_garantizada(
                     client, img_desc, f"{asunto} - {contexto}", cefr_level, academic_grade
                 )
+
 
                 
                 try:
