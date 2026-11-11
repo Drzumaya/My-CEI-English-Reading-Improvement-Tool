@@ -691,15 +691,40 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
         raise ultimo_error
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
-def generar_imagen_garantizada(client, prompt_ingles: str, titulo_tema: str, nivel_cefr: str, grado_acad: str) -> bytes:
-    clean_p = "".join(c for c in prompt_ingles if c.isalnum() or c in " ,.-").strip()
+def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str, nivel_cefr: str, grado_acad: str) -> bytes:
+    """Genera una ilustración tipo cómic educativo con globos de diálogo reales de la lección."""
+    # Limpieza suave conservando signos de puntuación útiles para diálogos (?, !, ', .)
+    clean_p = "".join(c for c in escena_y_dialogos if c.isalnum() or c in " ,.?!'-:").strip()
     
-    # NIVEL 1: Gemini Imagen 3 API
+    prompt_comic = (
+        f"Educational comic-strip illustration for {grado_acad} English learners (CEFR {nivel_cefr}). "
+        f"Clear, colorful, expressive characters in a clean educational graphic novel style. "
+        f"Scene and exact speech bubbles to include with clear, legible English lettering: {clean_p}"
+    )
+
+    # NIVEL 1A: Gemini Native Image Generation (excelente renderizado de texto y globos de diálogo)
     if client is not None:
+        for img_model in ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"]:
+            try:
+                res_native = client.models.generate_content(
+                    model=img_model,
+                    contents=prompt_comic,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"]
+                    )
+                )
+                if res_native and res_native.candidates:
+                    for part in res_native.candidates.content.parts:
+                        if getattr(part, "inline_data", None) and part.inline_data.data:
+                            return compress_bytes_image(part.inline_data.data)
+            except Exception:
+                continue
+
+        # NIVEL 1B: Google Imagen 3 API
         try:
             res_img = client.models.generate_images(
                 model="imagen-3.0-generate-002",
-                prompt=f"Educational illustration for {grado_acad} students: {clean_p}. Colorful, clear, no text.",
+                prompt=prompt_comic,
                 config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
             )
             if res_img and res_img.generated_images:
@@ -708,54 +733,55 @@ def generar_imagen_garantizada(client, prompt_ingles: str, titulo_tema: str, niv
         except Exception:
             pass
 
-    # NIVEL 2: Servidores externos de respaldo
-    encoded = urllib.parse.quote(f"{clean_p}, educational illustration, flat vector, no text")
-    first_clause = next(iter(clean_p.split(",")), "").strip()[:30]
-    keywords = urllib.parse.quote(first_clause.replace(" ", ",")) if first_clause else "education,school"
+    # NIVEL 2: Servidor externo con soporte de texto en escena (Pollinations)
+    encoded = urllib.parse.quote(prompt_comic[:350])
+    try:
+        url_ext = f"https://pollinations.ai{encoded}?model=flux&width=640&height=360&nologo=true&seed={random.randint(1, 999)}"
+        resp = requests.get(url_ext, headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
+        if resp.status_code == 200 and len(resp.content) > 4000:
+            return compress_bytes_image(resp.content)
+    except Exception:
+        pass
 
-    
-    urls_respaldo = [
-        f"https://pollinations.ai{encoded}?model=turbo&width=640&height=360&nologo=true&seed={random.randint(1, 999)}",
-        f"https://loremflickr.com{keywords}"
-    ]
-    for url_ext in urls_respaldo:
-        try:
-            resp = requests.get(url_ext, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-            if resp.status_code == 200 and len(resp.content) > 4000:
-                return compress_bytes_image(resp.content)
-        except Exception:
-            continue
-
-    # NIVEL 3: Tarjeta Visual Educativa Generada Localmente (100% Infalible)
+    # NIVEL 3: Tarjeta Visual Educativa Local con Globos de Conversación (100% Infalible)
     img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
     draw = ImageDraw.Draw(img_card)
-    draw.rectangle((15, 15, 625, 345), outline=(218, 165, 32), width=3)
-    draw.rectangle((18, 18, 622, 85), fill=(25, 65, 125))
+    draw.rectangle((12, 12, 628, 348), outline=(218, 165, 32), width=3)
+    draw.rectangle((15, 15, 625, 65), fill=(25, 65, 125))
     
     cefr_short = next(iter(nivel_cefr.split()), "CEFR") if nivel_cefr else "CEFR"
-    draw.text((35, 38), f"CAREER ENGLISH INSTITUTE | CEFR {cefr_short} | {grado_acad.upper()}", fill=(255, 215, 0))
-    draw.text((35, 115), "VISUAL CONTEXT & LESSON TOPIC:", fill=(180, 210, 255))
-    
-    palabras = titulo_tema.upper().split()
-    lineas, linea_act = [], ""
-    for p in palabras:
-        if len(linea_act + " " + p) <= 38:
-            linea_act = (linea_act + " " + p).strip()
-        else:
-            lineas.append(linea_act)
-            linea_act = p
-    if linea_act:
-        lineas.append(linea_act)
-    
-    y_txt = 150
-    for l in lineas[:4]:
-        draw.text((35, y_txt), l, fill=(255, 255, 255))
-        y_txt += 30
+    draw.text((28, 32), f"CAREER ENGLISH INSTITUTE | CEFR {cefr_short} | {grado_acad.upper()}", fill=(255, 215, 0))
+    draw.text((28, 80), f"SCENE: {titulo_tema.upper()[:52]}", fill=(180, 210, 255))
 
-    draw.text((35, 310), "Applied Linguistics & Visual Support - Jacob Zumaya Prianti", fill=(160, 190, 220))
+    # Extrae frases entre comillas si existen para dibujarlas como globos de diálogo
+    import re
+    dialogos = re.findall(r'"([^"]+)"', escena_y_dialogos)
+    if not dialogos:
+        dialogos = [clean_p[:55], clean_p[55:110]] if len(clean_p) > 55 else [clean_p]
+
+    y_box = 115
+    for idx_d, frase in enumerate(dialogos[:2]):
+        if not frase.strip():
+            continue
+        x_left = 35 if idx_d % 2 == 0 else 135
+        x_right = 505 if idx_d % 2 == 0 else 605
+        bg_bubble = (255, 255, 255) if idx_d % 2 == 0 else (230, 242, 255)
+        draw.rounded_rectangle((x_left, y_box, x_right, y_box + 68), radius=14, fill=bg_bubble, outline=(218, 165, 32), width=2)
+        
+        txt_clean = frase.strip()[:85]
+        l1, l2 = txt_clean[:44], txt_clean[44:85]
+        draw.text((x_left + 15, y_box + 16), f'"{l1}', fill=(11, 37, 69))
+        if l2:
+            draw.text((x_left + 15, y_box + 36), f'{l2}"', fill=(11, 37, 69))
+        else:
+            draw.text((x_left + 15 + len(l1)*6, y_box + 16), '"', fill=(11, 37, 69))
+        y_box += 85
+
+    draw.text((28, 322), "Applied Linguistics & Visual Dialogue Context - Jacob Zumaya Prianti", fill=(160, 190, 220))
     buf_card = io.BytesIO()
     img_card.save(buf_card, format="JPEG", quality=85)
     return buf_card.getvalue()
+
 
 def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
     client = init_gemini_client()
@@ -1473,16 +1499,23 @@ if generar_btn:
                 st.session_state.audio_bytes = None
                 
                 try:
-                    img_desc, _ = generar_con_maxima_potencia(
-                        client,
-                        f"Simple 10-word English visual illustration description for {academic_grade}: {contexto}, {personas}, {asunto}. No text."
-                    )
+                    prompt_escena = f"""
+                    Read the English lesson below and write a concise visual prompt (max 35 words) describing:
+                    1. The exact scene and characters from the lesson ({contexto}, {personas}).
+                    2. Exactly TWO short, natural English speech bubbles taken from the lesson's key dialogue or main idea, enclosed in double quotes.
+                    Example format: A friendly barista and a tourist at a London cafe. Speech bubble 1: "Have you ever tried English tea?" Speech bubble 2: "Yes, I have!"
+                    
+                    LESSON:
+                    {texto_gen[:2500]}
+                    """
+                    img_desc, _ = generar_con_maxima_potencia(client, prompt_escena)
                 except Exception:
-                    img_desc = f"{contexto} {asunto}"
+                    img_desc = f'Scene in {contexto} with {personas}. Speech bubble 1: "Welcome to our lesson on {asunto}!"'
                     
                 st.session_state.image_bytes = generar_imagen_garantizada(
                     client, img_desc, f"{asunto} - {contexto}", cefr_level, academic_grade
                 )
+
                 
                 try:
                     clean_tts = texto_gen.replace("*", "").replace("#", "")
@@ -1814,6 +1847,7 @@ with col_tools_right:
         pdf.set_creator("Career English Institute")
         pdf.add_page()
         
+        # Encabezado institucional
         pdf.set_font("Times", "B", 14)
         pdf.cell(0, 8, text="CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.set_font("Times", "I", 9)
@@ -1838,10 +1872,38 @@ with col_tools_right:
         pdf.set_font("Times", "U", 9)
         pdf.cell(0, 6, text=_safe_latin1(f"Recovery Link: {link_doc}"), new_x="LMARGIN", new_y="NEXT", align="C", link=link_doc)
         pdf.ln(5)
+
+        # --- INSERCIÓN DE LA ILUSTRACIÓN CON GLOBOS DE DIÁLOGO EN EL PDF ---
+        img_to_embed = st.session_state.get("image_bytes")
+        if not img_to_embed and text:
+            # Si el usuario recuperó un folio antiguo sin imagen en sesión, genera la tarjeta con diálogos
+            img_to_embed = generar_imagen_garantizada(
+                None,
+                text[:120],
+                f"Folio {folio_doc}",
+                st.session_state.selected_cefr,
+                grado_doc
+            )
+
+        if img_to_embed:
+            try:
+                img_buf = io.BytesIO(img_to_embed)
+                # Ancho de 130 mm centrado en hoja A4 (210 mm de ancho -> margen izq = 40 mm)
+                y_img = pdf.get_y()
+                pdf.image(img_buf, x=40, y=y_img, w=130)
+                # Dibuja un marco elegante alrededor de la ilustración (proporción 16:9 -> alto ~73.1 mm)
+                pdf.set_draw_color(11, 37, 69)
+                pdf.set_line_width(0.4)
+                pdf.rect(40, y_img, 130, 73.1)
+                pdf.set_y(y_img + 78)
+            except Exception:
+                pdf.ln(3)
         
+        # Cuerpo de la lección
         pdf.set_font("Times", size=12)
         pdf.multi_cell(0, 8, text=_safe_latin1(text))
         
+        # Quiz interactivo y respuestas (si existe)
         if quiz_items:
             pdf.ln(8)
             pdf.set_font("Times", "B", 13)
@@ -1862,6 +1924,7 @@ with col_tools_right:
                 pdf.multi_cell(0, 6, text=_safe_latin1(ans_line))
                 pdf.ln(3)
 
+        # Pie de página
         pdf.ln(10)
         pdf.set_font("Times", "I", 9)
         pdf.cell(0, 6, text=_safe_latin1(institute_address), new_x="LMARGIN", new_y="NEXT", align="C")
@@ -1872,6 +1935,7 @@ with col_tools_right:
             new_x="LMARGIN", new_y="NEXT", align="C"
         )
         return bytes(pdf.output())
+
 
     if st.session_state.generated_text:
         pdf_bytes = create_pdf(
