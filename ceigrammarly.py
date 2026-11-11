@@ -664,35 +664,18 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str, nivel_cefr: str, grado_acad: str) -> bytes:
-    """Genera una ilustración tipo cómic educativo con globos de diálogo reales de la lección."""
-    # Limpieza suave conservando signos de puntuación útiles para diálogos (?, !, ', .)
+    """Genera una ilustración educativa cálida con escenario completo, personajes y globos de diálogo."""
     clean_p = "".join(c for c in escena_y_dialogos if c.isalnum() or c in " ,.?!'-:").strip()
     
     prompt_comic = (
-        f"Educational comic-strip illustration for {grado_acad} English learners (CEFR {nivel_cefr}). "
-        f"Clear, colorful, expressive characters in a clean educational graphic novel style. "
-        f"Scene and exact speech bubbles to include with clear, legible English lettering: {clean_p}"
+        f"Warm, friendly, full-scene educational comic illustration for {grado_acad} students. "
+        f"CRITICAL VISUAL PRIORITY: Fill the entire 16:9 frame with a rich, detailed physical background setting, furniture, lighting, and expressive full-body/half-body characters interacting naturally. "
+        f"Do NOT make a plain background. Render clean comic speech bubbles with legible English text. "
+        f"Scene details: {clean_p}"
     )
 
-    # NIVEL 1A: Gemini Native Image Generation (excelente renderizado de texto y globos de diálogo)
     if client is not None:
-        for img_model in ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"]:
-            try:
-                res_native = client.models.generate_content(
-                    model=img_model,
-                    contents=prompt_comic,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"]
-                    )
-                )
-                if res_native and res_native.candidates:
-                    for part in res_native.candidates.content.parts:
-                        if getattr(part, "inline_data", None) and part.inline_data.data:
-                            return compress_bytes_image(part.inline_data.data)
-            except Exception:
-                continue
-
-        # NIVEL 1B: Google Imagen 3 API
+        # NIVEL 1A: Imagen 3 API (máxima calidad escénica y de personajes)
         try:
             res_img = client.models.generate_images(
                 model="imagen-3.0-generate-002",
@@ -700,22 +683,38 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
                 config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
             )
             if res_img and res_img.generated_images:
-                raw_b = res_img.generated_images.image.image_bytes
+                raw_b = res_img.generated_images[0].image.image_bytes
                 return compress_bytes_image(raw_b)
         except Exception:
             pass
 
-    # NIVEL 2: Servidor externo con soporte de texto en escena (Pollinations)
-    encoded = urllib.parse.quote(prompt_comic[:350])
+        # NIVEL 1B: Modelos nativos multimodales de Gemini
+        for img_model in ["gemini-2.5-flash-image", "gemini-2.0-flash-exp-image-generation"]:
+            try:
+                res_native = client.models.generate_content(
+                    model=img_model,
+                    contents=prompt_comic,
+                    config=types.GenerateContentConfig(response_modalities=["IMAGE"])
+                )
+                if res_native and res_native.candidates:
+                    for part in res_native.candidates[0].content.parts:
+                        if getattr(part, "inline_data", None) and part.inline_data.data:
+                            return compress_bytes_image(part.inline_data.data)
+            except Exception:
+                continue
+
+    # NIVEL 2: Servidor externo de respaldo con escena rica (Pollinations Flux)
+    encoded = urllib.parse.quote(prompt_comic[:380])
     try:
         url_ext = f"https://pollinations.ai{encoded}?model=flux&width=640&height=360&nologo=true&seed={random.randint(1, 999)}"
-        resp = requests.get(url_ext, headers={"User-Agent": "Mozilla/5.0"}, timeout=12)
+        resp = requests.get(url_ext, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
         if resp.status_code == 200 and len(resp.content) > 4000:
             return compress_bytes_image(resp.content)
     except Exception:
         pass
 
-    # NIVEL 3: Tarjeta Visual Educativa Local con Globos de Conversación (100% Infalible)
+    # NIVEL 3: Tarjeta Visual Educativa Local (Respaldo offline con globos de diálogo)
+    import re
     img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
     draw = ImageDraw.Draw(img_card)
     draw.rectangle((12, 12, 628, 348), outline=(218, 165, 32), width=3)
@@ -725,8 +724,6 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
     draw.text((28, 32), f"CAREER ENGLISH INSTITUTE | CEFR {cefr_short} | {grado_acad.upper()}", fill=(255, 215, 0))
     draw.text((28, 80), f"SCENE: {titulo_tema.upper()[:52]}", fill=(180, 210, 255))
 
-    # Extrae frases entre comillas si existen para dibujarlas como globos de diálogo
-    import re
     dialogos = re.findall(r'"([^"]+)"', escena_y_dialogos)
     if not dialogos:
         dialogos = [clean_p[:55], clean_p[55:110]] if len(clean_p) > 55 else [clean_p]
@@ -753,6 +750,7 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
     buf_card = io.BytesIO()
     img_card.save(buf_card, format="JPEG", quality=85)
     return buf_card.getvalue()
+
 
 
 def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
@@ -1472,18 +1470,19 @@ if generar_btn:
                 
                 try:
                     prompt_escena = f"""
-                    Read the English lesson below and write a rich visual illustration prompt (40-50 words) for an educational comic-book scene:
-                    1. ENVIRONMENT & SETTING: Describe in vivid detail the physical background, objects, furniture, and atmosphere of '{contexto}' (e.g., modern office desks, computers, airport terminal, classroom).
-                    2. CHARACTERS & ACTION: Describe '{personas}' interacting naturally in that setting with expressive faces and body language.
-                    3. DIALOGUE BUBBLES: Include two short, clear English speech bubbles taken from the lesson enclosed in double quotes.
-                    Example: Inside a bright modern office with glass walls, laptops, and bookshelves, a manager and a coworker discuss a project at a desk. Speech bubble 1: "Have you finished the report yet?" Speech bubble 2: "Yes, I just sent it!"
+                    Read the English lesson below and write a rich, friendly visual scene description (45-55 words) for an educational illustration:
+                    1. SETTING & FURNITURE: Describe the exact room/place from '{contexto}' in warm detail (e.g., cozy academic office with wooden desk, chairs, books, window with daylight).
+                    2. CHARACTERS & POSTURE: Describe '{personas}' seated or standing in the scene, smiling and talking to each other.
+                    3. SPEECH BUBBLES: Add two short, natural English dialogue lines from the lesson in double quotes.
+                    Example: Inside a warm, sunlit academic office with bookshelves, framed diplomas, and a wooden desk, a researcher and a parent sit across from each other talking warmly. Speech bubble 1: "How has your son progressed this term?" Speech bubble 2: "He has improved his reading skills!"
                     
                     LESSON:
                     {texto_gen[:2500]}
                     """
                     img_desc, _ = generar_con_maxima_potencia(client, prompt_escena)
                 except Exception:
-                    img_desc = f'Detailed setting of {contexto} with furniture and objects. {personas} talking. Speech bubble 1: "Welcome to our lesson on {asunto}!"'
+                    img_desc = f'Warm detailed room of {contexto} with desk and chairs. {personas} sitting and talking. Speech bubble 1: "Let us discuss {asunto}."'
+
                     
                 st.session_state.image_bytes = generar_imagen_garantizada(
                     client, img_desc, f"{asunto} - {contexto}", cefr_level, academic_grade
