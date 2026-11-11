@@ -232,8 +232,58 @@ def generar_sello_digital(folio_cert: str, clave_est: str, nombre_est: str, nive
 def _safe_latin1(text: str) -> str:
     return str(text).encode("latin-1", "replace").decode("latin-1")
 
+class AcademicPDF(FPDF):
+    """Plantilla editorial de Alta Escuela con encabezado institucional y numeración Page X of Y."""
+    def __init__(self, folio_doc: str, cefr_doc: str, grado_doc: str, address_str: str):
+        super().__init__()
+        self.folio_doc = folio_doc
+        self.cefr_doc = cefr_doc
+        self.grado_doc = grado_doc
+        self.address_str = address_str
+
+    def header(self):
+        # Línea superior institucional en todas las páginas
+        self.set_y(10)
+        self.set_font("Times", "B", 8.5)
+        self.set_text_color(11, 37, 69)
+        self.cell(self.epw * 0.65, 5, text=_safe_latin1("CAREER ENGLISH INSTITUTE  |  APPLIED LINGUISTICS & DISCOURSE"), align="L")
+        self.set_font("Times", "I", 8.5)
+        self.set_text_color(100, 100, 100)
+        cefr_short = next(iter(self.cefr_doc.split()), "CEFR") if self.cefr_doc else "CEFR"
+        self.cell(self.epw * 0.35, 5, text=_safe_latin1(f"Folio: {self.folio_doc}  |  CEFR {cefr_short}"), new_x="LMARGIN", new_y="NEXT", align="R")
+        
+        # Doble filete editorial (azul marino + dorado)
+        y_line = self.get_y() + 1
+        self.set_draw_color(11, 37, 69)
+        self.set_line_width(0.6)
+        self.line(self.l_margin, y_line, self.w - self.r_margin, y_line)
+        self.set_draw_color(184, 134, 11)
+        self.set_line_width(0.25)
+        self.line(self.l_margin, y_line + 1.2, self.w - self.r_margin, y_line + 1.2)
+        self.set_y(y_line + 5)
+
+    def footer(self):
+        # Pie de página institucional con numeración Page X of Y
+        self.set_y(-16)
+        y_f = self.get_y()
+        self.set_draw_color(184, 134, 11)
+        self.set_line_width(0.3)
+        self.line(self.l_margin, y_f, self.w - self.r_margin, y_f)
+        self.ln(2)
+        
+        self.set_font("Times", "I", 8)
+        self.set_text_color(90, 90, 90)
+        self.cell(self.epw * 0.75, 4, text=_safe_latin1("© 2026 CAREER ENGLISH INSTITUTE  |  Author: Jacob Zumaya Prianti  |  APA 7th Ed. Standard"), align="L")
+        self.set_font("Times", "B", 8.5)
+        self.set_text_color(11, 37, 69)
+        self.cell(self.epw * 0.25, 4, text=f"Page {self.page_no()} of {{nb}}", new_x="LMARGIN", new_y="NEXT", align="R")
+        
+        self.set_x(self.l_margin)
+        self.set_font("Times", "", 7.5)
+        self.set_text_color(110, 110, 110)
+        self.cell(self.epw, 4, text=_safe_latin1(self.address_str), align="C")
 def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None) -> bytes:
-    """Genera el PDF completo de la lección con ilustración, quiz y calificación sin errores de margen."""
+    """Genera un documento académico de Alta Escuela con numeración de páginas, ilustración y examen."""
     folio_doc = st.session_state.current_folio or "SIN-FOLIO"
     base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
     link_doc = st.session_state.current_pdf_link or f"{base_url}/?folio={urllib.parse.quote(folio_doc)}"
@@ -245,107 +295,165 @@ def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None) -> 
     rol_doc = st.session_state.user_role
     cefr_doc = st.session_state.selected_cefr
     
-    pdf = FPDF()
-    pdf.set_margins(left=15, top=15, right=15)
-    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf = AcademicPDF(folio_doc, cefr_doc, grado_doc, institute_address)
+    pdf.alias_nb_pages()  # Activa el conteo total de páginas {nb}
+    pdf.set_margins(left=18, top=22, right=18)
+    pdf.set_auto_page_break(auto=True, margin=22)
     pdf.set_author("Jacob Zumaya Prianti")
-    pdf.set_creator("Career English Institute")
+    pdf.set_creator("Career English Institute - Academic Press")
     pdf.add_page()
     
-    # Encabezado institucional
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", "B", 14)
-    pdf.cell(pdf.epw, 8, text="CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="C")
+    # --- PORTADA / MEMBRETE DE ALTA ESCUELA EN PÁGINA 1 ---
+    y_box_start = pdf.get_y()
+    pdf.set_fill_color(244, 247, 251)
+    pdf.set_draw_color(11, 37, 69)
+    pdf.set_line_width(0.4)
+    pdf.rect(pdf.l_margin, y_box_start, pdf.epw, 42, style="FD")
     
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", "I", 9)
-    pdf.multi_cell(pdf.epw, 5, text=_safe_latin1(institute_address), new_x="LMARGIN", new_y="NEXT", align="C", wrapmode="CHAR")
-    
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", "B", 11)
-    pdf.multi_cell(pdf.epw, 6, text=_safe_latin1(f"CEFR {cefr_doc} ({grado_doc}) Academic Grammar & Discourse System"), new_x="LMARGIN", new_y="NEXT", align="C")
-    
-    pdf.set_x(pdf.l_margin)
-    pdf.cell(pdf.epw, 6, text=_safe_latin1(f"FOLIO DE REGISTRO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT", align="C")
-    
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", "B", 10)
-    pdf.cell(pdf.epw, 6, text="Author: Jacob Zumaya Prianti", new_x="LMARGIN", new_y="NEXT", align="C")
-    
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", "I", 9)
-    pdf.cell(pdf.epw, 5, text=_safe_latin1(f"Creation Date / Fecha de Creacion: {fecha_doc}"), new_x="LMARGIN", new_y="NEXT", align="C")
-    
-    pdf.set_x(pdf.l_margin)
-    pdf.multi_cell(pdf.epw, 5, text=_safe_latin1(f"Student / User: {usuario_doc} ({rol_doc}) | Grade: {grado_doc} | Level: {cefr_doc}"), new_x="LMARGIN", new_y="NEXT", align="C")
-    
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", "U", 8.5)
-    pdf.multi_cell(pdf.epw, 5, text=_safe_latin1(f"Recovery Link: {link_doc}"), new_x="LMARGIN", new_y="NEXT", align="C", wrapmode="CHAR")
-    pdf.ln(4)
+    # Barra lateral dorada decorativa en la ficha técnica
+    pdf.set_fill_color(184, 134, 11)
+    pdf.rect(pdf.l_margin, y_box_start, 2.5, 42, style="F")
 
-    # Ilustración con ambiente y globos de diálogo
+    # Logotipo institucional dentro de la ficha si está disponible
+    logo_src = None
+    perm_logo = load_permanent_logo()
+    if perm_logo and perm_logo.get("Logo_Base64"):
+        try:
+            logo_src = io.BytesIO(base64.b64decode(perm_logo["Logo_Base64"]))
+        except Exception:
+            logo_src = None
+    if logo_src is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
+        if os.path.exists(local_logo):
+            logo_src = local_logo
+    if logo_src:
+        try:
+            pdf.image(logo_src, x=pdf.l_margin + 6, y=y_box_start + 6, w=26)
+        except Exception:
+            pass
+
+    x_meta = pdf.l_margin + 36
+    w_meta = pdf.epw - 40
+    pdf.set_xy(x_meta, y_box_start + 4)
+    pdf.set_font("Times", "B", 13)
+    pdf.set_text_color(11, 37, 69)
+    pdf.cell(w_meta, 6, text="CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="L")
+    
+    pdf.set_x(x_meta)
+    pdf.set_font("Times", "B", 9.5)
+    pdf.set_text_color(184, 134, 11)
+    pdf.cell(w_meta, 5, text=_safe_latin1(f"CEFR {cefr_doc}  |  {grado_doc.upper()}  |  ACADEMIC MONOGRAPH"), new_x="LMARGIN", new_y="NEXT", align="L")
+    
+    pdf.set_x(x_meta)
+    pdf.set_font("Times", "", 9)
+    pdf.set_text_color(40, 40, 40)
+    pdf.cell(w_meta, 5, text=_safe_latin1("Author & Senior Applied Linguist: Jacob Zumaya Prianti"), new_x="LMARGIN", new_y="NEXT", align="L")
+    
+    pdf.set_x(x_meta)
+    pdf.cell(w_meta, 5, text=_safe_latin1(f"Student / Candidate: {usuario_doc} ({rol_doc})  |  Date: {fecha_doc}"), new_x="LMARGIN", new_y="NEXT", align="L")
+    
+    pdf.set_x(x_meta)
+    pdf.set_font("Times", "U", 8)
+    pdf.set_text_color(11, 37, 69)
+    pdf.cell(w_meta, 5, text=_safe_latin1(f"Digital Verification & Recovery: {link_doc}"), new_x="LMARGIN", new_y="NEXT", align="L", link=link_doc)
+
+    pdf.set_y(y_box_start + 48)
+
+    # --- ILUSTRACIÓN ESCÉNICA CON MARCO EDITORIAL ---
     img_to_embed = st.session_state.get("image_bytes")
     if img_to_embed:
         try:
             img_buf = io.BytesIO(img_to_embed)
+            img_w = 136
+            img_h = 76.5
+            x_img = pdf.l_margin + (pdf.epw - img_w) / 2
             y_img = pdf.get_y()
-            if y_img + 76 > pdf.h - 15:
+            if y_img + img_h + 10 > pdf.h - 22:
                 pdf.add_page()
                 y_img = pdf.get_y()
-            pdf.image(img_buf, x=40, y=y_img, w=130)
+            pdf.image(img_buf, x=x_img, y=y_img, w=img_w)
             pdf.set_draw_color(11, 37, 69)
-            pdf.set_line_width(0.4)
-            pdf.rect(40, y_img, 130, 73.1)
-            pdf.set_y(y_img + 78)
+            pdf.set_line_width(0.5)
+            pdf.rect(x_img, y_img, img_w, img_h)
+            pdf.set_y(y_img + img_h + 2)
+            pdf.set_x(pdf.l_margin)
+            pdf.set_font("Times", "I", 8.5)
+            pdf.set_text_color(90, 90, 90)
+            pdf.cell(pdf.epw, 4, text=_safe_latin1(f"Figure 1. Visual Discourse Context & Situational Dialogue — Folio {folio_doc}."), new_x="LMARGIN", new_y="NEXT", align="C")
+            pdf.ln(4)
         except Exception:
             pdf.ln(3)
 
-    # Cuerpo de la lección
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", size=11.5)
-    pdf.multi_cell(pdf.epw, 7, text=_safe_latin1(text), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+    # --- CUERPO ACADÉMICO DE LA LECCIÓN ---
+    pdf.set_text_color(25, 25, 25)
+    for parrafo in text.split("\n"):
+        p_clean = parrafo.strip()
+        if not p_clean:
+            pdf.ln(3)
+            continue
+        pdf.set_x(pdf.l_margin)
+        if p_clean.startswith("#") or p_clean.startswith("Bibliography"):
+            titulo_limpio = p_clean.lstrip("#").strip()
+            pdf.ln(2)
+            pdf.set_font("Times", "B", 12)
+            pdf.set_text_color(11, 37, 69)
+            pdf.multi_cell(pdf.epw, 6.5, text=_safe_latin1(titulo_limpio), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+            pdf.set_text_color(25, 25, 25)
+        else:
+            pdf.set_font("Times", size=11)
+            pdf.multi_cell(pdf.epw, 6.2, text=_safe_latin1(p_clean), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
 
-    # Quiz interactivo y respuestas
+    # --- SECCIÓN DE EVALUACIÓN Y CALIFICACIÓN ---
     if quiz_items:
         pdf.ln(6)
-        pdf.set_x(pdf.l_margin)
-        pdf.set_font("Times", "B", 13)
-        pdf.multi_cell(pdf.epw, 8, text=_safe_latin1(f"LESSON COMPREHENSION & GRAMMAR QUIZ (FOLIO: {folio_doc})"), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
-        
-        if score:
-            pdf.set_x(pdf.l_margin)
-            pdf.set_font("Times", "B", 11)
-            pdf.multi_cell(pdf.epw, 7, text=_safe_latin1(f"Final Grade / Calificacion Obtenida: {score}"), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+        if pdf.get_y() > pdf.h - 55:
+            pdf.add_page()
+            
+        y_q_head = pdf.get_y()
+        pdf.set_fill_color(11, 37, 69)
+        pdf.rect(pdf.l_margin, y_q_head, pdf.epw, 9, style="F")
+        pdf.set_xy(pdf.l_margin + 3, y_q_head + 1.5)
+        pdf.set_font("Times", "B", 11)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(pdf.epw - 6, 6, text=_safe_latin1(f"OFFICIAL ASSESSMENT & GRAMMAR EVALUATION  |  FOLIO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(3)
-        
+
+        if score:
+            y_sc = pdf.get_y()
+            pdf.set_fill_color(253, 248, 232)
+            pdf.set_draw_color(184, 134, 11)
+            pdf.rect(pdf.l_margin, y_sc, pdf.epw, 8, style="FD")
+            pdf.set_xy(pdf.l_margin + 3, y_sc + 1.5)
+            pdf.set_font("Times", "B", 10.5)
+            pdf.set_text_color(11, 37, 69)
+            pdf.cell(pdf.epw - 6, 5, text=_safe_latin1(f"FINAL EVALUATION SCORE / CALIFICACION OBTENIDA: {score}"), new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(4)
+
+        pdf.set_text_color(25, 25, 25)
         for i, q in enumerate(quiz_items):
+            if pdf.get_y() > pdf.h - 45:
+                pdf.add_page()
             pdf.set_x(pdf.l_margin)
             pdf.set_font("Times", "B", 10.5)
             pdf.multi_cell(pdf.epw, 6, text=_safe_latin1(f"{i+1}. {q.get('question', '')}"), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
             
             pdf.set_font("Times", size=10)
             for opt in q.get("options", []):
-                pdf.set_x(pdf.l_margin + 5)
-                pdf.multi_cell(pdf.epw - 5, 5.5, text=_safe_latin1(str(opt)), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+                pdf.set_x(pdf.l_margin + 6)
+                pdf.multi_cell(pdf.epw - 6, 5.2, text=_safe_latin1(str(opt)), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
                 
             u_choice = user_ans.get(i) if user_ans else "None"
-            ans_line = f"-> Student Answer: {u_choice or 'None'} | Correct: {q.get('answer', '')}"
-            pdf.set_x(pdf.l_margin + 5)
+            ans_line = f"Candidate Response: {u_choice or 'None'}   |   Verified Key: {q.get('answer', '')}"
+            pdf.set_x(pdf.l_margin + 6)
             pdf.set_font("Times", "I", 9.5)
-            pdf.multi_cell(pdf.epw - 5, 5.5, text=_safe_latin1(ans_line), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+            pdf.set_text_color(11, 37, 69)
+            pdf.multi_cell(pdf.epw - 6, 5.5, text=_safe_latin1(ans_line), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+            pdf.set_text_color(25, 25, 25)
             pdf.ln(3)
 
-    # Pie de página
-    pdf.ln(8)
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", "I", 9)
-    pdf.multi_cell(pdf.epw, 5, text=_safe_latin1(institute_address), new_x="LMARGIN", new_y="NEXT", align="C", wrapmode="CHAR")
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font("Times", "I", 9.5)
-    pdf.multi_cell(pdf.epw, 6, text=_safe_latin1("© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Author: Jacob Zumaya Prianti."), new_x="LMARGIN", new_y="NEXT", align="C", wrapmode="CHAR")
-    
     return bytes(pdf.output())
+
 
     
 # --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
@@ -1482,7 +1590,6 @@ if generar_btn:
                     img_desc, _ = generar_con_maxima_potencia(client, prompt_escena)
                 except Exception:
                     img_desc = f'Warm detailed room of {contexto} with desk and chairs. {personas} sitting and talking. Speech bubble 1: "Let us discuss {asunto}."'
-
                     
                 st.session_state.image_bytes = generar_imagen_garantizada(
                     client, img_desc, f"{asunto} - {contexto}", cefr_level, academic_grade
