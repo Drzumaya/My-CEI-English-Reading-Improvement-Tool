@@ -486,7 +486,7 @@ if verify_folio:
             st.error(f"Error al verificar certificado: {e}")
 
         st.write("")
-        if st.button("🏛️ Ir a la Plataforma Principal", use_container_width=True):
+        if st.button("🏛️ Ir a la Plataforma Principal", width="stretch"):
             st.query_params.clear()
             st.rerun()
     st.stop()
@@ -590,7 +590,7 @@ if not st.session_state.authenticated:
             input_user = st.text_input("👤 Usuario registrado:")
             input_pass = st.text_input("🔑 Clave de Acceso:", type="password")
             remember_me = st.checkbox("💾 Recordar mi usuario y contraseña en este navegador", value=True)
-            submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", use_container_width=True)
+            submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", width="stretch")
             
             if submit_login:
                 if not input_user.strip() or not input_pass.strip():
@@ -865,7 +865,7 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    generar_btn = st.button(f"🚀 Generate {cefr_level.split()[0]} Lesson", type="primary", use_container_width=True)
+    generar_btn = st.button(f"🚀 Generate {cefr_level.split()[0]} Lesson", type="primary", width="stretch")
 
 # --- 12. CABECERA INSTITUCIONAL ---
 try:
@@ -881,12 +881,12 @@ col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
 
 with col_logo:
     if can("Editar_Instituto_Logo") and (not is_mobile):
-        with st.popover("✏️ Editar Logo", use_container_width=True):
+        with st.popover("✏️ Editar Logo", width="stretch"):
             logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
             logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
             logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True)
             
-            if st.button("💾 Guardar Logo Permanente", type="primary", use_container_width=True):
+            if st.button("💾 Guardar Logo Permanente", type="primary", width="stretch"):
                 b64_to_save, mime_to_save = None, None
                 if logo_file is not None:
                     b64_to_save, mime_to_save = compress_logo_to_base64(logo_file)
@@ -930,7 +930,7 @@ with col_title:
 with col_qr:
     if not is_mobile:
         btn_qr_txt = "🙈 Ocultar QR" if st.session_state.show_qr else "📱 Mostrar QR"
-        if st.button(btn_qr_txt, use_container_width=True, key="toggle_qr_btn"):
+        if st.button(btn_qr_txt, width="stretch", key="toggle_qr_btn"):
             st.session_state.show_qr = not st.session_state.show_qr
             st.rerun()
 
@@ -949,11 +949,11 @@ with col_qr:
 with col_exit:
     if is_faculty_desktop:
         btn_label = "✖️ Ocultar Panel" if st.session_state.show_teacher_registry else "🛡️ Admin y Certificados"
-        if st.button(btn_label, type="primary" if not st.session_state.show_teacher_registry else "secondary", use_container_width=True):
+        if st.button(btn_label, type="primary" if not st.session_state.show_teacher_registry else "secondary", width="stretch"):
             st.session_state.show_teacher_registry = not st.session_state.show_teacher_registry
             st.rerun()
 
-    if st.button("🚪 Salir", type="secondary", use_container_width=True):
+    if st.button("🚪 Salir", type="secondary", width="stretch"):
         st.session_state.app_exited = True
         st.session_state.authenticated = False
         st.rerun()
@@ -968,7 +968,7 @@ with st.container(border=True):
             label_visibility="collapsed"
         )
     with col_f2:
-        buscar_folio_btn = st.button("🔍 Buscar Folio", use_container_width=True)
+        buscar_folio_btn = st.button("🔍 Buscar Folio", width="stretch")
     with col_f3:
         if st.session_state.current_folio and st.session_state.generated_text:
             st.info(f"📄 **Folio:** `{st.session_state.current_folio}` | 📅 `{st.session_state.current_creation_date}`")
@@ -1057,7 +1057,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
         with col_head_reg:
             st.markdown("### 🛡️ PANEL DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL RBAC")
         with col_close_reg:
-            if st.button("🔼 Cerrar Panel", use_container_width=True):
+            if st.button("🔼 Cerrar Panel", width="stretch"):
                 st.session_state.show_teacher_registry = False
                 st.rerun()
 
@@ -1112,7 +1112,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 value="98.0% — Passed with Academic Distinction",
                                 key="cert_grade_input"
                             )
-                            if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", use_container_width=True):
+                            if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", width="stretch"):
                                 with st.spinner("Generando timbrado criptográfico HMAC-SHA256 y sello QR..."):
                                     ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
                                     folio_c = f"CERT-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
@@ -1141,7 +1141,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 file_name=st.session_state["last_cert_name"],
                                 mime="application/pdf",
                                 type="primary",
-                                use_container_width=True
+                                width="stretch"
                             )
 
                     st.divider()
@@ -1154,7 +1154,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             c for c in ["Folio_Certificado", "Clave_Alumno", "Nombre_Estudiante", "Nivel_CEFR", "Fecha_Emision", "Estatus"]
                             if c in df_certs.columns
                         ]
-                        st.dataframe(df_certs[cols_c_ver], height=160, use_container_width=True, hide_index=True)
+                        st.dataframe(df_certs[cols_c_ver], height=160, width="stretch", hide_index=True)
 
                         if can("Revocar_Certificados"):
                             c_rev1, c_rev2, c_rev3 = st.columns([2, 1.2, 1.2])
@@ -1168,7 +1168,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 nuevo_est_cert = st.selectbox("Estatus:", ["Vigente", "Revocado"], key="sel_est_cert")
                             with c_rev3:
                                 st.write("")
-                                if st.button("🔄 Aplicar Estatus", use_container_width=True):
+                                if st.button("🔄 Aplicar Estatus", width="stretch"):
                                     celda_c = cert_ws.find(str(cert_to_mod), in_column=1)
                                     if celda_c:
                                         try:
@@ -1204,7 +1204,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                         reg_grado = st.selectbox("🎓 Nivel Académico:", GRADOS_ACADEMICOS, index=1)
                         reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", permisos_disponibles, index=default_perm_idx)
                         
-                        if st.form_submit_button("💾 Guardar Inscripción", type="primary", use_container_width=True):
+                        if st.form_submit_button("💾 Guardar Inscripción", type="primary", width="stretch"):
                             if reg_usuario.strip() and reg_clave.strip():
                                 try:
                                     p_sheet = get_padron_sheet()
@@ -1244,7 +1244,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 c for c in ["Usuario", "Clave", "Rol", "Nivel", "Grado_Academico", "Permisos", "Estatus"]
                                 if c in df_p.columns
                             ]
-                            st.dataframe(df_p[cols_mostrar], height=205, use_container_width=True, hide_index=True)
+                            st.dataframe(df_p[cols_mostrar], height=205, width="stretch", hide_index=True)
                             
                             c_ed1, c_ed2, c_ed3 = st.columns([1.4, 1.2, 1.4])
                             with c_ed1:
@@ -1278,7 +1278,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             with c_ed6:
                                 new_status = st.selectbox("Estatus:", estatus_opts, index=idx_stat, key="edit_st_sel")
                                 
-                            if st.button("🔄 Actualizar Registro", use_container_width=True):
+                            if st.button("🔄 Actualizar Registro", width="stretch"):
                                 p_sheet = get_padron_sheet()
                                 cell = p_sheet.find(str(user_to_edit), in_column=1)
                                 if cell:
@@ -1298,7 +1298,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                 {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
                 for k, v in PERMISSIONS_MATRIX.items()
             ])
-            st.dataframe(df_mat, use_container_width=True, hide_index=True)
+            st.dataframe(df_mat, width="stretch", hide_index=True)
 
             if can("Editar_Permisos"):
                 with st.form("form_nuevo_perfil_permiso", clear_on_submit=True):
@@ -1510,7 +1510,7 @@ with col_main_center:
             if st.button(
                 f"📝 Generar Quiz ({cefr_tag} - {st.session_state.selected_academic_grade})",
                 type="primary",
-                use_container_width=True
+                width="stretch"
             ):
                 with st.spinner("Generando preguntas de evaluación y vinculando al Folio..."):
                     try:
@@ -1557,7 +1557,7 @@ with col_main_center:
 
                 col_btn_grade, col_btn_new = st.columns(2)
                 with col_btn_grade:
-                    if st.button("✅ Calificar Quiz", type="primary", use_container_width=True):
+                    if st.button("✅ Calificar Quiz", type="primary", width="stretch"):
                         correctas = sum(
                             1 for i, it in enumerate(st.session_state.quiz_data)
                             if st.session_state.quiz_user_answers.get(i) == it["answer"]
@@ -1567,7 +1567,7 @@ with col_main_center:
                         st.session_state.quiz_graded = True
                         st.rerun()
                 with col_btn_new:
-                    if st.button("🔄 Nuevo Quiz (Cambiar Preguntas)", type="secondary", use_container_width=True):
+                    if st.button("🔄 Nuevo Quiz (Cambiar Preguntas)", type="secondary", width="stretch"):
                         with st.spinner("Generando nuevas preguntas..."):
                             try:
                                 prev_qs = [q["question"] for q in st.session_state.quiz_data]
@@ -1603,13 +1603,13 @@ with col_main_center:
     bottom_container = st.container(height=280, border=True)
     with bottom_container:
         if st.session_state.image_bytes:
-            st.image(st.session_state.image_bytes, use_container_width=True)
+            st.image(st.session_state.image_bytes, width="stretch")
         elif st.session_state.generated_text:
             fallback_img = generar_imagen_garantizada(
                 None, st.session_state.generated_text[:60],
                 f"Folio {st.session_state.current_folio}", st.session_state.selected_cefr, st.session_state.selected_academic_grade
             )
-            st.image(fallback_img, use_container_width=True)
+            st.image(fallback_img, width="stretch")
         else:
             st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
 # --- 17. PANEL DERECHO (AUDIO, VIDEO, EXPORTACIÓN PDF E HISTORIAL) ---
@@ -1623,7 +1623,7 @@ with col_tools_right:
             data=st.session_state.audio_bytes,
             file_name=safe_audio_name,
             mime="audio/mp3",
-            use_container_width=True
+            width="stretch"
         )
     else:
         st.caption("Audio available after generating lesson.")
@@ -1743,7 +1743,7 @@ with col_tools_right:
         st.iframe(video_recorder_html, height=320)
 
     st.write("")
-    if st.button("☁️ Guardar Audio en Google Sheets", type="primary", use_container_width=True, disabled=(student_audio is None)):
+    if st.button("☁️ Guardar Audio en Google Sheets", type="primary", width="stretch", disabled=(student_audio is None)):
         try:
             with st.spinner("Guardando audio vinculado al Folio..."):
                 sheet = get_google_sheet()
@@ -1859,12 +1859,12 @@ with col_tools_right:
             data=pdf_bytes,
             file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
             mime="application/pdf",
-            use_container_width=True
+            width="stretch"
         )
     else:
-        st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, use_container_width=True)
+        st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
 
-    if st.button("📂 Ver Audios y Folios Guardados", use_container_width=True):
+    if st.button("📂 Ver Audios y Folios Guardados", width="stretch"):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
 
     if st.session_state.show_saved_audios:
@@ -1897,7 +1897,7 @@ with col_tools_right:
 
     st.divider()
 
-    if st.button("🗑️ Borrar Todo", type="secondary", use_container_width=True):
+    if st.button("🗑️ Borrar Todo", type="secondary", width="stretch"):
         st.session_state.generated_text = ""
         st.session_state.image_bytes = None
         st.session_state.audio_bytes = None
