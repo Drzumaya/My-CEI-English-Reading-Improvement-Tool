@@ -454,6 +454,69 @@ def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None) -> 
 
     return bytes(pdf.output())
 
+def _extract_numeric_score(score_str: str) -> float:
+    """Extrae el porcentaje numérico de una cadena como '4/5 (80.0%)' para comparaciones."""
+    import re
+    if not score_str:
+        return -1.0
+    m = re.search(r"\((\d+(?:\.\d+)?)%\)", str(score_str))
+    if m:
+        return float(m.group(1))
+    m2 = re.search(r"(\d+(?:\.\d+)?)", str(score_str))
+    return float(m2.group(1)) if m2 else -1.0
+
+
+def save_best_quiz_result_to_sheet(folio: str, new_score_str: str, quiz_items, user_ans_dict):
+    """Compara la nueva calificación con la guardada en Google Sheets y conserva la más alta."""
+    if not folio:
+        return False, "Folio no asignado.", new_score_str
+
+    s1 = get_google_sheet()
+    celda_f = s1.find(str(folio).strip().upper(), in_column=1)
+    if not celda_f:
+        return False, "Folio no encontrado en la base de datos.", new_score_str
+
+    headers = s1.row_values(1)
+    # Crea automáticamente la columna 'Mejor_Calificacion_PDF' si aún no existe en Hoja 1
+    if "Mejor_Calificacion_PDF" not in headers:
+        col_best = len(headers) + 1
+        s1.update_cell(1, col_best, "Mejor_Calificacion_PDF")
+    else:
+        col_best = headers.index("Mejor_Calificacion_PDF") + 1
+
+    col_json = headers.index("Contenido_JSON") + 1 if "Contenido_JSON" in headers else 6
+
+    prev_best_str = str(s1.cell(celda_f.row, col_best).value or "").strip()
+    prev_num = _extract_numeric_score(prev_best_str)
+    new_num = _extract_numeric_score(new_score_str)
+
+    # Si es el primer intento o la nueva calificación es estrictamente mayor que la anterior
+    if prev_num < 0 or new_num > prev_num:
+        serializable_ans = {str(k): v for k, v in (user_ans_dict or {}).items()}
+        paquete_actualizado = json.dumps({
+            "text": st.session_state.generated_text[:40000],
+            "quiz": quiz_items,
+            "cefr": st.session_state.selected_cefr,
+            "grade": st.session_state.selected_academic_grade,
+            "created_at": st.session_state.current_creation_date,
+            "best_score": new_score_str,
+            "best_answers": serializable_ans
+        }, ensure_ascii=False)
+
+        s1.update_cell(celda_f.row, col_json, paquete_actualizado)
+        s1.update_cell(celda_f.row, col_best, new_score_str)
+
+        msg = (
+            f"🏆 ¡Nueva mejor calificación registrada: **{new_score_str}**! (Superaste tu intento anterior de {prev_best_str})."
+            if prev_num >= 0
+            else f"✅ Calificación inicial registrada en la base de datos: **{new_score_str}**."
+        )
+        return True, msg, new_score_str
+    else:
+        msg = (
+            f"ℹ️ Obtuviste **{new_score_str}**, pero conservamos tu calificación más alta anterior (**{prev_best_str}**) en la base de datos y en tu PDF oficial."
+        )
+        return False, msg, prev_best_str
 
     
 # --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
@@ -1716,9 +1779,22 @@ with col_main_center:
                             if st.session_state.quiz_user_answers.get(i) == it["answer"]
                         )
                         total = len(st.session_state.quiz_data)
-                        st.session_state.quiz_score = f"{correctas}/{total} ({round((correctas / total) * 100, 1)}%)"
+                        nota_actual = f"{correctas}/{total} ({round((correctas / total) * 100, 1)}%)"
+                        st.session_state.quiz_score = nota_actual
                         st.session_state.quiz_graded = True
+
+                        if st.session_state.current_folio:
+                            with st.spinner("Evaluando y comparando con calificaciones previas del Folio..."):
+                                _, msg_comp, mejor_nota_final = save_best_quiz_result_to_sheet(
+                                    st.session_state.current_folio,
+                                    nota_actual,
+                                    st.session_state.quiz_data,
+                                    st.session_state.quiz_user_answers
+                                )
+                                st.session_state["best_score_feedback"] = msg_comp
+                                st.session_state["best_stored_score"] = mejor_nota_final
                         st.rerun()
+
                 with col_btn_new:
                     if st.button("🔄 Nuevo Quiz (Cambiar Preguntas)", type="secondary", width="stretch"):
                         with st.spinner("Generando nuevas preguntas..."):
@@ -1750,15 +1826,19 @@ with col_main_center:
                                 st.error(f"Error al renovar quiz: {e}")
 
                 if st.session_state.quiz_graded and st.session_state.quiz_score:
-                    st.info(f"🏆 **Calificación Obtenida / Final Score:** {st.session_state.quiz_score}")
+                    st.info(f"🏆 **Calificación de este intento:** {st.session_state.quiz_score}")
+                    if st.session_state.get("best_score_feedback"):
+                        st.success(st.session_state["best_score_feedback"])
+                    
+                    nota_para_pdf = st.session_state.get("best_stored_score") or st.session_state.quiz_score
                     pdf_quiz_bytes = create_lesson_pdf(
                         st.session_state.generated_text.replace("*", ""),
                         quiz_items=st.session_state.quiz_data,
                         user_ans=st.session_state.quiz_user_answers,
-                        score=st.session_state.quiz_score
+                        score=nota_para_pdf
                     )
                     st.download_button(
-                        label="📥 Descargar Lección + Ilustración + Quiz Calificado (PDF)",
+                        label=f"📥 Descargar PDF Oficial con Mejor Calificación ({nota_para_pdf})",
                         data=pdf_quiz_bytes,
                         file_name=f"{st.session_state.current_folio or 'CEI_Exam'}_{usuario.replace(' ', '_')}.pdf",
                         mime="application/pdf",
@@ -2067,15 +2147,33 @@ with col_tools_right:
                         st.warning(f"Sin registros para '{usuario}'.")
                     else:
                         for _, row in df.tail(5).iloc[::-1].iterrows():
-                            st.caption(f"🔖 **{row.get('Folio', 'S/F')}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
-                            st.caption(f"📘 *{row.get('Tema', '')}*")
-                            if row.get("PDF_Link"):
-                                st.markdown(f"🔗 [Abrir Lección / PDF por Folio]({row['PDF_Link']})")
-                            if row.get("Audio"):
+                            mejor_nota_row = str(row.get("Mejor_Calificacion_PDF", "")).strip()
+                            if mejor_nota_row:
+                                st.caption(f"🏆 **Mejor Calificación Registrada:** `{mejor_nota_row}`")
+                            
+                            raw_j = str(row.get("Contenido_JSON", "")).strip()
+                            if raw_j:
                                 try:
-                                    st.audio(base64.b64decode(row["Audio"]), format="audio/wav")
+                                    paq_hist = json.loads(raw_j)
+                                    if paq_hist.get("best_score"):
+                                        ans_hist = {int(k): v for k, v in paq_hist.get("best_answers", {}).items()}
+                                        pdf_hist_bytes = create_lesson_pdf(
+                                            paq_hist.get("text", "").replace("*", ""),
+                                            quiz_items=paq_hist.get("quiz"),
+                                            user_ans=ans_hist,
+                                            score=paq_hist.get("best_score")
+                                        )
+                                        st.download_button(
+                                            label=f"📄 Descargar PDF Calificado ({paq_hist.get('best_score')})",
+                                            data=pdf_hist_bytes,
+                                            file_name=f"{row.get('Folio', 'CEI')}_Calificado.pdf",
+                                            mime="application/pdf",
+                                            key=f"dl_hist_{row.get('Folio', '')}_{_}",
+                                            width="stretch"
+                                        )
                                 except Exception:
-                                    st.caption("⚠️ Audio no disponible o formato corrupto.")
+                                    pass
+
                             st.divider()
             except Exception as e:
                 st.error(f"Error al cargar historial: {e}")
