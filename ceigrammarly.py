@@ -694,6 +694,7 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
 def generar_imagen_garantizada(client, prompt_ingles: str, titulo_tema: str, nivel_cefr: str, grado_acad: str) -> bytes:
     clean_p = "".join(c for c in prompt_ingles if c.isalnum() or c in " ,.-").strip()
     
+    # NIVEL 1: Gemini Imagen 3 API
     if client is not None:
         try:
             res_img = client.models.generate_images(
@@ -707,8 +708,10 @@ def generar_imagen_garantizada(client, prompt_ingles: str, titulo_tema: str, niv
         except Exception:
             pass
 
+    # NIVEL 2: Servidores externos de respaldo
     encoded = urllib.parse.quote(f"{clean_p}, educational illustration, flat vector, no text")
-    first_clause = clean_p.split(",").strip()[:30]
+    partes_prompt = clean_p.split(",")
+    first_clause = partes_prompt.strip()[:30] if partes_prompt else ""
     keywords = urllib.parse.quote(first_clause.replace(" ", ",")) if first_clause else "education,school"
     
     urls_respaldo = [
@@ -723,6 +726,7 @@ def generar_imagen_garantizada(client, prompt_ingles: str, titulo_tema: str, niv
         except Exception:
             continue
 
+    # NIVEL 3: Tarjeta Visual Educativa Generada Localmente (100% Infalible)
     img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
     draw = ImageDraw.Draw(img_card)
     draw.rectangle((15, 15, 625, 345), outline=(218, 165, 32), width=3)
