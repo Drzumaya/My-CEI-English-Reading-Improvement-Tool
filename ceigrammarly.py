@@ -1812,19 +1812,62 @@ with col_main_center:
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 
 
-    st.subheader(f"🖼️ Visual Context ({st.session_state.selected_academic_grade})")
+        st.subheader(f"🖼️ Visual Context ({st.session_state.selected_academic_grade})")
+    if st.session_state.generated_text:
+        col_vis_in, col_vis_btn = st.columns([2.8, 1.2])
+        with col_vis_in:
+            custom_img_prompt = st.text_input(
+                "🎨 Descripción personalizada de la escena (Opcional - Español/English):",
+                placeholder="Ej: Una oficina con libros, el investigador y el padre sentados hablando...",
+                key="input_custom_visual_prompt",
+                label_visibility="collapsed"
+            )
+        with col_vis_btn:
+            if st.button("🔄 Generar Nueva Imagen", key="btn_regen_visual", width="stretch"):
+                with st.spinner("🎨 Dibujando ilustración con Nano Banana..."):
+                    try:
+                        client_vis = init_gemini_client()
+                        instruccion_usuario = (
+                            f"USER CUSTOM VISUAL REQUEST (Translate to English and prioritize this exact setting/characters): {custom_img_prompt.strip()}"
+                            if custom_img_prompt.strip()
+                            else "Create a fresh, different visual scene angle based on the lesson."
+                        )
+                        prompt_nueva_escena = f"""
+                        Read the English lesson below and write a vivid visual scene description (45-55 words) for an educational comic illustration:
+                        {instruccion_usuario}
+                        1. SETTING & FURNITURE: Describe the physical background, furniture, and atmosphere in warm detail.
+                        2. CHARACTERS & ACTION: Describe the characters interacting naturally in that setting.
+                        3. SPEECH BUBBLES: Include two short, clear English dialogue lines from the lesson in double quotes.
+                        
+                        LESSON:
+                        {st.session_state.generated_text[:2500]}
+                        """
+                        nueva_desc, _ = generar_con_maxima_potencia(client_vis, prompt_nueva_escena)
+                        st.session_state.image_bytes = generar_imagen_garantizada(
+                            client_vis,
+                            nueva_desc,
+                            f"Folio {st.session_state.current_folio or 'Lesson'}",
+                            st.session_state.selected_cefr,
+                            st.session_state.selected_academic_grade
+                        )
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al generar imagen: {e}")
+
     bottom_container = st.container(height=280, border=True)
     with bottom_container:
         if st.session_state.image_bytes:
             st.image(st.session_state.image_bytes, width="stretch")
         elif st.session_state.generated_text:
             fallback_img = generar_imagen_garantizada(
-                None, st.session_state.generated_text[:60],
+                None, st.session_state.generated_text[:120],
                 f"Folio {st.session_state.current_folio}", st.session_state.selected_cefr, st.session_state.selected_academic_grade
             )
             st.image(fallback_img, width="stretch")
         else:
             st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
+
+
 # --- 17. PANEL DERECHO (AUDIO, VIDEO, EXPORTACIÓN PDF E HISTORIAL) ---
 with col_tools_right:
     st.subheader("🎧 1. Model Pronunciation")
