@@ -772,7 +772,7 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str, nivel_cefr: str, grado_acad: str) -> bytes:
-    """Genera ilustración escénica real con Gemini/Imagen o respaldo visual Flux con personajes y ambiente."""
+    """Genera ilustración escénica completa (ambiente + personajes + globos de diálogo) con HF FLUX y respaldo SVG por Gemini."""
     st.session_state["last_img_error"] = None
     clean_p = "".join(c for c in escena_y_dialogos if c.isalnum() or c in " ,.?!'-:").strip()
     
@@ -785,53 +785,62 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
 
     errores_img = []
 
-    if client is not None:
-        # 1. Modelos nativos Gemini Image (Nano Banana)
-        modelos_nativos = ["gemini-2.5-flash-image", "gemini-3.1-flash-image-preview", "gemini-2.0-flash-exp-image-generation"]
-        for img_model in modelos_nativos:
+    # 1. NIVEL PRIMARIO: Hugging Face Inference API (FLUX.1-schnell / FLUX.1-dev)
+    hf_token = str(st.secrets.get("HF_TOKEN", "")).strip()
+    if hf_token:
+        hf_models = [
+            "black-forest-labs/FLUX.1-schnell",
+            "stabilityai/stable-diffusion-xl-base-1.0"
+        ]
+        for hf_mod in hf_models:
             try:
-                res_native = client.models.generate_content(
-                    model=img_model,
-                    contents=prompt_comic,
-                    config=types.GenerateContentConfig(response_modalities=["IMAGE"])
+                hf_url = f"https://huggingface.co{hf_mod}"
+                resp_hf = requests.post(
+                    hf_url,
+                    headers={"Authorization": f"Bearer {hf_token}"},
+                    json={"inputs": prompt_comic},
+                    timeout=25
                 )
-                if res_native and res_native.candidates:
-                    for part in res_native.candidates[0].content.parts:
-                        if getattr(part, "inline_data", None) and part.inline_data.data:
-                            return compress_bytes_image(part.inline_data.data)
+                if resp_hf.status_code == 200 and len(resp_hf.content) > 5000:
+                    return compress_bytes_image(resp_hf.content, max_size=(800, 450), quality=88)
+                else:
+                    errores_img.append(f"HF {hf_mod} ({resp_hf.status_code}): {resp_hf.text[:100]}")
             except Exception as e:
-                errores_img.append(f"{img_model}: {str(e)[:120]}")
+                errores_img.append(f"HF {hf_mod}: {str(e)[:100]}")
 
-        # 2. Google Imagen 3
+    # 2. NIVEL SECUNDARIO: Ilustración Vectorial Escénica SVG dibujada por Gemini Texto
+    if client is not None:
         try:
-            res_img = client.models.generate_images(
-                model="imagen-3.0-generate-002",
-                prompt=prompt_comic,
-                config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
-            )
-            if res_img and res_img.generated_images:
-                return compress_bytes_image(res_img.generated_images[0].image.image_bytes)
+            import re
+            prompt_svg = f"""
+            You are an expert educational vector illustrator. Create a rich, colorful, friendly 16:9 SVG illustration (viewBox="0 0 800 450") depicting this exact scene:
+            SCENE & DIALOGUE: {clean_p}
+            TOPIC: {titulo_tema}
+
+            MANDATORY ARTISTIC REQUIREMENTS:
+            1. Full detailed background environment matching the scene (e.g., if office: walls, window with sky/trees, wooden desk, laptop, bookshelf with colorful books, potted plant, warm lighting).
+            2. Draw two friendly, expressive illustrated characters (head, hair, face with eyes/smile, torso/clothing, arms) positioned naturally in the scene (e.g., sitting at a desk or standing talking).
+            3. Draw two clean white comic speech bubbles (<rect rx="16"> + <polygon> pointer) near each character with legible dark text (<text>) containing the exact English dialogue phrases from the scene (wrap long lines with <tspan> so text never overflows the bubble).
+            4. Use pleasant, warm educational colors (soft creams, blues, warm wood tones, greens).
+            5. Output ONLY valid <svg xmlns="http://w3.org" viewBox="0 0 800 450">...</svg> code. No markdown, no explanations.
+            """
+            svg_raw, _ = generar_con_maxima_potencia(client, prompt_svg)
+            svg_match = re.search(r"<svg[\s\S]*?</svg>", svg_raw, re.IGNORECASE)
+            if svg_match:
+                svg_code = svg_match.group(0)
+                from svglib.svglib import svg2rlg
+                from reportlab.graphics import renderPM
+                drawing = svg2rlg(io.BytesIO(svg_code.encode("utf-8")))
+                if drawing:
+                    png_bytes = renderPM.drawToString(drawing, fmt="PNG")
+                    return compress_bytes_image(png_bytes, max_size=(800, 450), quality=88)
         except Exception as e:
-            errores_img.append(f"imagen-3.0: {str(e)[:120]}")
+            errores_img.append(f"SVG Engine: {str(e)[:100]}")
 
-        if errores_img:
-            st.session_state["last_img_error"] = " | ".join(errores_img)
+    if errores_img:
+        st.session_state["last_img_error"] = " | ".join(errores_img)
 
-    # 3. Motor Visual Escénico Gratuito (Dibuja personajes, oficina/ambiente y diálogos sin cuota de Google)
-    prompt_flux = urllib.parse.quote(
-        f"friendly educational comic illustration, {clean_p}, detailed room background, expressive people talking, speech bubbles, warm colors, digital art"[:400]
-    )
-    seed_rnd = random.randint(1, 99999)
-    for model_web in ["flux", "turbo"]:
-        try:
-            url_web = f"https://pollinations.ai{prompt_flux}?model={model_web}&width=768&height=432&nologo=true&seed={seed_rnd}"
-            resp = requests.get(url_web, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
-            if resp.status_code == 200 and len(resp.content) > 5000:
-                return compress_bytes_image(resp.content)
-        except Exception:
-            continue
-
-    # 4. Tarjeta local únicamente si todos los servidores externos están caídos
+    # 3. NIVEL DE EMERGENCIA OFFLINE: Tarjeta local con globos de conversación
     import re
     img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
     draw = ImageDraw.Draw(img_card)
