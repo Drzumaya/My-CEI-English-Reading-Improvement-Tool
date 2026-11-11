@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 from gtts import gTTS
@@ -12,15 +13,15 @@ import random
 import base64
 import hashlib
 import hmac
-import tempfile
 import urllib.parse
 import requests
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import gspread
 import pandas as pd
 from streamlit_js_eval import streamlit_js_eval
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
     page_title="CEFR Academic Grammar & Discourse System - Career English Institute",
     page_icon="🎓",
@@ -28,8 +29,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-DEFAULT_ADDRESS = "Calle 34, Av. 27, S/N, D2, Col. Buenos Aires, Agua Prieta, Son. C.P. 84269. | Tel. / Contacto: 6331349339"
+# --- 2. CONFIGURACIÓN SEGURA DESDE SECRETS ---
+DEFAULT_ADDRESS = st.secrets.get(
+    "INSTITUTE_ADDRESS",
+    "Dirección no configurada | Tel. / Contacto: No disponible"
+)
+
 ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado"]
+
 GRADOS_ACADEMICOS = [
     "Preescolar",
     "Primaria",
@@ -59,11 +66,24 @@ DEFAULT_PERMISSIONS_MATRIX = [
     ["Basico",       "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO"]
 ]
 
-# --- CLIENTE GLOBAL DE GOOGLE SHEETS ---
+# --- 3. CLIENTES EN CACHÉ (GEMINI Y GOOGLE SHEETS) ---
+@st.cache_resource
+def init_gemini_client():
+    api_key = st.secrets.get("GEMINI_API_KEY")
+    if not api_key:
+        st.error("Falta configurar GEMINI_API_KEY en los Secrets de Streamlit.")
+        st.stop()
+    return genai.Client(api_key=api_key)
+
+@st.cache_resource
 def get_gspread_client():
+    if "gcp_service_account" not in st.secrets:
+        st.error("Falta configurar [gcp_service_account] en los Secrets de Streamlit.")
+        st.stop()
     creds_dict = dict(st.secrets["gcp_service_account"])
     return gspread.service_account_from_dict(creds_dict)
 
+@st.cache_resource
 def get_spreadsheet():
     return get_gspread_client().open_by_key(st.secrets["spreadsheet_key"])
 
@@ -73,11 +93,15 @@ def get_google_sheet():
 def get_padron_sheet():
     return get_spreadsheet().worksheet("Padron_Estudiantes")
 
+@st.cache_data(ttl=60)
+def load_padron_records():
+    return get_padron_sheet().get_all_records()
+
 def get_certificados_sheet():
     ss = get_spreadsheet()
     try:
         return ss.worksheet("Certificados")
-    except Exception:
+    except gspread.WorksheetNotFound:
         ws = ss.add_worksheet(title="Certificados", rows=200, cols=9)
         ws.append_row([
             "Folio_Certificado", "Clave_Alumno", "Nombre_Estudiante", "Nivel_CEFR",
@@ -89,11 +113,12 @@ def get_permisos_sheet():
     ss = get_spreadsheet()
     try:
         return ss.worksheet("Matriz_Permisos")
-    except Exception:
+    except gspread.WorksheetNotFound:
         ws = ss.add_worksheet(title="Matriz_Permisos", rows=50, cols=9)
         ws.append_row(["Perfil_Permiso"] + CAPABILITY_COLS)
         for fila in DEFAULT_PERMISSIONS_MATRIX:
-            ws.append_row(fila)
+            fila_sheets = [fila[0]] + ["SI" if val is True or str(val).upper() == "SI" else "NO" for val in fila[1:]]
+            ws.append_row(fila_sheets)
         return ws
 
 @st.cache_data(ttl=120)
@@ -105,7 +130,7 @@ def load_permissions_matrix():
             perfil = str(r.get("Perfil_Permiso", "")).strip()
             if perfil:
                 matrix[perfil] = {
-                    cap: (str(r.get(cap, "NO")).strip().upper() == "SI")
+                    cap: (str(r.get(cap, "NO")).strip().upper() in ["SI", "TRUE"])
                     for cap in CAPABILITY_COLS
                 }
         if matrix:
@@ -113,7 +138,7 @@ def load_permissions_matrix():
     except Exception:
         pass
     return {
-        row[0]: {cap: (row[i + 1] == "SI") for i, cap in enumerate(CAPABILITY_COLS)}
+        row[0]: {cap: (row[i + 1] is True or str(row[i + 1]).upper() == "SI") for i, cap in enumerate(CAPABILITY_COLS)}
         for row in DEFAULT_PERMISSIONS_MATRIX
     }
 
@@ -128,7 +153,8 @@ def resolve_permission_profile(raw_perm, raw_role, matrix_dict):
     if r == "teacher" and "Academico" in matrix_dict:
         return "Academico"
     return "Basico" if "Basico" in matrix_dict else list(matrix_dict.keys())[-1]
-# --- COMPRESIÓN DE IMÁGENES ---
+
+# --- 4. COMPRESIÓN Y GESTIÓN DE IMÁGENES ---
 def compress_bytes_image(raw_bytes, max_size=(640, 400), quality=75):
     try:
         img = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
@@ -155,6 +181,7 @@ def compress_logo_to_base64(uploaded_file):
     img = img.convert("RGB")
     img.thumbnail((240, 240), Image.Resampling.LANCZOS)
     quality = 80
+    b64_str = ""
     while quality >= 30:
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=quality, optimize=True)
@@ -179,7 +206,7 @@ def save_permanent_config(b64_str, mime, width, shape, address_str):
     ss = get_spreadsheet()
     try:
         sheet_logo = ss.worksheet("Config_Logo")
-    except Exception:
+    except gspread.WorksheetNotFound:
         sheet_logo = ss.add_worksheet(title="Config_Logo", rows=10, cols=5)
     sheet_logo.clear()
     sheet_logo.append_row(["Logo_Base64", "Mime_Type", "Width", "Shape", "Direccion"])
@@ -187,31 +214,63 @@ def save_permanent_config(b64_str, mime, width, shape, address_str):
     load_permanent_logo.clear()
 
 def get_default_logo_b64():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    logo_path = os.path.join(base_dir, "LOGO CEI APP.png")
     try:
-        with open("LOGO CEI APP.png", "rb") as f:
+        with open(logo_path, "rb") as f:
             return base64.b64encode(f.read()).decode("utf-8"), "image/png"
     except Exception:
         return None, None
-
-# --- MOTOR DE TIMBRADO CRIPTOGRÁFICO (HMAC-SHA256) Y CERTIFICADO PDF ---
-def generar_sello_digital(folio_cert, clave_est, nombre_est, nivel_cefr, fecha_emision):
-    llave_maestra = str(st.secrets.get("spreadsheet_key", "CEI-2026-MASTER-SEAL")).encode("utf-8")
+# --- 5. MOTOR DE TIMBRADO CRIPTOGRÁFICO (HMAC-SHA256) Y CERTIFICADO PDF ---
+def generar_sello_digital(folio_cert: str, clave_est: str, nombre_est: str, nivel_cefr: str, fecha_emision: str):
+    llave_secreta = str(
+        st.secrets.get("HMAC_SECRET_KEY", st.secrets.get("spreadsheet_key", "CEI-2026-MASTER-SEAL"))
+    ).encode("utf-8")
     cadena_original = f"||CEI|{folio_cert}|{clave_est}|{nombre_est}|{nivel_cefr}|{fecha_emision}|JACOB-ZUMAYA-PRIANTI||"
-    sello_hex = hmac.new(llave_maestra, cadena_original.encode("utf-8"), hashlib.sha256).hexdigest().upper()
+    sello_hex = hmac.new(llave_secreta, cadena_original.encode("utf-8"), hashlib.sha256).hexdigest().upper()
     return cadena_original, sello_hex
 
-def generar_pdf_certificado(folio_cert, clave_est, nombre_est, nivel_cefr, programa, calificacion, fecha_emision, cadena_orig, sello_sha256, address_str):
-    verify_url = f"https://streamlit.app{folio_cert}"
+def _safe_latin1(text: str) -> str:
+    return str(text).encode("latin-1", "replace").decode("latin-1")
+
+def generar_pdf_certificado(
+    folio_cert: str,
+    clave_est: str,
+    nombre_est: str,
+    nivel_cefr: str,
+    programa: str,
+    calificacion: str,
+    fecha_emision: str,
+    cadena_orig: str,
+    sello_sha256: str,
+    address_str: str
+) -> bytes:
+    base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
+    verify_url = f"{base_url}/?verify={urllib.parse.quote(str(folio_cert))}"
+
     qr = qrcode.QRCode(version=2, box_size=5, border=1)
     qr.add_data(verify_url)
     qr.make(fit=True)
     img_qr = qr.make_image(fill_color="#0b2545", back_color="white")
     
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_qr:
-        img_qr.save(tmp_qr.name, format="PNG")
-        qr_path = tmp_qr.name
+    qr_buffer = io.BytesIO()
+    img_qr.save(qr_buffer, format="PNG")
+    qr_buffer.seek(0)
 
-    logo_path = "LOGO CEI APP.png" if os.path.exists("LOGO CEI APP.png") else None
+    logo_source = None
+    perm_logo = load_permanent_logo()
+    if perm_logo and perm_logo.get("Logo_Base64"):
+        try:
+            logo_bytes = base64.b64decode(perm_logo["Logo_Base64"])
+            logo_source = io.BytesIO(logo_bytes)
+        except Exception:
+            logo_source = None
+
+    if logo_source is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
+        if os.path.exists(local_logo):
+            logo_source = local_logo
 
     pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.set_author("Jacob Zumaya Prianti")
@@ -225,45 +284,45 @@ def generar_pdf_certificado(folio_cert, clave_est, nombre_est, nivel_cefr, progr
     pdf.set_line_width(0.6)
     pdf.rect(11, 11, 275, 188)
 
-    if logo_path:
+    if logo_source:
         try:
-            pdf.image(logo_path, x=18, y=16, w=26)
+            pdf.image(logo_source, x=18, y=16, w=26)
         except Exception:
             pass
 
-    pdf.image(qr_path, x=250, y=16, w=28)
+    pdf.image(qr_buffer, x=250, y=16, w=28)
     pdf.set_xy(242, 45)
     pdf.set_font("Helvetica", "B", 6.5)
     pdf.set_text_color(11, 37, 69)
-    pdf.cell(44, 4, txt="SCAN TO VERIFY AUTHENTICITY", align="C")
+    pdf.cell(44, 4, text="SCAN TO VERIFY AUTHENTICITY", align="C")
 
     pdf.set_xy(10, 17)
     pdf.set_font("Times", "B", 20)
     pdf.set_text_color(11, 37, 69)
-    pdf.cell(277, 9, txt="CAREER ENGLISH INSTITUTE", ln=True, align="C")
+    pdf.cell(277, 9, text="CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="C")
     
     pdf.set_font("Times", "I", 9)
     pdf.set_text_color(80, 80, 80)
-    pdf.cell(277, 5, txt=address_str.encode("latin-1", "replace").decode("latin-1"), ln=True, align="C")
+    pdf.cell(277, 5, text=_safe_latin1(address_str), new_x="LMARGIN", new_y="NEXT", align="C")
 
     pdf.ln(3)
     pdf.set_font("Times", "B", 15)
     pdf.set_text_color(184, 134, 11)
-    pdf.cell(277, 8, txt="CERTIFICATE OF ACADEMIC PROFICIENCY & CEFR ACHIEVEMENT", ln=True, align="C")
+    pdf.cell(277, 8, text="CERTIFICATE OF ACADEMIC PROFICIENCY & CEFR ACHIEVEMENT", new_x="LMARGIN", new_y="NEXT", align="C")
 
     pdf.ln(2)
     pdf.set_font("Times", "I", 12)
     pdf.set_text_color(40, 40, 40)
-    pdf.cell(277, 7, txt="This official credential is proudly awarded to:", ln=True, align="C")
+    pdf.cell(277, 7, text="This official credential is proudly awarded to:", new_x="LMARGIN", new_y="NEXT", align="C")
 
     pdf.ln(2)
     pdf.set_font("Times", "B", 24)
     pdf.set_text_color(11, 37, 69)
-    pdf.cell(277, 12, txt=nombre_est.upper().encode("latin-1", "replace").decode("latin-1"), ln=True, align="C")
+    pdf.cell(277, 12, text=_safe_latin1(nombre_est.upper()), new_x="LMARGIN", new_y="NEXT", align="C")
 
     pdf.set_font("Times", "B", 11)
     pdf.set_text_color(70, 70, 70)
-    pdf.cell(277, 6, txt=f"Student Registry ID / Clave: {clave_est}  |  Certified Proficiency Level: {nivel_cefr}", ln=True, align="C")
+    pdf.cell(277, 6, text=_safe_latin1(f"Student Registry ID / Clave: {clave_est}  |  Certified Proficiency Level: {nivel_cefr}"), new_x="LMARGIN", new_y="NEXT", align="C")
 
     pdf.ln(2)
     pdf.set_font("Times", "", 11.5)
@@ -272,7 +331,8 @@ def generar_pdf_certificado(folio_cert, clave_est, nombre_est, nivel_cefr, progr
         f"For having successfully completed the academic requirements, applied grammar, and discourse assessments of:\n"
         f"{programa} (Final Evaluation Score: {calificacion}), aligned with the Common European Framework of Reference for Languages (CEFR)."
     )
-    pdf.multi_cell(240, 6, txt=cuerpo_cert.encode("latin-1", "replace").decode("latin-1"), align="C")
+    pdf.set_x(28.5)
+    pdf.multi_cell(240, 6, text=_safe_latin1(cuerpo_cert), align="C")
 
     pdf.ln(8)
     y_firma = pdf.get_y()
@@ -284,20 +344,20 @@ def generar_pdf_certificado(folio_cert, clave_est, nombre_est, nivel_cefr, progr
     pdf.set_xy(45, y_firma + 9)
     pdf.set_font("Times", "B", 10.5)
     pdf.set_text_color(11, 37, 69)
-    pdf.cell(80, 5, txt="Jacob Zumaya Prianti", align="C")
+    pdf.cell(80, 5, text="Jacob Zumaya Prianti", align="C")
     pdf.set_xy(45, y_firma + 14)
     pdf.set_font("Times", "I", 9)
     pdf.set_text_color(80, 80, 80)
-    pdf.cell(80, 4, txt="Director & Senior Applied Linguist", align="C")
+    pdf.cell(80, 4, text="Director & Senior Applied Linguist", align="C")
 
     pdf.set_xy(170, y_firma + 9)
     pdf.set_font("Times", "B", 10.5)
     pdf.set_text_color(11, 37, 69)
-    pdf.cell(80, 5, txt="Academic Board & Registry", align="C")
+    pdf.cell(80, 5, text="Academic Board & Registry", align="C")
     pdf.set_xy(170, y_firma + 14)
     pdf.set_font("Times", "I", 9)
     pdf.set_text_color(80, 80, 80)
-    pdf.cell(80, 4, txt=f"Issued: {fecha_emision} | Folio: {folio_cert}", align="C")
+    pdf.cell(80, 4, text=_safe_latin1(f"Issued: {fecha_emision} | Folio: {folio_cert}"), align="C")
 
     pdf.set_xy(15, 166)
     pdf.set_fill_color(242, 245, 249)
@@ -306,26 +366,24 @@ def generar_pdf_certificado(folio_cert, clave_est, nombre_est, nivel_cefr, progr
     pdf.set_xy(18, 166.5)
     pdf.set_font("Courier", "B", 7.5)
     pdf.set_text_color(11, 37, 69)
-    pdf.cell(260, 4, txt=f"TIMBRE DIGITAL INSTITUCIONAL | FOLIO: {folio_cert} | VALIDATION URL: {verify_url}", ln=True)
+    pdf.cell(260, 4, text=_safe_latin1(f"TIMBRE DIGITAL INSTITUCIONAL | FOLIO: {folio_cert} | VALIDATION URL: {verify_url}"), new_x="LMARGIN", new_y="NEXT")
     
     pdf.set_x(18)
     pdf.set_font("Courier", "", 6.8)
     pdf.set_text_color(60, 60, 60)
-    pdf.multi_cell(260, 3.5, txt=f"Cadena Original: {cadena_orig.encode('latin-1', 'replace').decode('latin-1')}")
+    pdf.multi_cell(260, 3.5, text=_safe_latin1(f"Cadena Original: {cadena_orig}"))
     
     pdf.set_x(18)
     pdf.set_font("Courier", "B", 7)
     pdf.set_text_color(0, 100, 0)
-    pdf.cell(260, 4, txt=f"Sello Digital Criptografico (HMAC-SHA256): {sello_sha256}", ln=True)
+    pdf.cell(260, 4, text=f"Sello Digital Criptografico (HMAC-SHA256): {sello_sha256}", new_x="LMARGIN", new_y="NEXT")
 
-    pdf_out = pdf.output(dest="S").encode("latin-1")
-    try:
-        os.remove(qr_path)
-    except Exception:
-        pass
-    return pdf_out
-# --- DETECCIÓN DE DISPOSITIVO ---
-user_agent = st.context.headers.get("User-Agent", "").lower()
+    return bytes(pdf.output())
+# --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
+try:
+    user_agent = st.context.headers.get("User-Agent", "").lower()
+except Exception:
+    user_agent = ""
 is_mobile = any(device in user_agent for device in ["iphone", "android", "ipad", "mobile"])
 
 CEFR_MAP = {
@@ -341,8 +399,7 @@ def normalize_cefr(raw_val):
     code = str(raw_val).strip().upper()[:2]
     return CEFR_MAP.get(code, "B1 (Intermediate)")
 
-# --- INICIALIZACIÓN DE ESTADOS ---
-for key, default in [
+DEFAULT_SESSION_STATES = [
     ("authenticated", False), ("current_user", ""), ("user_role", "Estudiante"),
     ("user_permissions", "Basico"), ("user_assigned_level", "B1 (Intermediate)"),
     ("user_academic_grade", "Licenciatura / Universidad"),
@@ -352,26 +409,36 @@ for key, default in [
     ("quiz_graded", False), ("quiz_score", None), ("quiz_user_answers", {}),
     ("pending_ls_token", None), ("selected_cefr", "B1 (Intermediate)"),
     ("show_teacher_registry", False), ("current_folio", ""),
-    ("current_pdf_link", ""), ("current_creation_date", "")
-]:
+    ("current_pdf_link", ""), ("current_creation_date", ""),
+    ("show_qr", True), ("url_folio_checked", False)
+]
+
+for key, default in DEFAULT_SESSION_STATES:
     if key not in st.session_state:
         st.session_state[key] = default
-    if "show_qr" not in st.session_state:
-       st.session_state.show_qr = True
 
-
-# --- CARGAR CONFIGURACIÓN DEL INSTITUTO ---
 saved_cfg = load_permanent_logo()
-institute_address = str(saved_cfg.get("Direccion", "")).strip() if (saved_cfg and saved_cfg.get("Direccion")) else DEFAULT_ADDRESS
+institute_address = (
+    str(saved_cfg.get("Direccion", "")).strip()
+    if (saved_cfg and saved_cfg.get("Direccion"))
+    else DEFAULT_ADDRESS
+)
 
-# --- PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN LOGIN) ---
+# --- 7. PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN LOGIN) ---
 verify_folio = st.query_params.get("verify", "").strip().upper()
 if verify_folio:
     col_vl, col_vc, col_vr = st.columns([1, 2.2, 1])
     with col_vc:
-        b64_l, mime_l = (saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"]) if (saved_cfg and saved_cfg.get("Logo_Base64")) else get_default_logo_b64()
+        b64_l, mime_l = (
+            (saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"])
+            if (saved_cfg and saved_cfg.get("Logo_Base64"))
+            else get_default_logo_b64()
+        )
         if b64_l:
-            st.markdown(f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 110px; border-radius: 50%;"></div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 110px; border-radius: 50%;"></div>',
+                unsafe_allow_html=True
+            )
         st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
         st.markdown(f"<p style='text-align: center; color: #555; font-size: 12px;'>📍 {institute_address}</p>", unsafe_allow_html=True)
         st.markdown("<h2 style='text-align: center;'>🛡️ DIGITAL CREDENTIAL VERIFICATION PORTAL</h2>", unsafe_allow_html=True)
@@ -380,7 +447,10 @@ if verify_folio:
         try:
             with st.spinner(f"Validando sello criptográfico del certificado {verify_folio}..."):
                 certs = get_certificados_sheet().get_all_records()
-                cert_encontrado = next((c for c in certs if str(c.get("Folio_Certificado", "")).strip().upper() == verify_folio), None)
+                cert_encontrado = next(
+                    (c for c in certs if str(c.get("Folio_Certificado", "")).strip().upper() == verify_folio),
+                    None
+                )
 
                 if cert_encontrado:
                     estatus_c = str(cert_encontrado.get("Estatus", "Vigente")).strip()
@@ -390,11 +460,12 @@ if verify_folio:
                     prog_c = str(cert_encontrado.get("Programa_Curso", "")).strip()
                     calif_c = str(cert_encontrado.get("Calificacion", "")).strip()
                     fecha_c = str(cert_encontrado.get("Fecha_Emision", "")).strip()
-                    sello_bd = str(cert_encontrado.get("Sello_Digital_SHA256", "")).strip()
+                    sello_bd = str(cert_encontrado.get("Sello_Digital_SHA256", "")).strip().upper()
 
                     _, sello_recalculado = generar_sello_digital(verify_folio, clave_c, nombre_c, nivel_c, fecha_c)
+                    firma_valida = hmac.compare_digest(sello_bd, sello_recalculado)
 
-                    if sello_bd == sello_recalculado and estatus_c.lower() == "vigente":
+                    if firma_valida and estatus_c.lower() == "vigente":
                         st.success("✅ **CERTIFICADO AUTÉNTICO Y VERIFICADO CRIPTOGRÁFICAMENTE**")
                         with st.container(border=True):
                             st.markdown(f"**🔖 Folio Oficial:** `{verify_folio}`")
@@ -404,7 +475,7 @@ if verify_folio:
                             st.markdown(f"**📚 Programa / Módulo:** {prog_c}")
                             st.markdown(f"**🏆 Calificación Final:** {calif_c}")
                             st.markdown(f"**📅 Fecha de Timbrado:** {fecha_c}")
-                            st.markdown(f"**✍️ Autoridad Emisora:** Jacob Zumaya Prianti (Career English Institute)")
+                            st.markdown("**✍️ Autoridad Emisora:** Jacob Zumaya Prianti (Career English Institute)")
                             st.divider()
                             st.caption("**Sello Digital HMAC-SHA256 Verificado:**")
                             st.code(sello_bd, language="text")
@@ -416,40 +487,59 @@ if verify_folio:
             st.error(f"Error al verificar certificado: {e}")
 
         st.write("")
-        if st.button("🏛️ Ir a la Plataforma Principal", width="stretch"):
+        if st.button("🏛️ Ir a la Plataforma Principal", use_container_width=True):
             st.query_params.clear()
             st.rerun()
     st.stop()
+# --- 8. AUTENTICACIÓN, LOCALSTORAGE FIRMADO Y CAPTURA DE FOLIO ---
+def _sign_session_token(usuario: str, clave: str) -> str:
+    secret = str(st.secrets.get("HMAC_SECRET_KEY", "CEI-SESSION-KEY")).encode("utf-8")
+    raw_data = f"{usuario}|{clave}"
+    sig = hmac.new(secret, raw_data.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+    payload = json.dumps({"u": usuario, "c": clave, "s": sig}).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("utf-8")
 
-# --- CAPTURA DE FOLIO DE LECCIÓN DESDE URL ---
+def _verify_session_token(token_str: str):
+    decoded_json = base64.urlsafe_b64decode(token_str.encode("utf-8")).decode("utf-8")
+    token_data = json.loads(decoded_json)
+    u_tok = token_data.get("u", "")
+    c_tok = token_data.get("c", "")
+    s_tok = token_data.get("s", "")
+    if not (u_tok and c_tok and s_tok):
+        return None, None
+    secret = str(st.secrets.get("HMAC_SECRET_KEY", "CEI-SESSION-KEY")).encode("utf-8")
+    expected_sig = hmac.new(secret, f"{u_tok}|{c_tok}".encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+    if hmac.compare_digest(s_tok, expected_sig):
+        return u_tok, c_tok
+    return None, None
+
 url_folio = st.query_params.get("folio", "")
 if url_folio and not st.session_state.current_folio:
     st.session_state.current_folio = str(url_folio).strip().upper()
-# --- CARGAR MATRIZ GLOBAL DE PERMISOS ---
+
 PERMISSIONS_MATRIX = load_permissions_matrix()
 PERMISOS_LISTA = list(PERMISSIONS_MATRIX.keys())
 
-# --- ESCRITURA INVISIBLE EN LOCALSTORAGE ---
 if st.session_state.pending_ls_token is not None:
     if st.session_state.pending_ls_token == "REMOVE":
         streamlit_js_eval(js_expressions="localStorage.removeItem('cei_auth_token')", key="rm_ls_init")
     else:
-        streamlit_js_eval(js_expressions=f"localStorage.setItem('cei_auth_token', '{st.session_state.pending_ls_token}')", key="sv_ls_init")
+        safe_js_token = json.dumps(st.session_state.pending_ls_token)
+        streamlit_js_eval(js_expressions=f"localStorage.setItem('cei_auth_token', {safe_js_token})", key="sv_ls_init")
     st.session_state.pending_ls_token = None
 
-# --- RECUPERACIÓN INVISIBLE DE SESIÓN ---
 if not st.session_state.authenticated and not st.session_state.app_exited:
     saved_token = streamlit_js_eval(js_expressions="localStorage.getItem('cei_auth_token')", key="get_ls_token")
     if saved_token and isinstance(saved_token, str):
         try:
-            decoded_json = base64.urlsafe_b64decode(saved_token.encode("utf-8")).decode("utf-8")
-            token_data = json.loads(decoded_json)
-            u_tok, c_tok = token_data.get("u", ""), token_data.get("c", "")
+            u_tok, c_tok = _verify_session_token(saved_token)
             if u_tok and c_tok:
-                for reg in get_padron_sheet().get_all_records():
-                    if (str(reg.get("Usuario", "")).strip().lower() == u_tok.lower() and
-                        str(reg.get("Clave", "")).strip() == c_tok and
-                        str(reg.get("Estatus", "Activo")).strip().lower() == "activo"):
+                for reg in load_padron_records():
+                    if (
+                        str(reg.get("Usuario", "")).strip().lower() == u_tok.lower()
+                        and str(reg.get("Clave", "")).strip() == c_tok
+                        and str(reg.get("Estatus", "Activo")).strip().lower() == "activo"
+                    ):
                         r_db = str(reg.get("Rol", "Estudiante")).strip()
                         p_db = resolve_permission_profile(reg.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
                         lvl_norm = normalize_cefr(reg.get("Nivel", "B1"))
@@ -467,7 +557,6 @@ if not st.session_state.authenticated and not st.session_state.app_exited:
         except Exception:
             pass
 
-# --- PANTALLA DE SALIDA ---
 if st.session_state.app_exited:
     streamlit_js_eval(js_expressions="localStorage.removeItem('cei_auth_token')", key="exit_rm_ls")
     st.title("👋 Academic Session Ended")
@@ -479,13 +568,19 @@ if st.session_state.app_exited:
         st.rerun()
     st.stop()
 
-# --- PANTALLA DE LOGIN ---
 if not st.session_state.authenticated:
     col_l, col_c, col_r = st.columns([1, 1.5, 1])
     with col_c:
-        b64_l, mime_l = (saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"]) if (saved_cfg and saved_cfg.get("Logo_Base64")) else get_default_logo_b64()
+        b64_l, mime_l = (
+            (saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"])
+            if (saved_cfg and saved_cfg.get("Logo_Base64"))
+            else get_default_logo_b64()
+        )
         if b64_l:
-            st.markdown(f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 115px; border-radius: 50%;"></div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 115px; border-radius: 50%;"></div>',
+                unsafe_allow_html=True
+            )
         
         st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
         st.markdown(f"<p style='text-align: center; color: #555; font-size: 13px;'>📍 {institute_address}</p>", unsafe_allow_html=True)
@@ -497,7 +592,7 @@ if not st.session_state.authenticated:
             input_user = st.text_input("👤 Usuario registrado:")
             input_pass = st.text_input("🔑 Clave de Acceso:", type="password")
             remember_me = st.checkbox("💾 Recordar mi usuario y contraseña en este navegador", value=True)
-            submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", width="stretch")
+            submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", use_container_width=True)
             
             if submit_login:
                 if not input_user or not input_pass:
@@ -505,7 +600,8 @@ if not st.session_state.authenticated:
                 else:
                     try:
                         with st.spinner("Verificando credenciales, grado académico y permisos..."):
-                            registros = get_padron_sheet().get_all_records()
+                            load_padron_records.clear()
+                            registros = load_padron_records()
                             acceso_valido = False
                             for reg in registros:
                                 u_db = str(reg.get("Usuario", "")).strip()
@@ -527,8 +623,7 @@ if not st.session_state.authenticated:
                                         st.session_state.user_academic_grade = g_db
                                         st.session_state.selected_academic_grade = g_db
                                         if remember_me:
-                                            payload = json.dumps({"u": u_db, "c": c_db}).encode("utf-8")
-                                            st.session_state.pending_ls_token = base64.urlsafe_b64encode(payload).decode("utf-8")
+                                            st.session_state.pending_ls_token = _sign_session_token(u_db, c_db)
                                         else:
                                             st.session_state.pending_ls_token = "REMOVE"
                                         acceso_valido = True
@@ -543,23 +638,151 @@ if not st.session_state.authenticated:
                                 st.error("❌ Usuario o Clave incorrectos.")
                     except Exception as e:
                         st.error(f"Error al conectar con 'Padron_Estudiantes': {e}")
-        st.markdown(f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>",
+            unsafe_allow_html=True
+        )
     st.stop()
-# --- EVALUACIÓN DINÁMICA DE CAPACIDADES ---
+# --- 9. MOTOR DE IA MULTIMODAL ---
+def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
+    modelos_potentes = [
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash"
+    ]
+    ultimo_error = None
+    for modelo in modelos_potentes:
+        try:
+            cfg_kwargs = {"temperature": 0.65}
+            if instruccion_sistema:
+                cfg_kwargs["system_instruction"] = instruccion_sistema
+            if as_json:
+                cfg_kwargs["response_mime_type"] = "application/json"
+            config = types.GenerateContentConfig(**cfg_kwargs)
+            respuesta = client.models.generate_content(
+                model=modelo,
+                contents=prompt_contenido,
+                config=config
+            )
+            if respuesta and respuesta.text:
+                return respuesta.text, modelo
+        except Exception as e:
+            ultimo_error = e
+            continue
+    if ultimo_error:
+        raise ultimo_error
+    raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
+
+def generar_imagen_garantizada(client, prompt_ingles: str, titulo_tema: str, nivel_cefr: str, grado_acad: str) -> bytes:
+    clean_p = "".join(c for c in prompt_ingles if c.isalnum() or c in " ,.-").strip()
+    
+    if client is not None:
+        try:
+            res_img = client.models.generate_images(
+                model="imagen-3.0-generate-002",
+                prompt=f"Educational illustration for {grado_acad} students: {clean_p}. Colorful, clear, no text.",
+                config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
+            )
+            if res_img and res_img.generated_images:
+                raw_b = res_img.generated_images.image.image_bytes
+                return compress_bytes_image(raw_b)
+        except Exception:
+            pass
+
+    encoded = urllib.parse.quote(f"{clean_p}, educational illustration, flat vector, no text")
+    first_clause = clean_p.split(",").strip()[:30]
+    keywords = urllib.parse.quote(first_clause.replace(" ", ",")) if first_clause else "education,school"
+    
+    urls_respaldo = [
+        f"https://pollinations.ai{encoded}?model=turbo&width=640&height=360&nologo=true&seed={random.randint(1, 999)}",
+        f"https://loremflickr.com{keywords}"
+    ]
+    for url_ext in urls_respaldo:
+        try:
+            resp = requests.get(url_ext, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+            if resp.status_code == 200 and len(resp.content) > 4000:
+                return compress_bytes_image(resp.content)
+        except Exception:
+            continue
+
+    img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
+    draw = ImageDraw.Draw(img_card)
+    draw.rectangle((15, 15, 625, 345), outline=(218, 165, 32), width=3)
+    draw.rectangle((18, 18, 622, 85), fill=(25, 65, 125))
+    
+    cefr_short = nivel_cefr.split() if nivel_cefr else "CEFR"
+    draw.text((35, 38), f"CAREER ENGLISH INSTITUTE | CEFR {cefr_short} | {grado_acad.upper()}", fill=(255, 215, 0))
+    draw.text((35, 115), "VISUAL CONTEXT & LESSON TOPIC:", fill=(180, 210, 255))
+    
+    palabras = titulo_tema.upper().split()
+    lineas, linea_act = [], ""
+    for p in palabras:
+        if len(linea_act + " " + p) <= 38:
+            linea_act = (linea_act + " " + p).strip()
+        else:
+            lineas.append(linea_act)
+            linea_act = p
+    if linea_act:
+        lineas.append(linea_act)
+    
+    y_txt = 150
+    for l in lineas[:4]:
+        draw.text((35, y_txt), l, fill=(255, 255, 255))
+        y_txt += 30
+
+    draw.text((35, 310), "Applied Linguistics & Visual Support - Jacob Zumaya Prianti", fill=(160, 190, 220))
+    buf_card = io.BytesIO()
+    img_card.save(buf_card, format="JPEG", quality=85)
+    return buf_card.getvalue()
+
+def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
+    client = init_gemini_client()
+    evitar_txt = f"IMPORTANT: Create COMPLETELY DIFFERENT questions from: {evitar_preguntas}" if evitar_preguntas else ""
+    prompt_quiz = f"""
+    Based on this CEFR Level {nivel_cefr} English lesson tailored for {grado_acad} students, create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr} and {grado_acad} cognitive level, evaluating comprehension and target grammar ({tema_gramatical}).
+    {evitar_txt}
+    LESSON TEXT:
+    {texto_leccion}
+    RETURN ONLY A VALID JSON ARRAY WITH THIS EXACT SCHEMA:
+    [{{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}}]
+    """
+    raw_resp, _ = generar_con_maxima_potencia(
+        client,
+        prompt_quiz,
+        instruccion_sistema="Output strictly a valid JSON array only.",
+        as_json=True
+    )
+    cleaned = raw_resp.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)
+    return json.loads(cleaned.strip())
+
+def _serialize_lesson_package(text_val: str, quiz_val, cefr_val: str, grade_val: str, created_val: str) -> str:
+    safe_text = text_val[:42000] if len(text_val) > 42000 else text_val
+    return json.dumps({
+        "text": safe_text,
+        "quiz": quiz_val,
+        "cefr": cefr_val,
+        "grade": grade_val,
+        "created_at": created_val
+    }, ensure_ascii=False)
+# --- 10. EVALUACIÓN DINÁMICA DE CAPACIDADES ---
 user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
-def can(capability_name):
+def can(capability_name: str) -> bool:
     return bool(user_caps.get(capability_name, False))
 
 is_faculty_desktop = can("Ver_Panel_Admin") and (not is_mobile)
 has_faculty_access = can("Reuso_Ilimitado_Folios")
-
 cefr_options = list(CEFR_MAP.values())
 
-# --- BARRA IZQUIERDA (INPUTS DEL ALGORITMO) ---
+# --- 11. BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS) ---
 with st.sidebar:
     st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
     st.caption(f"📍 {institute_address}")
-    st.success(f"👤 **{st.session_state.current_user}**\n\n🏷️ *{st.session_state.user_role}* | 🛡️ Perfil: **{st.session_state.user_permissions}**")
+    st.success(
+        f"👤 **{st.session_state.current_user}**\n\n"
+        f"🏷️ *{st.session_state.user_role}* | 🛡️ Perfil: **{st.session_state.user_permissions}**"
+    )
     st.divider()
 
     st.header("⚙️ Academic Parameters")
@@ -567,10 +790,16 @@ with st.sidebar:
 
     if can("Previsualizar_A1_C2") and (not is_mobile):
         st.subheader("🎯 Target Calibration (Faculty)")
-        default_idx = cefr_options.index(st.session_state.user_assigned_level) if st.session_state.user_assigned_level in cefr_options else 2
+        default_idx = (
+            cefr_options.index(st.session_state.user_assigned_level)
+            if st.session_state.user_assigned_level in cefr_options else 2
+        )
         cefr_level = st.selectbox("Select CEFR Level (A1 - C2):", cefr_options, index=default_idx)
         
-        g_idx = GRADOS_ACADEMICOS.index(st.session_state.user_academic_grade) if st.session_state.user_academic_grade in GRADOS_ACADEMICOS else 4
+        g_idx = (
+            GRADOS_ACADEMICOS.index(st.session_state.user_academic_grade)
+            if st.session_state.user_academic_grade in GRADOS_ACADEMICOS else 4
+        )
         academic_grade = st.selectbox("Select Academic Grade:", GRADOS_ACADEMICOS, index=g_idx)
     else:
         cefr_level = st.session_state.user_assigned_level
@@ -618,11 +847,15 @@ with st.sidebar:
     )
     
     st.markdown("---")
-    generar_btn = st.button(f"🚀 Generate {cefr_level.split()[0]} Lesson", type="primary", width="stretch")
+    generar_btn = st.button(f"🚀 Generate {cefr_level.split()[0]} Lesson", type="primary", use_container_width=True)
 
-# --- CABECERA INSTITUCIONAL ---
-default_width = int(saved_cfg["Width"]) if saved_cfg and saved_cfg.get("Width") else 115
-default_shape = saved_cfg["Shape"] if saved_cfg and saved_cfg.get("Shape") else "Circular"
+# --- 12. CABECERA INSTITUCIONAL ---
+try:
+    default_width = int(saved_cfg["Width"]) if (saved_cfg and saved_cfg.get("Width")) else 115
+except (ValueError, TypeError):
+    default_width = 115
+
+default_shape = saved_cfg["Shape"] if (saved_cfg and saved_cfg.get("Shape")) else "Circular"
 shape_options = ["Original", "Redondeado", "Circular"]
 default_shape_idx = shape_options.index(default_shape) if default_shape in shape_options else 2
 
@@ -630,12 +863,12 @@ col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
 
 with col_logo:
     if can("Editar_Instituto_Logo") and (not is_mobile):
-        with st.popover("✏️ Editar Logo", width="stretch"):
+        with st.popover("✏️ Editar Logo", use_container_width=True):
             logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
             logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
             logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True)
             
-            if st.button("💾 Guardar Logo Permanente", type="primary", width="stretch"):
+            if st.button("💾 Guardar Logo Permanente", type="primary", use_container_width=True):
                 b64_to_save, mime_to_save = None, None
                 if logo_file is not None:
                     b64_to_save, mime_to_save = compress_logo_to_base64(logo_file)
@@ -670,6 +903,7 @@ with col_logo:
             f'<div style="text-align: center;"><img src="data:{active_mime};base64,{active_b64}" style="width: {logo_width}px; height: auto; border-radius: {radius}; object-fit: cover;"></div>',
             unsafe_allow_html=True
         )
+
 with col_title:
     st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
     st.caption(f"📍 {institute_address}")
@@ -684,8 +918,12 @@ with col_qr:
             st.rerun()
 
         if st.session_state.show_qr:
+            app_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
+            if st.session_state.current_folio:
+                app_url = f"{app_url}/?folio={urllib.parse.quote(st.session_state.current_folio)}"
+            
             qr = qrcode.QRCode(version=1, box_size=4, border=1)
-            qr.add_data("https://streamlit.app")
+            qr.add_data(app_url)
             qr.make(fit=True)
             buf = io.BytesIO()
             qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
@@ -694,16 +932,15 @@ with col_qr:
 with col_exit:
     if is_faculty_desktop:
         btn_label = "✖️ Ocultar Panel" if st.session_state.show_teacher_registry else "🛡️ Admin y Certificados"
-        if st.button(btn_label, type="primary" if not st.session_state.show_teacher_registry else "secondary", width="stretch"):
+        if st.button(btn_label, type="primary" if not st.session_state.show_teacher_registry else "secondary", use_container_width=True):
             st.session_state.show_teacher_registry = not st.session_state.show_teacher_registry
             st.rerun()
 
-    if st.button("🚪 Salir", type="secondary", width="stretch"):
+    if st.button("🚪 Salir", type="secondary", use_container_width=True):
         st.session_state.app_exited = True
         st.session_state.authenticated = False
         st.rerun()
-
-# --- BUSCADOR DE FOLIOS ---
+# --- 13. BUSCADOR DE FOLIOS DE LECCIÓN ---
 with st.container(border=True):
     col_f1, col_f2, col_f3 = st.columns([2.5, 1.2, 2.3])
     with col_f1:
@@ -714,24 +951,37 @@ with st.container(border=True):
             label_visibility="collapsed"
         )
     with col_f2:
-        buscar_folio_btn = st.button("🔍 Buscar Folio", width="stretch")
+        buscar_folio_btn = st.button("🔍 Buscar Folio", use_container_width=True)
     with col_f3:
-        if st.session_state.current_folio:
+        if st.session_state.current_folio and st.session_state.generated_text:
             st.info(f"📄 **Folio:** `{st.session_state.current_folio}` | 📅 `{st.session_state.current_creation_date}`")
         else:
             st.caption("Ingresa un Folio para recuperar una lección o presentar su examen.")
 
-if buscar_folio_btn and folio_input.strip():
+auto_fetch_url_folio = bool(
+    st.session_state.current_folio
+    and not st.session_state.generated_text
+    and not st.session_state.get("url_folio_checked", False)
+)
+
+if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
+    if auto_fetch_url_folio:
+        st.session_state.url_folio_checked = True
+        
     folio_buscado = folio_input.strip().upper()
     try:
         with st.spinner(f"Buscando Folio {folio_buscado} en Hoja 1..."):
             sheet1 = get_google_sheet()
             registros_h1 = sheet1.get_all_records()
             encontrado = False
+            
             for idx_fila, row in enumerate(registros_h1, start=2):
                 if str(row.get("Folio", "")).strip().upper() == folio_buscado:
                     encontrado = True
-                    usos_actuales = int(row.get("Usos_Estudiante") or 0)
+                    try:
+                        usos_actuales = int(float(str(row.get("Usos_Estudiante") or 0).strip()))
+                    except ValueError:
+                        usos_actuales = 0
                     
                     if (not has_faculty_access) and (usos_actuales >= 1):
                         st.error(f"⛔ El Folio **{folio_buscado}** ya alcanzó el límite de 1 reúso permitido. Solicita un nuevo folio a tu Teacher.")
@@ -752,34 +1002,45 @@ if buscar_folio_btn and folio_input.strip():
                             st.session_state.quiz_score = None
                             st.session_state.quiz_user_answers = {}
                             st.session_state.image_bytes = None
+                            st.session_state.audio_bytes = None
                             
                             if st.session_state.generated_text:
-                                tts = gTTS(text=st.session_state.generated_text.replace("*", "").replace("#", ""), lang='en', slow=False)
-                                afp = io.BytesIO()
-                                tts.write_to_fp(afp)
-                                st.session_state.audio_bytes = afp.getvalue()
+                                try:
+                                    clean_tts = st.session_state.generated_text.replace("*", "").replace("#", "")
+                                    tts = gTTS(text=clean_tts, lang="en", slow=False)
+                                    afp = io.BytesIO()
+                                    tts.write_to_fp(afp)
+                                    st.session_state.audio_bytes = afp.getvalue()
+                                except Exception:
+                                    st.warning("⚠️ Lección recuperada, pero el audio no pudo sintetizarse en este momento.")
                             
                             if not has_faculty_access:
-                                sheet1.update_cell(idx_fila, 7, usos_actuales + 1)
+                                try:
+                                    headers = sheet1.row_values(1)
+                                    col_usos = headers.index("Usos_Estudiante") + 1 if "Usos_Estudiante" in headers else 7
+                                except Exception:
+                                    col_usos = 7
+                                sheet1.update_cell(idx_fila, col_usos, usos_actuales + 1)
                                 st.success(f"✅ Folio **{folio_buscado}** recuperado (Reúso único activado).")
                             else:
                                 st.success(f"✅ Folio **{folio_buscado}** recuperado (Acceso ilimitado).")
                             st.rerun()
                     break
+                    
             if not encontrado:
                 st.warning(f"⚠️ No se encontró ningún registro con el Folio `{folio_buscado}` en Hoja 1.")
     except Exception as e:
         st.error(f"Error al buscar folio: {e}")
 
 st.divider()
-# --- PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL DE PERMISOS ---
+# --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
 if is_faculty_desktop and st.session_state.show_teacher_registry:
     with st.container(border=True):
         col_head_reg, col_close_reg = st.columns([4.5, 1])
         with col_head_reg:
             st.markdown("### 🛡️ PANEL DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL RBAC")
         with col_close_reg:
-            if st.button("🔼 Cerrar Panel", width="stretch"):
+            if st.button("🔼 Cerrar Panel", use_container_width=True):
                 st.session_state.show_teacher_registry = False
                 st.rerun()
 
@@ -790,14 +1051,14 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
             "🏛️ Datos del Instituto"
         ])
 
-        # 1. PESTAÑA EMISIÓN, HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
+        # 14.1 PESTAÑA CERTIFICADOS
         with tab_certificados:
             if not can("Emitir_Certificados"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
             else:
                 st.markdown("#### 🏅 Emisión Oficial de Certificados con Firma Criptográfica (HMAC-SHA256) y Sello QR")
                 try:
-                    regs_cert = get_padron_sheet().get_all_records()
+                    regs_cert = load_padron_records()
                     opciones_claves = {
                         f"{str(r.get('Clave', '')).strip()} — {str(r.get('Usuario', '')).strip()} ({str(r.get('Nivel', 'B1')).strip()})": r
                         for r in regs_cert if str(r.get("Clave", "")).strip()
@@ -807,13 +1068,21 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                     else:
                         col_c1, col_c2 = st.columns([1.3, 1.7])
                         with col_c1:
-                            sel_label = st.selectbox("🔑 Seleccionar Clave de la Base de Datos:", list(opciones_claves.keys()), key="cert_select_clave")
+                            sel_label = st.selectbox(
+                                "🔑 Seleccionar Clave de la Base de Datos:",
+                                list(opciones_claves.keys()),
+                                key="cert_select_clave"
+                            )
                             datos_alumno = opciones_claves[sel_label]
                             clave_sel = str(datos_alumno.get("Clave", "")).strip()
                             nombre_sel = str(datos_alumno.get("Usuario", "")).strip()
                             nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
                             grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
-                            st.info(f"**Titular:** {nombre_sel}\n\n**Clave:** `{clave_sel}` | **Nivel:** {nivel_sel}\n\n**Grado:** {grado_sel}")
+                            st.info(
+                                f"**Titular:** {nombre_sel}\n\n"
+                                f"**Clave:** `{clave_sel}` | **Nivel:** {nivel_sel}\n\n"
+                                f"**Grado:** {grado_sel}"
+                            )
 
                         with col_c2:
                             programa_cert = st.text_input(
@@ -826,10 +1095,12 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 value="98.0% — Passed with Academic Distinction",
                                 key="cert_grade_input"
                             )
-                            if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", width="stretch"):
+                            if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", use_container_width=True):
                                 with st.spinner("Generando timbrado criptográfico HMAC-SHA256 y sello QR..."):
-                                    folio_c = f"CERT-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
-                                    fecha_c = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
+                                    folio_c = f"CERT-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+                                    fecha_c = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
+                                    
                                     cadena_o, sello_h = generar_sello_digital(folio_c, clave_sel, nombre_sel, nivel_sel, fecha_c)
                                     
                                     get_certificados_sheet().append_row([
@@ -853,7 +1124,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 file_name=st.session_state["last_cert_name"],
                                 mime="application/pdf",
                                 type="primary",
-                                width="stretch"
+                                use_container_width=True
                             )
 
                     st.divider()
@@ -862,32 +1133,45 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                     certs_hist = cert_ws.get_all_records()
                     if certs_hist:
                         df_certs = pd.DataFrame(certs_hist)
-                        cols_c_ver = [c for c in ["Folio_Certificado", "Clave_Alumno", "Nombre_Estudiante", "Nivel_CEFR", "Fecha_Emision", "Estatus"] if c in df_certs.columns]
-                        st.dataframe(df_certs[cols_c_ver], height=160, width="stretch", hide_index=True)
+                        cols_c_ver = [
+                            c for c in ["Folio_Certificado", "Clave_Alumno", "Nombre_Estudiante", "Nivel_CEFR", "Fecha_Emision", "Estatus"]
+                            if c in df_certs.columns
+                        ]
+                        st.dataframe(df_certs[cols_c_ver], height=160, use_container_width=True, hide_index=True)
 
                         if can("Revocar_Certificados"):
                             c_rev1, c_rev2, c_rev3 = st.columns([2, 1.2, 1.2])
                             with c_rev1:
-                                cert_to_mod = st.selectbox("Seleccionar Folio de Certificado:", df_certs["Folio_Certificado"].tolist(), key="sel_cert_rev")
+                                cert_to_mod = st.selectbox(
+                                    "Seleccionar Folio de Certificado:",
+                                    df_certs["Folio_Certificado"].tolist(),
+                                    key="sel_cert_rev"
+                                )
                             with c_rev2:
                                 nuevo_est_cert = st.selectbox("Estatus:", ["Vigente", "Revocado"], key="sel_est_cert")
                             with c_rev3:
                                 st.write("")
-                                if st.button("🔄 Aplicar Estatus", width="stretch"):
-                                    celda_c = cert_ws.find(cert_to_mod)
+                                if st.button("🔄 Aplicar Estatus", use_container_width=True):
+                                    celda_c = cert_ws.find(str(cert_to_mod), in_column=1)
                                     if celda_c:
-                                        cert_ws.update_cell(celda_c.row, 9, nuevo_est_cert)
+                                        try:
+                                            headers_c = cert_ws.row_values(1)
+                                            col_est = headers_c.index("Estatus") + 1 if "Estatus" in headers_c else 9
+                                        except Exception:
+                                            col_est = 9
+                                        cert_ws.update_cell(celda_c.row, col_est, nuevo_est_cert)
                                         st.success(f"✅ Certificado {cert_to_mod} actualizado a '{nuevo_est_cert}'.")
                                         st.rerun()
                 except Exception as e:
                     st.error(f"Error en módulo de certificados: {e}")
-
-        # 2. PESTAÑA INSCRIPCIÓN, NIVEL ACADÉMICO, ROLES Y PERMISOS
+        # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
         with tab_reg_usuarios:
             if not can("Registrar_Usuarios"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
             else:
                 permisos_disponibles = PERMISOS_LISTA if can("Editar_Permisos") else ["Basico"]
+                default_perm_idx = permisos_disponibles.index("Basico") if "Basico" in permisos_disponibles else 0
+                
                 col_form_reg, col_tabla_reg = st.columns([1.2, 2.0])
                 with col_form_reg:
                     st.markdown("#### ➕ Formulario de Inscripción")
@@ -901,75 +1185,111 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             reg_nivel = st.selectbox("Nivel CEFR:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2)
                         
                         reg_grado = st.selectbox("🎓 Nivel Académico:", GRADOS_ACADEMICOS, index=1)
-                        reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", PERMISOS_LISTA, index=0)
+                        reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", permisos_disponibles, index=default_perm_idx)
                         
-                        if st.form_submit_button("💾 Guardar Inscripción", type="primary", width="stretch"):
+                        if st.form_submit_button("💾 Guardar Inscripción", type="primary", use_container_width=True):
                             if reg_usuario.strip() and reg_clave.strip():
                                 try:
                                     p_sheet = get_padron_sheet()
-                                    existentes = [str(r.get("Usuario", "")).strip().lower() for r in p_sheet.get_all_records()]
-                                    if reg_usuario.strip().lower() in existentes:
-                                        st.error("⚠️ El usuario ya está registrado.")
+                                    records_actuales = load_padron_records()
+                                    existentes_u = [str(r.get("Usuario", "")).strip().lower() for r in records_actuales]
+                                    existentes_c = [str(r.get("Clave", "")).strip().lower() for r in records_actuales]
+                                    
+                                    if reg_usuario.strip().lower() in existentes_u:
+                                        st.error("⚠️ Ese nombre de usuario ya está registrado.")
+                                    elif reg_clave.strip().lower() in existentes_c:
+                                        st.error("⚠️ Esa clave de acceso ya está asignada a otro usuario.")
                                     else:
-                                        p_sheet.append_row([reg_usuario.strip(), reg_clave.strip(), reg_rol, "Activo", reg_nivel, reg_permiso, reg_grado])
+                                        p_sheet.append_row([
+                                            reg_usuario.strip(),
+                                            reg_clave.strip(),
+                                            reg_rol,
+                                            "Activo",
+                                            reg_nivel,
+                                            reg_permiso,
+                                            reg_grado
+                                        ])
+                                        load_padron_records.clear()
                                         st.success(f"✅ {reg_usuario.strip()} inscrito en {reg_grado} ({reg_nivel}).")
                                         st.rerun()
                                 except Exception as e:
-                                    st.error(f"Error: {e}")
+                                    st.error(f"Error al registrar: {e}")
                             else:
-                                st.warning("Completa usuario y clave.")
+                                st.warning("⚠️ Completa tanto el usuario como la clave.")
+
                 with col_tabla_reg:
                     st.markdown("#### 📋 Tabla de Registros Activos")
                     try:
-                        p_sheet = get_padron_sheet()
-                        records_p = p_sheet.get_all_records()
+                        records_p = load_padron_records()
                         if records_p:
                             df_p = pd.DataFrame(records_p)
-                            cols_mostrar = [c for c in ["Usuario", "Clave", "Rol", "Nivel", "Grado_Academico", "Permisos", "Estatus"] if c in df_p.columns]
-                            st.dataframe(df_p[cols_mostrar], height=205, width="stretch", hide_index=True)
+                            cols_mostrar = [
+                                c for c in ["Usuario", "Clave", "Rol", "Nivel", "Grado_Academico", "Permisos", "Estatus"]
+                                if c in df_p.columns
+                            ]
+                            st.dataframe(df_p[cols_mostrar], height=205, use_container_width=True, hide_index=True)
                             
                             c_ed1, c_ed2, c_ed3 = st.columns([1.4, 1.2, 1.4])
                             with c_ed1:
                                 user_to_edit = st.selectbox("Usuario:", df_p["Usuario"].tolist(), key="edit_u_sel")
+                            
+                            fila_sel = df_p[df_p["Usuario"] == user_to_edit].iloc
+                            curr_rol = str(fila_sel.get("Rol", ROLES_LISTA)).strip()
+                            curr_grado = str(fila_sel.get("Grado_Academico", GRADOS_ACADEMICOS)).strip()
+                            curr_lvl = str(fila_sel.get("Nivel", "B1")).strip().upper()[:2]
+                            curr_perm = str(fila_sel.get("Permisos", permisos_disponibles)).strip()
+                            curr_stat = str(fila_sel.get("Estatus", "Activo")).strip()
+
+                            idx_rol = ROLES_LISTA.index(curr_rol) if curr_rol in ROLES_LISTA else 0
+                            idx_grado = GRADOS_ACADEMICOS.index(curr_grado) if curr_grado in GRADOS_ACADEMICOS else 1
+                            niveles_cefr = ["A1", "A2", "B1", "B2", "C1", "C2"]
+                            idx_lvl = niveles_cefr.index(curr_lvl) if curr_lvl in niveles_cefr else 2
+                            idx_perm = permisos_disponibles.index(curr_perm) if curr_perm in permisos_disponibles else 0
+                            estatus_opts = ["Activo", "Inactivo"]
+                            idx_stat = estatus_opts.index(curr_stat) if curr_stat in estatus_opts else 0
+
                             with c_ed2:
-                                new_rol_edit = st.selectbox("Rol:", ROLES_LISTA, key="edit_rl_sel")
+                                new_rol_edit = st.selectbox("Rol:", ROLES_LISTA, index=idx_rol, key="edit_rl_sel")
                             with c_ed3:
-                                new_grado_edit = st.selectbox("Nivel Académico:", GRADOS_ACADEMICOS, index=1, key="edit_gr_sel")
+                                new_grado_edit = st.selectbox("Nivel Académico:", GRADOS_ACADEMICOS, index=idx_grado, key="edit_gr_sel")
 
                             c_ed4, c_ed5, c_ed6 = st.columns([1, 1.2, 1])
                             with c_ed4:
-                                new_lvl_edit = st.selectbox("CEFR:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2, key="edit_lv_sel")
+                                new_lvl_edit = st.selectbox("CEFR:", niveles_cefr, index=idx_lvl, key="edit_lv_sel")
                             with c_ed5:
-                                new_perm_edit = st.selectbox("Permiso:", PERMISOS_LISTA, key="edit_pm_sel")
+                                new_perm_edit = st.selectbox("Permiso:", permisos_disponibles, index=idx_perm, key="edit_pm_sel")
                             with c_ed6:
-                                new_status = st.selectbox("Estatus:", ["Activo", "Inactivo"], key="edit_st_sel")
+                                new_status = st.selectbox("Estatus:", estatus_opts, index=idx_stat, key="edit_st_sel")
                                 
-                            if st.button("🔄 Actualizar Registro", width="stretch"):
-                                cell = p_sheet.find(user_to_edit)
+                            if st.button("🔄 Actualizar Registro", use_container_width=True):
+                                p_sheet = get_padron_sheet()
+                                cell = p_sheet.find(str(user_to_edit), in_column=1)
                                 if cell:
-                                    p_sheet.update_cell(cell.row, 3, new_rol_edit)
-                                    p_sheet.update_cell(cell.row, 4, new_status)
-                                    p_sheet.update_cell(cell.row, 5, new_lvl_edit)
-                                    p_sheet.update_cell(cell.row, 6, new_perm_edit)
-                                    p_sheet.update_cell(cell.row, 7, new_grado_edit)
+                                    p_sheet.update(
+                                        range_name=f"C{cell.row}:G{cell.row}",
+                                        values=[[new_rol_edit, new_status, new_lvl_edit, new_perm_edit, new_grado_edit]]
+                                    )
+                                    load_padron_records.clear()
                                     st.success(f"✅ Registro de {user_to_edit} actualizado.")
                                     st.rerun()
                     except Exception as e:
                         st.error(f"Error al cargar padrón: {e}")
-
-        # 3. PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
+        # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
                 {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
                 for k, v in PERMISSIONS_MATRIX.items()
             ])
-            st.dataframe(df_mat, width="stretch", hide_index=True)
+            st.dataframe(df_mat, use_container_width=True, hide_index=True)
 
             if can("Editar_Permisos"):
                 with st.form("form_nuevo_perfil_permiso", clear_on_submit=True):
                     st.markdown("**➕ Crear o Actualizar Perfil de Permisos:**")
-                    nombre_perfil = st.text_input("Nombre del Perfil (Ej: Coordinador, Recepcion, Supervisor):", placeholder="Ej: Coordinador")
+                    nombre_perfil = st.text_input(
+                        "Nombre del Perfil (Ej: Coordinador, Recepcion, Supervisor):",
+                        placeholder="Ej: Coordinador"
+                    )
                     cols_chk = st.columns(4)
                     checks_vals = {}
                     for i, cap in enumerate(CAPABILITY_COLS):
@@ -977,25 +1297,38 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             checks_vals[cap] = st.checkbox(cap.replace("_", " "), value=False, key=f"chk_{cap}")
                     
                     if st.form_submit_button("💾 Guardar Perfil en Matriz Global", type="primary"):
-                        if nombre_perfil.strip():
-                            try:
-                                m_sheet = get_permisos_sheet()
-                                fila_nueva = [nombre_perfil.strip()] + [("SI" if checks_vals[c] else "NO") for c in CAPABILITY_COLS]
-                                celda_p = m_sheet.find(nombre_perfil.strip())
-                                if celda_p and celda_p.col == 1:
-                                    for col_i, val in enumerate(fila_nueva, start=1):
-                                        m_sheet.update_cell(celda_p.row, col_i, val)
-                                else:
-                                    m_sheet.append_row(fila_nueva)
-                                load_permissions_matrix.clear()
-                                st.success(f"✅ Perfil '{nombre_perfil.strip()}' guardado.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error: {e}")
+                        perfil_limpio = nombre_perfil.strip()
+                        if perfil_limpio:
+                            if perfil_limpio.lower() == "total" and (
+                                not checks_vals.get("Ver_Panel_Admin") or not checks_vals.get("Editar_Permisos")
+                            ):
+                                st.error("⛔ Por seguridad, el perfil 'Total' debe conservar 'Ver Panel Admin' y 'Editar Permisos'.")
+                            else:
+                                try:
+                                    m_sheet = get_permisos_sheet()
+                                    fila_nueva = [perfil_limpio] + [("SI" if checks_vals[c] else "NO") for c in CAPABILITY_COLS]
+                                    registros_m = m_sheet.col_values(1)
+                                    fila_encontrada = next(
+                                        (idx for idx, val in enumerate(registros_m, start=1) if val.strip().lower() == perfil_limpio.lower()),
+                                        None
+                                    )
+                                    if fila_encontrada and fila_encontrada > 1:
+                                        end_col = chr(64 + len(fila_nueva))
+                                        m_sheet.update(
+                                            range_name=f"A{fila_encontrada}:{end_col}{fila_encontrada}",
+                                            values=[fila_nueva]
+                                        )
+                                    else:
+                                        m_sheet.append_row(fila_nueva)
+                                    load_permissions_matrix.clear()
+                                    st.success(f"✅ Perfil '{perfil_limpio}' guardado correctamente.")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error al guardar perfil: {e}")
                         else:
-                            st.warning("Escribe un nombre para el perfil.")
+                            st.warning("⚠️ Escribe un nombre para el perfil.")
 
-        # 4. PESTAÑA DATOS DEL INSTITUTO
+        # 14.4 PESTAÑA DATOS DEL INSTITUTO
         with tab_datos_inst:
             if not can("Editar_Instituto_Logo"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
@@ -1006,135 +1339,38 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                     if st.form_submit_button("💾 Guardar Información Institucional", type="primary"):
                         if nueva_direccion.strip():
                             try:
-                                b64_c = saved_cfg["Logo_Base64"] if (saved_cfg and saved_cfg.get("Logo_Base64")) else (get_default_logo_b64() or "")
-                                mime_c = saved_cfg["Mime_Type"] if (saved_cfg and saved_cfg.get("Mime_Type")) else "image/png"
-                                w_c = int(saved_cfg["Width"]) if (saved_cfg and saved_cfg.get("Width")) else 115
+                                def_b64, def_mime = get_default_logo_b64()
+                                b64_c = saved_cfg["Logo_Base64"] if (saved_cfg and saved_cfg.get("Logo_Base64")) else (def_b64 or "")
+                                mime_c = saved_cfg["Mime_Type"] if (saved_cfg and saved_cfg.get("Mime_Type")) else (def_mime or "image/png")
+                                try:
+                                    w_c = int(saved_cfg["Width"]) if (saved_cfg and saved_cfg.get("Width")) else 115
+                                except (ValueError, TypeError):
+                                    w_c = 115
                                 s_c = saved_cfg["Shape"] if (saved_cfg and saved_cfg.get("Shape")) else "Circular"
                                 save_permanent_config(b64_c, mime_c, w_c, s_c, nueva_direccion.strip())
                                 st.success("✅ ¡Información institucional actualizada!")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Error: {e}")
+                                st.error(f"Error al guardar información: {e}")
+                        else:
+                            st.warning("⚠️ La dirección institucional no puede quedar vacía.")
     st.divider()
-# --- MOTOR DE IA DE MÁXIMA POTENCIA ---
-def generar_con_maxima_potencia(client, prompt_contenido, instruccion_sistema=None):
-    modelos_potentes = [
-        "gemini-3.1-pro-preview", "gemini-3.5-pro", "gemini-3.8-flash",
-        "gemini-3.1-flash-lite-preview", "gemini-2.5-pro", "gemini-2.5-flash"
-    ]
-    try:
-        pro_det, otros_det = [], []
-        for m in client.models.list():
-            nombre = m.name.replace("models/", "")
-            if "gemini" in nombre and not any(x in nombre for x in ["embedding", "imagen", "aqa", "tts", "audio"]):
-                if nombre not in modelos_potentes:
-                    (pro_det if ("pro" in nombre or "ultra" in nombre) else otros_det).append(nombre)
-        modelos_potentes += sorted(pro_det, reverse=True) + sorted(otros_det, reverse=True)
-    except Exception:
-        pass
-
-    ultimo_error = None
-    for modelo in modelos_potentes:
-        try:
-            config = types.GenerateContentConfig(system_instruction=instruccion_sistema, temperature=0.65) if instruccion_sistema else types.GenerateContentConfig(temperature=0.65)
-            respuesta = client.models.generate_content(model=modelo, contents=prompt_contenido, config=config)
-            if respuesta and respuesta.text:
-                return respuesta.text, modelo
-        except Exception as e:
-            ultimo_error = e
-            continue
-    raise ultimo_error
-
-# --- VISUAL CONTEXT DE TRIPLE RESPALDO GARANTIZADO ---
-def generar_imagen_garantizada(client, prompt_ingles, titulo_tema, nivel_cefr, grado_acad):
-    clean_p = "".join(c for c in prompt_ingles if c.isalnum() or c in " ,.-").strip()
-    
-    # NIVEL 1: Gemini Imagen API
-    if client is not None:
-        try:
-            res_img = client.models.generate_images(
-                model="imagen-3.0-generate-002",
-                prompt=f"Educational illustration for {grado_acad} students: {clean_p}. Colorful, clear, no text.",
-                config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="16:9")
-            )
-            if res_img and res_img.generated_images:
-                raw_b = res_img.generated_images.image.image_bytes
-                return compress_bytes_image(raw_b)
-        except Exception:
-            pass
-
-    # NIVEL 2: Servidores externos de respaldo
-    encoded = urllib.parse.quote(f"{clean_p}, educational illustration, flat vector, no text")
-    keywords = urllib.parse.quote(clean_p.split(",")[:25].replace(" ", ","))
-    for url_ext in [
-        f"https://pollinations.ai{encoded}?model=turbo&width=640&height=360&nologo=true&seed={random.randint(1, 999)}",
-        f"https://loremflickr.com{keywords}"
-    ]:
-        try:
-            resp = requests.get(url_ext, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-            if resp.status_code == 200 and len(resp.content) > 4000:
-                return compress_bytes_image(resp.content)
-        except Exception:
-            continue
-
-    # NIVEL 3: Tarjeta Visual Educativa Generada Localmente (100% Infalible)
-    img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
-    draw = ImageDraw.Draw(img_card)
-    draw.rectangle((15, 15, 625, 345), outline=(218, 165, 32), width=3)
-    draw.rectangle((18, 18, 622, 85), fill=(25, 65, 125))
-    draw.text((35, 38), f"CAREER ENGLISH INSTITUTE | CEFR {nivel_cefr.split()} | {grado_acad.upper()}", fill=(255, 215, 0))
-    draw.text((35, 115), "VISUAL CONTEXT & LESSON TOPIC:", fill=(180, 210, 255))
-    
-    palabras = titulo_tema.upper().split()
-    lineas, linea_act = [], ""
-    for p in palabras:
-        if len(linea_act + " " + p) <= 38:
-            linea_act = (linea_act + " " + p).strip()
-        else:
-            lineas.append(linea_act)
-            linea_act = p
-    if linea_act:
-        lineas.append(linea_act)
-    
-    y_txt = 150
-    for l in lineas[:4]:
-        draw.text((35, y_txt), l, fill=(255, 255, 255))
-        y_txt += 30
-
-    draw.text((35, 310), "Applied Linguistics & Visual Support - Jacob Zumaya Prianti", fill=(160, 190, 220))
-    buf_card = io.BytesIO()
-    img_card.save(buf_card, format="JPEG", quality=85)
-    return buf_card.getvalue()
-
-def generar_quiz_leccion(texto_leccion, tema_gramatical, nivel_cefr, grado_acad, evitar_preguntas=None):
-    client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-    evitar_txt = f"IMPORTANT: Create COMPLETELY DIFFERENT questions from: {evitar_preguntas}" if evitar_preguntas else ""
-    prompt_quiz = f"""
-    Based on this CEFR Level {nivel_cefr} English lesson tailored for {grado_acad} students, create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr} and {grado_acad} cognitive level, evaluating comprehension and target grammar ({tema_gramatical}).
-    {evitar_txt}
-    LESSON TEXT:
-    {texto_leccion}
-    RETURN ONLY VALID JSON array:
-    [{{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}}]
-    """
-    raw_resp, _ = generar_con_maxima_potencia(client, prompt_quiz, "Output strictly valid JSON array only.")
-    cleaned = raw_resp.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)
-    return json.loads(cleaned.strip())
-# --- EJECUCIÓN DE GENERACIÓN ---
+# --- 15. EJECUCIÓN DE GENERACIÓN DE LECCIÓN CON IA ---
 if generar_btn:
     if "GEMINI_API_KEY" not in st.secrets:
         st.sidebar.error("⚠️ GEMINI_API_KEY no configurada.")
-    elif not contexto or not asunto:
+    elif not contexto.strip() or not asunto.strip():
         st.sidebar.warning("⚠️ Completa Contexto y Asunto.")
     else:
-        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+        client = init_gemini_client()
         with st.spinner(f"🧠 Generating CEFR {cefr_level} ({academic_grade}) Lesson, Visual & Audio..."):
             try:
-                nuevo_folio = f"CEI-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
-                fecha_creacion = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                pdf_url_directo = f"https://streamlit.app{nuevo_folio}"
+                ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
+                nuevo_folio = f"CEI-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+                fecha_creacion = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
+                
+                base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
+                pdf_url_directo = f"{base_url}/?folio={urllib.parse.quote(nuevo_folio)}"
                 
                 cefr_guidelines = {
                     "A1": "Use very basic everyday vocabulary, short simple sentences (5-8 words), present simple/continuous, and concrete familiar topics.",
@@ -1144,7 +1380,7 @@ if generar_btn:
                     "C1": "Use sophisticated, advanced academic English, idiomatic expressions, complex subordinate clauses, and high lexical precision.",
                     "C2": "Use near-native, scholarly English with subtle rhetorical devices, advanced syntax, and specialized academic vocabulary."
                 }
-                nivel_corto = cefr_level.split()
+                nivel_corto = cefr_level.split()[0]
                 guia_nivel = cefr_guidelines.get(nivel_corto, cefr_guidelines["B1"])
 
                 grade_pedagogy = {
@@ -1196,35 +1432,40 @@ if generar_btn:
                 st.session_state.quiz_graded = False
                 st.session_state.quiz_score = None
                 st.session_state.quiz_user_answers = {}
+                st.session_state.audio_bytes = None
                 
-                img_desc, _ = generar_con_maxima_potencia(
-                    client,
-                    f"Simple 10-word English visual illustration description for {academic_grade}: {contexto}, {personas}, {asunto}. No text."
-                )
+                try:
+                    img_desc, _ = generar_con_maxima_potencia(
+                        client,
+                        f"Simple 10-word English visual illustration description for {academic_grade}: {contexto}, {personas}, {asunto}. No text."
+                    )
+                except Exception:
+                    img_desc = f"{contexto} {asunto}"
+                    
                 st.session_state.image_bytes = generar_imagen_garantizada(
                     client, img_desc, f"{asunto} - {contexto}", cefr_level, academic_grade
                 )
                 
-                tts = gTTS(text=texto_gen.replace("*", "").replace("#", ""), lang='en', slow=False)
-                audio_fp = io.BytesIO()
-                tts.write_to_fp(audio_fp)
-                st.session_state.audio_bytes = audio_fp.getvalue()
+                try:
+                    clean_tts = texto_gen.replace("*", "").replace("#", "")
+                    tts = gTTS(text=clean_tts, lang="en", slow=False)
+                    audio_fp = io.BytesIO()
+                    tts.write_to_fp(audio_fp)
+                    st.session_state.audio_bytes = audio_fp.getvalue()
+                except Exception:
+                    st.warning("⚠️ Lección generada, pero el audio no pudo sintetizarse en este momento.")
                 
-                paquete_guardado = json.dumps({
-                    "text": texto_gen,
-                    "quiz": None,
-                    "cefr": cefr_level,
-                    "grade": academic_grade,
-                    "created_at": fecha_creacion
-                }, ensure_ascii=False)
+                paquete_guardado = _serialize_lesson_package(
+                    texto_gen, None, cefr_level, academic_grade, fecha_creacion
+                )
                 
                 tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto} ({gramatica_b1})"
                 get_google_sheet().append_row([
-                    nuevo_folio, usuario, tema_reg, "", fecha_creacion, paquete_guardado[:48000], 0, pdf_url_directo
+                    nuevo_folio, usuario, tema_reg, "", fecha_creacion, paquete_guardado, 0, pdf_url_directo
                 ])
             except Exception as e:
                 st.error(f"⚠️ Error al generar lección: {e}")
-# --- PANEL CENTRAL Y DERECHO ---
+# --- 16. PANEL CENTRAL (CONTENIDO, QUIZ Y CONTEXTO VISUAL) ---
 if "selected_academic_grade" not in st.session_state:
     st.session_state.selected_academic_grade = st.session_state.get("user_academic_grade", "Licenciatura / Universidad")
 
@@ -1245,10 +1486,15 @@ with col_main_center:
         else:
             st.info("👈 Escribe los datos en Español o Inglés en la barra izquierda y presiona **Generate Lesson**, o busca un **Folio** arriba.")
 
-    # --- QUIZ INTERACTIVO DE LA LECCIÓN ---
+    # QUIZ INTERACTIVO DE LA LECCIÓN
     if st.session_state.generated_text:
         if st.session_state.quiz_data is None:
-            if st.button(f"📝 Generar Quiz ({st.session_state.selected_cefr.split()} - {st.session_state.selected_academic_grade})", type="primary", width="stretch"):
+            cefr_tag = st.session_state.selected_cefr.split()[0] if st.session_state.selected_cefr else "CEFR"
+            if st.button(
+                f"📝 Generar Quiz ({cefr_tag} - {st.session_state.selected_academic_grade})",
+                type="primary",
+                use_container_width=True
+            ):
                 with st.spinner("Generando preguntas de evaluación y vinculando al Folio..."):
                     try:
                         q_gen = generar_quiz_leccion(
@@ -1259,16 +1505,16 @@ with col_main_center:
                         
                         if st.session_state.current_folio:
                             s1 = get_google_sheet()
-                            celda_f = s1.find(st.session_state.current_folio)
+                            celda_f = s1.find(st.session_state.current_folio, in_column=1)
                             if celda_f:
-                                paq_act = json.dumps({
-                                    "text": st.session_state.generated_text,
-                                    "quiz": q_gen,
-                                    "cefr": st.session_state.selected_cefr,
-                                    "grade": st.session_state.selected_academic_grade,
-                                    "created_at": st.session_state.current_creation_date
-                                }, ensure_ascii=False)
-                                s1.update_cell(celda_f.row, 6, paq_act[:48000])
+                                paq_act = _serialize_lesson_package(
+                                    st.session_state.generated_text,
+                                    q_gen,
+                                    st.session_state.selected_cefr,
+                                    st.session_state.selected_academic_grade,
+                                    st.session_state.current_creation_date
+                                )
+                                s1.update_cell(celda_f.row, 6, paq_act)
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al generar quiz: {e}")
@@ -1277,7 +1523,13 @@ with col_main_center:
                 st.subheader(f"📝 Lesson Comprehension & Grammar Quiz (Folio: {st.session_state.current_folio})")
                 for idx, item in enumerate(st.session_state.quiz_data):
                     st.markdown(f"**{idx + 1}. {item['question']}**")
-                    choice = st.radio(f"q_{idx}", item["options"], key=f"radio_quiz_{idx}", label_visibility="collapsed", index=None)
+                    choice = st.radio(
+                        f"q_{idx}",
+                        item["options"],
+                        key=f"radio_quiz_{idx}",
+                        label_visibility="collapsed",
+                        index=None
+                    )
                     st.session_state.quiz_user_answers[idx] = choice
                     if st.session_state.quiz_graded:
                         if choice == item["answer"]:
@@ -1288,14 +1540,17 @@ with col_main_center:
 
                 col_btn_grade, col_btn_new = st.columns(2)
                 with col_btn_grade:
-                    if st.button("✅ Calificar Quiz", type="primary", width="stretch"):
-                        correctas = sum(1 for i, it in enumerate(st.session_state.quiz_data) if st.session_state.quiz_user_answers.get(i) == it["answer"])
+                    if st.button("✅ Calificar Quiz", type="primary", use_container_width=True):
+                        correctas = sum(
+                            1 for i, it in enumerate(st.session_state.quiz_data)
+                            if st.session_state.quiz_user_answers.get(i) == it["answer"]
+                        )
                         total = len(st.session_state.quiz_data)
                         st.session_state.quiz_score = f"{correctas}/{total} ({round((correctas / total) * 100, 1)}%)"
                         st.session_state.quiz_graded = True
                         st.rerun()
                 with col_btn_new:
-                    if st.button("🔄 Nuevo Quiz (Cambiar Preguntas)", type="secondary", width="stretch"):
+                    if st.button("🔄 Nuevo Quiz (Cambiar Preguntas)", type="secondary", use_container_width=True):
                         with st.spinner("Generando nuevas preguntas..."):
                             try:
                                 prev_qs = [q["question"] for q in st.session_state.quiz_data]
@@ -1310,16 +1565,16 @@ with col_main_center:
                                 
                                 if st.session_state.current_folio:
                                     s1 = get_google_sheet()
-                                    celda_f = s1.find(st.session_state.current_folio)
+                                    celda_f = s1.find(st.session_state.current_folio, in_column=1)
                                     if celda_f:
-                                        paq_act = json.dumps({
-                                            "text": st.session_state.generated_text,
-                                            "quiz": q_new,
-                                            "cefr": st.session_state.selected_cefr,
-                                            "grade": st.session_state.selected_academic_grade,
-                                            "created_at": st.session_state.current_creation_date
-                                        }, ensure_ascii=False)
-                                        s1.update_cell(celda_f.row, 6, paq_act[:48000])
+                                        paq_act = _serialize_lesson_package(
+                                            st.session_state.generated_text,
+                                            q_new,
+                                            st.session_state.selected_cefr,
+                                            st.session_state.selected_academic_grade,
+                                            st.session_state.current_creation_date
+                                        )
+                                        s1.update_cell(celda_f.row, 6, paq_act)
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Error al renovar quiz: {e}")
@@ -1331,26 +1586,27 @@ with col_main_center:
     bottom_container = st.container(height=280, border=True)
     with bottom_container:
         if st.session_state.image_bytes:
-            st.image(st.session_state.image_bytes, width="stretch")
+            st.image(st.session_state.image_bytes, use_container_width=True)
         elif st.session_state.generated_text:
             fallback_img = generar_imagen_garantizada(
                 None, st.session_state.generated_text[:60],
                 f"Folio {st.session_state.current_folio}", st.session_state.selected_cefr, st.session_state.selected_academic_grade
             )
-            st.image(fallback_img, width="stretch")
+            st.image(fallback_img, use_container_width=True)
         else:
             st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
-# --- PANEL DERECHO EN ORDEN PROFESIONAL ---
+# --- 17. PANEL DERECHO (AUDIO, VIDEO, EXPORTACIÓN PDF E HISTORIAL) ---
 with col_tools_right:
     st.subheader("🎧 1. Model Pronunciation")
     if st.session_state.audio_bytes:
         st.audio(st.session_state.audio_bytes, format="audio/mp3")
+        safe_audio_name = f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
         st.download_button(
             label="📥 Descargar Audio (MP3)",
             data=st.session_state.audio_bytes,
-            file_name=f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3",
+            file_name=safe_audio_name,
             mime="audio/mp3",
-            width="stretch"
+            use_container_width=True
         )
     else:
         st.caption("Audio available after generating lesson.")
@@ -1358,14 +1614,14 @@ with col_tools_right:
     st.divider()
 
     st.subheader("🎙️ 2. Speaking & Video Practice")
-    tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video (MP4)"])
+    tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
     
     with tab_rec_audio:
         student_audio = st.audio_input("Graba tu voz leyendo el texto:")
         
     with tab_rec_video:
-        st.caption("Activa tu cámara, graba tu lectura y descárgala en formato MP4:")
-        safe_user_filename = f"CEI_Video_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp4"
+        st.caption("Activa tu cámara, graba tu lectura y descárgala:")
+        safe_base_filename = f"CEI_Video_{st.session_state.current_folio or usuario.replace(' ', '_')}"
         video_recorder_html = f"""
         <div style="font-family: sans-serif; text-align: center; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fafafa;">
             <video id="preview" width="100%" height="175" autoplay muted playsinline style="border-radius: 8px; background: #000; object-fit: cover;"></video>
@@ -1375,13 +1631,14 @@ with col_tools_right:
                 <button id="btnStop" disabled style="background:#6c757d; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏹️ Detener</button>
             </div>
             <p id="statusTxt" style="font-size: 12px; color: #555; margin: 6px 0;">Presiona "Activar Cámara" para iniciar</p>
-            <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video MP4</a>
+            <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video</a>
         </div>
 
         <script>
         let stream = null;
         let mediaRecorder = null;
         let recordedChunks = [];
+        let activeMime = '';
 
         const preview = document.getElementById('preview');
         const btnStartCam = document.getElementById('btnStartCam');
@@ -1390,16 +1647,17 @@ with col_tools_right:
         const statusTxt = document.getElementById('statusTxt');
         const downloadLink = document.getElementById('downloadLink');
 
-        function getSupportedMp4MimeType() {{
+        function getSupportedVideoMimeType() {{
             const types = [
                 'video/mp4;codecs=avc1,mp4a.40.2',
                 'video/mp4;codecs=h264,aac',
                 'video/mp4',
+                'video/webm;codecs=vp9,opus',
                 'video/webm;codecs=h264',
                 'video/webm'
             ];
             for (const t of types) {{
-                if (MediaRecorder.isTypeSupported(t)) return t;
+                if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) return t;
             }}
             return '';
         }}
@@ -1412,79 +1670,100 @@ with col_tools_right:
                 preview.controls = false;
                 btnRec.disabled = false;
                 btnStartCam.disabled = true;
-                statusTxt.innerText = "Cámara activa. Listo para grabar en MP4.";
+                statusTxt.innerText = "Cámara activa. Listo para grabar.";
             }} catch (err) {{
-                statusTxt.innerText = "⚠️ Permiso de cámara/micrófono denegado o no disponible.";
+                statusTxt.innerText = "⚠️ Permiso de cámara/micrófono denegado o bloqueado por el navegador.";
             }}
         }};
 
         btnRec.onclick = () => {{
             recordedChunks = [];
             downloadLink.style.display = 'none';
-            const mime = getSupportedMp4MimeType();
-            const options = mime ? {{ mimeType: mime }} : {{}};
+            activeMime = getSupportedVideoMimeType();
+            const options = activeMime ? {{ mimeType: activeMime }} : {{}};
             mediaRecorder = new MediaRecorder(stream, options);
+            
             mediaRecorder.ondataavailable = (e) => {{
                 if (e.data.size > 0) recordedChunks.push(e.data);
             }};
+            
             mediaRecorder.onstop = () => {{
-                const blob = new Blob(recordedChunks, {{ type: 'video/mp4' }});
+                const finalMime = activeMime || 'video/webm';
+                const ext = finalMime.includes('mp4') ? 'mp4' : 'webm';
+                const blob = new Blob(recordedChunks, {{ type: finalMime }});
                 const url = URL.createObjectURL(blob);
+                
                 preview.srcObject = null;
                 preview.src = url;
                 preview.muted = false;
                 preview.controls = true;
+                
                 downloadLink.href = url;
-                downloadLink.download = "{safe_user_filename}";
+                downloadLink.download = "{safe_base_filename}." + ext;
+                downloadLink.innerText = "📥 Descargar Video (" + ext.toUpperCase() + ")";
                 downloadLink.style.display = 'inline-block';
-                statusTxt.innerText = "✅ Video MP4 grabado. Haz clic abajo para descargarlo.";
+                statusTxt.innerText = "✅ Video grabado. Haz clic abajo para descargarlo.";
+                
                 stream.getTracks().forEach(track => track.stop());
                 btnStartCam.disabled = false;
                 btnStartCam.innerText = "🔄 Grabar Otro";
             }};
+            
             mediaRecorder.start();
             btnRec.disabled = true;
             btnStop.disabled = false;
-            statusTxt.innerText = "🔴 Grabando lectura en MP4...";
+            statusTxt.innerText = "🔴 Grabando lectura...";
         }};
 
         btnStop.onclick = () => {{
-            mediaRecorder.stop();
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {{
+                mediaRecorder.stop();
+            }}
             btnStop.disabled = true;
         }};
         </script>
         """
-        st.iframe(video_recorder_html, height=310)
+        components.html(video_recorder_html, height=320)
 
     st.write("")
-    if st.button("☁️ Guardar Audio en Google Sheets", type="primary", width="stretch", disabled=(student_audio is None)):
+    if st.button("☁️ Guardar Audio en Google Sheets", type="primary", use_container_width=True, disabled=(student_audio is None)):
         try:
             with st.spinner("Guardando audio vinculado al Folio..."):
                 sheet = get_google_sheet()
                 audio_b64 = base64.b64encode(student_audio.getvalue()).decode("utf-8")
                 if len(audio_b64) > 45000:
-                    st.error("⚠️ El audio supera los 14 seg. Graba un fragmento más corto.")
+                    st.error("⚠️ El audio supera el límite de almacenamiento (~14 seg). Graba un fragmento más corto.")
                 else:
                     folio_act = st.session_state.current_folio
-                    celda_existente = sheet.find(folio_act) if folio_act else None
+                    celda_existente = sheet.find(folio_act, in_column=1) if folio_act else None
                     
                     if celda_existente:
                         sheet.update_cell(celda_existente.row, 4, audio_b64)
                         st.success(f"✅ ¡Audio guardado y vinculado al Folio {folio_act}!")
                     else:
-                        folio_nuevo = folio_act or f"CEI-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
-                        tema_completo = f"[{st.session_state.selected_cefr.split()} | {st.session_state.selected_academic_grade}] {asunto} ({gramatica_b1})" if asunto else gramatica_b1
-                        fecha_subida = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        link_pdf = f"https://streamlit.app{folio_nuevo}"
+                        ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
+                        folio_nuevo = folio_act or f"CEI-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+                        cefr_short = st.session_state.selected_cefr.split()[0] if st.session_state.selected_cefr else "B1"
+                        tema_completo = (
+                            f"[{cefr_short} | {st.session_state.selected_academic_grade}] {asunto} ({gramatica_b1})"
+                            if asunto.strip() else gramatica_b1
+                        )
+                        fecha_subida = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
+                        base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
+                        link_pdf = f"{base_url}/?folio={urllib.parse.quote(folio_nuevo)}"
+                        
                         sheet.append_row([folio_nuevo, usuario, tema_completo, audio_b64, fecha_subida, "", 0, link_pdf])
+                        st.session_state.current_folio = folio_nuevo
                         st.success(f"✅ ¡Audio guardado con Folio {folio_nuevo}!")
         except Exception as e:
             st.error(f"Error al guardar audio: {e}")
-
-    def create_pdf(text, quiz_items=None, user_ans=None, score=None):
+    def create_pdf(text: str, quiz_items=None, user_ans=None, score=None) -> bytes:
         folio_doc = st.session_state.current_folio or "SIN-FOLIO"
-        link_doc = st.session_state.current_pdf_link or f"https://streamlit.app{folio_doc}"
-        fecha_doc = st.session_state.current_creation_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
+        link_doc = st.session_state.current_pdf_link or f"{base_url}/?folio={urllib.parse.quote(folio_doc)}"
+        
+        ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
+        fecha_doc = st.session_state.current_creation_date or ahora_local.strftime("%Y-%m-%d %H:%M:%S")
         grado_doc = st.session_state.selected_academic_grade
         
         pdf = FPDF()
@@ -1493,51 +1772,64 @@ with col_tools_right:
         pdf.add_page()
         
         pdf.set_font("Times", "B", 14)
-        pdf.cell(0, 8, txt="CAREER ENGLISH INSTITUTE", ln=True, align="C")
+        pdf.cell(0, 8, text="CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.set_font("Times", "I", 9)
-        pdf.cell(0, 6, txt=institute_address.encode("latin-1", "replace").decode("latin-1"), ln=True, align="C")
+        pdf.cell(0, 6, text=_safe_latin1(institute_address), new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.set_font("Times", "B", 11)
-        pdf.cell(0, 7, txt=f"CEFR {st.session_state.selected_cefr} ({grado_doc}) Academic Grammar & Discourse System", ln=True, align="C")
+        pdf.cell(
+            0, 7,
+            text=_safe_latin1(f"CEFR {st.session_state.selected_cefr} ({grado_doc}) Academic Grammar & Discourse System"),
+            new_x="LMARGIN", new_y="NEXT", align="C"
+        )
         pdf.set_font("Times", "B", 11)
-        pdf.cell(0, 7, txt=f"FOLIO DE REGISTRO: {folio_doc}", ln=True, align="C")
+        pdf.cell(0, 7, text=_safe_latin1(f"FOLIO DE REGISTRO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.set_font("Times", "B", 10)
-        pdf.cell(0, 6, txt="Author: Jacob Zumaya Prianti", ln=True, align="C")
+        pdf.cell(0, 6, text="Author: Jacob Zumaya Prianti", new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.set_font("Times", "I", 9)
-        pdf.cell(0, 6, txt=f"Creation Date / Fecha de Creacion: {fecha_doc}", ln=True, align="C")
-        pdf.cell(0, 6, txt=f"Student / User: {usuario} ({st.session_state.user_role}) | Grade: {grado_doc} | Level: {st.session_state.selected_cefr}", ln=True, align="C")
+        pdf.cell(0, 6, text=_safe_latin1(f"Creation Date / Fecha de Creacion: {fecha_doc}"), new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.cell(
+            0, 6,
+            text=_safe_latin1(f"Student / User: {usuario} ({st.session_state.user_role}) | Grade: {grado_doc} | Level: {st.session_state.selected_cefr}"),
+            new_x="LMARGIN", new_y="NEXT", align="C"
+        )
         pdf.set_font("Times", "U", 9)
-        pdf.cell(0, 6, txt=f"Recovery Link: {link_doc}", ln=True, align="C", link=link_doc)
+        pdf.cell(0, 6, text=_safe_latin1(f"Recovery Link: {link_doc}"), new_x="LMARGIN", new_y="NEXT", align="C", link=link_doc)
         pdf.ln(5)
         
         pdf.set_font("Times", size=12)
-        pdf.multi_cell(0, 8, txt=text.encode("latin-1", "replace").decode("latin-1"))
+        pdf.multi_cell(0, 8, text=_safe_latin1(text))
         
         if quiz_items:
             pdf.ln(8)
             pdf.set_font("Times", "B", 13)
-            pdf.cell(0, 10, txt=f"LESSON COMPREHENSION & GRAMMAR QUIZ (FOLIO: {folio_doc})", ln=True)
+            pdf.cell(0, 10, text=_safe_latin1(f"LESSON COMPREHENSION & GRAMMAR QUIZ (FOLIO: {folio_doc})"), new_x="LMARGIN", new_y="NEXT")
             if score:
                 pdf.set_font("Times", "B", 11)
-                pdf.cell(0, 8, txt=f"Final Grade / Calificacion Obtenida: {score}", ln=True)
+                pdf.cell(0, 8, text=_safe_latin1(f"Final Grade / Calificacion Obtenida: {score}"), new_x="LMARGIN", new_y="NEXT")
             pdf.ln(3)
             for i, q in enumerate(quiz_items):
                 pdf.set_font("Times", "B", 11)
-                pdf.multi_cell(0, 7, txt=f"{i+1}. {q['question']}".encode("latin-1", "replace").decode("latin-1"))
+                pdf.multi_cell(0, 7, text=_safe_latin1(f"{i+1}. {q['question']}"))
                 pdf.set_font("Times", size=10)
                 for opt in q["options"]:
-                    pdf.multi_cell(0, 6, txt=f"   {opt}".encode("latin-1", "replace").decode("latin-1"))
+                    pdf.multi_cell(0, 6, text=_safe_latin1(f"   {opt}"))
                 u_choice = user_ans.get(i) if user_ans else "None"
                 ans_line = f"   -> Student Answer: {u_choice or 'None'} | Correct: {q['answer']}"
                 pdf.set_font("Times", "I", 10)
-                pdf.multi_cell(0, 6, txt=ans_line.encode("latin-1", "replace").decode("latin-1"))
+                pdf.multi_cell(0, 6, text=_safe_latin1(ans_line))
                 pdf.ln(3)
 
         pdf.ln(10)
         pdf.set_font("Times", "I", 9)
-        pdf.cell(0, 6, txt=institute_address.encode("latin-1", "replace").decode("latin-1"), ln=True, align="C")
+        pdf.cell(0, 6, text=_safe_latin1(institute_address), new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.set_font("Times", "I", 10)
-        pdf.cell(0, 7, txt="© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Author: Jacob Zumaya Prianti.", ln=True, align="C")
-        return pdf.output(dest="S").encode("latin-1")
+        pdf.cell(
+            0, 7,
+            text=_safe_latin1("© 2026 CAREER ENGLISH INSTITUTE. Todos los derechos reservados. Author: Jacob Zumaya Prianti."),
+            new_x="LMARGIN", new_y="NEXT", align="C"
+        )
+        return bytes(pdf.output())
+
     if st.session_state.generated_text:
         pdf_bytes = create_pdf(
             st.session_state.generated_text.replace("*", ""),
@@ -1550,12 +1842,12 @@ with col_tools_right:
             data=pdf_bytes,
             file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
             mime="application/pdf",
-            width="stretch"
+            use_container_width=True
         )
     else:
-        st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
+        st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, use_container_width=True)
 
-    if st.button("📂 Ver Audios y Folios Guardados", width="stretch"):
+    if st.button("📂 Ver Audios y Folios Guardados", use_container_width=True):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
 
     if st.session_state.show_saved_audios:
@@ -1573,19 +1865,22 @@ with col_tools_right:
                         st.warning(f"Sin registros para '{usuario}'.")
                     else:
                         for _, row in df.tail(5).iloc[::-1].iterrows():
-                            st.caption(f"🔖 **{row.get('Folio', 'S/F')}** | 👤 **{row['Usuario']}** | 📅 {row['Fecha_de_subida']}")
-                            st.caption(f"📘 *{row['Tema']}*")
+                            st.caption(f"🔖 **{row.get('Folio', 'S/F')}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
+                            st.caption(f"📘 *{row.get('Tema', '')}*")
                             if row.get("PDF_Link"):
                                 st.markdown(f"🔗 [Abrir Lección / PDF por Folio]({row['PDF_Link']})")
                             if row.get("Audio"):
-                                st.audio(base64.b64decode(row["Audio"]), format="audio/wav")
+                                try:
+                                    st.audio(base64.b64decode(row["Audio"]), format="audio/wav")
+                                except Exception:
+                                    st.caption("⚠️ Audio no disponible o formato corrupto.")
                             st.divider()
             except Exception as e:
                 st.error(f"Error al cargar historial: {e}")
 
     st.divider()
 
-    if st.button("🗑️ Borrar Todo", type="secondary", width="stretch"):
+    if st.button("🗑️ Borrar Todo", type="secondary", use_container_width=True):
         st.session_state.generated_text = ""
         st.session_state.image_bytes = None
         st.session_state.audio_bytes = None
@@ -1597,9 +1892,11 @@ with col_tools_right:
         st.session_state.current_folio = ""
         st.session_state.current_pdf_link = ""
         st.session_state.current_creation_date = ""
+        st.session_state.url_folio_checked = False
+        st.query_params.clear()
         st.rerun()
 
-# --- PIE DE PÁGINA INSTITUCIONAL ---
+# --- 18. PIE DE PÁGINA INSTITUCIONAL ---
 st.divider()
 st.markdown(
     f"""
