@@ -710,9 +710,9 @@ def generar_imagen_garantizada(client, prompt_ingles: str, titulo_tema: str, niv
 
     # NIVEL 2: Servidores externos de respaldo
     encoded = urllib.parse.quote(f"{clean_p}, educational illustration, flat vector, no text")
-    partes_prompt = clean_p.split(",")
-    first_clause = partes_prompt.strip()[:30] if partes_prompt else ""
+    first_clause = next(iter(clean_p.split(",")), "").strip()[:30]
     keywords = urllib.parse.quote(first_clause.replace(" ", ",")) if first_clause else "education,school"
+
     
     urls_respaldo = [
         f"https://pollinations.ai{encoded}?model=turbo&width=640&height=360&nologo=true&seed={random.randint(1, 999)}",
@@ -732,7 +732,7 @@ def generar_imagen_garantizada(client, prompt_ingles: str, titulo_tema: str, niv
     draw.rectangle((15, 15, 625, 345), outline=(218, 165, 32), width=3)
     draw.rectangle((18, 18, 622, 85), fill=(25, 65, 125))
     
-    cefr_short = nivel_cefr.split() if nivel_cefr else "CEFR"
+    cefr_short = next(iter(nivel_cefr.split()), "CEFR") if nivel_cefr else "CEFR"
     draw.text((35, 38), f"CAREER ENGLISH INSTITUTE | CEFR {cefr_short} | {grado_acad.upper()}", fill=(255, 215, 0))
     draw.text((35, 115), "VISUAL CONTEXT & LESSON TOPIC:", fill=(180, 210, 255))
     
@@ -776,7 +776,7 @@ def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: s
     )
     cleaned = raw_resp.strip()
     if cleaned.startswith("```"):
-        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)
+        cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
     return json.loads(cleaned.strip())
 
 def _serialize_lesson_package(text_val: str, quiz_val, cefr_val: str, grade_val: str, created_val: str) -> str:
@@ -835,7 +835,7 @@ with st.sidebar:
     st.subheader("2. Subject Matter (Español / English)")
     asunto = st.text_input("Asunto / Materia:", placeholder="Ej: Equipaje perdido / Lost luggage")
     
-    st.subheader(f"3. Grammar Topics ({cefr_level.split()[0]})")
+    st.subheader(f"3. Grammar Topics ({next(iter(cefr_level.split()), 'B1')})")
     gramatica_b1 = st.selectbox(
         "Selecciona el tema gramatical:",
         [
@@ -928,7 +928,7 @@ with col_logo:
 
 with col_title:
     st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
-    st.title(f"🎓 CEFR {cefr_level.split()[0]} ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
+    st.title(f"🎓 CEFR {next(iter(cefr_level.split()), 'B1')} ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
     st.caption("Author: Jacob Zumaya Prianti | Applied Linguistics & Proficiency Assessment | APA Style")
 
 with col_qr:
@@ -1418,7 +1418,7 @@ if generar_btn:
                     "C1": "Use sophisticated, advanced academic English, idiomatic expressions, complex subordinate clauses, and high lexical precision.",
                     "C2": "Use near-native, scholarly English with subtle rhetorical devices, advanced syntax, and specialized academic vocabulary."
                 }
-                nivel_corto = cefr_level.split()[0]
+                nivel_corto = next(iter(cefr_level.split()), "B1")
                 guia_nivel = cefr_guidelines.get(nivel_corto, cefr_guidelines["B1"])
 
                 grade_pedagogy = {
@@ -1532,7 +1532,7 @@ with col_main_center:
     # QUIZ INTERACTIVO DE LA LECCIÓN
     if st.session_state.generated_text:
         if st.session_state.quiz_data is None:
-            cefr_tag = st.session_state.selected_cefr.split()[0] if st.session_state.selected_cefr else "CEFR"
+            cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
             if st.button(
                 f"📝 Generar Quiz ({cefr_tag} - {st.session_state.selected_academic_grade})",
                 type="primary",
