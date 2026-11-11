@@ -905,7 +905,6 @@ with col_logo:
 
 with col_title:
     st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
-    st.caption(f"📍 {institute_address}")
     st.title(f"🎓 CEFR {cefr_level.split()[0]} ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
     st.caption("Author: Jacob Zumaya Prianti | Applied Linguistics & Proficiency Assessment | APA Style")
 
