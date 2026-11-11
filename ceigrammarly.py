@@ -1372,13 +1372,30 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                         else:
                             st.warning("⚠️ La dirección institucional no puede quedar vacía.")
     st.divider()
+
 # --- 15. EJECUCIÓN DE GENERACIÓN DE LECCIÓN CON IA ---
 if generar_btn:
+    # 1. Validación completa de campos obligatorios
+    campos_faltantes = []
+    if not contexto.strip():
+        campos_faltantes.append("Contexto / Lugar / Tema")
+    if not personas.strip():
+        campos_faltantes.append("Personas / Personajes")
+    if not asunto.strip():
+        campos_faltantes.append("Asunto / Materia")
+
     if "GEMINI_API_KEY" not in st.secrets:
         st.sidebar.error("⚠️ GEMINI_API_KEY no configurada.")
-    elif not contexto.strip() or not asunto.strip():
-        st.sidebar.warning("⚠️ Completa Contexto y Asunto.")
+        st.error("⚠️ Error de configuración: falta GEMINI_API_KEY.")
+    elif campos_faltantes:
+        lista_faltantes = ", ".join(campos_faltantes)
+        st.toast(f"Faltan datos por completar: {lista_faltantes}", icon="⚠️")
+        st.sidebar.warning(f"⚠️ Completa los siguientes campos antes de generar:\n\n**{lista_faltantes}**")
+        st.warning(f"⚠️ **Datos incompletos:** Por favor llena **{lista_faltantes}** en el panel izquierdo.")
     else:
+        # Oculta inmediatamente el panel de administración si estaba abierto
+        st.session_state.show_teacher_registry = False
+        
         client = init_gemini_client()
         with st.spinner(f"🧠 Generating CEFR {cefr_level} ({academic_grade}) Lesson, Visual & Audio..."):
             try:
@@ -1480,8 +1497,13 @@ if generar_btn:
                 get_google_sheet().append_row([
                     nuevo_folio, usuario, tema_reg, "", fecha_creacion, paquete_guardado, 0, pdf_url_directo
                 ])
+                
+                # Colapsa la barra lateral y recarga para mostrar la lección en pantalla completa
+                st.session_state.sidebar_state = "collapsed"
+                st.rerun()
             except Exception as e:
                 st.error(f"⚠️ Error al generar lección: {e}")
+
 # --- 16. PANEL CENTRAL (CONTENIDO, QUIZ Y CONTEXTO VISUAL) ---
 if "selected_academic_grade" not in st.session_state:
     st.session_state.selected_academic_grade = st.session_state.get("user_academic_grade", "Licenciatura / Universidad")
@@ -1911,6 +1933,7 @@ with col_tools_right:
         st.session_state.current_creation_date = ""
         st.session_state.url_folio_checked = False
         st.query_params.clear()
+        st.session_state.sidebar_state = "expanded"
         st.rerun()
 
 # --- 18. PIE DE PÁGINA INSTITUCIONAL ---
