@@ -2207,7 +2207,7 @@ with col_tools_right:
        # )
   # else:
   #     st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
-      if student_audio is not None:
+    if student_audio is not None:
         if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
             if not st.session_state.generated_text:
                 st.warning("⚠️ Primero genera o carga una lección para comparar tu lectura.")
