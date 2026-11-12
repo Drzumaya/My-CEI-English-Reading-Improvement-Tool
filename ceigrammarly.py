@@ -223,24 +223,22 @@ def get_pg_conn():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_permanent_logo():
-    """Carga la configuración institucional desde PostgreSQL (con respaldo en Google Sheets)."""
+    """Carga la configuración institucional desde PostgreSQL."""
+    from psycopg.rows import dict_row
     try:
         conn = get_pg_conn()
         if conn:
             with conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT logo_base64, mime_type, logo_width, logo_shape, direccion
-                        FROM institute_config WHERE id = 1;
-                    """)
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute("SELECT * FROM institute_config WHERE id = 1;")
                     row = cur.fetchone()
                     if row:
                         return {
-                            "Logo_Base64": row[0] or "",
-                            "Mime_Type": row[1] or "image/png",
-                            "Width": row[2] or 115,
-                            "Shape": row[3] or "Circular",
-                            "Direccion": row[4] or DEFAULT_INSTITUTE_ADDRESS
+                            "Logo_Base64": row.get("logo_base64") or "",
+                            "Mime_Type": row.get("mime_type") or "image/png",
+                            "Width": row.get("logo_width") or 115,
+                            "Shape": row.get("logo_shape") or "Circular",
+                            "Direccion": row.get("direccion") or DEFAULT_INSTITUTE_ADDRESS
                         }
     except Exception:
         pass
@@ -249,58 +247,63 @@ def load_permanent_logo():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_permissions_matrix() -> dict:
-    """Carga la matriz RBAC desde PostgreSQL (Supabase)."""
+    """Carga la matriz RBAC desde PostgreSQL como diccionario limpio."""
+    from psycopg.rows import dict_row
     try:
         conn = get_pg_conn()
         if conn:
             with conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT profile_name, generar_leccion, resolver_quiz, grabar_audio,
-                               emitir_certificados, gestionar_usuarios, editar_instituto_logo
-                        FROM roles_permissions;
-                    """)
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute("SELECT * FROM roles_permissions;")
                     rows = cur.fetchall()
                     if rows:
                         matrix = {}
                         for r in rows:
-                            matrix[r[0]] = {
-                                "Generar_Leccion": bool(r[1]),
-                                "Resolver_Quiz": bool(r[2]),
-                                "Grabar_Audio": bool(r[3]),
-                                "Emitir_Certificados": bool(r[4]),
-                                "Gestionar_Usuarios": bool(r[5]),
-                                "Editar_Instituto_Logo": bool(r[6])
-                            }
-                        return matrix
+                            prof = str(r.get("profile_name", "")).strip()
+                            if prof:
+                                matrix[prof] = {
+                                    "Generar_Leccion": bool(r.get("generar_leccion", True)),
+                                    "Resolver_Quiz": bool(r.get("resolver_quiz", True)),
+                                    "Grabar_Audio": bool(r.get("grabar_audio", True)),
+                                    "Emitir_Certificados": bool(r.get("emitir_certificados", False)),
+                                    "Gestionar_Usuarios": bool(r.get("gestionar_usuarios", False)),
+                                    "Editar_Instituto_Logo": bool(r.get("editar_instituto_logo", False))
+                                }
+                        if matrix:
+                            return matrix
     except Exception:
         pass
-    return DEFAULT_PERMISSIONS_MATRIX.copy()
+    if isinstance(DEFAULT_PERMISSIONS_MATRIX, dict):
+        return DEFAULT_PERMISSIONS_MATRIX.copy()
+    return {
+        "Total": {"Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True, "Emitir_Certificados": True, "Gestionar_Usuarios": True, "Editar_Instituto_Logo": True},
+        "Docente": {"Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True, "Emitir_Certificados": True, "Gestionar_Usuarios": True, "Editar_Instituto_Logo": False},
+        "Basico": {"Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True, "Emitir_Certificados": False, "Gestionar_Usuarios": False, "Editar_Instituto_Logo": False},
+        "Solo_Lectura": {"Generar_Leccion": False, "Resolver_Quiz": True, "Grabar_Audio": False, "Emitir_Certificados": False, "Gestionar_Usuarios": False, "Editar_Instituto_Logo": False}
+    }
+
 
 @st.cache_data(ttl=30, show_spinner=False)
 def load_padron_records() -> list[dict]:
-    """Carga el padrón completo de usuarios desde PostgreSQL (Supabase)."""
+    """Carga el padrón completo de usuarios desde PostgreSQL."""
+    from psycopg.rows import dict_row
     try:
         conn = get_pg_conn()
         if conn:
             with conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT id, usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus
-                        FROM users_padron
-                        ORDER BY id ASC;
-                    """)
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute("SELECT * FROM users_padron ORDER BY id ASC;")
                     rows = cur.fetchall()
                     return [
                         {
-                            "ID": r[0],
-                            "Usuario": r[1],
-                            "Clave": r[2],
-                            "Rol": r[3],
-                            "Grado_Academico": r[4],
-                            "Nivel": r[5],
-                            "Permisos": r[6],
-                            "Estatus": r[7]
+                            "ID": r.get("id"),
+                            "Usuario": r.get("usuario", ""),
+                            "Clave": r.get("clave_hash", ""),
+                            "Rol": r.get("rol", "Estudiante"),
+                            "Grado_Academico": r.get("grado_academico", "Licenciatura / Universidad"),
+                            "Nivel": r.get("nivel_cefr", "B1"),
+                            "Permisos": r.get("permisos", "Basico"),
+                            "Estatus": r.get("estatus", "Activo")
                         }
                         for r in rows
                     ]
@@ -310,7 +313,8 @@ def load_padron_records() -> list[dict]:
 
 
 def fetch_lesson_by_folio(folio_code: str) -> dict | None:
-    """Recupera una lección, su quiz y su mejor calificación directamente desde PostgreSQL."""
+    """Recupera una lección, su quiz y su mejor calificación desde PostgreSQL."""
+    from psycopg.rows import dict_row
     folio_clean = str(folio_code or "").strip().upper()
     if not folio_clean:
         return None
@@ -318,35 +322,38 @@ def fetch_lesson_by_folio(folio_code: str) -> dict | None:
         conn = get_pg_conn()
         if conn:
             with conn:
-                with conn.cursor() as cur:
+                with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute("""
-                        SELECT f.folio, u.usuario, f.tema, f.cefr_level, f.academic_grade,
-                               f.lesson_text, f.quiz_data, f.best_quiz_score, f.best_quiz_answers,
-                               f.best_speaking_score, f.speaking_eval_json, f.pdf_link, f.created_at
+                        SELECT f.*, u.usuario
                         FROM lessons_folios f
                         JOIN users_padron u ON f.user_id = u.id
                         WHERE UPPER(f.folio) = %s;
                     """, (folio_clean,))
                     r = cur.fetchone()
                     if r:
+                        q_raw = r.get("quiz_data")
+                        ans_raw = r.get("best_quiz_answers")
+                        spk_raw = r.get("speaking_eval_json")
+                        c_at = r.get("created_at")
                         return {
-                            "Folio": r[0],
-                            "Usuario": r[1],
-                            "Tema": r[2],
-                            "CEFR": r[3],
-                            "Grade": r[4],
-                            "Text": r[5],
-                            "Quiz": r[6] if isinstance(r[6], list) else (json.loads(r[6]) if r[6] else None),
-                            "Best_Score": r[7] or "",
-                            "Best_Answers": r[8] if isinstance(r[8], dict) else (json.loads(r[8]) if r[8] else {}),
-                            "Speaking_Score": float(r[9]) if r[9] is not None else -1.0,
-                            "Speaking_Eval": r[10] if isinstance(r[10], dict) else (json.loads(r[10]) if r[10] else None),
-                            "PDF_Link": r[11] or "",
-                            "Created_At": r[12].strftime("%Y-%m-%d %H:%M:%S") if r[12] else ""
+                            "Folio": r.get("folio"),
+                            "Usuario": r.get("usuario"),
+                            "Tema": r.get("tema"),
+                            "CEFR": r.get("cefr_level"),
+                            "Grade": r.get("academic_grade"),
+                            "Text": r.get("lesson_text"),
+                            "Quiz": q_raw if isinstance(q_raw, list) else (json.loads(q_raw) if q_raw else None),
+                            "Best_Score": r.get("best_quiz_score") or "",
+                            "Best_Answers": ans_raw if isinstance(ans_raw, dict) else (json.loads(ans_raw) if ans_raw else {}),
+                            "Speaking_Score": float(r.get("best_speaking_score")) if r.get("best_speaking_score") is not None else -1.0,
+                            "Speaking_Eval": spk_raw if isinstance(spk_raw, dict) else (json.loads(spk_raw) if spk_raw else None),
+                            "PDF_Link": r.get("pdf_link") or "",
+                            "Created_At": c_at.strftime("%Y-%m-%d %H:%M:%S") if c_at else ""
                         }
     except Exception:
         pass
     return None
+
 
 def get_default_logo_b64():
     base_dir = os.path.dirname(os.path.abspath(__file__))
