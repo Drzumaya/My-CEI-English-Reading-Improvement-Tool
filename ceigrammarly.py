@@ -212,6 +212,142 @@ def save_permanent_config(b64_str, mime, width, shape, address_str):
     sheet_logo.append_row([b64_str, mime, width, shape, address_str])
     load_permanent_logo.clear()
 
+def get_pg_conn():
+    """Devuelve una conexión activa a PostgreSQL (Supabase) usando Transaction Pooler."""
+    import psycopg
+    db_url = str(st.secrets.get("DATABASE_URL", "")).strip()
+    if not db_url:
+        return None
+    return psycopg.connect(db_url, prepare_threshold=None)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_permanent_logo():
+    """Carga la configuración institucional desde PostgreSQL (con respaldo en Google Sheets)."""
+    try:
+        conn = get_pg_conn()
+        if conn:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT logo_base64, mime_type, logo_width, logo_shape, direccion
+                        FROM institute_config WHERE id = 1;
+                    """)
+                    row = cur.fetchone()
+                    if row:
+                        return {
+                            "Logo_Base64": row[0] or "",
+                            "Mime_Type": row[1] or "image/png",
+                            "Width": row[2] or 115,
+                            "Shape": row[3] or "Circular",
+                            "Direccion": row[4] or DEFAULT_INSTITUTE_ADDRESS
+                        }
+    except Exception:
+        pass
+    return None
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_permissions_matrix() -> dict:
+    """Carga la matriz RBAC desde PostgreSQL (Supabase)."""
+    try:
+        conn = get_pg_conn()
+        if conn:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT profile_name, generar_leccion, resolver_quiz, grabar_audio,
+                               emitir_certificados, gestionar_usuarios, editar_instituto_logo
+                        FROM roles_permissions;
+                    """)
+                    rows = cur.fetchall()
+                    if rows:
+                        matrix = {}
+                        for r in rows:
+                            matrix[r[0]] = {
+                                "Generar_Leccion": bool(r[1]),
+                                "Resolver_Quiz": bool(r[2]),
+                                "Grabar_Audio": bool(r[3]),
+                                "Emitir_Certificados": bool(r[4]),
+                                "Gestionar_Usuarios": bool(r[5]),
+                                "Editar_Instituto_Logo": bool(r[6])
+                            }
+                        return matrix
+    except Exception:
+        pass
+    return DEFAULT_PERMISSIONS_MATRIX.copy()
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_padron_records() -> list[dict]:
+    """Carga el padrón completo de usuarios desde PostgreSQL (Supabase)."""
+    try:
+        conn = get_pg_conn()
+        if conn:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT id, usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus
+                        FROM users_padron
+                        ORDER BY id ASC;
+                    """)
+                    rows = cur.fetchall()
+                    return [
+                        {
+                            "ID": r[0],
+                            "Usuario": r[1],
+                            "Clave": r[2],
+                            "Rol": r[3],
+                            "Grado_Academico": r[4],
+                            "Nivel": r[5],
+                            "Permisos": r[6],
+                            "Estatus": r[7]
+                        }
+                        for r in rows
+                    ]
+    except Exception:
+        pass
+    return []
+
+
+def fetch_lesson_by_folio(folio_code: str) -> dict | None:
+    """Recupera una lección, su quiz y su mejor calificación directamente desde PostgreSQL."""
+    folio_clean = str(folio_code or "").strip().upper()
+    if not folio_clean:
+        return None
+    try:
+        conn = get_pg_conn()
+        if conn:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT f.folio, u.usuario, f.tema, f.cefr_level, f.academic_grade,
+                               f.lesson_text, f.quiz_data, f.best_quiz_score, f.best_quiz_answers,
+                               f.best_speaking_score, f.speaking_eval_json, f.pdf_link, f.created_at
+                        FROM lessons_folios f
+                        JOIN users_padron u ON f.user_id = u.id
+                        WHERE UPPER(f.folio) = %s;
+                    """, (folio_clean,))
+                    r = cur.fetchone()
+                    if r:
+                        return {
+                            "Folio": r[0],
+                            "Usuario": r[1],
+                            "Tema": r[2],
+                            "CEFR": r[3],
+                            "Grade": r[4],
+                            "Text": r[5],
+                            "Quiz": r[6] if isinstance(r[6], list) else (json.loads(r[6]) if r[6] else None),
+                            "Best_Score": r[7] or "",
+                            "Best_Answers": r[8] if isinstance(r[8], dict) else (json.loads(r[8]) if r[8] else {}),
+                            "Speaking_Score": float(r[9]) if r[9] is not None else -1.0,
+                            "Speaking_Eval": r[10] if isinstance(r[10], dict) else (json.loads(r[10]) if r[10] else None),
+                            "PDF_Link": r[11] or "",
+                            "Created_At": r[12].strftime("%Y-%m-%d %H:%M:%S") if r[12] else ""
+                        }
+    except Exception:
+        pass
+    return None
+
 def get_default_logo_b64():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     logo_path = os.path.join(base_dir, "LOGO CEI APP.png")
@@ -532,57 +668,141 @@ def _extract_numeric_score(score_str: str) -> float:
     return float(m2.group(1)) if m2 else -1.0
 
 
+def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
+    """Consulta y valida un certificado oficial directamente desde PostgreSQL."""
+    from psycopg.rows import dict_row
+    f_clean = str(folio_cert or "").strip().upper()
+    if not f_clean:
+        return None
+    try:
+        conn = get_pg_conn()
+        if conn:
+            with conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute("SELECT * FROM certificates WHERE UPPER(folio_cert) = %s;", (f_clean,))
+                    row = cur.fetchone()
+                    if row:
+                        return {
+                            "Folio_Certificado": row["folio_cert"],
+                            "Clave_Alumno": row["clave_alumno"],
+                            "Titular": row["titular"],
+                            "Nivel_CEFR": row["nivel_cefr"],
+                            "Grado_Academico": row["grado_academico"],
+                            "Programa": row["programa"],
+                            "Calificacion": row["calificacion"],
+                            "Fecha_Emision": row["fecha_emision"],
+                            "Firma_HMAC": row["firma_hmac"],
+                            "Estatus": row["estatus"],
+                            "URL_Verificacion": row["verify_url"]
+                        }
+    except Exception:
+        pass
+    return None
+
+
+def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
+    """Registra una nueva lección generada directamente en PostgreSQL (Supabase)."""
+    conn = get_pg_conn()
+    if not conn:
+        return
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM users_padron WHERE LOWER(usuario) = LOWER(%s) LIMIT 1;", (usuario_name.strip(),))
+            u_row = cur.fetchone()
+            uid = next(iter(u_row), None) if u_row else None
+            if uid is None:
+                cur.execute("""
+                    INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
+                    VALUES (%s, 'AUTO_SESSION', 'Estudiante', 'Basico', 'Activo')
+                    RETURNING id;
+                """, (usuario_name.strip(),))
+                uid = next(iter(cur.fetchone()), 1)
+
+            cur.execute("""
+                INSERT INTO lessons_folios (folio, user_id, tema, cefr_level, academic_grade, lesson_text, pdf_link)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (folio) DO UPDATE SET
+                    lesson_text = EXCLUDED.lesson_text,
+                    pdf_link = EXCLUDED.pdf_link,
+                    updated_at = NOW();
+            """, (folio.strip().upper(), uid, tema, cefr, grado, texto, pdf_link))
+
+
 def save_best_quiz_result_to_sheet(folio: str, new_score_str: str, quiz_items, user_ans_dict):
-    """Compara la nueva calificación con la guardada en Google Sheets y conserva la más alta."""
+    """Evalúa, compara atómicamente en PostgreSQL y conserva la calificación más alta del Folio."""
+    from psycopg.rows import dict_row
     if not folio:
         return False, "Folio no asignado.", new_score_str
 
-    s1 = get_google_sheet()
-    celda_f = s1.find(str(folio).strip().upper(), in_column=1)
-    if not celda_f:
-        return False, "Folio no encontrado en la base de datos.", new_score_str
+    conn = get_pg_conn()
+    if not conn:
+        return False, "Sin conexión a PostgreSQL.", new_score_str
 
-    headers = s1.row_values(1)
-    # Crea automáticamente la columna 'Mejor_Calificacion_PDF' si aún no existe en Hoja 1
-    if "Mejor_Calificacion_PDF" not in headers:
-        col_best = len(headers) + 1
-        s1.update_cell(1, col_best, "Mejor_Calificacion_PDF")
-    else:
-        col_best = headers.index("Mejor_Calificacion_PDF") + 1
-
-    col_json = headers.index("Contenido_JSON") + 1 if "Contenido_JSON" in headers else 6
-
-    prev_best_str = str(s1.cell(celda_f.row, col_best).value or "").strip()
-    prev_num = _extract_numeric_score(prev_best_str)
+    f_clean = str(folio).strip().upper()
     new_num = _extract_numeric_score(new_score_str)
 
-    # Si es el primer intento o la nueva calificación es estrictamente mayor que la anterior
-    if prev_num < 0 or new_num > prev_num:
-        serializable_ans = {str(k): v for k, v in (user_ans_dict or {}).items()}
-        paquete_actualizado = json.dumps({
-            "text": st.session_state.generated_text[:40000],
-            "quiz": quiz_items,
-            "cefr": st.session_state.selected_cefr,
-            "grade": st.session_state.selected_academic_grade,
-            "created_at": st.session_state.current_creation_date,
-            "best_score": new_score_str,
-            "best_answers": serializable_ans
-        }, ensure_ascii=False)
+    with conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""
+                SELECT best_quiz_score, best_quiz_numeric
+                FROM lessons_folios WHERE UPPER(folio) = %s;
+            """, (f_clean,))
+            row = cur.fetchone()
+            if not row:
+                return False, "Folio no encontrado en PostgreSQL.", new_score_str
 
-        s1.update_cell(celda_f.row, col_json, paquete_actualizado)
-        s1.update_cell(celda_f.row, col_best, new_score_str)
+            prev_best_str = str(row["best_quiz_score"] or "").strip()
+            prev_num = float(row["best_quiz_numeric"] if row["best_quiz_numeric"] is not None else -1.0)
 
-        msg = (
-            f"🏆 ¡Nueva mejor calificación registrada: **{new_score_str}**! (Superaste tu intento anterior de {prev_best_str})."
-            if prev_num >= 0
-            else f"✅ Calificación inicial registrada en la base de datos: **{new_score_str}**."
-        )
-        return True, msg, new_score_str
-    else:
-        msg = (
-            f"ℹ️ Obtuviste **{new_score_str}**, pero conservamos tu calificación más alta anterior (**{prev_best_str}**) en la base de datos y en tu PDF oficial."
-        )
-        return False, msg, prev_best_str
+            if prev_num < 0 or new_num > prev_num:
+                serializable_ans = {str(k): v for k, v in (user_ans_dict or {}).items()}
+                cur.execute("""
+                    UPDATE lessons_folios
+                    SET quiz_data = %s::jsonb,
+                        best_quiz_score = %s,
+                        best_quiz_numeric = %s,
+                        best_quiz_answers = %s::jsonb,
+                        updated_at = NOW()
+                    WHERE UPPER(folio) = %s;
+                """, (
+                    json.dumps(quiz_items),
+                    new_score_str,
+                    new_num,
+                    json.dumps(serializable_ans),
+                    f_clean
+                ))
+                msg = (
+                    f"🏆 ¡Nueva mejor calificación registrada en PostgreSQL: **{new_score_str}**! (Superaste tu intento anterior de {prev_best_str})."
+                    if prev_num >= 0
+                    else f"✅ Calificación inicial registrada en PostgreSQL: **{new_score_str}**."
+                )
+                return True, msg, new_score_str
+            else:
+                msg = f"ℹ️ Obtuviste **{new_score_str}**, pero conservamos tu nota más alta (**{prev_best_str}**) en PostgreSQL y en tu PDF."
+                return False, msg, prev_best_str
+
+
+def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
+    """Guarda en PostgreSQL la calificación más alta de evaluación oral y su reporte."""
+    if not folio:
+        return
+    try:
+        conn = get_pg_conn()
+        if not conn:
+            return
+        eval_json = json.dumps(st.session_state.get("speaking_eval_result")) if st.session_state.get("speaking_eval_result") else None
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE lessons_folios
+                    SET best_speaking_score = GREATEST(COALESCE(best_speaking_score, -1), %s),
+                        speaking_eval_json = COALESCE(%s::jsonb, speaking_eval_json),
+                        updated_at = NOW()
+                    WHERE UPPER(folio) = %s;
+                """, (float(new_score_pct), eval_json, str(folio).strip().upper()))
+    except Exception:
+        pass
+
 
  
 # --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
@@ -2084,9 +2304,17 @@ if generar_btn:
                 )
                 
                 tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto} ({gramatica_b1})"
-                get_google_sheet().append_row([
-                    nuevo_folio, usuario, tema_reg, "", fecha_creacion, paquete_guardado, 0, pdf_url_directo
-                ])
+                                tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto_apa} ({gramatica_b1})"
+                save_lesson_to_postgres(
+                    folio=nuevo_folio,
+                    usuario_name=usuario,
+                    tema=tema_reg,
+                    cefr=cefr_level,
+                    grado=academic_grade,
+                    texto=texto_gen,
+                    pdf_link=pdf_url_directo
+                )
+
                 
                 # Colapsa la barra lateral y recarga para mostrar la lección en pantalla completa
                 st.session_state.sidebar_state = "collapsed"
