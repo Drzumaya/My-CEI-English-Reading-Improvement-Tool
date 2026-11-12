@@ -13,6 +13,8 @@ streamlit-js-eval>=0.1.7
 svglib
 pydub
 static-ffmpeg
+cairosvg
+
 
 
 
