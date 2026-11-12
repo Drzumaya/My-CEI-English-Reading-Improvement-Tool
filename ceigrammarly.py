@@ -654,6 +654,37 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
             continue
     raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_err}")
 
+def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
+    """Traduce al inglés y corrige ortografía/estilo académico de las entradas del usuario para la bibliografía APA."""
+    try:
+        prompt_norm = f"""
+        You are an academic copyeditor specializing in APA 7th Edition style.
+        Translate to natural, grammatically accurate English (if in Spanish or mixed) and fix any spelling, capitalization, or punctuation errors in these three user inputs:
+        1. Context/Setting: "{contexto_raw}"
+        2. Characters/Participants: "{personas_raw}"
+        3. Subject/Topic (format in proper English Title Case for an academic publication title): "{asunto_raw}"
+
+        Return ONLY a valid JSON object with exact keys:
+        {{
+            "context_en": "...",
+            "characters_en": "...",
+            "subject_apa_title": "..."
+        }}
+        """
+        raw_norm, _ = generar_con_maxima_potencia(client, prompt_norm, as_json=True)
+        cleaned = raw_norm.strip()
+        if cleaned.startswith("```"):
+            cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
+        data = json.loads(cleaned)
+        return (
+            str(data.get("context_en", contexto_raw)).strip() or contexto_raw,
+            str(data.get("characters_en", personas_raw)).strip() or personas_raw,
+            str(data.get("subject_apa_title", asunto_raw)).strip() or asunto_raw
+        )
+    except Exception:
+        return contexto_raw.strip(), personas_raw.strip(), asunto_raw.strip().title()
+
+
 
 def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
     """Guarda en Google Sheets la calificación más alta de pronunciación obtenida en el Folio."""
@@ -1735,11 +1766,17 @@ if generar_btn:
         st.session_state.show_teacher_registry = False
         
         client = init_gemini_client()
-        with st.spinner(f"🧠 Generating CEFR {cefr_level} ({academic_grade}) Lesson, Visual & Audio..."):
+        with st.spinner(f"🧠 Normalizing inputs, translating & generating CEFR {cefr_level} ({academic_grade}) Lesson..."):
             try:
+                # 1. Traduce y corrige ortográficamente las entradas del usuario para APA
+                contexto_en, personas_en, asunto_apa = normalizar_entradas_apa(
+                    client, contexto, personas, asunto
+                )
+
                 ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
                 nuevo_folio = f"CEI-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
                 fecha_creacion = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
+
                 
                 base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
                 pdf_url_directo = f"{base_url}/?folio={urllib.parse.quote(nuevo_folio)}"
@@ -1774,11 +1811,12 @@ if generar_btn:
                     f"Follow strict APA Style. The official author of every generated academic document MUST be Jacob Zumaya Prianti. "
                     f"Zero Spanish words allowed."
                 )
+                
                 prompt_texto = f"""
                 Create a CEFR Level {cefr_level} English lesson artifact tailored for {academic_grade} students, authored by Jacob Zumaya Prianti:
                 - Folio ID: {nuevo_folio} | Creation Date: {fecha_creacion}
                 - Academic Level: {academic_grade} | CEFR Level: {cefr_level}
-                - Context: {contexto} | Characters: {personas} | Subject: {asunto}
+                - Context: {contexto_en} | Characters: {personas_en} | Subject: {asunto_apa}
                 - Target Grammar: {gramatica_b1} | Discourse Mode: {tipo_texto}
                 
                 STRICT RULES:
@@ -1789,9 +1827,10 @@ if generar_btn:
                    **CEFR Level:** {cefr_level} | **Academic Level:** {academic_grade}  
                    **Campus & Contact:** {institute_address}
                 3. Bibliography / APA References Section: At the end of the lesson, include a formal section titled **Bibliography (Consulted Academic & Linguistic Sources)** formatted in strict APA 7th edition. List:
-                   - Primary instructional module: Zumaya Prianti, J. (2026). *{asunto.title()}: CEFR {nivel_corto} ({academic_grade}) Applied Grammar & Discourse Module* (Folio {nuevo_folio}). Career English Institute.
-                   - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto}", "{gramatica_b1}", and {academic_grade} education.
+                   - Primary instructional module: Zumaya Prianti, J. (2026). *{asunto_apa}: CEFR {nivel_corto} ({academic_grade}) Applied Grammar & Discourse Module* (Folio {nuevo_folio}). Career English Institute.
+                   - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto_apa}", "{gramatica_b1}", and {academic_grade} education, sorted alphabetically by author surname.
                 """
+
                 texto_gen, mod_usado = generar_con_maxima_potencia(client, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
                 st.session_state.active_model_name = mod_usado
