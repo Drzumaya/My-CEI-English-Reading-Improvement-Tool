@@ -283,9 +283,9 @@ def load_permissions_matrix() -> dict:
     }
 
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=15, show_spinner=False)
 def load_padron_records() -> list[dict]:
-    """Carga el padrón completo de usuarios desde PostgreSQL."""
+    """Carga el padrón desde PostgreSQL; si la tabla aún está vacía, usa Google Sheets como respaldo."""
     from psycopg.rows import dict_row
     try:
         conn = get_pg_conn()
@@ -294,22 +294,29 @@ def load_padron_records() -> list[dict]:
                 with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute("SELECT * FROM users_padron ORDER BY id ASC;")
                     rows = cur.fetchall()
-                    return [
-                        {
-                            "ID": r.get("id"),
-                            "Usuario": r.get("usuario", ""),
-                            "Clave": r.get("clave_hash", ""),
-                            "Rol": r.get("rol", "Estudiante"),
-                            "Grado_Academico": r.get("grado_academico", "Licenciatura / Universidad"),
-                            "Nivel": r.get("nivel_cefr", "B1"),
-                            "Permisos": r.get("permisos", "Basico"),
-                            "Estatus": r.get("estatus", "Activo")
-                        }
-                        for r in rows
-                    ]
+                    if rows:
+                        return [
+                            {
+                                "ID": r.get("id"),
+                                "Usuario": r.get("usuario", ""),
+                                "Clave": r.get("clave_hash", ""),
+                                "Rol": r.get("rol", "Estudiante"),
+                                "Grado_Academico": r.get("grado_academico", "Licenciatura / Universidad"),
+                                "Nivel": r.get("nivel_cefr", "B1"),
+                                "Permisos": r.get("permisos", "Basico"),
+                                "Estatus": r.get("estatus", "Activo")
+                            }
+                            for r in rows
+                        ]
     except Exception:
         pass
-    return []
+
+    # Respaldo automático en Google Sheets mientras se completa la migración a Supabase
+    try:
+        ws_pad = get_google_workbook().worksheet("Padron")
+        return ws_pad.get_all_records()
+    except Exception:
+        return []
 
 
 def fetch_lesson_by_folio(folio_code: str) -> dict | None:
