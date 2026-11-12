@@ -2324,7 +2324,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 )
 
         # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
-        with tab_reg_usuarios:
+         with tab_reg_usuarios:
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
             else:
