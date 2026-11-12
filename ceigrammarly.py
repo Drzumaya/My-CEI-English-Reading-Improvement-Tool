@@ -1035,12 +1035,14 @@ def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str,
             svg_match = re.search(r"<svg[\s\S]*?</svg>", svg_raw, re.IGNORECASE)
             if svg_match:
                 svg_code = svg_match.group(0)
-                from svglib.svglib import svg2rlg
-                from reportlab.graphics import renderPM
-                drawing = svg2rlg(io.BytesIO(svg_code.encode("utf-8")))
-                if drawing:
-                    png_bytes = renderPM.drawToString(drawing, fmt="PNG")
-                    return compress_bytes_image(png_bytes, max_size=(800, 450), quality=88)
+                import cairosvg
+                png_bytes = cairosvg.svg2png(
+                    bytestring=svg_code.encode("utf-8"),
+                    output_width=800,
+                    output_height=450
+                )
+                return compress_bytes_image(png_bytes, max_size=(800, 450), quality=88)
+
         except Exception as e:
             errores_img.append(f"SVG Engine: {str(e)[:100]}")
 
