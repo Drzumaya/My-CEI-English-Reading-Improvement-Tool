@@ -189,16 +189,32 @@ def load_permanent_logo():
         pass
     return None
 
-def save_permanent_config(b64_str, mime, width, shape, address_str):
-    ss = get_spreadsheet()
-    try:
-        sheet_logo = ss.worksheet("Config_Logo")
-    except gspread.WorksheetNotFound:
-        sheet_logo = ss.add_worksheet(title="Config_Logo", rows=10, cols=5)
-    sheet_logo.clear()
-    sheet_logo.append_row(["Logo_Base64", "Mime_Type", "Width", "Shape", "Direccion"])
-    sheet_logo.append_row([b64_str, mime, width, shape, address_str])
+def save_permanent_config(logo_b64: str, mime_type: str, width: int, shape: str, direccion: str):
+    """Guarda el logotipo en Base64 (sin límite de 50k caracteres) y la dirección oficial en PostgreSQL."""
+    conn = get_pg_conn()
+    if not conn:
+        raise RuntimeError("Sin conexión activa a PostgreSQL.")
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO institute_config (id, logo_base64, mime_type, logo_width, logo_shape, direccion, updated_at)
+                VALUES (1, %s, %s, %s, %s, %s, NOW())
+                ON CONFLICT (id) DO UPDATE SET
+                    logo_base64 = EXCLUDED.logo_base64,
+                    mime_type = EXCLUDED.mime_type,
+                    logo_width = EXCLUDED.logo_width,
+                    logo_shape = EXCLUDED.logo_shape,
+                    direccion = EXCLUDED.direccion,
+                    updated_at = NOW();
+            """, (
+                str(logo_b64 or ""),
+                str(mime_type or "image/png"),
+                int(width or 115),
+                str(shape or "Circular"),
+                str(direccion or DEFAULT_INSTITUTE_ADDRESS)
+            ))
     load_permanent_logo.clear()
+
 
 @st.cache_resource(show_spinner=False)
 def get_google_workbook():
