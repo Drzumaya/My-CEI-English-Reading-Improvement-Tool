@@ -486,6 +486,20 @@ def get_default_logo_b64():
     except Exception:
         return None, None
 # --- 5. MOTOR DE TIMBRADO CRIPTOGRÁFICO (HMAC-SHA256) Y CERTIFICADO PDF ---
+
+def clean_pdf_text(text: str) -> str:
+    """Normaliza comillas, guiones y caracteres especiales para compatibilidad segura con FPDF."""
+    if not text:
+        return ""
+    reemplazos = {
+        "\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'",
+        "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u2022": "*"
+    }
+    res = str(text)
+    for orig, dest in reemplazos.items():
+        res = res.replace(orig, dest)
+    return res.encode("latin-1", "replace").decode("latin-1")
+
 def generar_sello_digital(folio_cert: str, clave_est: str, nombre_est: str, nivel_cefr: str, fecha_emision: str):
     llave_secreta = str(
         st.secrets.get("HMAC_SECRET_KEY", st.secrets.get("spreadsheet_key", "CEI-2026-MASTER-SEAL"))
