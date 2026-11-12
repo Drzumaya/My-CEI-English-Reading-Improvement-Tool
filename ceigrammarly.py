@@ -1006,6 +1006,79 @@ def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
                 json.dumps(caps_dict)
             ))
     load_permissions_matrix.clear()
+def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_sel: str, grado_sel: str, programa_c: str, calif_c: str, fecha_c: str, sello_h: str):
+    """Guarda un certificado oficial timbrado directamente en Supabase PostgreSQL."""
+    conn = get_pg_conn()
+    if not conn:
+        raise RuntimeError("Sin conexión activa a PostgreSQL.")
+    base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
+    verify_url = f"{base_url}/?verify={urllib.parse.quote(folio_c)}"
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM users_padron WHERE LOWER(usuario) = LOWER(%s) LIMIT 1;", (nombre_sel.strip(),))
+            u_row = cur.fetchone()
+            uid = next(iter(u_row), None) if u_row else None
+            if uid is None:
+                cur.execute("""
+                    INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
+                    VALUES (%s, %s, 'Estudiante', 'Basico', 'Activo')
+                    RETURNING id;
+                """, (nombre_sel.strip(), clave_sel.strip()))
+                uid = next(iter(cur.fetchone()), 1)
+
+            cur.execute("""
+                INSERT INTO certificates (
+                    folio_cert, user_id, clave_alumno, titular, nivel_cefr,
+                    grado_academico, programa, calificacion, fecha_emision,
+                    firma_hmac, estatus, verify_url
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Valido', %s)
+                ON CONFLICT (folio_cert) DO NOTHING;
+            """, (
+                folio_c.strip().upper(), uid, clave_sel.strip(), nombre_sel.strip(),
+                nivel_sel.strip(), grado_sel.strip(), programa_c.strip(),
+                calif_c.strip(), fecha_c.strip(), sello_h.strip(), verify_url
+            ))
+
+
+def load_certificates_pg() -> list[dict]:
+    """Carga el historial de certificados emitidos desde Supabase PostgreSQL."""
+    from psycopg.rows import dict_row
+    conn = get_pg_conn()
+    if not conn:
+        return []
+    with conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("SELECT * FROM certificates ORDER BY created_at DESC;")
+            rows = cur.fetchall()
+            return [
+                {
+                    "Folio_Certificado": r.get("folio_cert", ""),
+                    "Clave_Alumno": r.get("clave_alumno", ""),
+                    "Nombre_Estudiante": r.get("titular", ""),
+                    "Nivel_CEFR": r.get("nivel_cefr", ""),
+                    "Grado_Academico": r.get("grado_academico", ""),
+                    "Programa": r.get("programa", ""),
+                    "Calificacion": r.get("calificacion", ""),
+                    "Fecha_Emision": r.get("fecha_emision", ""),
+                    "Firma_HMAC": r.get("firma_hmac", ""),
+                    "Estatus": "Vigente" if str(r.get("estatus", "")).lower() == "valido" else "Revocado"
+                }
+                for r in rows
+            ]
+
+
+def update_certificate_status_pg(folio_cert: str, nuevo_estatus_ui: str):
+    """Actualiza el estatus (Vigente/Revocado) de un certificado en Supabase PostgreSQL."""
+    conn = get_pg_conn()
+    if not conn:
+        raise RuntimeError("Sin conexión activa a PostgreSQL.")
+    db_status = "Valido" if str(nuevo_estatus_ui).strip().lower() in ["vigente", "valido"] else "Revocado"
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE certificates SET estatus = %s WHERE UPPER(folio_cert) = %s;",
+                (db_status, str(folio_cert).strip().upper())
+            )
 
  
 # --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
