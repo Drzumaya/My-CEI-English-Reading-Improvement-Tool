@@ -285,7 +285,7 @@ def load_permissions_matrix() -> dict:
 
 @st.cache_data(ttl=15, show_spinner=False)
 def load_padron_records() -> list[dict]:
-    """Carga el padrón desde PostgreSQL; si la tabla aún está vacía, usa Google Sheets como respaldo."""
+    """Carga el padrón desde PostgreSQL; si aún está vacío o sin conexión, lee directo de Google Sheets."""
     from psycopg.rows import dict_row
     try:
         conn = get_pg_conn()
@@ -294,7 +294,7 @@ def load_padron_records() -> list[dict]:
                 with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute("SELECT * FROM users_padron ORDER BY id ASC;")
                     rows = cur.fetchall()
-                    if rows:
+                    if rows and len(rows) > 0:
                         return [
                             {
                                 "ID": r.get("id"),
@@ -310,6 +310,14 @@ def load_padron_records() -> list[dict]:
                         ]
     except Exception:
         pass
+
+    # Respaldo directo en Google Sheets (sin caché vacía)
+    try:
+        ws_pad = get_google_workbook().worksheet("Padron")
+        return ws_pad.get_all_records()
+    except Exception:
+        return []
+
 
     # Respaldo automático en Google Sheets mientras se completa la migración a Supabase
     try:
