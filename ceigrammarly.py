@@ -1579,6 +1579,134 @@ if not st.session_state.authenticated:
             unsafe_allow_html=True
         )
     st.stop()
+
+def generar_pdf_certificado(
+    folio_c: str,
+    clave_alumno: str,
+    titular: str,
+    nivel_cefr: str,
+    programa: str,
+    calificacion: str,
+    fecha_c: str,
+    cadena_original: str,
+    sello_hmac: str,
+    direccion_inst: str
+) -> bytes:
+    """Genera el Certificado Oficial en formato Carta horizontal (Letter Landscape) con timbre HMAC-SHA256 y QR."""
+    import qrcode
+
+    # Tamaño Carta horizontal: 279.4 mm x 215.9 mm
+    pdf = FPDF(orientation="L", unit="mm", format="Letter")
+    pdf.set_auto_page_break(auto=False)
+    pdf.add_page()
+
+    # Marco doble institucional (Azul Marino y Dorado) calibrado a Carta (279.4 x 215.9 mm)
+    pdf.set_draw_color(26, 42, 68)
+    pdf.set_line_width(1.6)
+    pdf.rect(10, 10, 259.4, 195.9)
+    pdf.set_draw_color(184, 142, 67)
+    pdf.set_line_width(0.6)
+    pdf.rect(13, 13, 253.4, 189.9)
+
+    # Logotipo institucional centrado (centro de 279.4 mm = 139.7 mm)
+    cfg_logo = load_permanent_logo()
+    if cfg_logo and cfg_logo.get("Logo_Base64"):
+        try:
+            raw_img = base64.b64decode(cfg_logo["Logo_Base64"])
+            tmp_logo = io.BytesIO(raw_img)
+            pdf.image(tmp_logo, x=127.2, y=16, w=25)
+            pdf.set_y(44)
+        except Exception:
+            pdf.set_y(24)
+    else:
+        pdf.set_y(24)
+
+    # Encabezado Institucional
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 9, clean_pdf_text("CAREER ENGLISH INSTITUTE"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_font("Helvetica", "I", 11)
+    pdf.set_text_color(100, 110, 125)
+    pdf.cell(0, 6, clean_pdf_text("Official Academic Certification & Linguistic Proficiency Authority"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(5)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.set_text_color(184, 142, 67)
+    pdf.cell(0, 8, clean_pdf_text("CERTIFICATE OF ACADEMIC ACHIEVEMENT"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(50, 55, 65)
+    pdf.cell(0, 6, clean_pdf_text("This official credential is proudly conferred upon:"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # Nombre del Titular
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.set_text_color(20, 35, 60)
+    pdf.cell(0, 12, clean_pdf_text(titular.upper()), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # Línea dorada centrada bajo el nombre (de 65 mm a 214.4 mm)
+    pdf.set_draw_color(184, 142, 67)
+    pdf.set_line_width(0.5)
+    pdf.line(65, pdf.get_y(), 214.4, pdf.get_y())
+    pdf.ln(4)
+
+    # Detalles del programa y calificación
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(45, 50, 60)
+    pdf.cell(0, 6, clean_pdf_text(f"Student ID: {clave_alumno}   |   Accredited CEFR Level: {nivel_cefr}"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 7, clean_pdf_text(programa), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_font("Helvetica", "I", 11)
+    pdf.set_text_color(35, 115, 70)
+    pdf.cell(0, 6, clean_pdf_text(f"Final Evaluation & Standing: {calificacion}"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # Firma del Director Académico centrada
+    pdf.set_y(148)
+    pdf.set_draw_color(40, 45, 55)
+    pdf.line(100, 148, 179.4, 148)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 5, clean_pdf_text("Jacob Zumaya Prianti"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(90, 95, 105)
+    pdf.cell(0, 4, clean_pdf_text("Academic Director & Principal Author — Career English Institute"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # Código QR de Verificación Pública (Esquina inferior izquierda)
+    base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
+    verify_link = f"{base_url}/?verify={urllib.parse.quote(folio_c)}"
+    qr = qrcode.QRCode(version=1, box_size=4, border=1)
+    qr.add_data(verify_link)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="#1a2a44", back_color="white")
+    qr_buf = io.BytesIO()
+    qr_img.save(qr_buf, format="PNG")
+    qr_buf.seek(0)
+    pdf.image(qr_buf, x=18, y=161, w=28)
+
+    # Bloque de Timbre Digital Criptográfico HMAC-SHA256
+    pdf.set_xy(49, 162)
+    pdf.set_font("Helvetica", "B", 7.5)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 4, clean_pdf_text(f"OFFICIAL CERTIFICATE FOLIO: {folio_c}   |   ISSUED: {fecha_c}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_x(49)
+    pdf.set_font("Courier", "", 6.5)
+    pdf.set_text_color(70, 75, 85)
+    pdf.multi_cell(210, 3.2, clean_pdf_text(f"ORIGINAL STRING: {cadena_original}\nHMAC-SHA256 DIGITAL SIGNATURE: {sello_hmac}"))
+
+    pdf.set_xy(49, 182)
+    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_text_color(100, 105, 115)
+    pdf.cell(0, 4, clean_pdf_text(f"Scan QR code or visit {verify_link} to verify authenticity. | {direccion_inst}"))
+
+    return bytes(pdf.output())
+
 # --- 9. MOTOR DE IA MULTIMODAL ---
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
     modelos_potentes = [
