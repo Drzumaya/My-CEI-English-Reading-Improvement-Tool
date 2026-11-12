@@ -328,7 +328,7 @@ def load_padron_records() -> list[dict]:
     from psycopg.rows import dict_row
     st.session_state["db_auth_diag"] = ""
     
-    # 1. Intentar PostgreSQL (Supabase)
+       # 1. Intentar PostgreSQL (Supabase)
     try:
         conn = get_pg_conn()
         if conn:
@@ -337,6 +337,7 @@ def load_padron_records() -> list[dict]:
                     cur.execute("SELECT * FROM users_padron ORDER BY id ASC;")
                     rows = cur.fetchall()
                     if rows and len(rows) > 0:
+                        st.session_state["db_auth_diag"] = f"Supabase OK ({len(rows)} usuarios cargados). Verifica mayúsculas/espacios en Usuario o Clave."
                         return [
                             {
                                 "ID": r.get("id"),
@@ -351,9 +352,10 @@ def load_padron_records() -> list[dict]:
                             for r in rows
                         ]
                     else:
-                        st.session_state["db_auth_diag"] += "Supabase: tabla users_padron vacía. "
+                        st.session_state["db_auth_diag"] += "Supabase conectado, pero tabla users_padron tiene 0 filas. "
     except Exception as e_pg:
         st.session_state["db_auth_diag"] += f"Supabase Error: {e_pg} | "
+
 
     # 2. Intentar Google Sheets (Respaldo)
     try:
