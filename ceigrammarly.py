@@ -973,7 +973,10 @@ def _serialize_lesson_package(text_val: str, quiz_val, cefr_val: str, grade_val:
 user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
 def can(capability_name: str) -> bool:
     return bool(user_caps.get(capability_name, False))
-
+is_owner = (
+    st.session_state.user_role.strip().lower() == "propietario"
+    or st.session_state.user_permissions.strip().lower() == "total"
+)
 is_faculty_desktop = can("Ver_Panel_Admin") and (not is_mobile)
 has_faculty_access = can("Reuso_Ilimitado_Folios")
 cefr_options = list(CEFR_MAP.values())
@@ -1065,7 +1068,7 @@ default_shape_idx = shape_options.index(default_shape) if default_shape in shape
 col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
 
 with col_logo:
-    if can("Editar_Instituto_Logo") and (not is_mobile):
+    if is_owner and (not is_mobile):
         with st.popover("✏️ Editar Logo", width="stretch"):
             logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
             logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
@@ -1113,7 +1116,7 @@ with col_title:
     st.caption("Author: Jacob Zumaya Prianti | Applied Linguistics & Proficiency Assessment | APA Style")
 
 with col_qr:
-    if not is_mobile:
+    if is_owner and (not is_mobile):
         btn_qr_txt = "🙈 Ocultar QR" if st.session_state.show_qr else "📱 Mostrar QR"
         if st.button(btn_qr_txt, width="stretch", key="toggle_qr_btn"):
             st.session_state.show_qr = not st.session_state.show_qr
@@ -1130,6 +1133,7 @@ with col_qr:
             buf = io.BytesIO()
             qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
             st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
+
 
 with col_exit:
     if is_faculty_desktop:
