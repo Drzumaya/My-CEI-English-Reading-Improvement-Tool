@@ -859,6 +859,34 @@ def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
                 """, (float(new_score_pct), eval_json, str(folio).strip().upper()))
     except Exception:
         pass
+def upsert_user_padron_pg(usuario: str, clave: str, rol: str, grado: str, nivel: str, permisos: str, estatus: str):
+    """Inserta o actualiza un usuario directamente en la tabla users_padron de Supabase."""
+    conn = get_pg_conn()
+    if not conn:
+        raise RuntimeError("Sin conexión activa a PostgreSQL.")
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (permisos.strip(),))
+            cur.execute("""
+                INSERT INTO users_padron (usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (usuario) DO UPDATE SET
+                    clave_hash = EXCLUDED.clave_hash,
+                    rol = EXCLUDED.rol,
+                    grado_academico = EXCLUDED.grado_academico,
+                    nivel_cefr = EXCLUDED.nivel_cefr,
+                    permisos = EXCLUDED.permisos,
+                    estatus = EXCLUDED.estatus;
+            """, (
+                usuario.strip(),
+                clave.strip(),
+                rol.strip(),
+                grado.strip(),
+                normalize_cefr(nivel),
+                permisos.strip(),
+                "Activo" if estatus.strip().lower() == "activo" else "Inactivo"
+            ))
+    load_padron_records.clear()
 
 
  
@@ -2027,7 +2055,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                         st.rerun()
                 except Exception as e:
                     st.error(f"Error en módulo de certificados: {e}")
-        # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
+                # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
         with tab_reg_usuarios:
             if not can("Registrar_Usuarios"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
@@ -2053,7 +2081,6 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                         if st.form_submit_button("💾 Guardar Inscripción", type="primary", width="stretch"):
                             if reg_usuario.strip() and reg_clave.strip():
                                 try:
-                                    p_sheet = get_padron_sheet()
                                     records_actuales = load_padron_records()
                                     existentes_u = [str(r.get("Usuario", "")).strip().lower() for r in records_actuales]
                                     existentes_c = [str(r.get("Clave", "")).strip().lower() for r in records_actuales]
@@ -2063,20 +2090,19 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     elif reg_clave.strip().lower() in existentes_c:
                                         st.error("⚠️ Esa clave de acceso ya está asignada a otro usuario.")
                                     else:
-                                        p_sheet.append_row([
-                                            reg_usuario.strip(),
-                                            reg_clave.strip(),
-                                            reg_rol,
-                                            "Activo",
-                                            reg_nivel,
-                                            reg_permiso,
-                                            reg_grado
-                                        ])
-                                        load_padron_records.clear()
-                                        st.success(f"✅ {reg_usuario.strip()} inscrito en {reg_grado} ({reg_nivel}).")
+                                        upsert_user_padron_pg(
+                                            usuario=reg_usuario.strip(),
+                                            clave=reg_clave.strip(),
+                                            rol=reg_rol,
+                                            grado=reg_grado,
+                                            nivel=reg_nivel,
+                                            permisos=reg_permiso,
+                                            estatus="Activo"
+                                        )
+                                        st.success(f"✅ {reg_usuario.strip()} inscrito en Supabase ({reg_grado} - {reg_nivel}).")
                                         st.rerun()
                                 except Exception as e:
-                                    st.error(f"Error al registrar: {e}")
+                                    st.error(f"Error al registrar en Supabase: {e}")
                             else:
                                 st.warning("⚠️ Completa tanto el usuario como la clave.")
 
@@ -2105,7 +2131,6 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             curr_perm = str(fila_sel.get("Permisos", next(iter(permisos_disponibles), "Basico"))).strip()
                             curr_stat = str(fila_sel.get("Estatus", "Activo")).strip()
 
-
                             idx_rol = ROLES_LISTA.index(curr_rol) if curr_rol in ROLES_LISTA else 0
                             idx_grado = GRADOS_ACADEMICOS.index(curr_grado) if curr_grado in GRADOS_ACADEMICOS else 1
                             niveles_cefr = ["A1", "A2", "B1", "B2", "C1", "C2"]
@@ -2128,18 +2153,23 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 new_status = st.selectbox("Estatus:", estatus_opts, index=idx_stat, key="edit_st_sel")
                                 
                             if st.button("🔄 Actualizar Registro", width="stretch"):
-                                p_sheet = get_padron_sheet()
-                                cell = p_sheet.find(str(user_to_edit), in_column=1)
-                                if cell:
-                                    p_sheet.update(
-                                        range_name=f"C{cell.row}:G{cell.row}",
-                                        values=[[new_rol_edit, new_status, new_lvl_edit, new_perm_edit, new_grado_edit]]
+                                try:
+                                    upsert_user_padron_pg(
+                                        usuario=str(user_to_edit),
+                                        clave=str(fila_sel.get("Clave", "")),
+                                        rol=new_rol_edit,
+                                        grado=new_grado_edit,
+                                        nivel=new_lvl_edit,
+                                        permisos=new_perm_edit,
+                                        estatus=new_status
                                     )
-                                    load_padron_records.clear()
-                                    st.success(f"✅ Registro de {user_to_edit} actualizado.")
+                                    st.success(f"✅ Registro de {user_to_edit} actualizado en Supabase.")
                                     st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error al actualizar en Supabase: {e}")
                     except Exception as e:
                         st.error(f"Error al cargar padrón: {e}")
+
         # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
