@@ -2207,41 +2207,6 @@ with col_tools_right:
        # )
   # else:
   #     st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
-    if student_audio is not None:
-        if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
-            if not st.session_state.generated_text:
-                st.warning("⚠️ Primero genera o carga una lección para comparar tu lectura.")
-            else:
-                with st.spinner("🎙️ Analizando fonética, entonación y gramática oral..."):
-                    try:
-                        eval_res = evaluar_pronunciacion_ia(
-                            audio_bytes=student_audio.getvalue(),
-                            mime_type="audio/wav",
-                            texto_objetivo=st.session_state.generated_text,
-                            gramatica_obj=gramatica_b1,
-                            nivel_cefr=st.session_state.selected_cefr,
-                            grado_acad=st.session_state.selected_academic_grade
-                        )
-                        st.session_state["speaking_eval_result"] = eval_res
-                        if st.session_state.current_folio and "score_percent" in eval_res:
-                            save_best_speaking_to_sheet(st.session_state.current_folio, int(eval_res["score_percent"]))
-                    except Exception as e:
-                        st.error(f"Error en evaluación oral: {e}")
-
-    if st.session_state.get("speaking_eval_result"):
-        ev = st.session_state["speaking_eval_result"]
-        with st.container(border=True):
-            st.markdown(f"#### 🎯 Evaluación Oral: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
-            st.caption(f"🗣️ **Transcripción detectada:** *\"{ev.get('transcription', '')}\"*")
-            st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
-            st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
-            st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
-            tips = ev.get("actionable_tips", [])
-            if tips:
-                st.markdown("**💡 Recomendaciones de Mejora:**")
-                for t in tips:
-                    st.markdown(f"- {t}")
-
 
     if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
