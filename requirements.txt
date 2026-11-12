@@ -11,6 +11,8 @@ gspread>=6.1.2
 pandas>=2.2.2
 streamlit-js-eval>=0.1.7
 svglib
+pydub
+static-ffmpeg
 
 
 
