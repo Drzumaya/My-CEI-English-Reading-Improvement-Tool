@@ -2081,21 +2081,35 @@ with col_tools_right:
         """
         st.iframe(video_recorder_html, height=320)
 
-    st.write("")
-    
+        st.write("")
     if student_audio is not None:
-        safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.wav"
+        safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
+        try:
+            import static_ffmpeg
+            static_ffmpeg.add_paths()
+            from pydub import AudioSegment
+
+            wav_buf = io.BytesIO(student_audio.getvalue())
+            audio_seg = AudioSegment.from_file(wav_buf, format="wav")
+            mp3_buf = io.BytesIO()
+            audio_seg.export(mp3_buf, format="mp3", bitrate="128k")
+            mp3_data = mp3_buf.getvalue()
+            dl_mime = "audio/mp3"
+        except Exception:
+            mp3_data = student_audio.getvalue()
+            safe_rec_name = safe_rec_name.replace(".mp3", ".wav")
+            dl_mime = "audio/wav"
+
         st.download_button(
-            label="📥 Descargar Audio Grabado (WAV)",
-            data=student_audio.getvalue(),
+            label="📥 Descargar Audio Grabado (MP3)",
+            data=mp3_data,
             file_name=safe_rec_name,
-            mime="audio/wav",
+            mime=dl_mime,
             type="primary",
-            use_container_width=True
+            width="stretch"
         )
     else:
-        st.button("📥 Descargar Audio Grabado (WAV)", disabled=True, use_container_width=True)
-
+        st.button("📥 Descargar Audio Grabado (MP3)", disabled=True, width="stretch")
 
     if st.session_state.generated_text:
         pdf_bytes = create_lesson_pdf(
