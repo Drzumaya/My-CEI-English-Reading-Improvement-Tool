@@ -2322,8 +2322,10 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     f'font-weight:600;">🖨️ Abrir en Pestaña para Imprimir</a>',
                                     unsafe_allow_html=True
                                 )
+                except Exception as e:
+                    st.error(f"Error en módulo de certificados: {e}")
 
-              # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
+        # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
         with tab_reg_usuarios:
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
