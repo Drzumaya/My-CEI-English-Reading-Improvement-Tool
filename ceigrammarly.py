@@ -2265,7 +2265,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 width="stretch"
                             )
 
-                                            st.markdown("##### 🖨️ Reimprimir o Descargar Certificado Emitido")
+                        st.markdown("##### 🖨️ Reimprimir o Descargar Certificado Emitido")
                         c_imp1, c_imp2 = st.columns([2.2, 1.3])
                         with c_imp1:
                             opciones_reimp = {
