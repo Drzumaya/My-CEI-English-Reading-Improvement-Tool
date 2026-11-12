@@ -223,12 +223,43 @@ def get_google_sheet():
 
 
 def get_pg_conn():
-    """Devuelve una conexión activa a PostgreSQL (Supabase) usando Transaction Pooler."""
+    """Conecta a PostgreSQL (Supabase) buscando credenciales en cualquier nivel de Secrets."""
     import psycopg
-    db_url = str(st.secrets.get("DATABASE_URL", "")).strip()
-    if not db_url:
-        return None
-    return psycopg.connect(db_url, prepare_threshold=None)
+
+    def _find_secret(key_name: str) -> str:
+        if key_name in st.secrets:
+            return str(st.secrets[key_name]).strip()
+        for sec in st.secrets.values():
+            if isinstance(sec, dict) and key_name in sec:
+                return str(sec[key_name]).strip()
+        return ""
+
+    pg_host = _find_secret("PG_HOST")
+    pg_user = _find_secret("PG_USER")
+    pg_pass = _find_secret("PG_PASSWORD")
+    pg_port = int(_find_secret("PG_PORT") or 6543)
+    pg_db = _find_secret("PG_DBNAME") or "postgres"
+
+    if pg_host and pg_user and pg_pass:
+        return psycopg.connect(
+            host=pg_host,
+            port=pg_port,
+            dbname=pg_db,
+            user=pg_user,
+            password=pg_pass,
+            sslmode="require",
+            prepare_threshold=None
+        )
+
+    db_url = _find_secret("DATABASE_URL")
+    if db_url.startswith("postgres") and "@" in db_url and "://supabase.com" in db_url:
+        return psycopg.connect(db_url, sslmode="require", prepare_threshold=None)
+
+    raise ValueError(
+        f"No se encontraron las credenciales de Supabase en Secrets "
+        f"(PG_HOST={'OK' if pg_host else 'VACIO'}, PG_USER={'OK' if pg_user else 'VACIO'}, PG_PASSWORD={'OK' if pg_pass else 'VACIO'})."
+    )
+
 
 
 @st.cache_data(ttl=60, show_spinner=False)
