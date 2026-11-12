@@ -2320,7 +2320,7 @@ if generar_btn:
                     texto=texto_gen,
                     pdf_link=pdf_url_directo
                 )
-
+ 
                 
                 # Colapsa la barra lateral y recarga para mostrar la lección en pantalla completa
                 st.session_state.sidebar_state = "collapsed"
