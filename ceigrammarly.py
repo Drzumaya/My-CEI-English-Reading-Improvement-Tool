@@ -282,7 +282,7 @@ class AcademicPDF(FPDF):
         self.set_font("Times", "", 7.5)
         self.set_text_color(110, 110, 110)
         self.cell(self.epw, 4, text=_safe_latin1(self.address_str), align="C")
-def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None) -> bytes:
+def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, speaking_eval=None) -> bytes:
     """Genera un documento académico de Alta Escuela con numeración de páginas, ilustración y examen."""
     folio_doc = st.session_state.current_folio or "SIN-FOLIO"
     base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
@@ -450,6 +450,72 @@ def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None) -> 
             pdf.set_text_color(11, 37, 69)
             pdf.multi_cell(pdf.epw - 6, 5.5, text=_safe_latin1(ans_line), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
             pdf.set_text_color(25, 25, 25)
+            pdf.ln(3)
+    # --- SECCIÓN DE EVALUACIÓN ORAL Y ANÁLISIS FONÉTICO (SI EXISTE) ---
+    if speaking_eval and isinstance(speaking_eval, dict):
+        pdf.ln(6)
+        if pdf.get_y() > pdf.h - 65:
+            pdf.add_page()
+
+        y_sp_head = pdf.get_y()
+        pdf.set_fill_color(11, 37, 69)
+        pdf.rect(pdf.l_margin, y_sp_head, pdf.epw, 9, style="F")
+        pdf.set_xy(pdf.l_margin + 3, y_sp_head + 1.5)
+        pdf.set_font("Times", "B", 11)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(pdf.epw - 6, 6, text=_safe_latin1(f"ORAL PROFICIENCY & PHONETIC ASSESSMENT REPORT  |  FOLIO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        # Recuadro con calificación oral y nivel CEFR alcanzado
+        y_sp_sc = pdf.get_y()
+        pdf.set_fill_color(253, 248, 232)
+        pdf.set_draw_color(184, 134, 11)
+        pdf.rect(pdf.l_margin, y_sp_sc, pdf.epw, 8, style="FD")
+        pdf.set_xy(pdf.l_margin + 3, y_sp_sc + 1.5)
+        pdf.set_font("Times", "B", 10.5)
+        pdf.set_text_color(11, 37, 69)
+        spk_pct = speaking_eval.get("score_percent", 0)
+        spk_perf = speaking_eval.get("cefr_performance", "")
+        pdf.cell(pdf.epw - 6, 5, text=_safe_latin1(f"SPEAKING SCORE: {spk_pct}%  |  CEFR BENCHMARK: {spk_perf}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(4)
+
+        pdf.set_text_color(25, 25, 25)
+        campos_orales = [
+            ("Detected Speech Transcription:", f"\"{speaking_eval.get('transcription', '')}\""),
+            ("Phonetics & Articulation Feedback:", speaking_eval.get("phonetic_feedback", "")),
+            ("Fluency & Prosody:", speaking_eval.get("fluency_prosody", "")),
+            ("Oral Grammar Accuracy:", speaking_eval.get("grammar_accuracy", ""))
+        ]
+
+        for etiqueta, contenido in campos_orales:
+            if not contenido.strip():
+                continue
+            if pdf.get_y() > pdf.h - 30:
+                pdf.add_page()
+            pdf.set_x(pdf.l_margin)
+            pdf.set_font("Times", "B", 10)
+            pdf.set_text_color(11, 37, 69)
+            pdf.cell(pdf.epw, 5.5, text=_safe_latin1(etiqueta), new_x="LMARGIN", new_y="NEXT")
+
+            pdf.set_x(pdf.l_margin + 4)
+            pdf.set_font("Times", "I" if "Transcription" in etiqueta else "", 10)
+            pdf.set_text_color(30, 30, 30)
+            pdf.multi_cell(pdf.epw - 4, 5.5, text=_safe_latin1(contenido), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
+            pdf.ln(2)
+
+        tips_orales = speaking_eval.get("actionable_tips", [])
+        if tips_orales:
+            if pdf.get_y() > pdf.h - 30:
+                pdf.add_page()
+            pdf.set_x(pdf.l_margin)
+            pdf.set_font("Times", "B", 10)
+            pdf.set_text_color(11, 37, 69)
+            pdf.cell(pdf.epw, 5.5, text="Pedagogical Actionable Recommendations:", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Times", size=9.8)
+            pdf.set_text_color(30, 30, 30)
+            for tip in tips_orales:
+                pdf.set_x(pdf.l_margin + 6)
+                pdf.multi_cell(pdf.epw - 6, 5.2, text=_safe_latin1(f"- {tip}"), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
             pdf.ln(3)
 
     return bytes(pdf.output())
@@ -1922,6 +1988,14 @@ with col_main_center:
                         user_ans=st.session_state.quiz_user_answers,
                         score=nota_para_pdf
                     )
+                    pdf_bytes = create_lesson_pdf(
+                        st.session_state.generated_text.replace("*", ""),
+                        quiz_items=st.session_state.quiz_data,
+                        user_ans=st.session_state.quiz_user_answers,
+                        score=st.session_state.get("best_stored_score") or st.session_state.quiz_score,
+                        speaking_eval=st.session_state.get("speaking_eval_result")
+                    )
+
                     st.download_button(
                         label=f"📥 Descargar PDF Oficial con Mejor Calificación ({nota_para_pdf})",
                         data=pdf_quiz_bytes,
@@ -2198,6 +2272,14 @@ with col_tools_right:
             user_ans=st.session_state.quiz_user_answers,
             score=st.session_state.quiz_score
         )
+        pdf_bytes = create_lesson_pdf(
+            st.session_state.generated_text.replace("*", ""),
+            quiz_items=st.session_state.quiz_data,
+            user_ans=st.session_state.quiz_user_answers,
+            score=st.session_state.get("best_stored_score") or st.session_state.quiz_score,
+            speaking_eval=st.session_state.get("speaking_eval_result")
+        )
+
         #st.download_button(
         #    label=f"📥 Descargar PDF ({st.session_state.current_folio or 'Tiempo Real'})",
        #     data=pdf_bytes,
