@@ -19,6 +19,8 @@ from zoneinfo import ZoneInfo
 import gspread
 import pandas as pd
 from streamlit_js_eval import streamlit_js_eval
+from google.oauth2.service_account import Credentials
+
 
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
@@ -211,6 +213,28 @@ def save_permanent_config(b64_str, mime, width, shape, address_str):
     sheet_logo.append_row(["Logo_Base64", "Mime_Type", "Width", "Shape", "Direccion"])
     sheet_logo.append_row([b64_str, mime, width, shape, address_str])
     load_permanent_logo.clear()
+
+@st.cache_resource(show_spinner=False)
+def get_google_workbook():
+    """Conecta de forma segura con el libro de Google Sheets usando las credenciales de Secrets."""
+    scopes = [
+        "https://googleapis.com",
+        "https://googleapis.com"
+    ]
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    gc = gspread.authorize(creds)
+    sheet_url = str(st.secrets.get("GOOGLE_SHEET_URL", "")).strip()
+    if sheet_url:
+        return gc.open_by_url(sheet_url)
+    sheet_name = str(st.secrets.get("GOOGLE_SHEET_NAME", "CEI_Database")).strip()
+    return gc.open(sheet_name)
+
+
+def get_google_sheet():
+    """Devuelve la Hoja 1 (Folios y Lecciones) del libro de Google Sheets."""
+    return get_google_workbook().sheet1
+
 
 def get_pg_conn():
     """Devuelve una conexión activa a PostgreSQL (Supabase) usando Transaction Pooler."""
