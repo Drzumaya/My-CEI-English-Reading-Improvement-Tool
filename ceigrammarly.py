@@ -2296,6 +2296,7 @@ st.divider()
                                 f"**Grado:** {grado_sel}"
                             )
 
+
                         with col_c2:
                             programa_cert = st.text_input(
                                 "📚 Programa / Curso Acreditado:",
