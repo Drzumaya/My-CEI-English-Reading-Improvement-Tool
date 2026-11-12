@@ -2110,7 +2110,7 @@ with col_tools_right:
          #   file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
          #   mime="application/pdf",
         #    width="stretch"
-       ¢ )
+       # )
   # else:
   #     st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
 
