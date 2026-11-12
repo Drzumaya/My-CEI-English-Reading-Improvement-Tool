@@ -396,6 +396,7 @@ def load_padron_records() -> list[dict]:
                         return [
                             {
                                 "ID": r.get("id"),
+                                "Matricula": r.get("matricula") or f"CEI-{datetime.now().year}-{int(r.get('id', 0)):04d}",
                                 "Usuario": r.get("usuario", ""),
                                 "Clave": r.get("clave_hash", ""),
                                 "Rol": r.get("rol", "Estudiante"),
@@ -945,11 +946,12 @@ def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
                 """, (float(new_score_pct), eval_json, str(folio).strip().upper()))
     except Exception:
         pass
-def upsert_user_padron_pg(usuario: str, clave: str, rol: str, grado: str, nivel: str, permisos: str, estatus: str):
-    """Inserta o actualiza un usuario directamente en la tabla users_padron de Supabase."""
+def upsert_user_padron_pg(usuario: str, clave: str, rol: str, grado: str, nivel: str, permisos: str, estatus: str) -> str:
+    """Inserta o actualiza un usuario en Supabase y genera/devuelve su Matrícula Oficial (CEI-AÑO-ID)."""
     conn = get_pg_conn()
     if not conn:
         raise RuntimeError("Sin conexión activa a PostgreSQL.")
+    anio_actual = datetime.now(ZoneInfo("America/Hermosillo")).year
     with conn:
         with conn.cursor() as cur:
             cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (permisos.strip(),))
@@ -962,7 +964,8 @@ def upsert_user_padron_pg(usuario: str, clave: str, rol: str, grado: str, nivel:
                     grado_academico = EXCLUDED.grado_academico,
                     nivel_cefr = EXCLUDED.nivel_cefr,
                     permisos = EXCLUDED.permisos,
-                    estatus = EXCLUDED.estatus;
+                    estatus = EXCLUDED.estatus
+                RETURNING id, matricula;
             """, (
                 usuario.strip(),
                 clave.strip(),
@@ -972,7 +975,17 @@ def upsert_user_padron_pg(usuario: str, clave: str, rol: str, grado: str, nivel:
                 permisos.strip(),
                 "Activo" if estatus.strip().lower() == "activo" else "Inactivo"
             ))
+            row_ret = cur.fetchone()
+            user_id_db = row_ret[0]
+            mat_actual = row_ret[1]
+
+            if not mat_actual:
+                mat_actual = f"CEI-{anio_actual}-{int(user_id_db):04d}"
+                cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_actual, user_id_db))
+
     load_padron_records.clear()
+    return mat_actual
+
 
 def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
     """Guarda o actualiza un perfil de permisos RBAC directamente en Supabase PostgreSQL."""
@@ -2249,25 +2262,7 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
         st.error(f"Error al buscar folio: {e}") 
 
 st.divider()
-# --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
-if is_faculty_desktop and st.session_state.show_teacher_registry:
-    with st.container(border=True):
-        col_head_reg, col_close_reg = st.columns([4.5, 1])
-        with col_head_reg:
-            st.markdown("### 🛡️ PANEL DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL RBAC")
-        with col_close_reg:
-            if st.button("🔼 Cerrar Panel", width="stretch"):
-                st.session_state.show_teacher_registry = False
-                st.rerun()
-
-        tab_certificados, tab_reg_usuarios, tab_matriz_perm, tab_datos_inst = st.tabs([
-            "🏅 Certificados (Timbre y QR)",
-            "👥 Inscripción y Padrón",
-            "🔐 Matriz Global de Permisos",
-            "🏛️ Datos del Instituto"
-        ])
-
-               # 14.1 PESTAÑA CERTIFICADOS
+        # 14.1 PESTAÑA CERTIFICADOS
         with tab_certificados:
             if not (is_owner or can("Emitir_Certificados")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
@@ -2276,27 +2271,28 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                 try:
                     regs_cert = load_padron_records()
                     opciones_claves = {
-                        f"{str(r.get('Clave', '')).strip()} — {str(r.get('Usuario', '')).strip()} ({str(r.get('Nivel', 'B1')).strip()})": r
-                        for r in regs_cert if str(r.get("Clave", "")).strip()
+                        f"{str(r.get('Matricula', '')).strip()} — {str(r.get('Usuario', '')).strip()} ({str(r.get('Nivel', 'B1')).strip()})": r
+                        for r in regs_cert if str(r.get("Matricula", "")).strip()
                     }
+
                     if not opciones_claves:
-                        st.warning("No hay claves de estudiantes registradas en el padrón.")
+                        st.warning("No hay matrículas de estudiantes registradas en el padrón.")
                     else:
                         col_c1, col_c2 = st.columns([1.3, 1.7])
                         with col_c1:
                             sel_label = st.selectbox(
-                                "🔑 Seleccionar Clave de la Base de Datos:",
+                                "🎓 Seleccionar Matrícula Oficial:",
                                 list(opciones_claves.keys()),
                                 key="cert_select_clave"
                             )
                             datos_alumno = opciones_claves[sel_label]
-                            clave_sel = str(datos_alumno.get("Clave", "")).strip()
+                            clave_sel = str(datos_alumno.get("Matricula", "")).strip()
                             nombre_sel = str(datos_alumno.get("Usuario", "")).strip()
                             nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
                             grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
                             st.info(
                                 f"**Titular:** {nombre_sel}\n\n"
-                                f"**Clave:** `{clave_sel}` | **Nivel:** {nivel_sel}\n\n"
+                                f"**Matrícula:** `{clave_sel}` | **Nivel:** {nivel_sel}\n\n"
                                 f"**Grado:** {grado_sel}"
                             )
 
@@ -2339,11 +2335,10 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     st.session_state["last_cert_name"] = f"Certificado_{folio_c}_{nombre_sel.replace(' ', '_')}.pdf"
                                     st.session_state["last_cert_folio"] = folio_c
                                     st.success(f"✅ ¡Certificado timbrado y guardado en Supabase! Folio: **{folio_c}**")
-                                    st.rerun()
 
                         if st.session_state.get("last_cert_pdf"):
                             f_actual = st.session_state["last_cert_folio"]
-                            base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
+                            base_url = str(st.secrets.get("APP_BASE_URL", "https://career-english-institute.streamlit.app")).rstrip("/")
                             link_cert_directo = f"{base_url}/?verify={urllib.parse.quote(f_actual)}"
 
                             st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
@@ -2385,9 +2380,9 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                     if not certs_hist:
                         st.info("ℹ️ Aún no hay certificados guardados en la tabla `certificates` de Supabase.")
                     else:
-                        df_certs = pd.DataFrame(certs_hist)
+                        df_certs = pd.DataFrame(certs_hist).rename(columns={"Clave_Alumno": "Matricula"})
                         cols_c_ver = [
-                            c for c in ["Folio_Certificado", "Clave_Alumno", "Nombre_Estudiante", "Nivel_CEFR", "Fecha_Emision", "Estatus"]
+                            c for c in ["Folio_Certificado", "Matricula", "Nombre_Estudiante", "Nivel_CEFR", "Fecha_Emision", "Estatus"]
                             if c in df_certs.columns
                         ]
                         st.dataframe(df_certs[cols_c_ver], height=160, width="stretch", hide_index=True)
@@ -2484,7 +2479,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     elif reg_clave.strip().lower() in existentes_c:
                                         st.error("⚠️ Esa clave de acceso ya está asignada a otro usuario.")
                                     else:
-                                        upsert_user_padron_pg(
+                                        matricula_nueva = upsert_user_padron_pg(
                                             usuario=reg_usuario.strip(),
                                             clave=reg_clave.strip(),
                                             rol=reg_rol,
@@ -2493,8 +2488,9 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                             permisos=reg_permiso,
                                             estatus="Activo"
                                         )
-                                        st.success(f"✅ {reg_usuario.strip()} inscrito en Supabase ({reg_grado} - {reg_nivel}).")
+                                        st.success(f"✅ {reg_usuario.strip()} inscrito con Matrícula Oficial **{matricula_nueva}** ({reg_grado} - {reg_nivel}).")
                                         st.rerun()
+
                                 except Exception as e:
                                     st.error(f"Error al registrar en Supabase: {e}")
                             else:
@@ -2507,7 +2503,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                         if records_p:
                             df_p = pd.DataFrame(records_p)
                             cols_mostrar = [
-                                c for c in ["Usuario", "Clave", "Rol", "Nivel", "Grado_Academico", "Permisos", "Estatus"]
+                                c for c in ["Matricula", "Usuario", "Rol", "Nivel", "Grado_Academico", "Permisos", "Estatus"]
                                 if c in df_p.columns
                             ]
                             st.dataframe(df_p[cols_mostrar], height=205, width="stretch", hide_index=True)
