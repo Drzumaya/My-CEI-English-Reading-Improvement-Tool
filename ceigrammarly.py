@@ -2265,43 +2265,64 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 width="stretch"
                             )
 
-                    st.divider()
-                    st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
-                    cert_ws = get_certificados_sheet()
-                    certs_hist = cert_ws.get_all_records()
-                    if certs_hist:
-                        df_certs = pd.DataFrame(certs_hist)
-                        cols_c_ver = [
-                            c for c in ["Folio_Certificado", "Clave_Alumno", "Nombre_Estudiante", "Nivel_CEFR", "Fecha_Emision", "Estatus"]
-                            if c in df_certs.columns
-                        ]
-                        st.dataframe(df_certs[cols_c_ver], height=160, width="stretch", hide_index=True)
+                                            st.markdown("##### 🖨️ Reimprimir o Descargar Certificado Emitido")
+                        c_imp1, c_imp2 = st.columns([2.2, 1.3])
+                        with c_imp1:
+                            opciones_reimp = {
+                                f"{row['Folio_Certificado']} — {row['Nombre_Estudiante']} ({row['Nivel_CEFR']}) [{row['Estatus']}]": row
+                                for row in certs_hist
+                            }
+                            sel_reimp_label = st.selectbox(
+                                "Seleccionar Certificado del Historial:",
+                                list(opciones_reimp.keys()),
+                                key="sel_cert_reimprimir"
+                            )
+                        with c_imp2:
+                            st.write("")
+                            if st.button("📄 Preparar PDF para Imprimir / Descargar", width="stretch", key="btn_prep_reimp"):
+                                c_obj = opciones_reimp[sel_reimp_label]
+                                f_rep = str(c_obj.get("Folio_Certificado", "")).strip()
+                                cl_rep = str(c_obj.get("Clave_Alumno", "")).strip()
+                                nom_rep = str(c_obj.get("Nombre_Estudiante", "")).strip()
+                                niv_rep = str(c_obj.get("Nivel_CEFR", "")).strip()
+                                fec_rep = str(c_obj.get("Fecha_Emision", "")).strip()
+                                prog_rep = str(c_obj.get("Programa", "")).strip()
+                                cal_rep = str(c_obj.get("Calificacion", "")).strip()
 
-                        if can("Revocar_Certificados"):
-                            c_rev1, c_rev2, c_rev3 = st.columns([2, 1.2, 1.2])
-                            with c_rev1:
-                                cert_to_mod = st.selectbox(
-                                    "Seleccionar Folio de Certificado:",
-                                    df_certs["Folio_Certificado"].tolist(),
-                                    key="sel_cert_rev"
+                                cad_rep, sello_calc = generar_sello_digital(f_rep, cl_rep, nom_rep, niv_rep, fec_rep)
+                                sello_final = str(c_obj.get("Firma_HMAC", "")).strip() or sello_calc
+
+                                pdf_reimp_bytes = generar_pdf_certificado(
+                                    f_rep, cl_rep, nom_rep, niv_rep,
+                                    prog_rep, cal_rep, fec_rep,
+                                    cad_rep, sello_final, institute_address
                                 )
-                            with c_rev2:
-                                nuevo_est_cert = st.selectbox("Estatus:", ["Vigente", "Revocado"], key="sel_est_cert")
-                            with c_rev3:
-                                st.write("")
-                                if st.button("🔄 Aplicar Estatus", width="stretch"):
-                                    celda_c = cert_ws.find(str(cert_to_mod), in_column=1)
-                                    if celda_c:
-                                        try:
-                                            headers_c = cert_ws.row_values(1)
-                                            col_est = headers_c.index("Estatus") + 1 if "Estatus" in headers_c else 9
-                                        except Exception:
-                                            col_est = 9
-                                        cert_ws.update_cell(celda_c.row, col_est, nuevo_est_cert)
-                                        st.success(f"✅ Certificado {cert_to_mod} actualizado a '{nuevo_est_cert}'.")
-                                        st.rerun()
-                except Exception as e:
-                    st.error(f"Error en módulo de certificados: {e}")
+                                st.session_state["reimp_cert_bytes"] = pdf_reimp_bytes
+                                st.session_state["reimp_cert_folio"] = f_rep
+                                st.session_state["reimp_cert_file"] = f"Certificado_{f_rep}_{nom_rep.replace(' ', '_')}.pdf"
+
+                        if st.session_state.get("reimp_cert_bytes"):
+                            col_dl1, col_dl2 = st.columns(2)
+                            with col_dl1:
+                                st.download_button(
+                                    label=f"📥 Descargar PDF Carta ({st.session_state['reimp_cert_folio']})",
+                                    data=st.session_state["reimp_cert_bytes"],
+                                    file_name=st.session_state["reimp_cert_file"],
+                                    mime="application/pdf",
+                                    type="primary",
+                                    width="stretch",
+                                    key="btn_dl_reimp_cert"
+                                )
+                            with col_dl2:
+                                b64_cert = base64.b64encode(st.session_state["reimp_cert_bytes"]).decode("utf-8")
+                                st.markdown(
+                                    f'<a href="data:application/pdf;base64,{b64_cert}" target="_blank" '
+                                    f'style="display:inline-block;width:100%;text-align:center;padding:0.55rem 1rem;'
+                                    f'background-color:#1a2a44;color:#ffffff;text-decoration:none;border-radius:0.5rem;'
+                                    f'font-weight:600;">🖨️ Abrir en Pestaña para Imprimir</a>',
+                                    unsafe_allow_html=True
+                                )
+
         # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
         with tab_reg_usuarios:
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
