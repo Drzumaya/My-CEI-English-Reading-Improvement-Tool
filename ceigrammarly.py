@@ -684,6 +684,190 @@ def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto
     except Exception:
         return contexto_raw.strip(), personas_raw.strip(), asunto_raw.strip().title()
 
+def migrar_sheets_a_supabase() -> dict:
+    """Transfiere de forma segura los datos de Google Sheets a PostgreSQL (Supabase)."""
+    import psycopg
+    db_url = str(st.secrets.get("DATABASE_URL", "")).strip()
+    if not db_url:
+        raise ValueError("No se encontró DATABASE_URL en los Secrets de Streamlit.")
+
+    resumen = {"permisos": 0, "usuarios": 0, "folios": 0, "certificados": 0, "config": 0}
+    book = get_google_workbook()
+
+    with psycopg.connect(db_url, prepare_threshold=None) as conn:
+        with conn.cursor() as cur:
+            # 1. Migrar Matriz de Permisos
+            try:
+                ws_perm = book.worksheet("Matriz_Permisos")
+                for r in ws_perm.get_all_records():
+                    prof = str(r.get("Perfil", "")).strip()
+                    if not prof:
+                        continue
+                    cur.execute("""
+                        INSERT INTO roles_permissions (
+                            profile_name, generar_leccion, resolver_quiz, grabar_audio,
+                            emitir_certificados, gestionar_usuarios, editar_instituto_logo
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (profile_name) DO UPDATE SET
+                            generar_leccion = EXCLUDED.generar_leccion,
+                            resolver_quiz = EXCLUDED.resolver_quiz,
+                            grabar_audio = EXCLUDED.grabar_audio,
+                            emitir_certificados = EXCLUDED.emitir_certificados,
+                            gestionar_usuarios = EXCLUDED.gestionar_usuarios,
+                            editar_instituto_logo = EXCLUDED.editar_instituto_logo,
+                            updated_at = NOW();
+                    """, (
+                        prof,
+                        str(r.get("Generar_Leccion", "SI")).upper() == "SI",
+                        str(r.get("Resolver_Quiz", "SI")).upper() == "SI",
+                        str(r.get("Grabar_Audio", "SI")).upper() == "SI",
+                        str(r.get("Emitir_Certificados", "NO")).upper() == "SI",
+                        str(r.get("Gestionar_Usuarios", "NO")).upper() == "SI",
+                        str(r.get("Editar_Instituto_Logo", "NO")).upper() == "SI",
+                    ))
+                    resumen["permisos"] += 1
+            except Exception:
+                pass
+
+            # 2. Migrar Padrón de Usuarios
+            mapa_user_ids = {}
+            ws_pad = book.worksheet("Padron")
+            for r in ws_pad.get_all_records():
+                u_name = str(r.get("Usuario", "")).strip()
+                c_pass = str(r.get("Clave", "")).strip()
+                if not u_name or not c_pass:
+                    continue
+                perm_val = str(r.get("Permisos", "Basico")).strip() or "Basico"
+                cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (perm_val,))
+                cur.execute("""
+                    INSERT INTO users_padron (usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (usuario) DO UPDATE SET
+                        clave_hash = EXCLUDED.clave_hash,
+                        rol = EXCLUDED.rol,
+                        grado_academico = EXCLUDED.grado_academico,
+                        nivel_cefr = EXCLUDED.nivel_cefr,
+                        permisos = EXCLUDED.permisos,
+                        estatus = EXCLUDED.estatus
+                    RETURNING id;
+                """, (
+                    u_name,
+                    c_pass,
+                    str(r.get("Rol", "Estudiante")).strip() or "Estudiante",
+                    str(r.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad",
+                    normalize_cefr(r.get("Nivel", "B1")),
+                    perm_val,
+                    "Activo" if str(r.get("Estatus", "Activo")).strip().lower() == "activo" else "Inactivo"
+                ))
+                row_id = cur.fetchone()
+                mapa_user_ids[u_name.lower()] = row_id
+                resumen["usuarios"] += 1
+            # 3. Migrar Lecciones y Folios (Hoja1)
+            ws_h1 = book.sheet1
+            for r in ws_h1.get_all_records():
+                folio_val = str(r.get("Folio", "")).strip().upper()
+                u_folio = str(r.get("Usuario", "")).strip()
+                if not folio_val or not u_folio:
+                    continue
+                uid = mapa_user_ids.get(u_folio.lower())
+                if not uid:
+                    cur.execute("""
+                        INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
+                        VALUES (%s, 'MIGRATED_LEGACY', 'Estudiante', 'Basico', 'Inactivo')
+                        ON CONFLICT (usuario) DO UPDATE SET usuario = EXCLUDED.usuario
+                        RETURNING id;
+                    """, (u_folio,))
+                    uid = cur.fetchone()
+                    mapa_user_ids[u_folio.lower()] = uid
+
+                raw_j = str(r.get("Contenido_JSON", "")).strip()
+                paq = {}
+                if raw_j:
+                    try:
+                        paq = json.loads(raw_j)
+                    except Exception:
+                        paq = {}
+
+                texto_lec = paq.get("text", str(r.get("Tema", "")))
+                cefr_lec = paq.get("cefr", "B1")
+                grado_lec = paq.get("grade", "Licenciatura / Universidad")
+                mejor_str = str(r.get("Mejor_Calificacion_PDF", "") or paq.get("best_score", "")).strip()
+                mejor_num = _extract_numeric_score(mejor_str)
+                spk_str = str(r.get("Mejor_Speaking_Nota", "")).strip()
+                spk_num = _extract_numeric_score(spk_str)
+
+                cur.execute("""
+                    INSERT INTO lessons_folios (
+                        folio, user_id, tema, cefr_level, academic_grade, lesson_text,
+                        quiz_data, best_quiz_score, best_quiz_numeric, best_quiz_answers,
+                        best_speaking_score, pdf_link
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s::jsonb, %s, %s)
+                    ON CONFLICT (folio) DO UPDATE SET
+                        best_quiz_score = EXCLUDED.best_quiz_score,
+                        best_quiz_numeric = GREATEST(lessons_folios.best_quiz_numeric, EXCLUDED.best_quiz_numeric),
+                        best_speaking_score = GREATEST(lessons_folios.best_speaking_score, EXCLUDED.best_speaking_score),
+                        updated_at = NOW();
+                """, (
+                    folio_val, uid, str(r.get("Tema", "")), cefr_lec, grado_lec, texto_lec,
+                    json.dumps(paq.get("quiz")) if paq.get("quiz") else None,
+                    mejor_str or None, mejor_num,
+                    json.dumps(paq.get("best_answers")) if paq.get("best_answers") else None,
+                    spk_num, str(r.get("PDF_Link", ""))
+                ))
+                resumen["folios"] += 1
+
+            # 4. Migrar Certificados
+            try:
+                ws_cert = book.worksheet("Certificados")
+                for r in ws_cert.get_all_records():
+                    f_cert = str(r.get("Folio_Certificado", "")).strip().upper()
+                    titular_c = str(r.get("Titular", "")).strip()
+                    if not f_cert or not titular_c:
+                        continue
+                    uid_c = mapa_user_ids.get(titular_c.lower()) or next(iter(mapa_user_ids.values()), 1)
+                    cur.execute("""
+                        INSERT INTO certificates (
+                            folio_cert, user_id, clave_alumno, titular, nivel_cefr,
+                            grado_academico, programa, calificacion, fecha_emision,
+                            firma_hmac, estatus, verify_url
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (folio_cert) DO NOTHING;
+                    """, (
+                        f_cert, uid_c, str(r.get("Clave_Alumno", "")), titular_c,
+                        str(r.get("Nivel_CEFR", "B1")), str(r.get("Grado_Academico", "")),
+                        str(r.get("Programa", "")), str(r.get("Calificacion", "")),
+                        str(r.get("Fecha_Emision", "")), str(r.get("Firma_HMAC", "")),
+                        "Valido" if str(r.get("Estatus", "Valido")).strip().lower() == "valido" else "Revocado",
+                        str(r.get("URL_Verificacion", ""))
+                    ))
+                    resumen["certificados"] += 1
+            except Exception:
+                pass
+            # 5. Migrar Configuración Institucional
+            cfg_actual = load_permanent_logo()
+            if cfg_actual:
+                cur.execute("""
+                    INSERT INTO institute_config (id, logo_base64, mime_type, logo_width, logo_shape, direccion)
+                    VALUES (1, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        logo_base64 = EXCLUDED.logo_base64,
+                        mime_type = EXCLUDED.mime_type,
+                        logo_width = EXCLUDED.logo_width,
+                        logo_shape = EXCLUDED.logo_shape,
+                        direccion = EXCLUDED.direccion,
+                        updated_at = NOW();
+                """, (
+                    cfg_actual.get("Logo_Base64", ""),
+                    cfg_actual.get("Mime_Type", "image/png"),
+                    int(cfg_actual.get("Ancho", 120) or 120),
+                    cfg_actual.get("Forma", "Circular"),
+                    cfg_actual.get("Direccion", institute_address)
+                ))
+                resumen["config"] = 1
+
+        conn.commit()
+    return resumen
+
 
 
 def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
@@ -1740,6 +1924,26 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 st.error(f"Error al guardar información: {e}")
                         else:
                             st.warning("⚠️ La dirección institucional no puede quedar vacía.")
+                            
+
+            if is_owner:
+                st.divider()
+                st.markdown("#### 🐘 Migración a PostgreSQL (Supabase)")
+                if st.button("🚀 Sincronizar y Migrar Todo a Supabase PostgreSQL", type="primary", width="stretch"):
+                    with st.spinner("Migrando permisos, padrón, folios, certificados y configuración a Supabase..."):
+                        try:
+                            stats_mig = migrar_sheets_a_supabase()
+                            st.success(
+                                f"✅ **¡Migración Exitosa a PostgreSQL!**\n\n"
+                                f"- **Perfiles RBAC:** {stats_mig['permisos']}\n"
+                                f"- **Usuarios del Padrón:** {stats_mig['usuarios']}\n"
+                                f"- **Lecciones y Folios:** {stats_mig['folios']}\n"
+                                f"- **Certificados Oficiales:** {stats_mig['certificados']}\n"
+                                f"- **Configuración Institucional:** {stats_mig['config']}"
+                            )
+                        except Exception as e:
+                            st.error(f"❌ Error durante la migración a Supabase: {e}")
+
     st.divider()
 
 # --- 15. EJECUCIÓN DE GENERACIÓN DE LECCIÓN CON IA ---
