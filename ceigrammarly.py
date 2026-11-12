@@ -2082,7 +2082,7 @@ with col_tools_right:
         st.iframe(video_recorder_html, height=320)
 
     st.write("")
-        st.write("")
+    
     if student_audio is not None:
         safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.wav"
         st.download_button(
