@@ -2082,37 +2082,19 @@ with col_tools_right:
         st.iframe(video_recorder_html, height=320)
 
     st.write("")
-    if st.button("☁️ Guardar Audio en Google Sheets", type="primary", width="stretch", disabled=(student_audio is None)):
-        try:
-            with st.spinner("Guardando audio vinculado al Folio..."):
-                sheet = get_google_sheet()
-                audio_b64 = base64.b64encode(student_audio.getvalue()).decode("utf-8")
-                if len(audio_b64) > 45000:
-                    st.error("⚠️ El audio supera el límite de almacenamiento (~14 seg). Graba un fragmento más corto.")
-                else:
-                    folio_act = st.session_state.current_folio
-                    celda_existente = sheet.find(folio_act, in_column=1) if folio_act else None
-                    
-                    if celda_existente:
-                        sheet.update_cell(celda_existente.row, 4, audio_b64)
-                        st.success(f"✅ ¡Audio guardado y vinculado al Folio {folio_act}!")
-                    else:
-                        ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
-                        folio_nuevo = folio_act or f"CEI-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
-                        cefr_short = st.session_state.selected_cefr.split()[0] if st.session_state.selected_cefr else "B1"
-                        tema_completo = (
-                            f"[{cefr_short} | {st.session_state.selected_academic_grade}] {asunto} ({gramatica_b1})"
-                            if asunto.strip() else gramatica_b1
-                        )
-                        fecha_subida = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
-                        base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
-                        link_pdf = f"{base_url}/?folio={urllib.parse.quote(folio_nuevo)}"
-                        
-                        sheet.append_row([folio_nuevo, usuario, tema_completo, audio_b64, fecha_subida, "", 0, link_pdf])
-                        st.session_state.current_folio = folio_nuevo
-                        st.success(f"✅ ¡Audio guardado con Folio {folio_nuevo}!")
-        except Exception as e:
-            st.error(f"Error al guardar audio: {e}")
+        st.write("")
+    if student_audio is not None:
+        safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.wav"
+        st.download_button(
+            label="📥 Descargar Audio Grabado (WAV)",
+            data=student_audio.getvalue(),
+            file_name=safe_rec_name,
+            mime="audio/wav",
+            type="primary",
+            use_container_width=True
+        )
+    else:
+        st.button("📥 Descargar Audio Grabado (WAV)", disabled=True, use_container_width=True)
 
 
     if st.session_state.generated_text:
@@ -2122,22 +2104,22 @@ with col_tools_right:
             user_ans=st.session_state.quiz_user_answers,
             score=st.session_state.quiz_score
         )
-        st.download_button(
-            label=f"📥 Descargar PDF ({st.session_state.current_folio or 'Tiempo Real'})",
-            data=pdf_bytes,
-            file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
-            mime="application/pdf",
-            width="stretch"
-        )
-    else:
-        st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
+        #st.download_button(
+        #    label=f"📥 Descargar PDF ({st.session_state.current_folio or 'Tiempo Real'})",
+       #     data=pdf_bytes,
+         #   file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
+         #   mime="application/pdf",
+        #    width="stretch"
+       ¢ )
+  # else:
+  #     st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
 
-    if st.button("📂 Ver Audios y Folios Guardados", width="stretch"):
+        if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
 
     if st.session_state.show_saved_audios:
-        with st.container(height=260, border=True):
-            st.markdown("**Historial de Folios y Grabaciones:**")
+        with st.container(height=280, border=True):
+            st.markdown("**Historial de Folios y Calificaciones:**")
             try:
                 records = get_google_sheet().get_all_records()
                 if not records:
@@ -2149,11 +2131,17 @@ with col_tools_right:
                     if df.empty:
                         st.warning(f"Sin registros para '{usuario}'.")
                     else:
-                        for _, row in df.tail(5).iloc[::-1].iterrows():
+                        for idx_h, row in df.tail(5).iloc[::-1].iterrows():
+                            st.caption(f"🔖 **{row.get('Folio', 'S/F')}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
+                            st.caption(f"📘 *{row.get('Tema', '')}*")
+                            
                             mejor_nota_row = str(row.get("Mejor_Calificacion_PDF", "")).strip()
                             if mejor_nota_row:
                                 st.caption(f"🏆 **Mejor Calificación Registrada:** `{mejor_nota_row}`")
-                            
+
+                            if row.get("PDF_Link"):
+                                st.markdown(f"🔗 [Abrir Lección por Folio]({row['PDF_Link']})")
+
                             raw_j = str(row.get("Contenido_JSON", "")).strip()
                             if raw_j:
                                 try:
@@ -2171,12 +2159,11 @@ with col_tools_right:
                                             data=pdf_hist_bytes,
                                             file_name=f"{row.get('Folio', 'CEI')}_Calificado.pdf",
                                             mime="application/pdf",
-                                            key=f"dl_hist_{row.get('Folio', '')}_{_}",
+                                            key=f"dl_hist_{row.get('Folio', '')}_{idx_h}",
                                             width="stretch"
                                         )
                                 except Exception:
                                     pass
-
                             st.divider()
             except Exception as e:
                 st.error(f"Error al cargar historial: {e}")
