@@ -309,8 +309,11 @@ def load_permissions_matrix() -> dict:
 
 @st.cache_data(ttl=15, show_spinner=False)
 def load_padron_records() -> list[dict]:
-    """Carga el padrón desde PostgreSQL; si aún está vacío o sin conexión, lee directo de Google Sheets."""
+    """Carga el padrón desde PostgreSQL o Google Sheets con diagnóstico claro en sesión."""
     from psycopg.rows import dict_row
+    st.session_state["db_auth_diag"] = ""
+    
+    # 1. Intentar PostgreSQL (Supabase)
     try:
         conn = get_pg_conn()
         if conn:
@@ -332,15 +335,23 @@ def load_padron_records() -> list[dict]:
                             }
                             for r in rows
                         ]
-    except Exception:
-        pass
+                    else:
+                        st.session_state["db_auth_diag"] += "Supabase: tabla users_padron vacía. "
+    except Exception as e_pg:
+        st.session_state["db_auth_diag"] += f"Supabase Error: {e_pg} | "
 
-    # Respaldo directo en Google Sheets (sin caché vacía)
+    # 2. Intentar Google Sheets (Respaldo)
     try:
         ws_pad = get_google_workbook().worksheet("Padron")
-        return ws_pad.get_all_records()
-    except Exception:
-        return []
+        recs = ws_pad.get_all_records()
+        if recs:
+            return recs
+        st.session_state["db_auth_diag"] += "Google Sheets: pestaña Padron vacía."
+    except Exception as e_gs:
+        st.session_state["db_auth_diag"] += f"Google Sheets Error: {e_gs}"
+
+    return []
+
 
 
     # Respaldo automático en Google Sheets mientras se completa la migración a Supabase
@@ -1377,12 +1388,31 @@ if not st.session_state.authenticated:
                                     usuario_encontrado = reg
                                     break
                             
+                            # Respaldo de acceso maestro del Propietario desde Secrets
+                            if usuario_encontrado is None:
+                                m_user = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
+                                m_key = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
+                                if m_user and m_key and usuario_in.strip().lower() == m_user.lower() and clave_in.strip() == m_key:
+                                    usuario_encontrado = {
+                                        "Usuario": m_user,
+                                        "Clave": m_key,
+                                        "Rol": "Propietario",
+                                        "Permisos": "Total",
+                                        "Nivel": "C2",
+                                        "Grado_Academico": "Doctorado / Posgrado",
+                                        "Estatus": "Activo"
+                                    }
+
                             if usuario_encontrado is None:
                                 st.toast("Acceso denegado: credenciales incorrectas.", icon="🚨")
                                 st.error(
                                     "🚨 **Credenciales Incorrectas:** El **Usuario** o la **Clave de Acceso** no coinciden con nuestros registros.\n\n"
                                     "Verifica que no tengas activado el bloqueo de mayúsculas o solicita asistencia a tu Teacher / Administrador."
                                 )
+                                if st.session_state.get("db_auth_diag"):
+                                    st.caption(f"🔍 Diagnóstico de conexión: {st.session_state['db_auth_diag']}")
+
+                                
                             else:
                                 e_db = str(usuario_encontrado.get("Estatus", "Activo")).strip().lower()
                                 if e_db != "activo":
