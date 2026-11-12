@@ -2132,7 +2132,7 @@ with col_tools_right:
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
 
     if st.session_state.show_saved_audios:
-        with st.container(height=280, border=True):
+        with st.container(height=340, border=True):
             st.markdown("**Historial de Folios y Calificaciones:**")
             try:
                 records = get_google_sheet().get_all_records()
@@ -2140,12 +2140,35 @@ with col_tools_right:
                     st.info("Aún no hay registros guardados.")
                 else:
                     df = pd.DataFrame(records)
-                    if not has_faculty_access:
-                        df = df[df["Usuario"].astype(str).str.lower() == usuario.lower()]
-                    if df.empty:
-                        st.warning(f"Sin registros para '{usuario}'.")
+                    
+                    # Selector de inscritos exclusivo para Docentes / Administradores
+                    if has_faculty_access:
+                        padron_regs = load_padron_records()
+                        inscritos_padron = [
+                            str(r.get("Usuario", "")).strip()
+                            for r in padron_regs if str(r.get("Usuario", "")).strip()
+                        ]
+                        usuarios_en_folios = [
+                            str(u).strip() for u in df["Usuario"].dropna().unique().tolist() if str(u).strip()
+                        ]
+                        lista_inscritos = sorted(list(set(inscritos_padron + usuarios_en_folios)))
+                        
+                        alumno_filtro = st.selectbox(
+                            "👤 Filtrar por Estudiante / Inscrito:",
+                            ["Todos los inscritos"] + lista_inscritos,
+                            key="sel_filtro_inscrito_historial"
+                        )
+                        if alumno_filtro != "Todos los inscritos":
+                            df = df[df["Usuario"].astype(str).str.strip().str.lower() == alumno_filtro.lower()]
                     else:
-                        for idx_h, row in df.tail(5).iloc[::-1].iterrows():
+                        df = df[df["Usuario"].astype(str).str.strip().str.lower() == usuario.strip().lower()]
+
+                    if df.empty:
+                        st.warning("No se encontraron folios registrados para este usuario.")
+                    else:
+                        # Muestra los últimos 10 registros si filtró un alumno específico, o los 5 más recientes si ve todos
+                        limite_ver = 10 if (has_faculty_access and alumno_filtro != "Todos los inscritos") else 5
+                        for idx_h, row in df.tail(limite_ver).iloc[::-1].iterrows():
                             st.caption(f"🔖 **{row.get('Folio', 'S/F')}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
                             st.caption(f"📘 *{row.get('Tema', '')}*")
                             
@@ -2171,7 +2194,7 @@ with col_tools_right:
                                         st.download_button(
                                             label=f"📄 Descargar PDF Calificado ({paq_hist.get('best_score')})",
                                             data=pdf_hist_bytes,
-                                            file_name=f"{row.get('Folio', 'CEI')}_Calificado.pdf",
+                                            file_name=f"{row.get('Folio', 'CEI')}_{str(row.get('Usuario', 'Alumno')).replace(' ', '_')}.pdf",
                                             mime="application/pdf",
                                             key=f"dl_hist_{row.get('Folio', '')}_{idx_h}",
                                             width="stretch"
