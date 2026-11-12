@@ -518,7 +518,7 @@ def save_best_quiz_result_to_sheet(folio: str, new_score_str: str, quiz_items, u
         )
         return False, msg, prev_best_str
 
-    
+ 
 # --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
 try:
     user_agent = st.context.headers.get("User-Agent", "").lower()
@@ -534,6 +534,84 @@ CEFR_MAP = {
     "C1": "C1 (Advanced)",
     "C2": "C2 (Proficiency)"
 }
+
+def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
+    """Evalúa acústica, fonética y gramaticalmente la grabación oral del estudiante usando Gemini multimodal."""
+    client = init_gemini_client()
+    prompt_eval = f"""
+    You are a Senior Phonetics & Applied Linguistics Examiner at CAREER ENGLISH INSTITUTE.
+    Listen carefully to the student's audio recording reading or practicing the lesson below.
+    Calibrate your grading strictly to CEFR Level: {nivel_cefr} and Academic Level: {grado_acad}.
+    Target Grammar Focus: {gramatica_obj}.
+
+    REFERENCE LESSON TEXT:
+    {texto_objetivo[:3000]}
+
+    Analyze the student's oral performance and return ONLY a valid JSON object with this exact schema:
+    {{
+        "score_percent": 85,
+        "cefr_performance": "Meets B1 Standard",
+        "transcription": "Exact transcription of what the student actually said...",
+        "phonetic_feedback": "Specific feedback on vowel/consonant articulation, word stress, and mispronounced words (with IPA hints where helpful).",
+        "fluency_prosody": "Evaluation of pacing, rhythm, intonation, and natural phrasing.",
+        "grammar_accuracy": "Evaluation of how accurately the target grammar structures were produced orally.",
+        "actionable_tips": [
+            "Tip 1 in clear Spanish/English for immediate improvement",
+            "Tip 2 for practicing difficult words"
+        ]
+    }}
+    Note: Write 'phonetic_feedback', 'fluency_prosody', 'grammar_accuracy', and 'actionable_tips' in clear, encouraging Spanish (keeping English example words and IPA symbols in English) so the student understands every correction clearly.
+    """
+
+    modelos_audio = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-2.5-pro"]
+    ultimo_err = None
+    for mod in modelos_audio:
+        try:
+            resp = client.models.generate_content(
+                model=mod,
+                contents=[
+                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                    prompt_eval
+                ],
+                config=types.GenerateContentConfig(
+                    temperature=0.2,
+                    response_mime_type="application/json"
+                )
+            )
+            if resp and resp.text:
+                cleaned = resp.text.strip()
+                if cleaned.startswith("```"):
+                    cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
+                return json.loads(cleaned)
+        except Exception as e:
+            ultimo_err = e
+            continue
+    raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_err}")
+
+
+def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
+    """Guarda en Google Sheets la calificación más alta de pronunciación obtenida en el Folio."""
+    if not folio:
+        return
+    try:
+        s1 = get_google_sheet()
+        celda_f = s1.find(str(folio).strip().upper(), in_column=1)
+        if not celda_f:
+            return
+        headers = s1.row_values(1)
+        if "Mejor_Speaking_Nota" not in headers:
+            col_spk = len(headers) + 1
+            s1.update_cell(1, col_spk, "Mejor_Speaking_Nota")
+        else:
+            col_spk = headers.index("Mejor_Speaking_Nota") + 1
+
+        prev_val = str(s1.cell(celda_f.row, col_spk).value or "").strip()
+        prev_num = _extract_numeric_score(prev_val)
+        if prev_num < 0 or float(new_score_pct) > prev_num:
+            s1.update_cell(celda_f.row, col_spk, f"{new_score_pct}%")
+    except Exception:
+        pass
+
 
 def normalize_cefr(raw_val):
     code = str(raw_val).strip().upper()[:2]
@@ -2114,6 +2192,42 @@ with col_tools_right:
         )
     else:
         st.button("📥 Descargar Audio Grabado (MP3)", disabled=True, width="stretch")
+
+    if student_audio is not None:
+        if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
+            if not st.session_state.generated_text:
+                st.warning("⚠️ Primero genera o carga una lección para comparar tu lectura.")
+            else:
+                with st.spinner("🎙️ Analizando fonética, entonación y gramática oral..."):
+                    try:
+                        eval_res = evaluar_pronunciacion_ia(
+                            audio_bytes=student_audio.getvalue(),
+                            mime_type="audio/wav",
+                            texto_objetivo=st.session_state.generated_text,
+                            gramatica_obj=gramatica_b1,
+                            nivel_cefr=st.session_state.selected_cefr,
+                            grado_acad=st.session_state.selected_academic_grade
+                        )
+                        st.session_state["speaking_eval_result"] = eval_res
+                        if st.session_state.current_folio and "score_percent" in eval_res:
+                            save_best_speaking_to_sheet(st.session_state.current_folio, int(eval_res["score_percent"]))
+                    except Exception as e:
+                        st.error(f"Error en evaluación oral: {e}")
+
+    if st.session_state.get("speaking_eval_result"):
+        ev = st.session_state["speaking_eval_result"]
+        with st.container(border=True):
+            st.markdown(f"#### 🎯 Evaluación Oral: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
+            st.caption(f"🗣️ **Transcripción detectada:** *\"{ev.get('transcription', '')}\"*")
+            st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
+            st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
+            st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
+            tips = ev.get("actionable_tips", [])
+            if tips:
+                st.markdown("**💡 Recomendaciones de Mejora:**")
+                for t in tips:
+                    st.markdown(f"- {t}")
+
 
     if st.session_state.generated_text:
         pdf_bytes = create_lesson_pdf(
