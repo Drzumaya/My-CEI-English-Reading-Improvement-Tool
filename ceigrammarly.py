@@ -2264,7 +2264,19 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 type="primary",
                                 width="stretch"
                             )
+                    st.divider()
+                    st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
+                    certs_hist = load_certificates_pg()
 
+                    if not certs_hist:
+                        st.info("ℹ️ Aún no hay certificados guardados en la tabla `certificates` de Supabase.")
+                    else:
+                        df_certs = pd.DataFrame(certs_hist)
+                        cols_c_ver = [
+                            c for c in ["Folio_Certificado", "Clave_Alumno", "Nombre_Estudiante", "Nivel_CEFR", "Fecha_Emision", "Estatus"]
+                            if c in df_certs.columns
+                        ]
+                        st.dataframe(df_certs[cols_c_ver], height=160, width="stretch", hide_index=True)
                         st.markdown("##### 🖨️ Reimprimir o Descargar Certificado Emitido")
                         c_imp1, c_imp2 = st.columns([2.2, 1.3])
                         with c_imp1:
