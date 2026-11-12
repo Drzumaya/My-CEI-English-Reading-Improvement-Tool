@@ -271,7 +271,7 @@ def load_permanent_logo():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_permissions_matrix() -> dict:
-    """Carga la matriz RBAC desde PostgreSQL como diccionario limpio."""
+    """Carga la matriz RBAC desde PostgreSQL (Supabase)."""
     from psycopg.rows import dict_row
     try:
         conn = get_pg_conn()
@@ -284,7 +284,14 @@ def load_permissions_matrix() -> dict:
                         matrix = {}
                         for r in rows:
                             prof = str(r.get("profile_name", "")).strip()
-                            if prof:
+                            if not prof:
+                                continue
+                            caps_j = r.get("capabilities_json")
+                            if isinstance(caps_j, str):
+                                caps_j = json.loads(caps_j)
+                            if isinstance(caps_j, dict) and caps_j:
+                                matrix[prof] = {k: bool(v) for k, v in caps_j.items()}
+                            else:
                                 matrix[prof] = {
                                     "Generar_Leccion": bool(r.get("generar_leccion", True)),
                                     "Resolver_Quiz": bool(r.get("resolver_quiz", True)),
@@ -297,6 +304,8 @@ def load_permissions_matrix() -> dict:
                             return matrix
     except Exception:
         pass
+    return DEFAULT_PERMISSIONS_MATRIX.copy() if isinstance(DEFAULT_PERMISSIONS_MATRIX, dict) else {}
+
     if isinstance(DEFAULT_PERMISSIONS_MATRIX, dict):
         return DEFAULT_PERMISSIONS_MATRIX.copy()
     return {
@@ -888,6 +897,38 @@ def upsert_user_padron_pg(usuario: str, clave: str, rol: str, grado: str, nivel:
             ))
     load_padron_records.clear()
 
+def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
+    """Guarda o actualiza un perfil de permisos RBAC directamente en Supabase PostgreSQL."""
+    conn = get_pg_conn()
+    if not conn:
+        raise RuntimeError("Sin conexión activa a PostgreSQL.")
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO roles_permissions (
+                    profile_name, generar_leccion, resolver_quiz, grabar_audio,
+                    emitir_certificados, gestionar_usuarios, editar_instituto_logo, capabilities_json
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
+                ON CONFLICT (profile_name) DO UPDATE SET
+                    generar_leccion = EXCLUDED.generar_leccion,
+                    resolver_quiz = EXCLUDED.resolver_quiz,
+                    grabar_audio = EXCLUDED.grabar_audio,
+                    emitir_certificados = EXCLUDED.emitir_certificados,
+                    gestionar_usuarios = EXCLUDED.gestionar_usuarios,
+                    editar_instituto_logo = EXCLUDED.editar_instituto_logo,
+                    capabilities_json = EXCLUDED.capabilities_json,
+                    updated_at = NOW();
+            """, (
+                perfil_name.strip(),
+                bool(caps_dict.get("Generar_Leccion", True)),
+                bool(caps_dict.get("Resolver_Quiz", True)),
+                bool(caps_dict.get("Grabar_Audio", True)),
+                bool(caps_dict.get("Emitir_Certificados", False)),
+                bool(caps_dict.get("Registrar_Usuarios", caps_dict.get("Gestionar_Usuarios", False))),
+                bool(caps_dict.get("Editar_Instituto_Logo", False)),
+                json.dumps(caps_dict)
+            ))
+    load_permissions_matrix.clear()
 
  
 # --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
@@ -2055,12 +2096,12 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                         st.rerun()
                 except Exception as e:
                     st.error(f"Error en módulo de certificados: {e}")
-                # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
+        # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
         with tab_reg_usuarios:
-            if not can("Registrar_Usuarios"):
+            if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
             else:
-                permisos_disponibles = PERMISOS_LISTA if can("Editar_Permisos") else ["Basico"]
+                permisos_disponibles = PERMISOS_LISTA if (is_owner or can("Editar_Permisos")) else ["Basico"]
                 default_perm_idx = permisos_disponibles.index("Basico") if "Basico" in permisos_disponibles else 0
                 
                 col_form_reg, col_tabla_reg = st.columns([1.2, 2.0])
@@ -2170,7 +2211,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                     except Exception as e:
                         st.error(f"Error al cargar padrón: {e}")
 
-        # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
+               # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
@@ -2179,7 +2220,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
             ])
             st.dataframe(df_mat, width="stretch", hide_index=True)
 
-            if can("Editar_Permisos"):
+            if is_owner or can("Editar_Permisos"):
                 with st.form("form_nuevo_perfil_permiso", clear_on_submit=True):
                     st.markdown("**➕ Crear o Actualizar Perfil de Permisos:**")
                     nombre_perfil = st.text_input(
@@ -2192,7 +2233,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                         with cols_chk[i % 4]:
                             checks_vals[cap] = st.checkbox(cap.replace("_", " "), value=False, key=f"chk_{cap}")
                     
-                    if st.form_submit_button("💾 Guardar Perfil en Matriz Global", type="primary"):
+                    if st.form_submit_button("💾 Guardar Perfil en Supabase", type="primary"):
                         perfil_limpio = nombre_perfil.strip()
                         if perfil_limpio:
                             if perfil_limpio.lower() == "total" and (
@@ -2201,28 +2242,14 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 st.error("⛔ Por seguridad, el perfil 'Total' debe conservar 'Ver Panel Admin' y 'Editar Permisos'.")
                             else:
                                 try:
-                                    m_sheet = get_permisos_sheet()
-                                    fila_nueva = [perfil_limpio] + [("SI" if checks_vals[c] else "NO") for c in CAPABILITY_COLS]
-                                    registros_m = m_sheet.col_values(1)
-                                    fila_encontrada = next(
-                                        (idx for idx, val in enumerate(registros_m, start=1) if val.strip().lower() == perfil_limpio.lower()),
-                                        None
-                                    )
-                                    if fila_encontrada and fila_encontrada > 1:
-                                        end_col = chr(64 + len(fila_nueva))
-                                        m_sheet.update(
-                                            range_name=f"A{fila_encontrada}:{end_col}{fila_encontrada}",
-                                            values=[fila_nueva]
-                                        )
-                                    else:
-                                        m_sheet.append_row(fila_nueva)
-                                    load_permissions_matrix.clear()
-                                    st.success(f"✅ Perfil '{perfil_limpio}' guardado correctamente.")
+                                    upsert_permission_profile_pg(perfil_limpio, checks_vals)
+                                    st.success(f"✅ Perfil '{perfil_limpio}' guardado correctamente en Supabase.")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Error al guardar perfil: {e}")
+                                    st.error(f"Error al guardar perfil en Supabase: {e}")
                         else:
                             st.warning("⚠️ Escribe un nombre para el perfil.")
+
 
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
         with tab_datos_inst:
