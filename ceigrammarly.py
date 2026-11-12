@@ -2190,7 +2190,24 @@ with col_tools_right:
             type="primary",
             width="stretch"
         )
-    if student_audio is not None:
+
+    if st.session_state.generated_text:
+        pdf_bytes = create_lesson_pdf(
+            st.session_state.generated_text.replace("*", ""),
+            quiz_items=st.session_state.quiz_data,
+            user_ans=st.session_state.quiz_user_answers,
+            score=st.session_state.quiz_score
+        )
+        #st.download_button(
+        #    label=f"📥 Descargar PDF ({st.session_state.current_folio or 'Tiempo Real'})",
+       #     data=pdf_bytes,
+         #   file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
+         #   mime="application/pdf",
+        #    width="stretch"
+       # )
+  # else:
+  #     st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
+      if student_audio is not None:
         if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
             if not st.session_state.generated_text:
                 st.warning("⚠️ Primero genera o carga una lección para comparar tu lectura.")
@@ -2225,23 +2242,6 @@ with col_tools_right:
                 for t in tips:
                     st.markdown(f"- {t}")
 
-
-    if st.session_state.generated_text:
-        pdf_bytes = create_lesson_pdf(
-            st.session_state.generated_text.replace("*", ""),
-            quiz_items=st.session_state.quiz_data,
-            user_ans=st.session_state.quiz_user_answers,
-            score=st.session_state.quiz_score
-        )
-        #st.download_button(
-        #    label=f"📥 Descargar PDF ({st.session_state.current_folio or 'Tiempo Real'})",
-       #     data=pdf_bytes,
-         #   file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
-         #   mime="application/pdf",
-        #    width="stretch"
-       # )
-  # else:
-  #     st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
 
     if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
