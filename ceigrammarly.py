@@ -1608,6 +1608,7 @@ def generar_pdf_certificado(
 ) -> bytes:
     """Genera el Certificado Oficial en formato Carta horizontal (Letter Landscape) con timbre HMAC-SHA256 y QR."""
     import qrcode
+    from fpdf.enums import XPos, YPos
 
     # Tamaño Carta horizontal: 279.4 mm x 215.9 mm
     pdf = FPDF(orientation="L", unit="mm", format="Letter")
