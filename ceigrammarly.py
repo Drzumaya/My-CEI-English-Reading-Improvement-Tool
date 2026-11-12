@@ -2114,7 +2114,7 @@ with col_tools_right:
   # else:
   #     st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
 
-        if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
+    if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
 
     if st.session_state.show_saved_audios:
