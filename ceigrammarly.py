@@ -1392,7 +1392,7 @@ if not st.session_state.authenticated:
                             if usuario_encontrado is None:
                                 m_user = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
                                 m_key = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
-                                if m_user and m_key and usuario_in.strip().lower() == m_user.lower() and clave_in.strip() == m_key:
+                                if m_user and m_key and input_user.strip().lower() == m_user.lower() and input_pass.strip() == m_key:
                                     usuario_encontrado = {
                                         "Usuario": m_user,
                                         "Clave": m_key,
