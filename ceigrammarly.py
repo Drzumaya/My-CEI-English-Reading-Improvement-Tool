@@ -122,28 +122,10 @@ def get_permisos_sheet():
             ws.append_row(fila_sheets)
         return ws
 
-@st.cache_data(ttl=120)
-def load_permissions_matrix():
-    try:
-        records = get_permisos_sheet().get_all_records()
-        matrix = {}
-        for r in records:
-            perfil = str(r.get("Perfil_Permiso", "")).strip()
-            if perfil:
-                matrix[perfil] = {
-                    cap: (str(r.get(cap, "NO")).strip().upper() in ["SI", "TRUE"])
-                    for cap in CAPABILITY_COLS
-                }
-        if matrix:
-            return matrix
-    except Exception:
-        pass
-    return {
-        row[0]: {cap: (row[i + 1] is True or str(row[i + 1]).upper() == "SI") for i, cap in enumerate(CAPABILITY_COLS)}
-        for row in DEFAULT_PERMISSIONS_MATRIX
-    }
 
 def resolve_permission_profile(raw_perm, raw_role, matrix_dict):
+    if not matrix_dict or not isinstance(matrix_dict, dict):
+        return "Total" if str(raw_role or "").strip().lower() in ["propietario", "administrador", "admin"] else "Basico"
     p = str(raw_perm or "").strip()
     for k in matrix_dict.keys():
         if k.lower() == p.lower():
@@ -151,9 +133,13 @@ def resolve_permission_profile(raw_perm, raw_role, matrix_dict):
     r = str(raw_role or "").strip().lower()
     if r in ["propietario", "administrador", "admin"] and "Total" in matrix_dict:
         return "Total"
-    if r == "teacher" and "Academico" in matrix_dict:
-        return "Academico"
-    return "Basico" if "Basico" in matrix_dict else list(matrix_dict.keys())[-1]
+    if r in ["teacher", "docente"]:
+        if "Academico" in matrix_dict:
+            return "Academico"
+        if "Docente" in matrix_dict:
+            return "Docente"
+    return "Basico" if "Basico" in matrix_dict else next(iter(matrix_dict.keys()), "Basico")
+
 
 # --- 4. COMPRESIÓN Y GESTIÓN DE IMÁGENES ---
 def compress_bytes_image(raw_bytes, max_size=(640, 400), quality=75):
@@ -271,8 +257,23 @@ def load_permanent_logo():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_permissions_matrix() -> dict:
-    """Carga la matriz RBAC desde PostgreSQL (Supabase)."""
+    """Carga la matriz RBAC desde PostgreSQL (Supabase) con respaldo seguro."""
     from psycopg.rows import dict_row
+    fallback_matrix = {
+        "Total": {c: True for c in CAPABILITY_COLS},
+        "Docente": {
+            "Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True,
+            "Emitir_Certificados": True, "Revocar_Certificados": True,
+            "Registrar_Usuarios": True, "Gestionar_Usuarios": True,
+            "Ver_Panel_Admin": True, "Editar_Permisos": False, "Editar_Instituto_Logo": False
+        },
+        "Basico": {
+            "Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True,
+            "Emitir_Certificados": False, "Revocar_Certificados": False,
+            "Registrar_Usuarios": False, "Gestionar_Usuarios": False,
+            "Ver_Panel_Admin": False, "Editar_Permisos": False, "Editar_Instituto_Logo": False
+        }
+    }
     try:
         conn = get_pg_conn()
         if conn:
@@ -297,14 +298,19 @@ def load_permissions_matrix() -> dict:
                                     "Resolver_Quiz": bool(r.get("resolver_quiz", True)),
                                     "Grabar_Audio": bool(r.get("grabar_audio", True)),
                                     "Emitir_Certificados": bool(r.get("emitir_certificados", False)),
+                                    "Revocar_Certificados": bool(r.get("emitir_certificados", False)),
+                                    "Registrar_Usuarios": bool(r.get("gestionar_usuarios", False)),
                                     "Gestionar_Usuarios": bool(r.get("gestionar_usuarios", False)),
+                                    "Ver_Panel_Admin": bool(r.get("gestionar_usuarios", False)),
+                                    "Editar_Permisos": bool(r.get("editar_instituto_logo", False)),
                                     "Editar_Instituto_Logo": bool(r.get("editar_instituto_logo", False))
                                 }
                         if matrix:
                             return matrix
     except Exception:
         pass
-    return DEFAULT_PERMISSIONS_MATRIX.copy() if isinstance(DEFAULT_PERMISSIONS_MATRIX, dict) else {}
+    return fallback_matrix
+
 
     if isinstance(DEFAULT_PERMISSIONS_MATRIX, dict):
         return DEFAULT_PERMISSIONS_MATRIX.copy()
