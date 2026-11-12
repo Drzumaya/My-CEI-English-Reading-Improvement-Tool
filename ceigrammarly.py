@@ -2324,7 +2324,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 )
 
         # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
-          with tab_reg_usuarios:
+        with tab_reg_usuarios:
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
             else:
@@ -2437,9 +2437,6 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     st.error(f"Error al actualizar en Supabase: {e}")
                                 except Exception as e:
                                     st.error(f"Error en módulo de certificados: {e}")
-
-        # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
-        with tab_reg_usuarios:
         
                # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
