@@ -1788,12 +1788,17 @@ def generar_pdf_certificado(
     pdf.set_text_color(70, 75, 85)
     pdf.multi_cell(210, 3.2, clean_pdf_text(f"ORIGINAL STRING: {cadena_original}\nHMAC-SHA256 DIGITAL SIGNATURE: {sello_hmac}"))
 
-    pdf.set_xy(49, 182)
-    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_xy(49, 179)
+    pdf.set_font("Helvetica", "I", 6.8)
     pdf.set_text_color(100, 105, 115)
-    pdf.cell(0, 4, clean_pdf_text(f"Scan QR code or visit {verify_link} to verify authenticity. | {direccion_inst}"))
+    pdf.multi_cell(
+        212,
+        3.2,
+        clean_pdf_text(f"Scan QR code or visit {verify_link} to verify authenticity.\n{direccion_inst}")
+    )
 
     return bytes(pdf.output())
+
 
 # --- 9. MOTOR DE IA MULTIMODAL ---
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
@@ -2262,9 +2267,9 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
             "🏛️ Datos del Instituto"
         ])
 
-        # 14.1 PESTAÑA CERTIFICADOS
+               # 14.1 PESTAÑA CERTIFICADOS
         with tab_certificados:
-            if not can("Emitir_Certificados"):
+            if not (is_owner or can("Emitir_Certificados")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
             else:
                 st.markdown("#### 🏅 Emisión Oficial de Certificados con Firma Criptográfica (HMAC-SHA256) y Sello QR")
@@ -2307,17 +2312,24 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 key="cert_grade_input"
                             )
                             if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", width="stretch"):
-                                with st.spinner("Generando timbrado criptográfico HMAC-SHA256 y sello QR..."):
+                                with st.spinner("Generando timbrado criptográfico HMAC-SHA256 y guardando en Supabase..."):
                                     ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
                                     folio_c = f"CERT-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
                                     fecha_c = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
                                     
                                     cadena_o, sello_h = generar_sello_digital(folio_c, clave_sel, nombre_sel, nivel_sel, fecha_c)
                                     
-                                    get_certificados_sheet().append_row([
-                                        folio_c, clave_sel, nombre_sel, nivel_sel,
-                                        programa_cert.strip(), calif_cert.strip(), fecha_c, sello_h, "Vigente"
-                                    ])
+                                    insert_certificate_pg(
+                                        folio_c=folio_c,
+                                        clave_sel=clave_sel,
+                                        nombre_sel=nombre_sel,
+                                        nivel_sel=nivel_sel,
+                                        grado_sel=grado_sel,
+                                        programa_c=programa_cert.strip(),
+                                        calif_c=calif_cert.strip(),
+                                        fecha_c=fecha_c,
+                                        sello_h=sello_h
+                                    )
                                     pdf_cert_bytes = generar_pdf_certificado(
                                         folio_c, clave_sel, nombre_sel, nivel_sel,
                                         programa_cert.strip(), calif_cert.strip(), fecha_c,
@@ -2326,17 +2338,46 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     st.session_state["last_cert_pdf"] = pdf_cert_bytes
                                     st.session_state["last_cert_name"] = f"Certificado_{folio_c}_{nombre_sel.replace(' ', '_')}.pdf"
                                     st.session_state["last_cert_folio"] = folio_c
-                                    st.success(f"✅ ¡Certificado timbrado! Folio: **{folio_c}**")
+                                    st.success(f"✅ ¡Certificado timbrado y guardado en Supabase! Folio: **{folio_c}**")
+                                    st.rerun()
 
                         if st.session_state.get("last_cert_pdf"):
-                            st.download_button(
-                                label=f"📥 Descargar Certificado Oficial Timbrado ({st.session_state['last_cert_folio']})",
-                                data=st.session_state["last_cert_pdf"],
-                                file_name=st.session_state["last_cert_name"],
-                                mime="application/pdf",
-                                type="primary",
-                                width="stretch"
+                            f_actual = st.session_state["last_cert_folio"]
+                            base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
+                            link_cert_directo = f"{base_url}/?verify={urllib.parse.quote(f_actual)}"
+
+                            st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
+                            b64_preview = base64.b64encode(st.session_state["last_cert_pdf"]).decode("utf-8")
+                            st.markdown(
+                                f'<iframe src="data:application/pdf;base64,{b64_preview}#toolbar=1" '
+                                f'width="100%" height="520" style="border: 2px solid #1a2a44; border-radius: 8px;"></iframe>',
+                                unsafe_allow_html=True
                             )
+
+                            col_b1, col_b2, col_b3 = st.columns([1.3, 1.4, 1.0])
+                            with col_b1:
+                                st.download_button(
+                                    label="📥 Descargar PDF",
+                                    data=st.session_state["last_cert_pdf"],
+                                    file_name=st.session_state["last_cert_name"],
+                                    mime="application/pdf",
+                                    type="primary",
+                                    width="stretch",
+                                    key="btn_dl_cert_preview"
+                                )
+                            with col_b2:
+                                if st.button("🔗 Guardar Link en Base de Datos", width="stretch", key="btn_save_link_cert"):
+                                    try:
+                                        update_certificate_link_pg(f_actual, link_cert_directo)
+                                        st.success(f"✅ Enlace guardado en Supabase: `{link_cert_directo}`")
+                                    except Exception as e_lk:
+                                        st.error(f"Error al guardar enlace: {e_lk}")
+                            with col_b3:
+                                if st.button("✖️ Cerrar Ventana", width="stretch", key="btn_close_cert_preview"):
+                                    st.session_state["last_cert_pdf"] = None
+                                    st.session_state["last_cert_folio"] = None
+                                    st.session_state["last_cert_name"] = None
+                                    st.rerun()
                     st.divider()
                     st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
                     certs_hist = load_certificates_pg()
@@ -2350,6 +2391,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             if c in df_certs.columns
                         ]
                         st.dataframe(df_certs[cols_c_ver], height=160, width="stretch", hide_index=True)
+
                         st.markdown("##### 🖨️ Reimprimir o Descargar Certificado Emitido")
                         c_imp1, c_imp2 = st.columns([2.2, 1.3])
                         with c_imp1:
@@ -2364,7 +2406,7 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             )
                         with c_imp2:
                             st.write("")
-                            if st.button("📄 Preparar PDF para Imprimir / Descargar", width="stretch", key="btn_prep_reimp"):
+                            if st.button("👁️ Cargar Vista Previa / Descargar", width="stretch", key="btn_prep_reimp"):
                                 c_obj = opciones_reimp[sel_reimp_label]
                                 f_rep = str(c_obj.get("Folio_Certificado", "")).strip()
                                 cl_rep = str(c_obj.get("Clave_Alumno", "")).strip()
@@ -2377,38 +2419,35 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                 cad_rep, sello_calc = generar_sello_digital(f_rep, cl_rep, nom_rep, niv_rep, fec_rep)
                                 sello_final = str(c_obj.get("Firma_HMAC", "")).strip() or sello_calc
 
-                                pdf_reimp_bytes = generar_pdf_certificado(
+                                st.session_state["last_cert_pdf"] = generar_pdf_certificado(
                                     f_rep, cl_rep, nom_rep, niv_rep,
                                     prog_rep, cal_rep, fec_rep,
                                     cad_rep, sello_final, institute_address
                                 )
-                                st.session_state["reimp_cert_bytes"] = pdf_reimp_bytes
-                                st.session_state["reimp_cert_folio"] = f_rep
-                                st.session_state["reimp_cert_file"] = f"Certificado_{f_rep}_{nom_rep.replace(' ', '_')}.pdf"
+                                st.session_state["last_cert_folio"] = f_rep
+                                st.session_state["last_cert_name"] = f"Certificado_{f_rep}_{nom_rep.replace(' ', '_')}.pdf"
+                                st.rerun()
 
-                        if st.session_state.get("reimp_cert_bytes"):
-                            col_dl1, col_dl2 = st.columns(2)
-                            with col_dl1:
-                                st.download_button(
-                                    label=f"📥 Descargar PDF Carta ({st.session_state['reimp_cert_folio']})",
-                                    data=st.session_state["reimp_cert_bytes"],
-                                    file_name=st.session_state["reimp_cert_file"],
-                                    mime="application/pdf",
-                                    type="primary",
-                                    width="stretch",
-                                    key="btn_dl_reimp_cert"
+                        if is_owner or can("Revocar_Certificados"):
+                            st.divider()
+                            c_rev1, c_rev2, c_rev3 = st.columns([2, 1.2, 1.2])
+                            with c_rev1:
+                                cert_to_mod = st.selectbox(
+                                    "Seleccionar Folio de Certificado:",
+                                    df_certs["Folio_Certificado"].tolist(),
+                                    key="sel_cert_rev"
                                 )
-                            with col_dl2:
-                                b64_cert = base64.b64encode(st.session_state["reimp_cert_bytes"]).decode("utf-8")
-                                st.markdown(
-                                    f'<a href="data:application/pdf;base64,{b64_cert}" target="_blank" '
-                                    f'style="display:inline-block;width:100%;text-align:center;padding:0.55rem 1rem;'
-                                    f'background-color:#1a2a44;color:#ffffff;text-decoration:none;border-radius:0.5rem;'
-                                    f'font-weight:600;">🖨️ Abrir en Pestaña para Imprimir</a>',
-                                    unsafe_allow_html=True
-                                )
+                            with c_rev2:
+                                nuevo_est_cert = st.selectbox("Estatus:", ["Vigente", "Revocado"], key="sel_est_cert")
+                            with c_rev3:
+                                st.write("")
+                                if st.button("🔄 Aplicar Estatus", width="stretch", key="btn_apply_cert_stat"):
+                                    update_certificate_status_pg(str(cert_to_mod), nuevo_est_cert)
+                                    st.success(f"✅ Certificado {cert_to_mod} actualizado a '{nuevo_est_cert}' en Supabase.")
+                                    st.rerun()
                 except Exception as e:
                     st.error(f"Error en módulo de certificados: {e}")
+
 
         # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
         with tab_reg_usuarios:
