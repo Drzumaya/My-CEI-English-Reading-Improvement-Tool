@@ -552,7 +552,7 @@ DEFAULT_SESSION_STATES = [
     ("current_pdf_link", ""), ("current_creation_date", ""),
     ("show_qr", True), ("url_folio_checked", False),
     ("quiz_audio_bytes", None)
-
+ 
 ]
 
 for key, default in DEFAULT_SESSION_STATES:
