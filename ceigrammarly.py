@@ -2303,8 +2303,7 @@ if generar_btn:
                     texto_gen, None, cefr_level, academic_grade, fecha_creacion
                 )
                 
-                tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto} ({gramatica_b1})"
-                                tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto_apa} ({gramatica_b1})"
+                tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto_apa} ({gramatica_b1})"
                 save_lesson_to_postgres(
                     folio=nuevo_folio,
                     usuario_name=usuario,
