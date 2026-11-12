@@ -1962,7 +1962,7 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
             if not encontrado:
                 st.warning(f"⚠️ No se encontró ningún registro con el Folio `{folio_buscado}` en Hoja 1.")
     except Exception as e:
-        st.error(f"Error al buscar folio: {e}")
+        st.error(f"Error al buscar folio: {e}") 
 
 st.divider()
 # --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
