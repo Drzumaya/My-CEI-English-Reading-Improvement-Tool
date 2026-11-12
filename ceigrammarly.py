@@ -2184,27 +2184,38 @@ with col_tools_right:
                                 st.markdown(f"🔗 [Abrir Lección por Folio]({row['PDF_Link']})")
 
                             raw_j = str(row.get("Contenido_JSON", "")).strip()
+                            folio_item = str(row.get("Folio", "CEI")).strip()
                             if raw_j:
                                 try:
                                     paq_hist = json.loads(raw_j)
                                     if paq_hist.get("best_score"):
-                                        ans_hist = {int(k): v for k, v in paq_hist.get("best_answers", {}).items()}
-                                        pdf_hist_bytes = create_lesson_pdf(
-                                            paq_hist.get("text", "").replace("*", ""),
-                                            quiz_items=paq_hist.get("quiz"),
-                                            user_ans=ans_hist,
-                                            score=paq_hist.get("best_score")
-                                        )
-                                        st.download_button(
-                                            label=f"📄 Descargar PDF Calificado ({paq_hist.get('best_score')})",
-                                            data=pdf_hist_bytes,
-                                            file_name=f"{row.get('Folio', 'CEI')}_{str(row.get('Usuario', 'Alumno')).replace(' ', '_')}.pdf",
-                                            mime="application/pdf",
-                                            key=f"dl_hist_{row.get('Folio', '')}_{idx_h}",
+                                        key_prep = f"prep_pdf_{folio_item}_{idx_h}"
+                                        if st.button(
+                                            f"⚙️ Preparar PDF Calificado ({paq_hist.get('best_score')})",
+                                            key=f"btn_{key_prep}",
                                             width="stretch"
-                                        )
+                                        ):
+                                            ans_hist = {int(k): v for k, v in paq_hist.get("best_answers", {}).items()}
+                                            st.session_state["hist_ready_folio"] = folio_item
+                                            st.session_state["hist_ready_bytes"] = create_lesson_pdf(
+                                                paq_hist.get("text", "").replace("*", ""),
+                                                quiz_items=paq_hist.get("quiz"),
+                                                user_ans=ans_hist,
+                                                score=paq_hist.get("best_score")
+                                            )
+                                        if st.session_state.get("hist_ready_folio") == folio_item and st.session_state.get("hist_ready_bytes"):
+                                            st.download_button(
+                                                label=f"📥 Descargar PDF ({paq_hist.get('best_score')})",
+                                                data=st.session_state["hist_ready_bytes"],
+                                                file_name=f"{folio_item}_{str(row.get('Usuario', 'Alumno')).replace(' ', '_')}.pdf",
+                                                mime="application/pdf",
+                                                type="primary",
+                                                key=f"dl_{key_prep}",
+                                                width="stretch"
+                                            )
                                 except Exception:
                                     pass
+
                             st.divider()
             except Exception as e:
                 st.error(f"Error al cargar historial: {e}")
