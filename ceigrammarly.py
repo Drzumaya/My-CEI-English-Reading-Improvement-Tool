@@ -2435,9 +2435,12 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Error al actualizar en Supabase: {e}")
-                    except Exception as e:
-                        st.error(f"Error al cargar padrón: {e}")
+                                except Exception as e:
+                                    st.error(f"Error en módulo de certificados: {e}")
 
+        # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
+        with tab_reg_usuarios:
+        
                # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
