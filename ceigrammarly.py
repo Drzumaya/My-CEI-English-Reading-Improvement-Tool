@@ -1435,12 +1435,15 @@ if is_faculty_desktop and st.session_state.show_teacher_registry:
                             with c_ed1:
                                 user_to_edit = st.selectbox("Usuario:", df_p["Usuario"].tolist(), key="edit_u_sel")
                             
-                            fila_sel = df_p[df_p["Usuario"] == user_to_edit].iloc
-                            curr_rol = str(fila_sel.get("Rol", ROLES_LISTA)).strip()
-                            curr_grado = str(fila_sel.get("Grado_Academico", GRADOS_ACADEMICOS)).strip()
+                            filas_filtradas = df_p[df_p["Usuario"] == user_to_edit].to_dict(orient="records")
+                            fila_sel = next(iter(filas_filtradas), {})
+
+                            curr_rol = str(fila_sel.get("Rol", next(iter(ROLES_LISTA), "Estudiante"))).strip()
+                            curr_grado = str(fila_sel.get("Grado_Academico", next(iter(GRADOS_ACADEMICOS), "Licenciatura / Universidad"))).strip()
                             curr_lvl = str(fila_sel.get("Nivel", "B1")).strip().upper()[:2]
-                            curr_perm = str(fila_sel.get("Permisos", permisos_disponibles)).strip()
+                            curr_perm = str(fila_sel.get("Permisos", next(iter(permisos_disponibles), "Basico"))).strip()
                             curr_stat = str(fila_sel.get("Estatus", "Activo")).strip()
+
 
                             idx_rol = ROLES_LISTA.index(curr_rol) if curr_rol in ROLES_LISTA else 0
                             idx_grado = GRADOS_ACADEMICOS.index(curr_grado) if curr_grado in GRADOS_ACADEMICOS else 1
