@@ -218,10 +218,10 @@ def save_permanent_config(logo_b64: str, mime_type: str, width: int, shape: str,
 
 @st.cache_resource(show_spinner=False)
 def get_google_workbook():
-    """Conecta con Google Sheets generando un access_token válido para Spreadsheets y Drive."""
+    """Conecta con Google Sheets forzando el endpoint oficial OAuth2."""
     from google.oauth2 import service_account
     creds_dict = dict(st.secrets["gcp_service_account"])
-    # Asegura que los saltos de línea de la llave privada estén limpios
+    creds_dict["token_uri"] = "https://googleapis.com"
     if "private_key" in creds_dict:
         creds_dict["private_key"] = str(creds_dict["private_key"]).replace("\\n", "\n")
 
@@ -238,6 +238,7 @@ def get_google_workbook():
         return gc.open_by_url(sheet_url)
     sheet_name = str(st.secrets.get("GOOGLE_SHEET_NAME", "CEI_Database")).strip()
     return gc.open(sheet_name)
+
 
 
 def get_google_sheet():
