@@ -1336,33 +1336,40 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
-    """Analiza título y lección devolviendo oraciones tokenizadas y un diccionario EN->ES completo."""
+    """Extrae título y cuerpo completo de la lección, con etiquetas gramaticales y diccionario EN->ES."""
     import re
     from google.genai import types
 
-    sin_bib = re.split(r"\*\*Bibliography.*?\*\*", lesson_text, flags=re.IGNORECASE)[0].strip()
-    lineas = [l.strip() for l in sin_bib.splitlines() if l.strip()]
-    titulo_leccion = lineas[0] if lineas else ""
-    lineas_cuerpo = [
-        l for l in lineas[1:]
-        if not re.match(r"^\*\*(Folio|Creation Date|Author|Institution|CEFR Level|Academic Level|Campus & Contact):", l, flags=re.IGNORECASE)
-    ]
-    solo_titulo_y_cuerpo = f"{titulo_leccion}\n\n" + "\n".join(lineas_cuerpo)
-    solo_titulo_y_cuerpo = solo_titulo_y_cuerpo.strip()[:2800]
+    # 1. Corta únicamente la sección Bibliography al final (nota el )
+    partes_bib = re.split(r"\*\*Bibliography.*?\*\*", str(lesson_text), flags=re.IGNORECASE)
+    sin_bib = partes_bib.strip()
+
+    # 2. Conserva título y todos los párrafos del cuerpo, omitiendo solo las líneas de metadatos APA
+    lineas_limpias = []
+    for linea in sin_bib.splitlines():
+        l_strip = linea.strip()
+        if not l_strip:
+            continue
+        if re.match(r"^\*\*(Folio|Creation Date|Author|Institution|CEFR Level|Academic Level|Campus & Contact):", l_strip, flags=re.IGNORECASE):
+            continue
+        lineas_limpias.append(l_strip)
+
+    solo_titulo_y_cuerpo = "\n\n".join(lineas_limpias)[:3200]
 
     prompt = f"""
-    Analyze this English lesson title and reading text (CEFR {cefr_level}) for a Spanish-speaking student.
+    Analyze this English lesson title and full reading text (CEFR {cefr_level}) for a Spanish-speaking student.
+    CRITICAL: Include ALL sentences from the title and the entire text without skipping any paragraph.
     Return ONLY a valid JSON object with TWO keys:
-    1. "sentences": array of sentences, each with:
+    1. "sentences": array of EVERY sentence in order, each with:
        - "sentence_es": natural Spanish translation of the sentence
-       - "tokens": array of {{"w": "exact word or punctuation", "pos": "verb"|"noun"|"adjective"|"conjunction"|"other"}}
-    2. "dictionary": object mapping EVERY unique lowercase English word from the text to:
+       - "tokens": array of {{"w": "word or punctuation", "pos": "verb"|"noun"|"adjective"|"conjunction"|"other"}}
+    2. "dictionary": object mapping unique lowercase content words (verbs, nouns, adjectives, conjunctions, adverbs) to:
        - "ipa": US English IPA (e.g. "/krɪˈtiːk/")
-       - "pos_es": Spanish grammatical label ("Verbo", "Sustantivo", "Adjetivo", "Conjunción", "Adverbio / Preposición")
-       - "es": exact primary Spanish translation in this context (e.g. "crítica / analizar críticamente")
-       - "alt_es": 2 to 4 alternative Spanish translations separated by commas (e.g. "reseña, evaluación, juicio crítico")
-       - "def_es": clear Spanish definition of the word (1 short sentence)
-       - "examples": 2 bilingual examples [{{"en": "English sentence using the word.", "es": "Traducción natural al español."}}]
+       - "pos_es": Spanish grammatical label ("Verbo", "Sustantivo", "Adjetivo", "Conjunción", "Adverbio")
+       - "es": exact primary Spanish translation in this context
+       - "alt_es": 2 to 3 alternative Spanish translations separated by commas
+       - "def_es": 1-sentence Spanish definition
+       - "examples": 2 short bilingual examples [{{"en": "English sentence.", "es": "Traducción al español."}}]
 
     Text:
     {solo_titulo_y_cuerpo}
@@ -1376,18 +1383,43 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    temperature=0.15
+                    temperature=0.1
                 )
             )
             raw_txt = str(response.text or "").strip()
             raw_txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_txt, flags=re.MULTILINE).strip()
             parsed = json.loads(raw_txt)
-            if isinstance(parsed, dict) and parsed.get("sentences"):
+            if isinstance(parsed, dict) and len(parsed.get("sentences", [])) > 1:
                 return parsed
     except Exception:
         pass
 
-    return {"sentences": [], "dictionary": {}}
+    # Respaldo garantizado: renderiza el 100% de las oraciones si la API tarda o corta el JSON
+    conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore"}
+    oraciones_raw = re.split(r"(?<=[.!?])\s+|\n+", solo_titulo_y_cuerpo.replace("**", "").replace("#", ""))
+    sentences_fb = []
+    for orac in oraciones_raw:
+        if not orac.strip():
+            continue
+        palabras = re.findall(r"\w+|[^\w\s]", orac)
+        tokens_fb = []
+        for p in palabras:
+            low = p.lower()
+            if low in conjunciones:
+                pos_fb = "conjunction"
+            elif low.endswith(("ing", "ed")) and len(low) > 4:
+                pos_fb = "verb"
+            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic")) and len(low) > 4:
+                pos_fb = "adjective"
+            elif len(low) > 4 and low.isalpha():
+                pos_fb = "noun"
+            else:
+                pos_fb = "other"
+            tokens_fb.append({"w": p, "pos": pos_fb})
+        sentences_fb.append({"sentence_es": "", "tokens": tokens_fb})
+
+    return {"sentences": sentences_fb, "dictionary": {}}
+
 
 
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
