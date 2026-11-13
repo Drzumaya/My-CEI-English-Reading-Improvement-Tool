@@ -2475,12 +2475,12 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
         except Exception as e_hf:
             st.session_state["last_img_error"] = f"Hugging Face error: {e_hf}"
 
-    # 3. Nivel 3: Pollinations.ai vía requests (inmune a nonnumeric port)
+    # 3. Nivel 3: Pollinations.ai (URL exacta con /prompt/)
     try:
-        prompt_enc = urllib.parse.quote(full_prompt, safe="")
+        prompt_enc = urllib.parse.quote(full_prompt[:350], safe="")
         seed_rnd = random.randint(1, 999999)
-        url_poll = f"https://pollinations.ai{prompt_enc}?width=800&height=450&nologo=true&seed={seed_rnd}"
-        r_poll = requests.get(url_poll, timeout=22)
+        url_poll = "https://pollinations.ai" + prompt_enc + f"?width=800&height=450&nologo=true&seed={seed_rnd}"
+        r_poll = requests.get(url_poll, timeout=25)
         if r_poll.status_code == 200 and len(r_poll.content) > 2000:
             st.session_state["last_img_error"] = None
             return r_poll.content
@@ -2488,6 +2488,7 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
             st.session_state["last_img_error"] = f"Pollinations HTTP {r_poll.status_code}"
     except Exception as e_poll:
         st.session_state["last_img_error"] = f"Pollinations error: {e_poll}"
+
 
     # 4. Nivel 4: Respaldo nativo Pillow
     w, h = 800, 420
