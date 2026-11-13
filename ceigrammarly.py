@@ -2375,7 +2375,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                     st.session_state["last_cert_folio"] = folio_c
                                     st.success(f"✅ ¡Certificado timbrado y guardado en Supabase! Folio: **{folio_c}**")
 
-                                               if st.session_state.get("last_cert_pdf"):
+                        if st.session_state.get("last_cert_pdf"):
                             f_actual = st.session_state["last_cert_folio"]
                             base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
                             link_cert_directo = f"{base_url}/?verify={urllib.parse.quote(f_actual)}"
