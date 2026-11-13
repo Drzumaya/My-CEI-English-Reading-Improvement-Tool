@@ -2442,16 +2442,19 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
             except Exception as e_m:
                 st.session_state["last_img_error"] = f"{model_img}: cuota Free Tier (pasando a Hugging Face FLUX)"
 
-    # 2. Nivel 2: Hugging Face Inference API (FLUX.1-schnell) leyendo HF_TOKEN o HF-TOKEN
+        # 2. Nivel 2: Hugging Face Inference API (FLUX.1-schnell) detectando cualquier clave HF / hf_
     hf_token = ""
-    for key_cand in ["HF_TOKEN", "HF-TOKEN"]:
-        val = str(
-            st.secrets.get(key_cand, "")
-            or next((sec[key_cand] for sec in st.secrets.values() if isinstance(sec, dict) and key_cand in sec), "")
-        ).strip()
-        if val:
-            hf_token = val
+    for k, v in st.secrets.items():
+        if isinstance(v, str) and ("HF" in k.upper() or v.strip().startswith("hf_")):
+            hf_token = v.strip()
             break
+        elif isinstance(v, dict):
+            for sub_k, sub_v in v.items():
+                if isinstance(sub_v, str) and ("HF" in sub_k.upper() or sub_v.strip().startswith("hf_")):
+                    hf_token = sub_v.strip()
+                    break
+            if hf_token:
+                break
 
     if hf_token:
         try:
@@ -2471,13 +2474,14 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
         except Exception as e_hf:
             st.session_state["last_img_error"] = f"Hugging Face FLUX: {e_hf}"
 
-    # 3. Nivel 3: Pollinations.ai (sin API key)
+    # 3. Nivel 3: Pollinations.ai (con safe="" para evitar error de puerto no numérico)
     try:
-        prompt_url = urllib.parse.quote(full_prompt[:450])
+        clean_p = full_prompt.replace("\n", " ").strip()[:400]
+        prompt_url = urllib.parse.quote(clean_p, safe="")
         seed_rnd = random.randint(1, 999999)
         url_free_ai = f"https://pollinations.ai{prompt_url}?width=800&height=450&nologo=true&seed={seed_rnd}"
         req = urllib.request.Request(url_free_ai, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=18) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             img_data = resp.read()
             if img_data and len(img_data) > 2000:
                 st.session_state["last_img_error"] = None
