@@ -3352,9 +3352,21 @@ if generar_btn:
         # Oculta inmediatamente el panel de administración si estaba abierto
         st.session_state.show_teacher_registry = False
 
+        stop_box = st.empty()
+        with stop_box.container():
+            col_sp1, col_sp2 = st.columns([3.2, 1.0])
+            with col_sp1:
+                st.info(f"🧠 Normalizing inputs, translating & generating CEFR {cefr_level} ({academic_grade}) Lesson...")
+            with col_sp2:
+                if st.button("🛑 Detener", type="secondary", width="stretch", key="btn_stop_lesson_gen"):
+                    stop_box.empty()
+                    st.warning("⏹️ Generación detenida por el usuario.")
+                    st.stop()
+
         client = init_gemini_client()
         with st.spinner(f"🧠 Normalizing inputs, translating & generating CEFR {cefr_level} ({academic_grade}) Lesson..."):
             try:
+
                 # 1. Traduce y corrige ortográficamente las entradas del usuario para APA
                 contexto_en, personas_en, asunto_apa = normalizar_entradas_apa(
                     client, contexto, personas, asunto
