@@ -2412,7 +2412,7 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Genera una ilustración educativa fresca con Gemini/Imagen o un respaldo nativo en Pillow sin Cairo."""
+    """Genera una ilustración educativa fresca con Gemini Developer API o un respaldo nativo en Pillow."""
     from PIL import Image, ImageDraw, ImageFont
     from google.genai import types
 
@@ -2420,18 +2420,20 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
 
     if client_gm is not None:
         estilo_visual = (
-            "Warm, friendly educational textbook illustration, clean digital comic art style, "
-            "bright natural lighting, expressive characters, clear English speech bubbles, no distorted text: "
+            "Generate a warm, friendly educational textbook illustration, clean digital comic art style, "
+            "bright natural lighting, expressive characters, clear English speech bubbles: "
         )
         full_prompt = f"{estilo_visual} {scene_prompt}"
 
-        # 1. Intento principal con Gemini Image (Nano Banana)
-        for model_img in ["gemini-2.5-flash-image", "gemini-2.0-flash-exp-image-generation"]:
+        errores_img = []
+        for model_img in ["gemini-2.5-flash-image", "gemini-2.0-flash-preview-image-generation"]:
             try:
                 res = client_gm.models.generate_content(
                     model=model_img,
                     contents=full_prompt,
-                    config=types.GenerateContentConfig(response_modalities=["IMAGE"])
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE", "TEXT"]
+                    )
                 )
                 for cand in getattr(res, "candidates", []) or []:
                     for part in getattr(cand.content, "parts", []) or []:
@@ -2439,21 +2441,12 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
                         if inline and getattr(inline, "data", None):
                             return inline.data
             except Exception as e_m:
-                st.session_state["last_img_error"] = f"{model_img}: {e_m}"
+                errores_img.append(f"{model_img}: {e_m}")
 
-        # 2. Segundo intento con Imagen 3
-        try:
-            res_im = client_gm.models.generate_images(
-                model="imagen-3.0-generate-002",
-                prompt=full_prompt,
-                config=types.GenerateImagesConfig(number_of_images=1, output_mime_type="image/png", aspect_ratio="16:9")
-            )
-            if getattr(res_im, "generated_images", None):
-                return res_im.generated_images[0].image.image_bytes
-        except Exception as e_im:
-            st.session_state["last_img_error"] = f"Imagen-3: {e_im}"
+        if errores_img:
+            st.session_state["last_img_error"] = " | ".join(errores_img)
 
-    # 3. Respaldo visual nativo en Pillow (Cero dependencia de Cairo/SVG)
+    # Respaldo visual nativo en Pillow (Cero dependencia de Cairo/SVG)
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(24, 42, 72))
     draw = ImageDraw.Draw(img)
@@ -2463,7 +2456,6 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     font_title = ImageFont.load_default()
     draw.text((48, 52), f"CAREER ENGLISH INSTITUTE  |  {folio_tag}  |  CEFR {cefr_lvl}", fill=(255, 223, 128), font=font_title)
 
-    # Envuelve el texto de la escena en líneas limpias
     clean_scene = str(scene_prompt or "Academic English Reading & Discourse Context").replace("*", "").replace("#", "")
     words = clean_scene.split()
     lines, curr = [], ""
