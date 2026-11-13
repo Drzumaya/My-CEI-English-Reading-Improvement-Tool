@@ -2946,33 +2946,13 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
     st.divider()
 
-# --- 15. EJECUCIÓN DE GENERACIÓN DE LECCIÓN CON IA ---
+# --- 15. PROCESAMIENTO Y GENERACIÓN DE LECCIÓN CON GEMINI Y POSTGRESQL ---
 if generar_btn:
-    # 1. Validación completa de campos obligatorios
-    campos_faltantes = []
-    if not contexto.strip():
-        campos_faltantes.append("Contexto / Lugar / Tema")
-    if not personas.strip():
-        campos_faltantes.append("Personas / Personajes")
-    if not asunto.strip():
-        campos_faltantes.append("Asunto / Materia")
-        
-@st.cache_resource
-def init_gemini_client():
-    """Inicializa el cliente oficial de Google Gemini leyendo la clave desde cualquier nivel de Secrets."""
-    from google import genai
-    api_key = str(
+    gemini_key_ok = bool(
         st.secrets.get("GEMINI_API_KEY", "")
         or next((sec["GEMINI_API_KEY"] for sec in st.secrets.values() if isinstance(sec, dict) and "GEMINI_API_KEY" in sec), "")
-    ).strip()
-    if not api_key:
-        st.warning("⚠️ GEMINI_API_KEY no configurada en Secrets.")
-        return None
-    return genai.Client(api_key=api_key)
-
-client = init_gemini_client()
-
-if "GEMINI_API_KEY" not in st.secrets:
+    )
+    if not gemini_key_ok:
         st.sidebar.error("⚠️ GEMINI_API_KEY no configurada.")
         st.error("⚠️ Error de configuración: falta GEMINI_API_KEY.")
     elif campos_faltantes:
@@ -2983,7 +2963,7 @@ if "GEMINI_API_KEY" not in st.secrets:
     else:
         # Oculta inmediatamente el panel de administración si estaba abierto
         st.session_state.show_teacher_registry = False
-        
+
         client = init_gemini_client()
         with st.spinner(f"🧠 Normalizing inputs, translating & generating CEFR {cefr_level} ({academic_grade}) Lesson..."):
             try:
@@ -2996,10 +2976,9 @@ if "GEMINI_API_KEY" not in st.secrets:
                 nuevo_folio = f"CEI-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
                 fecha_creacion = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
 
-                
-                base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
+                base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
                 pdf_url_directo = f"{base_url}/?folio={urllib.parse.quote(nuevo_folio)}"
-                
+
                 cefr_guidelines = {
                     "A1": "Use very basic everyday vocabulary, short simple sentences (5-8 words), present simple/continuous, and concrete familiar topics.",
                     "A2": "Use simple, clear sentences, basic connectors (and, but, because, so), past simple, and everyday routine vocabulary.",
@@ -3030,7 +3009,7 @@ if "GEMINI_API_KEY" not in st.secrets:
                     f"Follow strict APA Style. The official author of every generated academic document MUST be Jacob Zumaya Prianti. "
                     f"Zero Spanish words allowed."
                 )
-                
+
                 prompt_texto = f"""
                 Create a CEFR Level {cefr_level} English lesson artifact tailored for {academic_grade} students, authored by Jacob Zumaya Prianti:
                 - Folio ID: {nuevo_folio} | Creation Date: {fecha_creacion}
@@ -3052,6 +3031,7 @@ if "GEMINI_API_KEY" not in st.secrets:
 
                 texto_gen, mod_usado = generar_con_maxima_potencia(client, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
+                st.session_state.study_mode_active = False
                 st.session_state.active_model_name = mod_usado
                 st.session_state.selected_cefr = cefr_level
                 st.session_state.selected_academic_grade = academic_grade
@@ -3063,28 +3043,9 @@ if "GEMINI_API_KEY" not in st.secrets:
                 st.session_state.quiz_score = None
                 st.session_state.quiz_user_answers = {}
                 st.session_state.audio_bytes = None
-                
-                try:
-                    prompt_escena = f"""
-                    Read the English lesson below and write a rich, friendly visual scene description (45-55 words) for an educational illustration:
-                    1. SETTING & FURNITURE: Describe the exact room/place from '{contexto}' in warm detail (e.g., cozy academic office with wooden desk, chairs, books, window with daylight).
-                    2. CHARACTERS & POSTURE: Describe '{personas}' seated or standing in the scene, smiling and talking to each other.
-                    3. SPEECH BUBBLES: Add two short, natural English dialogue lines from the lesson in double quotes.
-                    Example: Inside a warm, sunlit academic office with bookshelves, framed diplomas, and a wooden desk, a researcher and a parent sit across from each other talking warmly. Speech bubble 1: "How has your son progressed this term?" Speech bubble 2: "He has improved his reading skills!"
-                    
-                    LESSON:
-                    {texto_gen[:2500]}
-                    """
-                    img_desc, _ = generar_con_maxima_potencia(client, prompt_escena)
-                except Exception:
-                    img_desc = f'Warm detailed room of {contexto} with desk and chairs. {personas} sitting and talking. Speech bubble 1: "Let us discuss {asunto}."'
-                    
-                st.session_state.image_bytes = generar_imagen_garantizada(
-                    client, img_desc, f"{asunto} - {contexto}", cefr_level, academic_grade
-                )
+                st.session_state.image_bytes = None
 
-
-                
+                # 2. Síntesis de audio completo de la lección
                 try:
                     clean_tts = texto_gen.replace("*", "").replace("#", "")
                     tts = gTTS(text=clean_tts, lang="en", slow=False)
@@ -3093,28 +3054,25 @@ if "GEMINI_API_KEY" not in st.secrets:
                     st.session_state.audio_bytes = audio_fp.getvalue()
                 except Exception:
                     st.warning("⚠️ Lección generada, pero el audio no pudo sintetizarse en este momento.")
-                
-                paquete_guardado = _serialize_lesson_package(
-                    texto_gen, None, cefr_level, academic_grade, fecha_creacion
-                )
-                
+
+                # 3. Persistencia directa en Supabase PostgreSQL
                 tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto_apa} ({gramatica_b1})"
                 save_lesson_to_postgres(
                     folio=nuevo_folio,
-                    usuario_name=usuario,
+                    usuario_name=st.session_state.get("current_user", usuario),
                     tema=tema_reg,
                     cefr=cefr_level,
                     grado=academic_grade,
                     texto=texto_gen,
                     pdf_link=pdf_url_directo
                 )
- 
-                
+
                 # Colapsa la barra lateral y recarga para mostrar la lección en pantalla completa
                 st.session_state.sidebar_state = "collapsed"
                 st.rerun()
             except Exception as e:
                 st.error(f"⚠️ Error al generar lección: {e}")
+
 
 # --- 16. PANEL CENTRAL (CONTENIDO, QUIZ Y CONTEXTO VISUAL) ---
 if st.session_state.get("generated_text"):
