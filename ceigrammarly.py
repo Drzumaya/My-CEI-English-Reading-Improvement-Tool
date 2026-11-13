@@ -492,7 +492,101 @@ def get_default_logo_b64():
             return base64.b64encode(f.read()).decode("utf-8"), "image/png"
     except Exception:
         return None, None
+        
 # --- 5. MOTOR DE TIMBRADO CRIPTOGRÁFICO (HMAC-SHA256) Y CERTIFICADO PDF ---
+
+def fetch_certificate_public_pg(folio_cert: str) -> dict | None:
+    """Busca un certificado por su folio directamente en PostgreSQL para verificación QR sin login."""
+    from psycopg.rows import dict_row
+    conn = get_pg_conn()
+    if not conn:
+        return None
+    with conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                "SELECT * FROM certificates WHERE UPPER(folio_cert) = %s LIMIT 1;",
+                (str(folio_cert).strip().upper(),)
+            )
+            return cur.fetchone()
+
+def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, user_ans: dict) -> tuple[bool, str, str]:
+    """Guarda el quiz y conserva la mejor calificación del folio directamente en Supabase PostgreSQL."""
+    import re
+    conn = get_pg_conn()
+    if not conn:
+        return False, "Sin conexión activa a PostgreSQL.", nota_actual
+
+    def _extract_pct(txt: str) -> float:
+        m = re.search(r"\((\d+(?:\.\d+)?)%\)", str(txt or ""))
+        return float(m.group(1)) if m else -1.0
+
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT quiz_json, best_score FROM lessons_archive WHERE folio = %s LIMIT 1;", (folio.strip(),))
+            row = cur.fetchone()
+            nota_previa = str(row[1] or "").strip() if row else ""
+
+            pct_nuevo = _extract_pct(nota_actual)
+            pct_previo = _extract_pct(nota_previa)
+
+            if pct_nuevo >= pct_previo:
+                mejor_final = nota_actual
+                es_record = True
+                msg = f"🏆 ¡Nueva mejor calificación guardada en Supabase para el folio `{folio}`: **{mejor_final}**!"
+            else:
+                mejor_final = nota_previa
+                es_record = False
+                msg = f"ℹ️ Se conserva tu calificación más alta previa en Supabase: **{mejor_final}** (intento actual: {nota_actual})."
+
+            payload_quiz = json.dumps({"questions": quiz_items, "user_answers": user_ans}, ensure_ascii=False)
+            cur.execute(
+                "UPDATE lessons_archive SET quiz_json = %s, best_score = %s WHERE folio = %s;",
+                (payload_quiz, mejor_final, folio.strip())
+            )
+    return es_record, msg, mejor_final
+
+def save_best_speaking_pg(folio: str, score_pct: int):
+    """Guarda o actualiza la mejor calificación de pronunciación oral en Supabase PostgreSQL."""
+    conn = get_pg_conn()
+    if not conn:
+        return
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE lessons_archive
+                SET speaking_score = GREATEST(COALESCE(speaking_score, 0), %s)
+                WHERE folio = %s;
+            """, (int(score_pct), folio.strip()))
+
+
+def load_lessons_history_pg() -> list[dict]:
+    """Carga el historial de lecciones, folios y calificaciones desde Supabase PostgreSQL."""
+    from psycopg.rows import dict_row
+    conn = get_pg_conn()
+    if not conn:
+        return []
+    with conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""
+                SELECT
+                    l.folio AS "Folio",
+                    COALESCE(u.usuario, 'Usuario') AS "Usuario",
+                    l.tema AS "Tema",
+                    l.nivel_cefr AS "Nivel_CEFR",
+                    l.grado_academico AS "Grado_Academico",
+                    l.lesson_text AS "Texto",
+                    l.quiz_json AS "Quiz_JSON",
+                    l.best_score AS "Mejor_Calificacion_PDF",
+                    l.speaking_score AS "Speaking_Score",
+                    l.pdf_link AS "PDF_Link",
+                    TO_CHAR(l.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS "Fecha_de_subida"
+                FROM lessons_archive l
+                LEFT JOIN users_padron u ON l.user_id = u.id
+                ORDER BY l.created_at DESC
+                LIMIT 100;
+            """)
+            return cur.fetchall()
+
 
 def clean_pdf_text(text: str) -> str:
     """Normaliza comillas, guiones y caracteres especiales para compatibilidad segura con FPDF."""
@@ -2947,7 +3041,16 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
     st.divider()
 
 # --- 15. PROCESAMIENTO Y GENERACIÓN DE LECCIÓN CON GEMINI Y POSTGRESQL ---
+
 if generar_btn:
+    campos_faltantes = []
+    if not str(locals().get("contexto", "")).strip():
+        campos_faltantes.append("Contexto / Escenario")
+    if not str(locals().get("personas", "")).strip():
+        campos_faltantes.append("Personajes / Participantes")
+    if not str(locals().get("asunto", "")).strip():
+        campos_faltantes.append("Tema / Asunto")
+
     gemini_key_ok = bool(
         st.secrets.get("GEMINI_API_KEY", "")
         or next((sec["GEMINI_API_KEY"] for sec in st.secrets.values() if isinstance(sec, dict) and "GEMINI_API_KEY" in sec), "")
@@ -3074,61 +3177,59 @@ if generar_btn:
                 st.error(f"⚠️ Error al generar lección: {e}")
 
 
-# --- 16. PANEL CENTRAL (CONTENIDO, QUIZ Y CONTEXTO VISUAL) ---
-if st.session_state.get("generated_text"):
-    if "study_mode_active" not in st.session_state:
-        st.session_state["study_mode_active"] = False
+# --- 16. PANEL CENTRAL (CONTENIDO, MODO ESTUDIO IA, QUIZ Y CONTEXTO VISUAL) ---
+if "selected_academic_grade" not in st.session_state:
+    st.session_state.selected_academic_grade = st.session_state.get("user_academic_grade", "Licenciatura / Universidad")
+if "study_mode_active" not in st.session_state:
+    st.session_state.study_mode_active = False
 
-    col_m1, col_m2 = st.columns([2.6, 1.4])
-    with col_m1:
-        st.markdown("### 📖 Contenido de la Lección")
-    with col_m2:
-        btn_study_label = (
-            "🖨️ Volver a Edición de Impresión / Descarga"
-            if st.session_state["study_mode_active"]
-            else "🧠 Activar Modo Estudio Interactivo (IA)"
-        )
-        if st.button(btn_study_label, type="primary" if not st.session_state["study_mode_active"] else "secondary", width="stretch", key="btn_toggle_study_mode"):
-            st.session_state["study_mode_active"] = not st.session_state["study_mode_active"]
-            st.rerun()
+col_main_center, col_tools_right = st.columns([7, 3.5])
 
-    if st.session_state["study_mode_active"]:
-        with st.spinner("Analizando estructuras gramaticales, fonética y diccionario contextual con IA..."):
+with col_main_center:
+    col_sub_t, col_badge, col_mode_btn = st.columns([2.6, 1.1, 1.8])
+    with col_sub_t:
+        st.subheader("📄 Generated Content (APA Format)")
+    with col_badge:
+        if st.session_state.current_folio:
+            st.caption(f"🔖 Folio: `{st.session_state.current_folio}`")
+    with col_mode_btn:
+        if st.session_state.get("generated_text"):
+            btn_study_label = (
+                "🖨️ Edición Impresión / PDF"
+                if st.session_state.study_mode_active
+                else "🧠 Modo Estudio Interactivo (IA)"
+            )
+            if st.button(
+                btn_study_label,
+                type="primary" if not st.session_state.study_mode_active else "secondary",
+                width="stretch",
+                key="btn_toggle_study_mode"
+            ):
+                st.session_state.study_mode_active = not st.session_state.study_mode_active
+                st.rerun()
+
+    if st.session_state.get("generated_text") and st.session_state.study_mode_active:
+        with st.spinner("🧠 Preparando análisis sintáctico, pronunciación y diccionario contextual..."):
             estudio_data = analyze_lesson_for_study_mode(
-                st.session_state["generated_text"],
+                st.session_state.generated_text,
                 st.session_state.get("selected_cefr", "B1")
             )
         if estudio_data:
             render_interactive_study_viewer(estudio_data)
         else:
-            st.warning("⚠️ No se pudo generar el análisis interactivo en este momento. Mostrando texto estándar.")
-            st.markdown(st.session_state["generated_text"])
+            st.warning("⚠️ No se pudo generar el análisis interactivo. Mostrando edición de impresión.")
+            with st.container(height=420, border=True):
+                st.markdown(st.session_state.generated_text)
     else:
-        # Edición estándar lista para lectura, impresión y descarga PDF
-        st.markdown(st.session_state["generated_text"])
+        top_container = st.container(height=420, border=True)
+        with top_container:
+            if st.session_state.get("generated_text"):
+                st.markdown(st.session_state.generated_text)
+            else:
+                st.info("👈 Escribe los datos en Español o Inglés en la barra izquierda y presiona **Generate Lesson**, o busca un **Folio** arriba.")
 
-if "selected_academic_grade" not in st.session_state:
-    st.session_state.selected_academic_grade = st.session_state.get("user_academic_grade", "Licenciatura / Universidad")
-
-col_main_center, col_tools_right = st.columns([7, 3.5])
-
-with col_main_center:
-    col_sub_t, col_badge = st.columns([3, 1.5])
-    with col_sub_t:
-        st.subheader("📄 Generated Content (APA Format - 100% English)")
-    with col_badge:
-        if st.session_state.current_folio:
-            st.caption(f"🔖 Folio: `{st.session_state.current_folio}`")
-
-    top_container = st.container(height=420, border=True)
-    with top_container:
-        if st.session_state.generated_text:
-            st.markdown(st.session_state.generated_text)
-        else:
-            st.info("👈 Escribe los datos en Español o Inglés en la barra izquierda y presiona **Generate Lesson**, o busca un **Folio** arriba.")
-
-    # QUIZ INTERACTIVO DE LA LECCIÓN
-    if st.session_state.generated_text:
+    # QUIZ INTERACTIVO DE LA LECCIÓN (INTACTO EN AMBOS MODOS)
+    if st.session_state.get("generated_text"):
         if st.session_state.quiz_data is None:
             cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
             if st.button(
@@ -3136,26 +3237,20 @@ with col_main_center:
                 type="primary",
                 width="stretch"
             ):
-                with st.spinner("Generando preguntas de evaluación y vinculando al Folio..."):
+                with st.spinner("Generando preguntas de evaluación y vinculando al Folio en Supabase..."):
                     try:
                         q_gen = generar_quiz_leccion(
                             st.session_state.generated_text, gramatica_b1,
                             st.session_state.selected_cefr, st.session_state.selected_academic_grade
                         )
                         st.session_state.quiz_data = q_gen
-                        
                         if st.session_state.current_folio:
-                            s1 = get_google_sheet()
-                            celda_f = s1.find(st.session_state.current_folio, in_column=1)
-                            if celda_f:
-                                paq_act = _serialize_lesson_package(
-                                    st.session_state.generated_text,
-                                    q_gen,
-                                    st.session_state.selected_cefr,
-                                    st.session_state.selected_academic_grade,
-                                    st.session_state.current_creation_date
-                                )
-                                s1.update_cell(celda_f.row, 6, paq_act)
+                            save_quiz_and_best_score_pg(
+                                st.session_state.current_folio,
+                                "",
+                                q_gen,
+                                {}
+                            )
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al generar quiz: {e}")
@@ -3178,7 +3273,6 @@ with col_main_center:
                         else:
                             st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
                     st.write("")
-
                 col_btn_grade, col_btn_new = st.columns(2)
                 with col_btn_grade:
                     if st.button("✅ Calificar Quiz", type="primary", width="stretch"):
@@ -3192,8 +3286,8 @@ with col_main_center:
                         st.session_state.quiz_graded = True
 
                         if st.session_state.current_folio:
-                            with st.spinner("Evaluando y comparando con calificaciones previas del Folio..."):
-                                _, msg_comp, mejor_nota_final = save_best_quiz_result_to_sheet(
+                            with st.spinner("Evaluando y guardando mejor calificación en Supabase..."):
+                                _, msg_comp, mejor_nota_final = save_quiz_and_best_score_pg(
                                     st.session_state.current_folio,
                                     nota_actual,
                                     st.session_state.quiz_data,
@@ -3216,19 +3310,13 @@ with col_main_center:
                                 st.session_state.quiz_graded = False
                                 st.session_state.quiz_score = None
                                 st.session_state.quiz_user_answers = {}
-                                
                                 if st.session_state.current_folio:
-                                    s1 = get_google_sheet()
-                                    celda_f = s1.find(st.session_state.current_folio, in_column=1)
-                                    if celda_f:
-                                        paq_act = _serialize_lesson_package(
-                                            st.session_state.generated_text,
-                                            q_new,
-                                            st.session_state.selected_cefr,
-                                            st.session_state.selected_academic_grade,
-                                            st.session_state.current_creation_date
-                                        )
-                                        s1.update_cell(celda_f.row, 6, paq_act)
+                                    save_quiz_and_best_score_pg(
+                                        st.session_state.current_folio,
+                                        st.session_state.get("best_stored_score", ""),
+                                        q_new,
+                                        {}
+                                    )
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Error al renovar quiz: {e}")
@@ -3237,19 +3325,13 @@ with col_main_center:
                     st.info(f"🏆 **Calificación de este intento:** {st.session_state.quiz_score}")
                     if st.session_state.get("best_score_feedback"):
                         st.success(st.session_state["best_score_feedback"])
-                    
+
                     nota_para_pdf = st.session_state.get("best_stored_score") or st.session_state.quiz_score
                     pdf_quiz_bytes = create_lesson_pdf(
                         st.session_state.generated_text.replace("*", ""),
                         quiz_items=st.session_state.quiz_data,
                         user_ans=st.session_state.quiz_user_answers,
-                        score=nota_para_pdf
-                    )
-                    pdf_bytes = create_lesson_pdf(
-                        st.session_state.generated_text.replace("*", ""),
-                        quiz_items=st.session_state.quiz_data,
-                        user_ans=st.session_state.quiz_user_answers,
-                        score=st.session_state.get("best_stored_score") or st.session_state.quiz_score,
+                        score=nota_para_pdf,
                         speaking_eval=st.session_state.get("speaking_eval_result")
                     )
 
@@ -3262,7 +3344,6 @@ with col_main_center:
                         key="btn_dl_pdf_from_quiz",
                         width="stretch"
                     )
-
                 st.divider()
                 col_q_aud1, col_q_aud2 = st.columns(2)
                 with col_q_aud1:
@@ -3278,7 +3359,7 @@ with col_main_center:
                                         lineas_audio.append(opt_txt)
                                     if st.session_state.quiz_graded:
                                         lineas_audio.append(f"Correct answer: {q_item['answer']}.")
-                                
+
                                 guion_quiz = " ".join(lineas_audio).replace("*", "").replace("#", "")
                                 tts_q = gTTS(text=guion_quiz, lang="en", slow=False)
                                 buf_q = io.BytesIO()
@@ -3303,9 +3384,9 @@ with col_main_center:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 
-
-        st.subheader(f"🖼️ Visual Context ({st.session_state.selected_academic_grade})")
-    if st.session_state.generated_text:
+with col_tools_right:
+    st.subheader(f"🖼️ Visual Context ({st.session_state.selected_academic_grade})")
+    if st.session_state.get("generated_text"):
         col_vis_in, col_vis_btn = st.columns([2.8, 1.2])
         with col_vis_in:
             custom_img_prompt = st.text_input(
@@ -3352,9 +3433,9 @@ with col_main_center:
             with st.expander("ℹ️ Detalle técnico del motor de imagen"):
                 st.caption(st.session_state["last_img_error"])
 
-        if st.session_state.image_bytes:
+        if st.session_state.get("image_bytes"):
             st.image(st.session_state.image_bytes, width="stretch")
-        elif st.session_state.generated_text:
+        elif st.session_state.get("generated_text"):
             fallback_img = generar_imagen_garantizada(
                 None, st.session_state.generated_text[:120],
                 f"Folio {st.session_state.current_folio}", st.session_state.selected_cefr, st.session_state.selected_academic_grade
@@ -3362,6 +3443,7 @@ with col_main_center:
             st.image(fallback_img, width="stretch")
         else:
             st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
+
 
 
 # --- 17. PANEL DERECHO (AUDIO, VIDEO, EXPORTACIÓN PDF E HISTORIAL) ---
@@ -3522,30 +3604,26 @@ with col_tools_right:
             width="stretch"
         )
 
-    if st.session_state.generated_text:
+        if st.session_state.get("generated_text"):
+        nota_actual_pdf = st.session_state.get("best_stored_score") or st.session_state.get("quiz_score")
         pdf_bytes = create_lesson_pdf(
             st.session_state.generated_text.replace("*", ""),
             quiz_items=st.session_state.quiz_data,
             user_ans=st.session_state.quiz_user_answers,
-            score=st.session_state.quiz_score
-        )
-        pdf_bytes = create_lesson_pdf(
-            st.session_state.generated_text.replace("*", ""),
-            quiz_items=st.session_state.quiz_data,
-            user_ans=st.session_state.quiz_user_answers,
-            score=st.session_state.get("best_stored_score") or st.session_state.quiz_score,
+            score=nota_actual_pdf,
             speaking_eval=st.session_state.get("speaking_eval_result")
         )
+        st.download_button(
+            label=f"📥 Descargar PDF Oficial ({st.session_state.current_folio or 'Lección'})",
+            data=pdf_bytes,
+            file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
+            mime="application/pdf",
+            width="stretch",
+            key="btn_dl_pdf_sidebar_right"
+        )
+    else:
+        st.button("📥 Descargar PDF Oficial", disabled=True, width="stretch", key="btn_dl_pdf_disabled")
 
-        #st.download_button(
-        #    label=f"📥 Descargar PDF ({st.session_state.current_folio or 'Tiempo Real'})",
-       #     data=pdf_bytes,
-         #   file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
-         #   mime="application/pdf",
-        #    width="stretch"
-       # )
-  # else:
-  #     st.button("📥 Descargar PDF (Tiempo Real)", disabled=True, width="stretch")
     if student_audio is not None:
         if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
             if not st.session_state.generated_text:
@@ -3563,7 +3641,7 @@ with col_tools_right:
                         )
                         st.session_state["speaking_eval_result"] = eval_res
                         if st.session_state.current_folio and "score_percent" in eval_res:
-                            save_best_speaking_to_sheet(st.session_state.current_folio, int(eval_res["score_percent"]))
+                            save_best_speaking_pg(st.session_state.current_folio, int(eval_res["score_percent"]))
                     except Exception as e:
                         st.error(f"Error en evaluación oral: {e}")
 
@@ -3581,21 +3659,21 @@ with col_tools_right:
                 for t in tips:
                     st.markdown(f"- {t}")
 
+    st.divider()
     if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
 
     if st.session_state.show_saved_audios:
-        with st.container(height=340, border=True):
-            st.markdown("**Historial de Folios y Calificaciones:**")
+        with st.container(height=360, border=True):
+            st.markdown("**Historial de Folios y Calificaciones (Supabase):**")
             try:
-                records = get_google_sheet().get_all_records()
+                records = load_lessons_history_pg()
                 if not records:
-                    st.info("Aún no hay registros guardados.")
+                    st.info("Aún no hay registros guardados en Supabase.")
                 else:
                     df = pd.DataFrame(records)
-                    
-                    # Selector de inscritos exclusivo para Docentes / Administradores
-                    if has_faculty_access:
+
+                    if has_faculty_access or is_owner:
                         padron_regs = load_padron_records()
                         inscritos_padron = [
                             str(r.get("Usuario", "")).strip()
@@ -3605,7 +3683,7 @@ with col_tools_right:
                             str(u).strip() for u in df["Usuario"].dropna().unique().tolist() if str(u).strip()
                         ]
                         lista_inscritos = sorted(list(set(inscritos_padron + usuarios_en_folios)))
-                        
+
                         alumno_filtro = st.selectbox(
                             "👤 Filtrar por Estudiante / Inscrito:",
                             ["Todos los inscritos"] + lista_inscritos,
@@ -3619,62 +3697,54 @@ with col_tools_right:
                     if df.empty:
                         st.warning("No se encontraron folios registrados para este usuario.")
                     else:
-                        # Muestra los últimos 10 registros si filtró un alumno específico, o los 5 más recientes si ve todos
-                        limite_ver = 10 if (has_faculty_access and alumno_filtro != "Todos los inscritos") else 5
-                        for idx_h, row in df.tail(limite_ver).iloc[::-1].iterrows():
-                            st.caption(f"🔖 **{row.get('Folio', 'S/F')}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
+                        limite_ver = 10 if ((has_faculty_access or is_owner) and alumno_filtro != "Todos los inscritos") else 5
+                        for idx_h, row in df.head(limite_ver).iterrows():
+                            folio_item = str(row.get("Folio", "S/F")).strip()
+                            st.caption(f"🔖 **{folio_item}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
                             st.caption(f"📘 *{row.get('Tema', '')}*")
-                            
-                            mejor_nota_row = str(row.get("Mejor_Calificacion_PDF", "")).strip()
+
+                            mejor_nota_row = str(row.get("Mejor_Calificacion_PDF") or "").strip()
+                            speaking_row = row.get("Speaking_Score")
                             if mejor_nota_row:
-                                st.caption(f"🏆 **Mejor Calificación Registrada:** `{mejor_nota_row}`")
+                                st.caption(f"🏆 **Mejor Quiz:** `{mejor_nota_row}`")
+                            if speaking_row is not None and int(speaking_row) > 0:
+                                st.caption(f"🎙️ **Mejor Evaluación Oral:** `{speaking_row}%`")
 
-                            if row.get("PDF_Link"):
-                                st.markdown(f"🔗 [Abrir Lección por Folio]({row['PDF_Link']})")
-
-                            raw_j = str(row.get("Contenido_JSON", "")).strip()
-                            folio_item = str(row.get("Folio", "CEI")).strip()
-                            if raw_j:
-                                try:
-                                    paq_hist = json.loads(raw_j)
-                                    if paq_hist.get("best_score"):
-                                        key_prep = f"prep_pdf_{folio_item}_{idx_h}"
-                                        if st.button(
-                                            f"⚙️ Preparar PDF Calificado ({paq_hist.get('best_score')})",
-                                            key=f"btn_{key_prep}",
-                                            width="stretch"
-                                        ):
-                                            ans_hist = {int(k): v for k, v in paq_hist.get("best_answers", {}).items()}
-                                            st.session_state["hist_ready_folio"] = folio_item
-                                            st.session_state["hist_ready_bytes"] = create_lesson_pdf(
-                                                paq_hist.get("text", "").replace("*", ""),
-                                                quiz_items=paq_hist.get("quiz"),
-                                                user_ans=ans_hist,
-                                                score=paq_hist.get("best_score")
-                                            )
-                                        if st.session_state.get("hist_ready_folio") == folio_item and st.session_state.get("hist_ready_bytes"):
-                                            st.download_button(
-                                                label=f"📥 Descargar PDF ({paq_hist.get('best_score')})",
-                                                data=st.session_state["hist_ready_bytes"],
-                                                file_name=f"{folio_item}_{str(row.get('Usuario', 'Alumno')).replace(' ', '_')}.pdf",
-                                                mime="application/pdf",
-                                                type="primary",
-                                                key=f"dl_{key_prep}",
-                                                width="stretch"
-                                            )
-                                except Exception:
-                                    pass
+                            # Botón para cargar esta lección directamente en pantalla (y usar Modo Estudio IA)
+                            if st.button(f"📖 Cargar Lección ({folio_item})", key=f"load_fol_{folio_item}_{idx_h}", width="stretch"):
+                                st.session_state.generated_text = str(row.get("Texto", ""))
+                                st.session_state.current_folio = folio_item
+                                st.session_state.selected_cefr = str(row.get("Nivel_CEFR", "B1"))
+                                st.session_state.selected_academic_grade = str(row.get("Grado_Academico", "Licenciatura / Universidad"))
+                                st.session_state.study_mode_active = False
+                                st.session_state.quiz_graded = False
+                                st.session_state.quiz_score = None
+                                st.session_state.quiz_user_answers = {}
+                                raw_qz = str(row.get("Quiz_JSON") or "").strip()
+                                if raw_qz:
+                                    try:
+                                        qz_obj = json.loads(raw_qz)
+                                        st.session_state.quiz_data = qz_obj.get("questions")
+                                    except Exception:
+                                        st.session_state.quiz_data = None
+                                else:
+                                    st.session_state.quiz_data = None
+                                st.rerun()
 
                             st.divider()
             except Exception as e:
-                st.error(f"Error al cargar historial: {e}")
+                st.error(f"Error al cargar historial desde Supabase: {e}")
 
-    st.divider()
+
+       st.divider()
 
     if st.button("🗑️ Borrar Todo", type="secondary", width="stretch"):
         st.session_state.generated_text = ""
+        st.session_state.study_mode_active = False
         st.session_state.image_bytes = None
         st.session_state.audio_bytes = None
+        st.session_state.quiz_audio_bytes = None
+        st.session_state.speaking_eval_result = None
         st.session_state.show_saved_audios = False
         st.session_state.quiz_data = None
         st.session_state.quiz_graded = False
@@ -3687,6 +3757,7 @@ with col_tools_right:
         st.query_params.clear()
         st.session_state.sidebar_state = "expanded"
         st.rerun()
+
 
 # --- 18. PIE DE PÁGINA INSTITUCIONAL ---
 st.divider()
