@@ -1996,13 +1996,21 @@ def _serialize_lesson_package(text_val: str, quiz_val, cefr_val: str, grade_val:
 user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
 def can(capability_name: str) -> bool:
     return bool(user_caps.get(capability_name, False))
+curr_u_clean = str(st.session_state.get("current_user", "")).strip().lower()
+curr_r_clean = str(st.session_state.get("user_role", "")).strip().lower()
+curr_p_clean = str(st.session_state.get("user_permissions", "")).strip().lower()
+master_u_clean = str(st.secrets.get("OWNER_MASTER_USER", "")).strip().lower()
+
 is_owner = (
-    st.session_state.user_role.strip().lower() == "propietario"
-    or st.session_state.user_permissions.strip().lower() == "total"
+    (bool(master_u_clean) and curr_u_clean == master_u_clean)
+    or curr_r_clean in ["propietario", "administrador", "admin", "owner"]
+    or curr_p_clean == "total"
 )
-is_faculty_desktop = can("Ver_Panel_Admin") and (not is_mobile)
-has_faculty_access = can("Reuso_Ilimitado_Folios")
+
+is_faculty_desktop = is_owner or (can("Ver_Panel_Admin") and (not is_mobile))
+has_faculty_access = is_owner or can("Reuso_Ilimitado_Folios") or (curr_r_clean in ["teacher", "docente"])
 cefr_options = list(CEFR_MAP.values())
+
 
 # --- 11. BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS) ---
 with st.sidebar:
