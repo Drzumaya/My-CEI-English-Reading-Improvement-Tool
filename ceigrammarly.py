@@ -1174,42 +1174,43 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dict]:
-    """Analiza la lección con Gemini y devuelve oraciones y palabras etiquetadas gramaticalmente."""
-    prompt = f"""
-    Analyze the following English lesson (CEFR {cefr_level}) for an interactive Spanish-speaking student study mode.
-    Break the text into sentences, and break each sentence into tokens (words and punctuation).
-    For each word token, classify its Part of Speech (pos) strictly as one of:
-    "verb", "noun", "adjective", "conjunction", "other".
-    Provide:
-    - "w": exact word or punctuation
-    - "pos": "verb" | "noun" | "adjective" | "conjunction" | "other"
-    - "ipa": brief phonetic guide (e.g. /ˈstʌdi/)
-    - "es": accurate Spanish translation in this context
-    - "pos_es": Spanish grammatical label (e.g. "Verbo", "Sustantivo", "Adjetivo", "Conjunción")
-    - "examples": list of 3 objects {{"en": "English example sentence", "es": "Traducción al español"}} showing different uses.
+    """Analiza la lección en 3-5 segundos desactivando el thinking budget y omitiendo metadata en signos/artículos."""
+    from google.genai import types
 
-    Return ONLY a valid JSON array of sentences:
+    prompt = f"""
+    Break this English lesson (CEFR {cefr_level}) into sentences and tokens for a Spanish-speaking student.
+    Rules for speed and precision:
+    1. Keep EVERY word and punctuation mark in "tokens" so the full text renders intact.
+    2. Classify "pos" as: "verb", "noun", "adjective", "conjunction", or "other".
+    3. ONLY include "ipa", "es", "pos_es", and 2 short "examples" ({{en, es}}) for content words ("verb", "noun", "adjective", "conjunction"). For "other" (articles, punctuation, basic prepositions), set "es" to a 1-word translation and "examples": [].
+
+    Return ONLY valid JSON:
     [
       {{
-        "sentence_es": "Traducción completa de la oración al español",
+        "sentence_es": "Traducción natural de la oración al español",
         "tokens": [
-          {{"w": "Word", "pos": "noun", "ipa": "/wɜːrd/", "es": "palabra", "pos_es": "Sustantivo", "examples": [{{"en": "...", "es": "..."}}]}}
+          {{"w": "Word", "pos": "noun", "ipa": "/wɜːrd/", "es": "palabra", "pos_es": "Sustantivo", "examples": [{{"en": "Short example.", "es": "Ejemplo corto."}}]}}
         ]
       }}
     ]
 
-    Lesson text:
+    Text:
     {lesson_text}
     """
     try:
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
-            config={"response_mime_type": "application/json"}
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                temperature=0.2
+            )
         )
         return json.loads(response.text)
     except Exception:
         return []
+
 
 
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
