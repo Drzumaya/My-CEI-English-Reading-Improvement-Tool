@@ -2134,7 +2134,7 @@ def stamp_and_save_transcript_pg(student_name: str, gb_data: dict, topic_filter:
 
 
 def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter: str = "Vista General") -> tuple[bytes, dict]:
-    """Genera y timbra el Boletín Oficial de Calificaciones en formato APA 7a Ed. con QR y sello HMAC-SHA256."""
+    """Genera y timbra el Boletín Oficial de Calificaciones en formato APA 7a Ed. con logo dinámico, QR y sello HMAC-SHA256."""
     import tempfile
     import qrcode
     from fpdf import FPDF
@@ -2144,35 +2144,60 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     fecha_gen = timbre["fecha_generacion"]
     sello_hmac = timbre["sello_hmac"]
 
-    # Genera código QR de verificación del boletín
-    app_base_url = str(st.secrets.get("APP_PUBLIC_URL", "https://streamlit.app")).rstrip("/")
+    app_base_url = str(
+        st.secrets.get("APP_PUBLIC_URL")
+        or st.secrets.get("APP_BASE_URL")
+        or "https://streamlit.app"
+    ).rstrip("/")
     verify_url = f"{app_base_url}/?verify_transcript={folio_bol}"
     qr_img = qrcode.make(verify_url)
     tmp_qr = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
     qr_img.save(tmp_qr.name)
 
+    # Logotipo dinámico sincronizado con la pantalla principal (con respaldo LOGO CEI APP.png)
+    logo_src = None
+    perm_logo = load_permanent_logo() if "load_permanent_logo" in globals() else None
+    if perm_logo and perm_logo.get("Logo_Base64"):
+        try:
+            logo_src = io.BytesIO(base64.b64decode(perm_logo["Logo_Base64"]))
+        except Exception:
+            logo_src = None
+    if logo_src is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
+        if os.path.exists(local_logo):
+            logo_src = local_logo
+
     class GradebookPDF(FPDF):
         def header(self):
+            self.set_fill_color(246, 248, 252)
             self.set_draw_color(26, 42, 68)
             self.set_line_width(0.7)
-            self.rect(12, 10, 186, 26)
-            logo_p = get_logo_path() if "get_logo_path" in globals() else None
-            if logo_p and os.path.exists(logo_p):
-                self.image(logo_p, x=15, y=13, w=20)
+            self.rect(12, 10, 186, 28, style="FD")
+
+            if logo_src:
+                try:
+                    if isinstance(logo_src, io.BytesIO):
+                        logo_src.seek(0)
+                    self.image(logo_src, x=15, y=13, w=22)
+                except Exception:
+                    pass
+
             self.set_xy(38, 13)
-            self.set_font("Times", "B", 13)
+            self.set_font("Times", "B", 13.5)
             self.set_text_color(26, 42, 68)
-            self.cell(156, 6, "CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="L")
+            self.cell(154, 6, "CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="C")
+
             self.set_x(38)
             self.set_font("Times", "I", 9.5)
             self.set_text_color(60, 60, 60)
-            self.multi_cell(
-                156, 4.3,
-                "Official Stamped Academic Transcript & CEFR Applied Grammar Proficiency Report\n"
-                "APA 7th Edition Academic Standard  |  Author: Jacob Zumaya Prianti",
-                align="L"
-            )
-            self.set_y(40)
+            self.cell(154, 5, "Official Stamped Academic Transcript & CEFR Applied Grammar Report", new_x="LMARGIN", new_y="NEXT", align="C")
+
+            self.set_x(38)
+            self.set_font("Times", "B", 8.5)
+            self.set_text_color(150, 110, 20)
+            self.cell(154, 5, "APA 7th Edition Academic Standard  |  Author: Jacob Zumaya Prianti", new_x="LMARGIN", new_y="NEXT", align="C")
+            self.set_y(42)
 
         def footer(self):
             self.set_y(-16)
@@ -2190,7 +2215,6 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.set_auto_page_break(auto=True, margin=22)
     pdf.add_page()
 
-    # Título APA centrado con Folio de Timbrado y Fecha/Hora exacta de generación
     pdf.set_font("Times", "B", 13)
     pdf.set_text_color(20, 20, 20)
     pdf.cell(0, 7, clean_pdf_text(f"OFFICIAL ACADEMIC TRANSCRIPT: {student_name.upper()}"), new_x="LMARGIN", new_y="NEXT", align="C")
@@ -2202,7 +2226,6 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.cell(0, 5, clean_pdf_text(f"Registration ID: {gb_data.get('matricula')}  |  CEFR Level: {gb_data.get('nivel_cefr')}  |  View: {topic_filter}"), new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.ln(3)
 
-    # Cuadro de Promedios Generales
     pdf.set_fill_color(242, 245, 250)
     pdf.set_draw_color(26, 42, 68)
     pdf.rect(12, pdf.get_y(), 186, 15, style="DF")
@@ -2216,7 +2239,6 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.cell(44, 8, f"Total Lessons: {len(gb_data['records'])}", align="C")
     pdf.ln(15)
 
-    # Tabla APA 1: Desempeño por Grammar Topic
     pdf.set_font("Times", "B", 11)
     pdf.set_text_color(20, 20, 20)
     pdf.cell(0, 6, "Table 1", new_x="LMARGIN", new_y="NEXT")
@@ -2227,26 +2249,24 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.set_font("Times", "B", 9.5)
     pdf.set_draw_color(20, 20, 20)
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
-    pdf.cell(112, 7, "Grammar Topic", align="L")
-    pdf.cell(24, 7, "Lessons", align="C")
-    pdf.cell(25, 7, "Mastery (%)", align="C")
-    pdf.cell(25, 7, "Status", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(124, 7, "Grammar Topic", align="L")
+    pdf.cell(18, 7, "Lessons", align="C")
+    pdf.cell(22, 7, "Mastery", align="C")
+    pdf.cell(22, 7, "Status", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
 
-    pdf.set_font("Times", "", 9.5)
+    pdf.set_font("Times", "", 9.2)
     temas_pdf = gb_data.get("topic_summary", [])
     if topic_filter != "Vista General":
         temas_pdf = [t for t in temas_pdf if t["Grammar Topic"] == topic_filter]
 
     for t_row in temas_pdf:
-        pdf.cell(112, 6.2, clean_pdf_text(t_row["Grammar Topic"])[:62], align="L")
-        pdf.cell(24, 6.2, str(t_row["Lecciones"]), align="C")
-        pdf.cell(25, 6.2, f"{t_row['Dominio (%)']}%", align="C")
-        pdf.cell(25, 6.2, clean_pdf_text(t_row["Estatus"]), align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(124, 6.2, clean_pdf_text(t_row["Grammar Topic"]), align="L")
+        pdf.cell(18, 6.2, str(t_row["Lecciones"]), align="C")
+        pdf.cell(22, 6.2, f"{t_row['Dominio (%)']}%", align="C")
+        pdf.cell(22, 6.2, clean_pdf_text(t_row["Estatus"]), align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
     pdf.ln(5)
-
-    # Tabla APA 2: Registro Cronológico de Lecciones Evaluadas
     pdf.set_font("Times", "B", 11)
     pdf.cell(0, 6, "Table 2", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Times", "I", 10.5)
@@ -2256,10 +2276,10 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.set_font("Times", "B", 9)
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
     pdf.cell(38, 7, "Folio", align="L")
-    pdf.cell(74, 7, "Grammar Topic", align="L")
-    pdf.cell(24, 7, "Quiz", align="C")
-    pdf.cell(24, 7, "Oral", align="C")
-    pdf.cell(26, 7, "Lesson Avg", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(82, 7, "Grammar Topic", align="L")
+    pdf.cell(22, 7, "Quiz", align="C")
+    pdf.cell(22, 7, "Oral", align="C")
+    pdf.cell(22, 7, "Lesson Avg", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
 
     pdf.set_font("Times", "", 8.8)
@@ -2269,14 +2289,13 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
 
     for r_item in recs_pdf:
         pdf.cell(38, 6, clean_pdf_text(r_item["Folio"]), align="L")
-        pdf.cell(74, 6, clean_pdf_text(r_item["Grammar_Topic"])[:42], align="L")
-        pdf.cell(24, 6, clean_pdf_text(r_item["Quiz_Pct"]), align="C")
-        pdf.cell(24, 6, clean_pdf_text(r_item["Oral_Pct"]), align="C")
-        pdf.cell(26, 6, clean_pdf_text(r_item["Promedio_Leccion"]), align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(82, 6, clean_pdf_text(r_item["Grammar_Topic"])[:55], align="L")
+        pdf.cell(22, 6, clean_pdf_text(r_item["Quiz_Pct"]), align="C")
+        pdf.cell(22, 6, clean_pdf_text(r_item["Oral_Pct"]), align="C")
+        pdf.cell(22, 6, clean_pdf_text(r_item["Promedio_Leccion"]), align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
     pdf.ln(6)
 
-    # Cuadro Oficial de Timbrado Digital HMAC-SHA256 + Código QR
     if pdf.get_y() > 235:
         pdf.add_page()
     y_seal = pdf.get_y()
