@@ -103,9 +103,6 @@ def get_google_sheet():
 def get_padron_sheet():
     return get_spreadsheet().worksheet("Padron_Estudiantes")
 
-@st.cache_data(ttl=60)
-def load_padron_records():
-    return get_padron_sheet().get_all_records()
 
 def get_certificados_sheet():
     ss = get_spreadsheet()
