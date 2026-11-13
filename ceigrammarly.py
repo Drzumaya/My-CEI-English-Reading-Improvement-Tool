@@ -3050,7 +3050,7 @@ if generar_btn:
         campos_faltantes.append("Personajes / Participantes")
     if not str(locals().get("asunto", "")).strip():
         campos_faltantes.append("Tema / Asunto")
-
+ 
     gemini_key_ok = bool(
         st.secrets.get("GEMINI_API_KEY", "")
         or next((sec["GEMINI_API_KEY"] for sec in st.secrets.values() if isinstance(sec, dict) and "GEMINI_API_KEY" in sec), "")
