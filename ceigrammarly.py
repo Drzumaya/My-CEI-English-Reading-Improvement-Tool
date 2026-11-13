@@ -2288,17 +2288,17 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.set_xy(43, y_seal + 3)
     pdf.set_font("Times", "B", 9.5)
     pdf.set_text_color(26, 42, 68)
-    pdf.cell(152, 5, f"DIGITAL INSTITUTIONAL STAMP (HMAC-SHA256)  |  FOLIO: {folio_bol}", ln=True)
+    pdf.cell(152, 5, clean_pdf_text(f"DIGITAL INSTITUTIONAL STAMP (HMAC-SHA256)  |  FOLIO: {folio_bol}"), ln=True)
 
     pdf.set_x(43)
     pdf.set_font("Courier", "", 7.2)
     pdf.set_text_color(40, 40, 40)
-    pdf.multi_cell(152, 3.6, f"SHA-256 SEAL: {sello_hmac}\nISSUED AT: {fecha_gen}  |  VERIFY: {verify_url}")
+    pdf.multi_cell(152, 3.6, clean_pdf_text(f"SHA-256 SEAL: {sello_hmac}\nISSUED AT: {fecha_gen}  |  VERIFY: {verify_url}"))
 
     pdf.set_xy(43, y_seal + 22)
     pdf.set_font("Times", "B", 8.5)
     pdf.set_text_color(20, 20, 20)
-    pdf.cell(152, 5, "Signed digitally by: Jacob Zumaya Prianti — Academic Director, Career English Institute", ln=True)
+    pdf.cell(152, 5, clean_pdf_text("Signed digitally by: Jacob Zumaya Prianti - Academic Director, Career English Institute"), ln=True)
 
     try:
         os.unlink(tmp_qr.name)
@@ -2306,6 +2306,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
         pass
 
     return bytes(pdf.output()), timbre
+
 
 
 
