@@ -1335,8 +1335,8 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dict]:
-    """Extrae título y cuerpo de la lección y etiqueta categorías gramaticales en ~2 segundos."""
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
+    """Analiza título y lección devolviendo oraciones tokenizadas y un diccionario EN->ES completo."""
     import re
     from google.genai import types
 
@@ -1348,22 +1348,21 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
         if not re.match(r"^\*\*(Folio|Creation Date|Author|Institution|CEFR Level|Academic Level|Campus & Contact):", l, flags=re.IGNORECASE)
     ]
     solo_titulo_y_cuerpo = f"{titulo_leccion}\n\n" + "\n".join(lineas_cuerpo)
-    solo_titulo_y_cuerpo = solo_titulo_y_cuerpo.strip()[:3000]
+    solo_titulo_y_cuerpo = solo_titulo_y_cuerpo.strip()[:2800]
 
     prompt = f"""
-    Break this English lesson title and reading text (CEFR {cefr_level}) into sentences and tokens.
-    For each token, return ONLY:
-    - "w": exact word or punctuation
-    - "pos": strictly one of "verb", "noun", "adjective", "conjunction", "other"
-    Also include "sentence_es": natural Spanish translation of each sentence.
-
-    Return ONLY valid JSON:
-    [
-      {{
-        "sentence_es": "Traducción de la oración al español",
-        "tokens": [{{"w": "Students", "pos": "noun"}}, {{"w": "learn", "pos": "verb"}}]
-      }}
-    ]
+    Analyze this English lesson title and reading text (CEFR {cefr_level}) for a Spanish-speaking student.
+    Return ONLY a valid JSON object with TWO keys:
+    1. "sentences": array of sentences, each with:
+       - "sentence_es": natural Spanish translation of the sentence
+       - "tokens": array of {{"w": "exact word or punctuation", "pos": "verb"|"noun"|"adjective"|"conjunction"|"other"}}
+    2. "dictionary": object mapping EVERY unique lowercase English word from the text to:
+       - "ipa": US English IPA (e.g. "/krɪˈtiːk/")
+       - "pos_es": Spanish grammatical label ("Verbo", "Sustantivo", "Adjetivo", "Conjunción", "Adverbio / Preposición")
+       - "es": exact primary Spanish translation in this context (e.g. "crítica / analizar críticamente")
+       - "alt_es": 2 to 4 alternative Spanish translations separated by commas (e.g. "reseña, evaluación, juicio crítico")
+       - "def_es": clear Spanish definition of the word (1 short sentence)
+       - "examples": 2 bilingual examples [{{"en": "English sentence using the word.", "es": "Traducción natural al español."}}]
 
     Text:
     {solo_titulo_y_cuerpo}
@@ -1377,41 +1376,18 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    temperature=0.1
+                    temperature=0.15
                 )
             )
             raw_txt = str(response.text or "").strip()
             raw_txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_txt, flags=re.MULTILINE).strip()
             parsed = json.loads(raw_txt)
-            if isinstance(parsed, list) and len(parsed) > 0:
+            if isinstance(parsed, dict) and parsed.get("sentences"):
                 return parsed
     except Exception:
         pass
 
-    conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore"}
-    oraciones_raw = re.split(r"(?<=[.!?])\s+", solo_titulo_y_cuerpo.replace("**", "").replace("#", ""))
-    resultado_fallback = []
-    for orac in oraciones_raw:
-        if not orac.strip():
-            continue
-        palabras = re.findall(r"\w+|[^\w\s]", orac)
-        tokens_fb = []
-        for p in palabras:
-            low = p.lower()
-            if low in conjunciones:
-                pos_fb = "conjunction"
-            elif low.endswith(("ing", "ed")) and len(low) > 4:
-                pos_fb = "verb"
-            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic")) and len(low) > 4:
-                pos_fb = "adjective"
-            elif len(low) > 4 and low.isalpha():
-                pos_fb = "noun"
-            else:
-                pos_fb = "other"
-            tokens_fb.append({"w": p, "pos": pos_fb})
-        resultado_fallback.append({"sentence_es": "", "tokens": tokens_fb})
-    return resultado_fallback
-
+    return {"sentences": [], "dictionary": {}}
 
 
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
