@@ -3233,11 +3233,12 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                                 st.error(f"Error al registrar socio: {e_ns}")
                                         else:
                                             st.warning("⚠️ Completa el nombre y la clave del socio.")
+                    except Exception as e:
+                        st.error(f"Error al cargar padrón: {e}")
 
-
-        
         # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
+
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
                 {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
