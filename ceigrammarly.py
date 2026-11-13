@@ -1543,7 +1543,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
     texto_sin_bib = str(lesson_text or "")
     for marcador in ["**Bibliography", "Bibliography ("]:
         if marcador in texto_sin_bib:
-            texto_sin_bib = texto_sin_bib.split(marcador, 1)
+            texto_sin_bib = texto_sin_bib.split(marcador, 1)[0]
 
     lineas_limpias = []
     for linea in texto_sin_bib.splitlines():
