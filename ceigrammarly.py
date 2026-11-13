@@ -2364,110 +2364,79 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
         raise ultimo_error
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
-def generar_imagen_garantizada(client, escena_y_dialogos: str, titulo_tema: str, nivel_cefr: str, grado_acad: str) -> bytes:
-    """Genera ilustración escénica completa (ambiente + personajes + globos de diálogo) con HF FLUX y respaldo SVG por Gemini."""
+def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
+    """Genera una ilustración educativa fresca con Gemini/Imagen o un respaldo nativo en Pillow sin Cairo."""
+    from PIL import Image, ImageDraw, ImageFont
+    from google.genai import types
+
     st.session_state["last_img_error"] = None
-    clean_p = "".join(c for c in escena_y_dialogos if c.isalnum() or c in " ,.?!'-:").strip()
-    
-    prompt_comic = (
-        f"Warm, colorful, friendly educational comic-book illustration in 16:9 widescreen format for {grado_acad} English learners. "
-        f"Show a rich, detailed physical environment (room background, furniture, warm lighting) and expressive characters interacting naturally. "
-        f"Include clean comic speech bubbles with legible English dialogue text. "
-        f"Scene details: {clean_p}"
-    )
 
-    errores_img = []
+    if client_gm is not None:
+        estilo_visual = (
+            "Warm, friendly educational textbook illustration, clean digital comic art style, "
+            "bright natural lighting, expressive characters, clear English speech bubbles, no distorted text: "
+        )
+        full_prompt = f"{estilo_visual} {scene_prompt}"
 
-    # 1. NIVEL PRIMARIO: Hugging Face Inference API (FLUX.1-schnell / FLUX.1-dev)
-    hf_token = str(st.secrets.get("HF_TOKEN", "")).strip()
-    if hf_token:
-        hf_models = [
-            "black-forest-labs/FLUX.1-schnell",
-            "stabilityai/stable-diffusion-xl-base-1.0"
-        ]
-        for hf_mod in hf_models:
+        # 1. Intento principal con Gemini Image (Nano Banana)
+        for model_img in ["gemini-2.5-flash-image", "gemini-2.0-flash-exp-image-generation"]:
             try:
-                hf_url = f"https://huggingface.co{hf_mod}"
-                resp_hf = requests.post(
-                    hf_url,
-                    headers={"Authorization": f"Bearer {hf_token}"},
-                    json={"inputs": prompt_comic},
-                    timeout=25
+                res = client_gm.models.generate_content(
+                    model=model_img,
+                    contents=full_prompt,
+                    config=types.GenerateContentConfig(response_modalities=["IMAGE"])
                 )
-                if resp_hf.status_code == 200 and len(resp_hf.content) > 5000:
-                    return compress_bytes_image(resp_hf.content, max_size=(800, 450), quality=88)
-                else:
-                    errores_img.append(f"HF {hf_mod} ({resp_hf.status_code}): {resp_hf.text[:100]}")
-            except Exception as e:
-                errores_img.append(f"HF {hf_mod}: {str(e)[:100]}")
+                for cand in getattr(res, "candidates", []) or []:
+                    for part in getattr(cand.content, "parts", []) or []:
+                        inline = getattr(part, "inline_data", None)
+                        if inline and getattr(inline, "data", None):
+                            return inline.data
+            except Exception as e_m:
+                st.session_state["last_img_error"] = f"{model_img}: {e_m}"
 
-    # 2. NIVEL SECUNDARIO: Ilustración Vectorial Escénica SVG dibujada por Gemini Texto
-    if client is not None:
+        # 2. Segundo intento con Imagen 3
         try:
-            import re
-            prompt_svg = f"""
-            You are an expert educational vector illustrator. Create a rich, colorful, friendly 16:9 SVG illustration (viewBox="0 0 800 450") depicting this exact scene:
-            SCENE & DIALOGUE: {clean_p}
-            TOPIC: {titulo_tema}
+            res_im = client_gm.models.generate_images(
+                model="imagen-3.0-generate-002",
+                prompt=full_prompt,
+                config=types.GenerateImagesConfig(number_of_images=1, output_mime_type="image/png", aspect_ratio="16:9")
+            )
+            if getattr(res_im, "generated_images", None):
+                return res_im.generated_images[0].image.image_bytes
+        except Exception as e_im:
+            st.session_state["last_img_error"] = f"Imagen-3: {e_im}"
 
-            MANDATORY ARTISTIC REQUIREMENTS:
-            1. Full detailed background environment matching the scene (e.g., if office: walls, window with sky/trees, wooden desk, laptop, bookshelf with colorful books, potted plant, warm lighting).
-            2. Draw two friendly, expressive illustrated characters (head, hair, face with eyes/smile, torso/clothing, arms) positioned naturally in the scene (e.g., sitting at a desk or standing talking).
-            3. Draw two clean white comic speech bubbles (<rect rx="16"> + <polygon> pointer) near each character with legible dark text (<text>) containing the exact English dialogue phrases from the scene (wrap long lines with <tspan> so text never overflows the bubble).
-            4. Use pleasant, warm educational colors (soft creams, blues, warm wood tones, greens).
-            5. Output ONLY valid <svg xmlns="http://w3.org" viewBox="0 0 800 450">...</svg> code. No markdown, no explanations.
-            """
-            svg_raw, _ = generar_con_maxima_potencia(client, prompt_svg)
-            svg_match = re.search(r"<svg[\s\S]*?</svg>", svg_raw, re.IGNORECASE)
-            if svg_match:
-                svg_code = svg_match.group(0)
-                import cairosvg
-                png_bytes = cairosvg.svg2png(
-                    bytestring=svg_code.encode("utf-8"),
-                    output_width=800,
-                    output_height=450
-                )
-                return compress_bytes_image(png_bytes, max_size=(800, 450), quality=88)
+    # 3. Respaldo visual nativo en Pillow (Cero dependencia de Cairo/SVG)
+    w, h = 800, 420
+    img = Image.new("RGB", (w, h), color=(24, 42, 72))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([16, 16, w - 16, h - 16], outline=(212, 175, 55), width=4)
+    draw.rectangle([32, 32, w - 32, 95], fill=(36, 62, 104))
 
-        except Exception as e:
-            errores_img.append(f"SVG Engine: {str(e)[:100]}")
+    font_title = ImageFont.load_default()
+    draw.text((48, 52), f"CAREER ENGLISH INSTITUTE  |  {folio_tag}  |  CEFR {cefr_lvl}", fill=(255, 223, 128), font=font_title)
 
-    if errores_img:
-        st.session_state["last_img_error"] = " | ".join(errores_img)
+    # Envuelve el texto de la escena en líneas limpias
+    clean_scene = str(scene_prompt or "Academic English Reading & Discourse Context").replace("*", "").replace("#", "")
+    words = clean_scene.split()
+    lines, curr = [], ""
+    for wd in words:
+        if len(curr) + len(wd) + 1 <= 78:
+            curr = f"{curr} {wd}".strip()
+        else:
+            lines.append(curr)
+            curr = wd
+    if curr:
+        lines.append(curr)
 
-    # 3. NIVEL DE EMERGENCIA OFFLINE: Tarjeta local con globos de conversación
-    import re
-    img_card = Image.new("RGB", (640, 360), color=(15, 44, 89))
-    draw = ImageDraw.Draw(img_card)
-    draw.rectangle((12, 12, 628, 348), outline=(218, 165, 32), width=3)
-    draw.rectangle((15, 15, 625, 65), fill=(25, 65, 125))
-    
-    cefr_short = next(iter(nivel_cefr.split()), "CEFR") if nivel_cefr else "CEFR"
-    draw.text((28, 32), f"CAREER ENGLISH INSTITUTE | CEFR {cefr_short} | {grado_acad.upper()}", fill=(255, 215, 0))
-    draw.text((28, 80), f"SCENE: {titulo_tema.upper()[:52]}", fill=(180, 210, 255))
+    y_cursor = 125
+    for ln in lines[:8]:
+        draw.text((48, y_cursor), ln, fill=(240, 244, 248), font=font_title)
+        y_cursor += 28
 
-    dialogos = re.findall(r'"([^"]+)"', escena_y_dialogos)
-    if not dialogos:
-        dialogos = [clean_p[:55], clean_p[55:110]] if len(clean_p) > 55 else [clean_p]
-
-    y_box = 115
-    for idx_d, frase in enumerate(dialogos[:2]):
-        if not frase.strip():
-            continue
-        x_left = 35 if idx_d % 2 == 0 else 135
-        x_right = 505 if idx_d % 2 == 0 else 605
-        bg_bubble = (255, 255, 255) if idx_d % 2 == 0 else (230, 242, 255)
-        draw.rounded_rectangle((x_left, y_box, x_right, y_box + 68), radius=14, fill=bg_bubble, outline=(218, 165, 32), width=2)
-        txt_clean = frase.strip()[:85]
-        l1, l2 = txt_clean[:44], txt_clean[44:85]
-        draw.text((x_left + 15, y_box + 16), f'"{l1}', fill=(11, 37, 69))
-        if l2:
-            draw.text((x_left + 15, y_box + 36), f'{l2}"', fill=(11, 37, 69))
-        y_box += 85
-
-    buf_card = io.BytesIO()
-    img_card.save(buf_card, format="JPEG", quality=85)
-    return buf_card.getvalue()
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
@@ -3317,6 +3286,24 @@ if generar_btn:
                     st.session_state.audio_bytes = audio_fp.getvalue()
                 except Exception:
                     st.warning("⚠️ Lección generada, pero el audio no pudo sintetizarse en este momento.")
+
+                # 2b. Generación automática de ilustración educativa con IA
+                try:
+                    prompt_escena_auto = f"""
+                    Write a vivid, friendly visual scene description (45 words) for an educational textbook illustration:
+                    Setting: {contexto_en}. Characters: {personas_en}. Topic: {asunto_apa}.
+                    Include bright warm lighting, natural interaction, and two short English speech bubbles from the lesson.
+                    """
+                    desc_escena, _ = generar_con_maxima_potencia(client, prompt_escena_auto)
+                    st.session_state.image_bytes = generar_imagen_garantizada(
+                        client,
+                        desc_escena,
+                        f"Folio {nuevo_folio}",
+                        cefr_level,
+                        academic_grade
+                    )
+                except Exception:
+                    pass
 
                 # 3. Persistencia directa en Supabase PostgreSQL
                 tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto_apa} ({gramatica_b1})"
