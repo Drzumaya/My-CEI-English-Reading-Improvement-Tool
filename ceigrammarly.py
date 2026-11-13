@@ -2972,7 +2972,7 @@ def init_gemini_client():
 
 client = init_gemini_client()
 
-    if "GEMINI_API_KEY" not in st.secrets:
+if "GEMINI_API_KEY" not in st.secrets:
         st.sidebar.error("⚠️ GEMINI_API_KEY no configurada.")
         st.error("⚠️ Error de configuración: falta GEMINI_API_KEY.")
     elif campos_faltantes:
