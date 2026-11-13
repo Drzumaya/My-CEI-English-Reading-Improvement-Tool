@@ -1269,10 +1269,10 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
     import re
     from google.genai import types
 
-    # 1. Elimina la sección Bibliography del final
+    # 1. Elimina la sección Bibliography del final (nota el [0] tras re.split)
     sin_bib = re.split(r"\*\*Bibliography.*?\*\*", lesson_text, flags=re.IGNORECASE)[0].strip()
 
-    # 2. Extrae el título (primera línea) y omite las líneas de metadatos APA (Folio, Author, CEFR, Campus)
+    # 2. Extrae el título (primera línea) y omite los metadatos APA (Folio, Author, CEFR, Campus)
     lineas = [l.strip() for l in sin_bib.splitlines() if l.strip()]
     titulo_leccion = lineas[0] if lineas else ""
     lineas_cuerpo = [
@@ -1287,12 +1287,12 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
     Rules:
     1. Keep EVERY word and punctuation mark in "tokens" so the full title and text render intact.
     2. Classify "pos" strictly as: "verb", "noun", "adjective", "conjunction", or "other".
-    3. For every word (especially verbs, nouns, adjectives, conjunctions), provide:
+    3. For every word, provide:
        - "w": exact word
        - "pos": grammatical category
        - "ipa": US English IPA transcription (e.g. /ˈlɛsən/)
        - "es": primary Spanish translation in this context
-       - "alt_es": 2-3 alternative Spanish meanings separated by commas (e.g. "lección, clase, enseñanza")
+       - "alt_es": 2-3 alternative Spanish meanings separated by commas
        - "pos_es": Spanish grammatical label ("Verbo", "Sustantivo", "Adjetivo", "Conjunción", "Preposición / Artículo")
        - "examples": 3 short bilingual examples ({{"en": "English sentence", "es": "Traducción al español"}}). For punctuation marks, leave "examples": [].
 
@@ -1329,7 +1329,39 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
     except Exception as e_study:
         st.session_state["last_study_error"] = str(e_study)
 
-    return []
+    # Respaldo instantáneo si la API falla o excede tiempo
+    conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore"}
+    oraciones_raw = re.split(r"(?<=[.!?])\s+", solo_titulo_y_cuerpo.replace("**", "").replace("#", ""))
+    resultado_fallback = []
+    for orac in oraciones_raw:
+        if not orac.strip():
+            continue
+        palabras = re.findall(r"\w+|[^\w\s]", orac)
+        tokens_fb = []
+        for p in palabras:
+            low = p.lower()
+            if low in conjunciones:
+                pos_fb, pos_es_fb = "conjunction", "Conjunción"
+            elif low.endswith(("ing", "ed")) and len(low) > 4:
+                pos_fb, pos_es_fb = "verb", "Verbo"
+            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic")) and len(low) > 4:
+                pos_fb, pos_es_fb = "adjective", "Adjetivo"
+            elif len(low) > 4 and low.isalpha():
+                pos_fb, pos_es_fb = "noun", "Sustantivo"
+            else:
+                pos_fb, pos_es_fb = "other", "Partícula / Otro"
+            tokens_fb.append({
+                "w": p,
+                "pos": pos_fb,
+                "ipa": "",
+                "es": f"Traducción de '{p}'",
+                "alt_es": "",
+                "pos_es": pos_es_fb,
+                "examples": [{"en": orac.strip(), "es": "Ejemplo de contexto en la lección."}] if pos_fb != "other" else []
+            })
+        resultado_fallback.append({"sentence_es": "", "tokens": tokens_fb})
+    return resultado_fallback
+
 
 
 
@@ -2224,8 +2256,9 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
     </body>
     </html>
     """
-    altura_dinamica = max(420, min(780, len(analyzed_sentences) * 115 + 120))
-    components.html(html_code, height=altura_dinamica, scrolling=True)
+    altura_dinamica = max(440, min(780, len(analyzed_sentences) * 115 + 120))
+    st.iframe(html_code, height=altura_dinamica)
+
 
 
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
