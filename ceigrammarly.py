@@ -2375,18 +2375,21 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                     st.session_state["last_cert_folio"] = folio_c
                                     st.success(f"✅ ¡Certificado timbrado y guardado en Supabase! Folio: **{folio_c}**")
 
-                        if st.session_state.get("last_cert_pdf"):
+                                               if st.session_state.get("last_cert_pdf"):
                             f_actual = st.session_state["last_cert_folio"]
-                            base_url = str(st.secrets.get("APP_BASE_URL", "https://career-english-institute.streamlit.app")).rstrip("/")
+                            base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
                             link_cert_directo = f"{base_url}/?verify={urllib.parse.quote(f_actual)}"
 
                             st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
-                            b64_preview = base64.b64encode(st.session_state["last_cert_pdf"]).decode("utf-8")
-                            st.markdown(
-                                f'<iframe src="data:application/pdf;base64,{b64_preview}#toolbar=1" '
-                                f'width="100%" height="520" style="border: 2px solid #1a2a44; border-radius: 8px;"></iframe>',
-                                unsafe_allow_html=True
-                            )
+                            try:
+                                import pypdfium2 as pdfium
+                                pdf_doc = pdfium.PdfDocument(st.session_state["last_cert_pdf"])
+                                page = pdf_doc[0]
+                                bitmap = page.render(scale=2.0)
+                                pil_image = bitmap.to_pil()
+                                st.image(pil_image, caption=f"Certificado Oficial Tamaño Carta — {f_actual}", width="stretch")
+                            except Exception:
+                                st.info("📄 Documento PDF listo. Usa el botón inferior para descargarlo o abrirlo en tu visor.")
 
                             col_b1, col_b2, col_b3 = st.columns([1.3, 1.4, 1.0])
                             with col_b1:
@@ -2412,6 +2415,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                     st.session_state["last_cert_folio"] = None
                                     st.session_state["last_cert_name"] = None
                                     st.rerun()
+
                     st.divider()
                     st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
                     certs_hist = load_certificates_pg()
