@@ -1265,20 +1265,26 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dict]:
-    """Analiza la lección en 3-5 segundos desactivando el thinking budget y omitiendo metadata en signos/artículos."""
+    """Analiza el cuerpo de la lección con Gemini y cuenta con respaldo local automático."""
+    import re
     from google.genai import types
 
-    prompt = f"""
-    Break this English lesson (CEFR {cefr_level}) into sentences and tokens for a Spanish-speaking student.
-    Rules for speed and precision:
-    1. Keep EVERY word and punctuation mark in "tokens" so the full text renders intact.
-    2. Classify "pos" as: "verb", "noun", "adjective", "conjunction", or "other".
-    3. ONLY include "ipa", "es", "pos_es", and 2 short "examples" ({{en, es}}) for content words ("verb", "noun", "adjective", "conjunction"). For "other" (articles, punctuation, basic prepositions), set "es" to a 1-word translation and "examples": [].
+    # 1. Excluye la bibliografía APA al final para analizar solo el texto de estudio (mucho más rápido)
+    cuerpo_estudio = re.split(r"\*\*Bibliography.*?\*\*", lesson_text, flags=re.IGNORECASE)[0].strip()
+    cuerpo_estudio = cuerpo_estudio[:2800]
 
-    Return ONLY valid JSON:
+    prompt = f"""
+    Analyze this English lesson (CEFR {cefr_level}) into sentences and tokens for a Spanish-speaking student.
+    Rules:
+    1. Keep EVERY word and punctuation mark in "tokens" so the full text renders intact.
+    2. Classify "pos" strictly as: "verb", "noun", "adjective", "conjunction", or "other".
+    3. For content words ("verb", "noun", "adjective", "conjunction"), include "ipa", "es" (contextual Spanish translation), "pos_es" (Verbo/Sustantivo/Adjetivo/Conjunción), and 2 short "examples" ({{en, es}}).
+    4. For "other" (articles, punctuation, basic prepositions), set "es" to a 1-word Spanish meaning and "examples": [].
+
+    Return ONLY a valid JSON array:
     [
       {{
-        "sentence_es": "Traducción natural de la oración al español",
+        "sentence_es": "Traducción de la oración al español",
         "tokens": [
           {{"w": "Word", "pos": "noun", "ipa": "/wɜːrd/", "es": "palabra", "pos_es": "Sustantivo", "examples": [{{"en": "Short example.", "es": "Ejemplo corto."}}]}}
         ]
@@ -1286,21 +1292,59 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
     ]
 
     Text:
-    {lesson_text}
+    {cuerpo_estudio}
     """
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                temperature=0.2
+        gm_client = init_gemini_client()
+        if gm_client:
+            response = gm_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    temperature=0.1
+                )
             )
-        )
-        return json.loads(response.text)
-    except Exception:
-        return []
+            raw_txt = str(response.text or "").strip()
+            raw_txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_txt, flags=re.MULTILINE).strip()
+            parsed = json.loads(raw_txt)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                return parsed
+    except Exception as e_study:
+        st.session_state["last_study_error"] = str(e_study)
+
+    # 2. Respaldo garantizado si la API tarda o falla: tokeniza por oraciones y palabras clave
+    conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore"}
+    oraciones_raw = re.split(r"(?<=[.!?])\s+", cuerpo_estudio.replace("**", "").replace("#", ""))
+    resultado_fallback = []
+    for orac in oraciones_raw:
+        if not orac.strip():
+            continue
+        palabras = re.findall(r"\w+|[^\w\s]", orac)
+        tokens_fb = []
+        for p in palabras:
+            low = p.lower()
+            if low in conjunciones:
+                pos_fb, pos_es_fb = "conjunction", "Conjunción"
+            elif low.endswith(("ing", "ed")) and len(low) > 4:
+                pos_fb, pos_es_fb = "verb", "Verbo"
+            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic")) and len(low) > 4:
+                pos_fb, pos_es_fb = "adjective", "Adjetivo"
+            elif len(low) > 4 and low.isalpha():
+                pos_fb, pos_es_fb = "noun", "Sustantivo"
+            else:
+                pos_fb, pos_es_fb = "other", "Partícula / Otro"
+            tokens_fb.append({
+                "w": p,
+                "pos": pos_fb,
+                "ipa": "",
+                "es": f"Término en inglés: '{p}'",
+                "pos_es": pos_es_fb,
+                "examples": [{"en": orac.strip(), "es": "Contexto tomado de la lección actual."}] if pos_fb != "other" else []
+            })
+        resultado_fallback.append({"sentence_es": "", "tokens": tokens_fb})
+    return resultado_fallback
 
 
 
