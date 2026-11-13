@@ -3736,7 +3736,7 @@ with col_tools_right:
                 st.error(f"Error al cargar historial desde Supabase: {e}")
 
 
-       st.divider()
+           st.divider()
 
     if st.button("🗑️ Borrar Todo", type="secondary", width="stretch"):
         st.session_state.generated_text = ""
@@ -3760,7 +3760,7 @@ with col_tools_right:
 
 
 # --- 18. PIE DE PÁGINA INSTITUCIONAL ---
-      st.divider()
+st.divider()
 st.markdown(
     f"""
     <div style="text-align: center; color: #666; font-size: 13px; padding: 10px;">
