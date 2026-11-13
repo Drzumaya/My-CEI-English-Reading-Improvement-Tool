@@ -1163,6 +1163,46 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
             continue
     raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_err}")
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dict]:
+    """Analiza la lección con Gemini y devuelve oraciones y palabras etiquetadas gramaticalmente."""
+    prompt = f"""
+    Analyze the following English lesson (CEFR {cefr_level}) for an interactive Spanish-speaking student study mode.
+    Break the text into sentences, and break each sentence into tokens (words and punctuation).
+    For each word token, classify its Part of Speech (pos) strictly as one of:
+    "verb", "noun", "adjective", "conjunction", "other".
+    Provide:
+    - "w": exact word or punctuation
+    - "pos": "verb" | "noun" | "adjective" | "conjunction" | "other"
+    - "ipa": brief phonetic guide (e.g. /ˈstʌdi/)
+    - "es": accurate Spanish translation in this context
+    - "pos_es": Spanish grammatical label (e.g. "Verbo", "Sustantivo", "Adjetivo", "Conjunción")
+    - "examples": list of 3 objects {{"en": "English example sentence", "es": "Traducción al español"}} showing different uses.
+
+    Return ONLY a valid JSON array of sentences:
+    [
+      {{
+        "sentence_es": "Traducción completa de la oración al español",
+        "tokens": [
+          {{"w": "Word", "pos": "noun", "ipa": "/wɜːrd/", "es": "palabra", "pos_es": "Sustantivo", "examples": [{{"en": "...", "es": "..."}}]}}
+        ]
+      }}
+    ]
+
+    Lesson text:
+    {lesson_text}
+    """
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config={"response_mime_type": "application/json"}
+        )
+        return json.loads(response.text)
+    except Exception:
+        return []
+
+
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
     """Traduce al inglés y corrige ortografía/estilo académico de las entradas del usuario para la bibliografía APA."""
     try:
@@ -1501,6 +1541,7 @@ if verify_folio:
             st.query_params.clear()
             st.rerun()
     st.stop()
+    
 # --- 8. AUTENTICACIÓN, LOCALSTORAGE FIRMADO Y CAPTURA DE FOLIO ---
 def _sign_session_token(usuario: str, clave: str) -> str:
     secret = str(st.secrets.get("HMAC_SECRET_KEY", "CEI-SESSION-KEY")).encode("utf-8")
@@ -1814,6 +1855,212 @@ def generar_pdf_certificado(
 
 
 # --- 9. MOTOR DE IA MULTIMODAL ---
+def render_interactive_study_viewer(analyzed_sentences: list[dict]):
+    """Renderiza el visor HTML/JS con coloreado gramatical, TTS al pasar el cursor y diccionario scrollable."""
+    import streamlit.components.v1 as components
+
+    data_json = json.dumps(analyzed_sentences, ensure_ascii=False)
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+      body {{
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        margin: 0; padding: 14px; background: #f8fafc; color: #1e293b;
+      }}
+      .toolbar {{
+        display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+        justify-content: space-between; background: #ffffff; padding: 10px 14px;
+        border-radius: 10px; border: 1px solid #cbd5e1; margin-bottom: 14px;
+      }}
+      .legend {{ display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; font-weight: 600; }}
+      .badge {{ padding: 3px 9px; border-radius: 6px; }}
+      .pos-verb {{ background: #fee2e2; color: #991b1b; border-bottom: 2px solid #ef4444; }}
+      .pos-noun {{ background: #dbeafe; color: #1e40af; border-bottom: 2px solid #3b82f6; }}
+      .pos-adjective {{ background: #dcfce7; color: #166534; border-bottom: 2px solid #22c55e; }}
+      .pos-conjunction {{ background: #fef3c7; color: #92400e; border-bottom: 2px solid #f59e0b; }}
+      .pos-other {{ background: #f1f5f9; color: #334155; }}
+      .sentence-box {{
+        background: #ffffff; border-left: 4px solid #1a2a44;
+        padding: 12px 16px; margin-bottom: 12px; border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06); line-height: 2.1; font-size: 17px;
+      }}
+      .sentence-box:hover {{ border-left-color: #d97706; background: #fffbeb33; }}
+      .word-token {{
+        display: inline-block; padding: 1px 6px; margin: 2px 2px;
+        border-radius: 5px; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s;
+      }}
+      .word-token:hover {{
+        transform: translateY(-2px); box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+      }}
+      .sentence-tr {{
+        display: block; font-size: 13px; color: #64748b; margin-top: 6px;
+        border-top: 1px dashed #e2e8f0; padding-top: 4px; font-style: italic;
+      }}
+      /* Burbuja flotante estilo Google Translate */
+      #dict-bubble {{
+        display: none; position: fixed; z-index: 9999; width: 320px;
+        background: #ffffff; border: 2px solid #1a2a44; border-radius: 12px;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25); padding: 14px;
+      }}
+      .dict-header {{
+        display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 8px;
+      }}
+      .dict-word {{ font-size: 19px; font-weight: 700; color: #1a2a44; }}
+      .dict-ipa {{ font-size: 13px; color: #64748b; margin-left: 6px; }}
+      .dict-meaning {{
+        font-size: 16px; font-weight: 600; color: #0f766e; margin-bottom: 8px;
+      }}
+      .dict-scroll {{
+        max-height: 170px; overflow-y: auto; padding-right: 6px;
+        border-top: 1px solid #f1f5f9; padding-top: 8px; font-size: 13px;
+      }}
+      .ex-item {{ margin-bottom: 8px; padding: 6px 8px; background: #f8fafc; border-radius: 6px; }}
+      .ex-en {{ font-weight: 600; color: #1e293b; }}
+      .ex-es {{ color: #475569; margin-top: 2px; }}
+      .btn-mini {{
+        border: 1px solid #cbd5e1; background: #f1f5f9; border-radius: 6px;
+        padding: 4px 8px; cursor: pointer; font-size: 12px; font-weight: 600;
+      }}
+      .btn-mini:hover {{ background: #e2e8f0; }}
+    </style>
+    </head>
+    <body>
+      <div class="toolbar">
+        <div class="legend">
+          <span class="badge pos-verb">Verbos</span>
+          <span class="badge pos-noun">Sustantivos</span>
+          <span class="badge pos-adjective">Adjetivos</span>
+          <span class="badge pos-conjunction">Conjunciones</span>
+          <span class="badge pos-other">Otros / Frases</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <label style="font-size:12px; font-weight:600; cursor:pointer;">
+            <input type="checkbox" id="hoverAudioToggle" checked> 🔊 Audio al pasar cursor
+          </label>
+          <button class="btn-mini" onclick="toggleSpeed()" id="speedBtn">Velocidad: 1.0x</button>
+        </div>
+      </div>
+
+      <div id="lesson-container"></div>
+
+      <div id="dict-bubble">
+        <div class="dict-header">
+          <div>
+            <span class="dict-word" id="b-word"></span>
+            <span class="dict-ipa" id="b-ipa"></span>
+          </div>
+          <div>
+            <button class="btn-mini" onclick="speakCurrentSlow()">🐢</button>
+            <button class="btn-mini" onclick="closeBubble()">✖</button>
+          </div>
+        </div>
+        <div id="b-pos" style="font-size:11px; text-transform:uppercase; color:#64748b; font-weight:700;"></div>
+        <div class="dict-meaning" id="b-es"></div>
+        <div style="font-size:11px; font-weight:700; color:#334155; margin-bottom:4px;">📚 Ejemplos de traducción:</div>
+        <div class="dict-scroll" id="b-examples"></div>
+      </div>
+
+      <script>
+        const sentences = {data_json};
+        let speechRate = 1.0;
+        let lastHovered = "";
+        let currentBubbleWord = "";
+
+        function speakWord(text, rateOverride = null) {{
+          if (!('speechSynthesis' in window)) return;
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.lang = 'en-US';
+          utter.rate = rateOverride || speechRate;
+          window.speechSynthesis.speak(utter);
+        }}
+
+        function toggleSpeed() {{
+          speechRate = (speechRate === 1.0) ? 0.75 : 1.0;
+          document.getElementById('speedBtn').innerText = 'Velocidad: ' + speechRate + 'x';
+        }}
+
+        function speakCurrentSlow() {{
+          if (currentBubbleWord) speakWord(currentBubbleWord, 0.65);
+        }}
+
+        function closeBubble() {{
+          document.getElementById('dict-bubble').style.display = 'none';
+        }}
+
+        function openBubble(event, token) {{
+          event.stopPropagation();
+          currentBubbleWord = token.w;
+          speakWord(token.w);
+          document.getElementById('b-word').innerText = token.w;
+          document.getElementById('b-ipa').innerText = token.ipa || '';
+          document.getElementById('b-pos').innerText = token.pos_es || token.pos;
+          document.getElementById('b-es').innerText = token.es || '';
+
+          const exContainer = document.getElementById('b-examples');
+          exContainer.innerHTML = '';
+          (token.examples || []).forEach(ex => {{
+            const div = document.createElement('div');
+            div.className = 'ex-item';
+            div.innerHTML = `<div class="ex-en">🇬🇧 ${{ex.en}}</div><div class="ex-es">🇪🇸 ${{ex.es}}</div>`;
+            exContainer.appendChild(div);
+          }});
+
+          const bubble = document.getElementById('dict-bubble');
+          bubble.style.display = 'block';
+          const x = Math.min(event.clientX + 10, window.innerWidth - 340);
+          const y = Math.min(event.clientY + 12, window.innerHeight - 280);
+          bubble.style.left = Math.max(10, x) + 'px';
+          bubble.style.top = Math.max(10, y) + 'px';
+        }}
+
+        const container = document.getElementById('lesson-container');
+        sentences.forEach(s => {{
+          const box = document.createElement('div');
+          box.className = 'sentence-box';
+
+          (s.tokens || []).forEach(tok => {{
+            const isPunct = /^[.,!?;:"'()—-]+$/.test(tok.w.trim());
+            if (isPunct) {{
+              box.appendChild(document.createTextNode(tok.w + ' '));
+              return;
+            }}
+            const span = document.createElement('span');
+            const posClass = ['verb','noun','adjective','conjunction'].includes(tok.pos) ? 'pos-' + tok.pos : 'pos-other';
+            span.className = 'word-token ' + posClass;
+            span.innerText = tok.w;
+
+            span.onmouseenter = () => {{
+              if (document.getElementById('hoverAudioToggle').checked && lastHovered !== tok.w) {{
+                lastHovered = tok.w;
+                speakWord(tok.w);
+              }}
+            }};
+            span.onmouseleave = () => {{ lastHovered = ""; }};
+            span.onclick = (e) => openBubble(e, tok);
+            box.appendChild(span);
+          }});
+
+          if (s.sentence_es) {{
+            const tr = document.createElement('div');
+            tr.className = 'sentence-tr';
+            tr.innerText = '🇪🇸 ' + s.sentence_es;
+            box.appendChild(tr);
+          }}
+          container.appendChild(box);
+        }});
+
+        document.body.onclick = () => closeBubble();
+      </script>
+    </body>
+    </html>
+    """
+    altura_dinamica = max(360, min(780, len(analyzed_sentences) * 115 + 110))
+    components.html(html_code, height=altura_dinamica, scrolling=True)
+
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
     modelos_potentes = [
         "gemini-3.8-flash",
@@ -2848,6 +3095,38 @@ if generar_btn:
                 st.error(f"⚠️ Error al generar lección: {e}")
 
 # --- 16. PANEL CENTRAL (CONTENIDO, QUIZ Y CONTEXTO VISUAL) ---
+if st.session_state.get("generated_text"):
+    if "study_mode_active" not in st.session_state:
+        st.session_state["study_mode_active"] = False
+
+    col_m1, col_m2 = st.columns([2.6, 1.4])
+    with col_m1:
+        st.markdown("### 📖 Contenido de la Lección")
+    with col_m2:
+        btn_study_label = (
+            "🖨️ Volver a Edición de Impresión / Descarga"
+            if st.session_state["study_mode_active"]
+            else "🧠 Activar Modo Estudio Interactivo (IA)"
+        )
+        if st.button(btn_study_label, type="primary" if not st.session_state["study_mode_active"] else "secondary", width="stretch", key="btn_toggle_study_mode"):
+            st.session_state["study_mode_active"] = not st.session_state["study_mode_active"]
+            st.rerun()
+
+    if st.session_state["study_mode_active"]:
+        with st.spinner("Analizando estructuras gramaticales, fonética y diccionario contextual con IA..."):
+            estudio_data = analyze_lesson_for_study_mode(
+                st.session_state["generated_text"],
+                st.session_state.get("selected_cefr", "B1")
+            )
+        if estudio_data:
+            render_interactive_study_viewer(estudio_data)
+        else:
+            st.warning("⚠️ No se pudo generar el análisis interactivo en este momento. Mostrando texto estándar.")
+            st.markdown(st.session_state["generated_text"])
+    else:
+        # Edición estándar lista para lectura, impresión y descarga PDF
+        st.markdown(st.session_state["generated_text"])
+
 if "selected_academic_grade" not in st.session_state:
     st.session_state.selected_academic_grade = st.session_state.get("user_academic_grade", "Licenciatura / Universidad")
 
