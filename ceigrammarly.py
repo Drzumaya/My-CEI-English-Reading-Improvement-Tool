@@ -1265,14 +1265,11 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dict]:
-    """Extrae únicamente el título y el contenido de la lección (sin metadatos APA ni bibliografía)."""
+    """Extrae título y cuerpo de la lección y etiqueta categorías gramaticales en ~2 segundos."""
     import re
     from google.genai import types
 
-    # 1. Elimina la sección Bibliography del final (nota el [0] tras re.split)
     sin_bib = re.split(r"\*\*Bibliography.*?\*\*", lesson_text, flags=re.IGNORECASE)[0].strip()
-
-    # 2. Extrae el título (primera línea) y omite los metadatos APA (Folio, Author, CEFR, Campus)
     lineas = [l.strip() for l in sin_bib.splitlines() if l.strip()]
     titulo_leccion = lineas[0] if lineas else ""
     lineas_cuerpo = [
@@ -1280,29 +1277,20 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
         if not re.match(r"^\*\*(Folio|Creation Date|Author|Institution|CEFR Level|Academic Level|Campus & Contact):", l, flags=re.IGNORECASE)
     ]
     solo_titulo_y_cuerpo = f"{titulo_leccion}\n\n" + "\n".join(lineas_cuerpo)
-    solo_titulo_y_cuerpo = solo_titulo_y_cuerpo.strip()[:2800]
+    solo_titulo_y_cuerpo = solo_titulo_y_cuerpo.strip()[:3000]
 
     prompt = f"""
-    Analyze ONLY this English lesson title and reading content (CEFR {cefr_level}) for a Spanish-speaking student.
-    Rules:
-    1. Keep EVERY word and punctuation mark in "tokens" so the full title and text render intact.
-    2. Classify "pos" strictly as: "verb", "noun", "adjective", "conjunction", or "other".
-    3. For every word, provide:
-       - "w": exact word
-       - "pos": grammatical category
-       - "ipa": US English IPA transcription (e.g. /ˈlɛsən/)
-       - "es": primary Spanish translation in this context
-       - "alt_es": 2-3 alternative Spanish meanings separated by commas
-       - "pos_es": Spanish grammatical label ("Verbo", "Sustantivo", "Adjetivo", "Conjunción", "Preposición / Artículo")
-       - "examples": 3 short bilingual examples ({{"en": "English sentence", "es": "Traducción al español"}}). For punctuation marks, leave "examples": [].
+    Break this English lesson title and reading text (CEFR {cefr_level}) into sentences and tokens.
+    For each token, return ONLY:
+    - "w": exact word or punctuation
+    - "pos": strictly one of "verb", "noun", "adjective", "conjunction", "other"
+    Also include "sentence_es": natural Spanish translation of each sentence.
 
-    Return ONLY a valid JSON array:
+    Return ONLY valid JSON:
     [
       {{
-        "sentence_es": "Traducción completa de la oración al español",
-        "tokens": [
-          {{"w": "Word", "pos": "noun", "ipa": "/wɜːrd/", "es": "palabra", "alt_es": "término, vocablo", "pos_es": "Sustantivo", "examples": [{{"en": "Write a new word.", "es": "Escribe una palabra nueva."}}]}}
-        ]
+        "sentence_es": "Traducción de la oración al español",
+        "tokens": [{{"w": "Students", "pos": "noun"}}, {{"w": "learn", "pos": "verb"}}]
       }}
     ]
 
@@ -1326,10 +1314,9 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
             parsed = json.loads(raw_txt)
             if isinstance(parsed, list) and len(parsed) > 0:
                 return parsed
-    except Exception as e_study:
-        st.session_state["last_study_error"] = str(e_study)
+    except Exception:
+        pass
 
-    # Respaldo instantáneo si la API falla o excede tiempo
     conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore"}
     oraciones_raw = re.split(r"(?<=[.!?])\s+", solo_titulo_y_cuerpo.replace("**", "").replace("#", ""))
     resultado_fallback = []
@@ -1341,27 +1328,18 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dic
         for p in palabras:
             low = p.lower()
             if low in conjunciones:
-                pos_fb, pos_es_fb = "conjunction", "Conjunción"
+                pos_fb = "conjunction"
             elif low.endswith(("ing", "ed")) and len(low) > 4:
-                pos_fb, pos_es_fb = "verb", "Verbo"
+                pos_fb = "verb"
             elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic")) and len(low) > 4:
-                pos_fb, pos_es_fb = "adjective", "Adjetivo"
+                pos_fb = "adjective"
             elif len(low) > 4 and low.isalpha():
-                pos_fb, pos_es_fb = "noun", "Sustantivo"
+                pos_fb = "noun"
             else:
-                pos_fb, pos_es_fb = "other", "Partícula / Otro"
-            tokens_fb.append({
-                "w": p,
-                "pos": pos_fb,
-                "ipa": "",
-                "es": f"Traducción de '{p}'",
-                "alt_es": "",
-                "pos_es": pos_es_fb,
-                "examples": [{"en": orac.strip(), "es": "Ejemplo de contexto en la lección."}] if pos_fb != "other" else []
-            })
+                pos_fb = "other"
+            tokens_fb.append({"w": p, "pos": pos_fb})
         resultado_fallback.append({"sentence_es": "", "tokens": tokens_fb})
     return resultado_fallback
-
 
 
 
@@ -2018,18 +1996,17 @@ def generar_pdf_certificado(
 
 # --- 9. MOTOR DE IA MULTIMODAL ---
 def render_interactive_study_viewer(analyzed_sentences: list[dict]):
-    """Renderiza el visor interactivo con voz US English y traductor Inglés-Español tipo Google Translate."""
-    import streamlit.components.v1 as components
-
+    """Visor interactivo con voz US English y diccionario/traductor EN->ES en vivo tipo Google Translate."""
     data_json = json.dumps(analyzed_sentences, ensure_ascii=False)
     html_code = f"""
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-      body {{
+      html, body {{
         font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
         margin: 0; padding: 12px; background: #f8fafc; color: #1e293b;
+        position: relative; min-height: 460px;
       }}
       .toolbar {{
         display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
@@ -2054,27 +2031,32 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
         padding: 12px 16px; margin-bottom: 10px; border-radius: 8px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.06); line-height: 2.1; font-size: 17px;
       }}
-      .sentence-box:hover {{ border-left-color: #2563eb; background: #f8fafc; }}
       .word-token {{
         display: inline-block; padding: 1px 6px; margin: 2px 2px;
         border-radius: 5px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
       }}
-      .word-token:hover {{
-        transform: translateY(-2px); box-shadow: 0 3px 8px rgba(0,0,0,0.16);
-      }}
+      .word-token:hover {{ transform: translateY(-2px); box-shadow: 0 3px 8px rgba(0,0,0,0.16); }}
+      .word-active {{ outline: 2px solid #1a73e8; transform: translateY(-2px); }}
       .sentence-tr {{
         display: block; font-size: 13px; color: #64748b; margin-top: 6px;
         border-top: 1px dashed #e2e8f0; padding-top: 5px; font-style: italic;
       }}
+      /* Ventanilla Dinámica Tipo Google Translate */
       #gt-bubble {{
-        display: none; position: fixed; z-index: 9999; width: 340px;
-        background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px;
-        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.25); overflow: hidden;
+        display: none; position: absolute; z-index: 9999; width: 350px;
+        background: #ffffff; border: 1.5px solid #1a73e8; border-radius: 12px;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.28); overflow: hidden;
       }}
       .gt-topbar {{
         display: flex; justify-content: space-between; align-items: center;
-        background: #f1f5f9; padding: 8px 12px; border-bottom: 1px solid #e2e8f0;
+        background: #e8f0fe; padding: 8px 12px; border-bottom: 1px solid #d2e3fc;
         font-size: 12px; font-weight: 700; color: #1a73e8;
+      }}
+      .gt-search-row {{
+        display: flex; gap: 6px; padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+      }}
+      .gt-input {{
+        flex: 1; padding: 5px 9px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;
       }}
       .gt-panel-en {{ padding: 10px 14px; background: #ffffff; border-bottom: 1px solid #e2e8f0; }}
       .gt-panel-es {{ padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }}
@@ -2082,7 +2064,7 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
       .gt-ipa {{ font-size: 13px; color: #5f6368; margin-left: 6px; }}
       .gt-translation {{ font-size: 19px; font-weight: 700; color: #1a73e8; margin-top: 2px; }}
       .gt-alt {{ font-size: 12px; color: #5f6368; margin-top: 3px; }}
-      .gt-scroll {{ max-height: 165px; overflow-y: auto; padding: 10px 14px; background: #ffffff; }}
+      .gt-scroll {{ max-height: 175px; overflow-y: auto; padding: 10px 14px; background: #ffffff; }}
       .ex-item {{
         margin-bottom: 8px; padding: 7px 9px; background: #f8fafc;
         border-left: 3px solid #1a73e8; border-radius: 6px; font-size: 13px;
@@ -2117,10 +2099,14 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
         <div class="gt-topbar">
           <span>🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
           <div>
-            <button class="btn-mini" onclick="speakCurrent(1.0)" title="Escuchar normal">🔊</button>
-            <button class="btn-mini" onclick="speakCurrent(0.65)" title="Escuchar lento">🐢</button>
-            <button class="btn-mini" onclick="closeBubble()">✖</button>
+            <button class="btn-mini" onclick="speakCurrent(1.0)" title="Voz US normal">🔊</button>
+            <button class="btn-mini" onclick="speakCurrent(0.65)" title="Voz US lenta">🐢</button>
+            <button class="btn-mini" onclick="closeBubble()" title="Cerrar">✖</button>
           </div>
+        </div>
+        <div class="gt-search-row">
+          <input type="text" id="gt-custom-query" class="gt-input" placeholder="Buscar otra palabra en inglés..." onkeydown="if(event.key==='Enter') lookupWordLive(this.value)">
+          <button class="btn-mini" onclick="lookupWordLive(document.getElementById('gt-custom-query').value)">🔍</button>
         </div>
         <div class="gt-panel-en">
           <span class="gt-word" id="b-word"></span>
@@ -2128,12 +2114,12 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
           <div id="b-pos" style="font-size:11px; text-transform:uppercase; color:#1a73e8; font-weight:700; margin-top:3px;"></div>
         </div>
         <div class="gt-panel-es">
-          <div class="gt-translation" id="b-es"></div>
+          <div class="gt-translation" id="b-es">Consultando diccionario...</div>
           <div class="gt-alt" id="b-alt"></div>
         </div>
         <div class="gt-scroll">
           <div style="font-size:11px; font-weight:700; color:#5f6368; margin-bottom:6px; text-transform:uppercase;">
-            Ejemplos de traducción en contexto:
+            Definiciones, sinónimos y ejemplos:
           </div>
           <div id="b-examples"></div>
         </div>
@@ -2141,6 +2127,8 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
 
       <script>
         const sentences = {data_json};
+        const posLabelsEs = {{ verb: 'Verbo', noun: 'Sustantivo', adjective: 'Adjetivo', conjunction: 'Conjunción', other: 'Expresión / Partícula' }};
+        const dictCache = {{}};
         let speechRate = 1.0;
         let lastHovered = "";
         let currentBubbleWord = "";
@@ -2160,7 +2148,7 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
         }}
 
         function speakWordUS(text, rateOverride = null) {{
-          if (!('speechSynthesis' in window)) return;
+          if (!('speechSynthesis' in window) || !text) return;
           window.speechSynthesis.cancel();
           const utter = new SpeechSynthesisUtterance(text);
           utter.lang = 'en-US';
@@ -2180,45 +2168,121 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
 
         function closeBubble() {{
           document.getElementById('gt-bubble').style.display = 'none';
+          document.querySelectorAll('.word-active').forEach(el => el.classList.remove('word-active'));
+        }}
+        async function lookupWordLive(rawWord, posTag = '', sentenceContext = '') {{
+          const cleanW = (rawWord || '').trim().replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, '');
+          if (!cleanW) return;
+          currentBubbleWord = cleanW;
+          speakWordUS(cleanW, 1.0);
+
+          document.getElementById('gt-custom-query').value = cleanW;
+          document.getElementById('b-word').innerText = cleanW;
+          document.getElementById('b-ipa').innerText = '';
+          document.getElementById('b-pos').innerText = posLabelsEs[posTag] || posTag || 'Inglés (US)';
+          document.getElementById('b-es').innerText = '⏳ Traduciendo...';
+          document.getElementById('b-alt').innerText = '';
+          const exContainer = document.getElementById('b-examples');
+          exContainer.innerHTML = '<div style="font-size:12px; color:#64748b;">Cargando definiciones y ejemplos...</div>';
+
+          const cacheKey = cleanW.toLowerCase();
+          if (dictCache[cacheKey]) {{
+            renderDictResult(dictCache[cacheKey], sentenceContext);
+            return;
+          }}
+
+          try {{
+            const [trRes, dictRes] = await Promise.all([
+              fetch(`https://translated.net{{encodeURIComponent(cleanW)}}&langpair=en|es`).then(r => r.json()).catch(() => null),
+              fetch(`https://dictionaryapi.dev{{encodeURIComponent(cleanW.toLowerCase())}}`).then(r => r.ok ? r.json() : null).catch(() => null)
+            ]);
+
+            let mainEs = trRes?.responseData?.translatedText || cleanW;
+            let altSet = new Set();
+            if (trRes?.matches) {{
+              trRes.matches.forEach(m => {{
+                const t = (m.translation || '').trim();
+                if (t && t.toLowerCase() !== mainEs.toLowerCase() && t.length < 40) altSet.add(t);
+              }});
+            }}
+
+            let ipaTxt = '';
+            let itemsList = [];
+            if (Array.isArray(dictRes) && dictRes[0]) {{
+              const entry = dictRes[0];
+              ipaTxt = entry.phonetic || (entry.phonetics?.find(p => p.text)?.text) || '';
+              (entry.meanings || []).forEach(m => {{
+                (m.definitions || []).slice(0, 2).forEach(d => {{
+                  itemsList.push({{ pos: m.partOfSpeech || '', def: d.definition || '', ex: d.example || '' }});
+                }});
+              }});
+            }}
+
+            const resultObj = {{ mainEs, altEs: Array.from(altSet).slice(0, 4).join(', '), ipa: ipaTxt, items: itemsList }};
+            dictCache[cacheKey] = resultObj;
+            renderDictResult(resultObj, sentenceContext);
+          }} catch (err) {{
+            document.getElementById('b-es').innerText = cleanW;
+            exContainer.innerHTML = '<div style="font-size:12px; color:#ef4444;">No se pudo conectar al diccionario en línea.</div>';
+          }}
         }}
 
-        function openBubble(event, token) {{
-          event.stopPropagation();
-          currentBubbleWord = token.w;
-          speakWordUS(token.w, 1.0);
-
-          document.getElementById('b-word').innerText = token.w;
-          document.getElementById('b-ipa').innerText = token.ipa || '';
-          document.getElementById('b-pos').innerText = token.pos_es || token.pos;
-          document.getElementById('b-es').innerText = token.es || '';
-          document.getElementById('b-alt').innerText = token.alt_es ? ('También: ' + token.alt_es) : '';
+        function renderDictResult(data, sentenceContext) {{
+          document.getElementById('b-ipa').innerText = data.ipa || '';
+          document.getElementById('b-es').innerText = data.mainEs;
+          document.getElementById('b-alt').innerText = data.altEs ? ('También: ' + data.altEs) : '';
 
           const exContainer = document.getElementById('b-examples');
           exContainer.innerHTML = '';
-          const exList = token.examples || [];
-          if (exList.length === 0) {{
-            exContainer.innerHTML = '<div style="font-size:12px; color:#64748b;">Término gramatical básico.</div>';
-          }} else {{
-            exList.forEach(ex => {{
+
+          if (sentenceContext) {{
+            const ctxDiv = document.createElement('div');
+            ctxDiv.className = 'ex-item';
+            ctxDiv.innerHTML = `<div class="ex-en">📖 En esta lección: "${{sentenceContext}}"</div>`;
+            exContainer.appendChild(ctxDiv);
+          }}
+
+          if (data.items && data.items.length > 0) {{
+            data.items.forEach(it => {{
               const div = document.createElement('div');
               div.className = 'ex-item';
-              div.innerHTML = `<div class="ex-en">🇺🇸 ${{ex.en}}</div><div class="ex-es">🇪🇸 ${{ex.es}}</div>`;
+              div.innerHTML = `
+                <div style="font-size:11px; font-weight:700; color:#1a73e8; text-transform:uppercase;">${{it.pos}}</div>
+                <div class="ex-en">${{it.def}}</div>
+                ${{it.ex ? `<div class="ex-es">💬 "${{it.ex}}"</div>` : ''}}
+              `;
               exContainer.appendChild(div);
             }});
+          }} else if (!sentenceContext) {{
+            exContainer.innerHTML = '<div style="font-size:12px; color:#64748b;">Traducción directa verificada.</div>';
           }}
+        }}
+
+        function openBubbleAtElement(event, el, token, fullSentence) {{
+          event.stopPropagation();
+          document.querySelectorAll('.word-active').forEach(x => x.classList.remove('word-active'));
+          el.classList.add('word-active');
 
           const bubble = document.getElementById('gt-bubble');
           bubble.style.display = 'block';
-          const x = Math.min(event.clientX + 12, window.innerWidth - 360);
-          const y = Math.min(event.clientY + 12, window.innerHeight - 340);
-          bubble.style.left = Math.max(10, x) + 'px';
-          bubble.style.top = Math.max(10, y) + 'px';
+
+          const rect = el.getBoundingClientRect();
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+          const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+
+          const leftPos = Math.min(rect.left + scrollLeft, document.body.clientWidth - 365);
+          const topPos = rect.bottom + scrollTop + 6;
+          bubble.style.left = Math.max(10, leftPos) + 'px';
+          bubble.style.top = topPos + 'px';
+
+          lookupWordLive(token.w, token.pos, fullSentence);
         }}
 
         const container = document.getElementById('lesson-container');
         sentences.forEach((s, idx) => {{
           const box = document.createElement('div');
           box.className = (idx === 0) ? 'title-box' : 'sentence-box';
+          const fullSentence = (s.tokens || []).map(t => t.w).join(' ').replace(/\s+([.,!?;:])/g, '$1');
 
           (s.tokens || []).forEach(tok => {{
             const isPunct = /^[.,!?;:"'()—-]+$/.test(tok.w.trim());
@@ -2238,7 +2302,7 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
               }}
             }};
             span.onmouseleave = () => {{ lastHovered = ""; }};
-            span.onclick = (e) => openBubble(e, tok);
+            span.onclick = (e) => openBubbleAtElement(e, span, tok, fullSentence);
             box.appendChild(span);
           }});
 
@@ -2256,10 +2320,8 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
     </body>
     </html>
     """
-    altura_dinamica = max(440, min(780, len(analyzed_sentences) * 115 + 120))
+    altura_dinamica = max(480, min(820, len(analyzed_sentences) * 115 + 160))
     st.iframe(html_code, height=altura_dinamica)
-
-
 
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
     modelos_potentes = [
