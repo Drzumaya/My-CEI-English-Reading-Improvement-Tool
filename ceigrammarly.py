@@ -1336,19 +1336,19 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
-    """Extrae título y cuerpo completo de la lección, con etiquetas gramaticales y diccionario EN->ES."""
+    """Extrae título y cuerpo completo de la lección, etiqueta categorías y genera diccionario EN->ES."""
     import re
     from google.genai import types
 
-    # 1. Corta únicamente la sección Bibliography al final (nota el )
-    partes_bib = re.split(r"\*\*Bibliography.*?\*\*", str(lesson_text), flags=re.IGNORECASE)
-    sin_bib = partes_bib[0].strip() if partes_bib else ""
+    # 1. Corta la bibliografía APA usando split de cadena (100% seguro)
+    texto_sin_bib = str(lesson_text or "")
+    for marcador in ["**Bibliography", "Bibliography ("]:
+        if marcador in texto_sin_bib:
+            texto_sin_bib = texto_sin_bib.split(marcador, 1)
 
-
-
-    # 2. Conserva título y todos los párrafos del cuerpo, omitiendo solo las líneas de metadatos APA
+    # 2. Conserva título y párrafos de lectura, omitiendo metadatos APA
     lineas_limpias = []
-    for linea in sin_bib.splitlines():
+    for linea in texto_sin_bib.splitlines():
         l_strip = linea.strip()
         if not l_strip:
             continue
@@ -1358,27 +1358,58 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
 
     solo_titulo_y_cuerpo = "\n\n".join(lineas_limpias)[:3200]
 
+    # 3. Tokenización base garantizada en Python (asegura que el texto SIEMPRE se renderice completo)
+    conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"}
+    oraciones_base = []
+    palabras_unicas = set()
+
+    for idx_linea, bloque in enumerate(lineas_limpias):
+        sub_oraciones = [bloque] if idx_linea == 0 else re.split(r"(?<=[.!?])\s+", bloque)
+        for orac in sub_oraciones:
+            orac_limpia = orac.replace("**", "").replace("#", "").strip()
+            if not orac_limpia:
+                continue
+            tokens_raw = re.findall(r"[A-Za-z0-9'-]+|[^\w\s]", orac_limpia)
+            toks = []
+            for tk in tokens_raw:
+                low = tk.lower()
+                if low in conjunciones:
+                    pos = "conjunction"
+                elif low.endswith(("ing", "ed")) and len(low) > 4:
+                    pos = "verb"
+                elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
+                    pos = "adjective"
+                elif len(low) > 3 and low.isalpha():
+                    pos = "noun"
+                else:
+                    pos = "other"
+                toks.append({"w": tk, "pos": pos})
+                if low.isalpha() and len(low) >= 2:
+                    palabras_unicas.add(low)
+            oraciones_base.append({"sentence_es": "", "tokens": toks})
+
+    # 4. Enriquece con Gemini: etiquetas gramaticales precisas, traducción de oraciones y diccionario EN->ES
+    vocab_lista = sorted(list(palabras_unicas))[:90]
     prompt = f"""
-    Analyze this English lesson title and full reading text (CEFR {cefr_level}) for a Spanish-speaking student.
-    CRITICAL: Include ALL sentences from the title and the entire text without skipping any paragraph.
-    Return ONLY a valid JSON object with TWO keys:
-    1. "sentences": array of EVERY sentence in order, each with:
-       - "sentence_es": natural Spanish translation of the sentence
-       - "tokens": array of {{"w": "word or punctuation", "pos": "verb"|"noun"|"adjective"|"conjunction"|"other"}}
-    2. "dictionary": object mapping unique lowercase content words (verbs, nouns, adjectives, conjunctions, adverbs) to:
+    You are an English-Spanish lexicographer for CEFR {cefr_level} students.
+    Given the English text and its unique word list below, return ONLY a valid JSON object with:
+    1. "sentence_translations": array of Spanish translations corresponding in exact order to the {len(oraciones_base)} lines/sentences of the text.
+    2. "dictionary": object mapping EACH word in {json.dumps(vocab_lista)} to:
+       - "pos": "verb" | "noun" | "adjective" | "conjunction" | "other"
        - "ipa": US English IPA (e.g. "/krɪˈtiːk/")
-       - "pos_es": Spanish grammatical label ("Verbo", "Sustantivo", "Adjetivo", "Conjunción", "Adverbio")
-       - "es": exact primary Spanish translation in this context
-       - "alt_es": 2 to 3 alternative Spanish translations separated by commas
-       - "def_es": 1-sentence Spanish definition
+       - "pos_es": "Verbo" | "Sustantivo" | "Adjetivo" | "Conjunción" | "Adverbio / Preposición"
+       - "es": exact primary Spanish translation in this lesson context
+       - "alt_es": 2-3 alternative Spanish meanings separated by commas
+       - "def_es": 1 short sentence defining the word in Spanish
        - "examples": 2 short bilingual examples [{{"en": "English sentence.", "es": "Traducción al español."}}]
 
     Text:
     {solo_titulo_y_cuerpo}
     """
+    dict_final = {}
     try:
         gm_client = init_gemini_client()
-        if gm_client:
+        if gm_client and oraciones_base:
             response = gm_client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt,
@@ -1391,36 +1422,21 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
             raw_txt = str(response.text or "").strip()
             raw_txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_txt, flags=re.MULTILINE).strip()
             parsed = json.loads(raw_txt)
-            if isinstance(parsed, dict) and len(parsed.get("sentences", [])) > 1:
-                return parsed
+            if isinstance(parsed, dict):
+                tr_list = parsed.get("sentence_translations", [])
+                for i, s_obj in enumerate(oraciones_base):
+                    if i < len(tr_list) and isinstance(tr_list[i], str):
+                        s_obj["sentence_es"] = tr_list[i]
+                dict_final = parsed.get("dictionary", {}) or {}
+                for s_obj in oraciones_base:
+                    for tk in s_obj["tokens"]:
+                        info_w = dict_final.get(tk["w"].lower())
+                        if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
+                            tk["pos"] = info_w["pos"]
     except Exception:
         pass
 
-    # Respaldo garantizado: renderiza el 100% de las oraciones si la API tarda o corta el JSON
-    conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore"}
-    oraciones_raw = re.split(r"(?<=[.!?])\s+|\n+", solo_titulo_y_cuerpo.replace("**", "").replace("#", ""))
-    sentences_fb = []
-    for orac in oraciones_raw:
-        if not orac.strip():
-            continue
-        palabras = re.findall(r"\w+|[^\w\s]", orac)
-        tokens_fb = []
-        for p in palabras:
-            low = p.lower()
-            if low in conjunciones:
-                pos_fb = "conjunction"
-            elif low.endswith(("ing", "ed")) and len(low) > 4:
-                pos_fb = "verb"
-            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic")) and len(low) > 4:
-                pos_fb = "adjective"
-            elif len(low) > 4 and low.isalpha():
-                pos_fb = "noun"
-            else:
-                pos_fb = "other"
-            tokens_fb.append({"w": p, "pos": pos_fb})
-        sentences_fb.append({"sentence_es": "", "tokens": tokens_fb})
-
-    return {"sentences": sentences_fb, "dictionary": {}}
+    return {"sentences": oraciones_base, "dictionary": dict_final}
 
 
 
