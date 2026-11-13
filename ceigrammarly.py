@@ -2177,6 +2177,7 @@ with col_exit:
         st.session_state.app_exited = True
         st.session_state.authenticated = False
         st.rerun()
+        
 # --- 13. BUSCADOR DE FOLIOS DE LECCIÓN ---
 with st.container(border=True):
     col_f1, col_f2, col_f3 = st.columns([2.5, 1.2, 2.3])
@@ -2270,6 +2271,35 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
         st.error(f"Error al buscar folio: {e}") 
 
         st.divider()
+
+# --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
+if is_owner or is_faculty_desktop:
+    btn_txt_admin = (
+        "🔼 Cerrar Panel de Administración"
+        if st.session_state.get("show_teacher_registry", False)
+        else "🛡️ Abrir Panel de Administración, Certificados y Padrón"
+    )
+    if st.button(btn_txt_admin, type="secondary", width="stretch", key="btn_admin_panel_owner"):
+        st.session_state["show_teacher_registry"] = not st.session_state.get("show_teacher_registry", False)
+        st.rerun()
+
+if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_registry", False):
+    with st.container(border=True):
+        col_head_reg, col_close_reg = st.columns([4.5, 1])
+        with col_head_reg:
+            st.markdown("### 🛡️ PANEL DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL RBAC")
+        with col_close_reg:
+            if st.button("🔼 Cerrar Panel", width="stretch", key="btn_close_admin_inner"):
+                st.session_state["show_teacher_registry"] = False
+                st.rerun()
+
+        tab_certificados, tab_reg_usuarios, tab_matriz_perm, tab_datos_inst = st.tabs([
+            "🏅 Certificados (Timbre y QR)",
+            "👥 Inscripción y Padrón",
+            "🔐 Matriz Global de Permisos",
+            "🏛️ Datos del Instituto"
+        ])
+
         # 14.1 PESTAÑA CERTIFICADOS
         with tab_certificados:
             if not (is_owner or can("Emitir_Certificados")):
