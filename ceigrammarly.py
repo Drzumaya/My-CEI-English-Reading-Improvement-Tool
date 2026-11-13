@@ -2412,40 +2412,21 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Genera ilustración educativa con Gemini, Hugging Face FLUX o Pollinations AI sin errores de URL."""
+    """Genera ilustración educativa con Hugging Face FLUX o Pollinations AI sin errores de URL."""
     import re
     import urllib.parse
     import requests
     from PIL import Image, ImageDraw, ImageFont
-    from google.genai import types
 
     st.session_state["last_img_error"] = None
-    # Limpia caracteres especiales (: / " \n) que rompen URLs en motores GET
-    escena_limpia = re.sub(r'[:/"\'\n\r]+', ' ', str(scene_prompt or "")).strip()
+    escena_limpia = re.sub(r'[^a-zA-Z0-9 ,.-]+', ' ', str(scene_prompt or "")).strip()
     escena_limpia = re.sub(r'\s+', ' ', escena_limpia)
     full_prompt = (
-        f"Warm friendly educational textbook illustration, clean digital comic art style, "
-        f"bright natural lighting, expressive characters, vibrant colors. {escena_limpia}"
-    )[:420]
+        f"Educational textbook illustration, clean digital comic art style, "
+        f"bright natural lighting, expressive characters. {escena_limpia}"
+    )[:320]
 
-    # 1. Nivel 1: Gemini Image (si hay cuota activa)
-    if client_gm is not None:
-        for model_img in ["gemini-2.5-flash-image", "gemini-3.1-flash-image-preview"]:
-            try:
-                res = client_gm.models.generate_content(
-                    model=model_img,
-                    contents=full_prompt,
-                    config=types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
-                )
-                for cand in getattr(res, "candidates", []) or []:
-                    for part in getattr(cand.content, "parts", []) or []:
-                        inline = getattr(part, "inline_data", None)
-                        if inline and getattr(inline, "data", None):
-                            return inline.data
-            except Exception:
-                pass
-
-    # 2. Nivel 2: Hugging Face FLUX.1-schnell (si HF_TOKEN está en Secrets)
+    # 1. Hugging Face Inference API (FLUX.1-schnell)
     hf_token = ""
     for k, v in st.secrets.items():
         if isinstance(v, str) and ("HF" in k.upper() or v.strip().startswith("hf_")):
@@ -2459,6 +2440,7 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
             if hf_token:
                 break
 
+    errores = []
     if hf_token:
         try:
             r_hf = requests.post(
@@ -2468,29 +2450,25 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
                 timeout=25
             )
             if r_hf.status_code == 200 and len(r_hf.content) > 2000:
-                st.session_state["last_img_error"] = None
                 return r_hf.content
-            else:
-                st.session_state["last_img_error"] = f"Hugging Face HTTP {r_hf.status_code}: {r_hf.text[:140]}"
+            errores.append(f"HF HTTP {r_hf.status_code}: {r_hf.text[:100]}")
         except Exception as e_hf:
-            st.session_state["last_img_error"] = f"Hugging Face error: {e_hf}"
+            errores.append(f"HF: {e_hf}")
 
-    # 3. Nivel 3: Pollinations.ai (URL exacta con /prompt/)
+    # 2. Pollinations.ai usando requests con params (nunca se pega el dominio con el texto)
     try:
-        prompt_enc = urllib.parse.quote(full_prompt[:350], safe="")
-        seed_rnd = random.randint(1, 999999)
-        url_poll = "https://pollinations.ai" + prompt_enc + f"?width=800&height=450&nologo=true&seed={seed_rnd}"
+        ruta_segura = "/prompt/" + urllib.parse.quote(full_prompt, safe="")
+        url_poll = urllib.parse.urlunparse(("https", "image.pollinations.ai", ruta_segura, "", f"width=800&height=450&nologo=true&seed={random.randint(1, 999999)}", ""))
         r_poll = requests.get(url_poll, timeout=25)
         if r_poll.status_code == 200 and len(r_poll.content) > 2000:
-            st.session_state["last_img_error"] = None
             return r_poll.content
-        else:
-            st.session_state["last_img_error"] = f"Pollinations HTTP {r_poll.status_code}"
+        errores.append(f"Pollinations HTTP {r_poll.status_code}")
     except Exception as e_poll:
-        st.session_state["last_img_error"] = f"Pollinations error: {e_poll}"
+        errores.append(f"Pollinations: {e_poll}")
 
+    st.session_state["last_img_error"] = " | ".join(errores)
 
-    # 4. Nivel 4: Respaldo nativo Pillow
+    # 3. Respaldo nativo Pillow
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(24, 42, 72))
     draw = ImageDraw.Draw(img)
@@ -2518,7 +2496,6 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
-
 
 
 
