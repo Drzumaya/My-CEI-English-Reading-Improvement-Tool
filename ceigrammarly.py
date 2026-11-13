@@ -2282,7 +2282,7 @@ def render_interactive_study_viewer(analyzed_sentences: list[dict]):
         sentences.forEach((s, idx) => {{
           const box = document.createElement('div');
           box.className = (idx === 0) ? 'title-box' : 'sentence-box';
-          const fullSentence = (s.tokens || []).map(t => t.w).join(' ').replace(/\s+([.,!?;:])/g, '$1');
+          const fullSentence = (s.tokens || []).map(t => t.w).join(' ').replace(/\\s+([.,!?;:])/g, '$1');
 
           (s.tokens || []).forEach(tok => {{
             const isPunct = /^[.,!?;:"'()—-]+$/.test(tok.w.trim());
