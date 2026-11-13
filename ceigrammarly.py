@@ -3236,7 +3236,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
         
-        ss# 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
+        # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
