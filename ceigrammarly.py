@@ -1210,58 +1210,60 @@ CEFR_MAP = {
     "C2": "C2 (Proficiency)"
 }
 
-def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
-    """Evalúa acústica, fonética y gramaticalmente la grabación oral del estudiante usando Gemini multimodal."""
-    client = init_gemini_client()
+ddef evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
+    """Evalúa fonética, fluidez y gramática oral usando gemini-3.1-pro-preview con respaldo a gemini-2.5-flash."""
+    from google.genai import types
+
+    gm_client = init_gemini_client()
+    if not gm_client:
+        raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
+
     prompt_eval = f"""
-    You are a Senior Phonetics & Applied Linguistics Examiner at CAREER ENGLISH INSTITUTE.
-    Listen carefully to the student's audio recording reading or practicing the lesson below.
-    Calibrate your grading strictly to CEFR Level: {nivel_cefr} and Academic Level: {grado_acad}.
-    Target Grammar Focus: {gramatica_obj}.
+    You are an expert English Phonetics & Applied Linguistics Evaluator at Career English Institute.
+    Listen carefully to the student's audio reading the target lesson below (CEFR {nivel_cefr}, Academic Level: {grado_acad}, Target Grammar: {gramatica_obj}).
+    
+    Target text:
+    {texto_objetivo[:2500]}
 
-    REFERENCE LESSON TEXT:
-    {texto_objetivo[:3000]}
-
-    Analyze the student's oral performance and return ONLY a valid JSON object with this exact schema:
+    Evaluate pronunciation, articulation, fluency, prosody, and grammatical accuracy.
+    Respond in Spanish for the feedback fields, keeping the detected transcription in English.
+    Return ONLY a valid JSON object with these exact keys:
     {{
-        "score_percent": 85,
-        "cefr_performance": "Meets B1 Standard",
-        "transcription": "Exact transcription of what the student actually said...",
-        "phonetic_feedback": "Specific feedback on vowel/consonant articulation, word stress, and mispronounced words (with IPA hints where helpful).",
-        "fluency_prosody": "Evaluation of pacing, rhythm, intonation, and natural phrasing.",
-        "grammar_accuracy": "Evaluation of how accurately the target grammar structures were produced orally.",
-        "actionable_tips": [
-            "Tip 1 in clear Spanish/English for immediate improvement",
-            "Tip 2 for practicing difficult words"
-        ]
+      "score_percent": 88,
+      "cefr_performance": "B1 Solid / Proficient",
+      "transcription": "Exact English words spoken by the student",
+      "phonetic_feedback": "Análisis claro en español sobre pronunciación de vocales, consonantes y acentuación.",
+      "fluency_prosody": "Evaluación en español de ritmo, pausas y entonación natural.",
+      "grammar_accuracy": "Evaluación en español sobre la correcta pronunciación y uso de las estructuras objetivo.",
+      "actionable_tips": [
+        "Consejo práctico 1 con ejemplos de palabras del texto",
+        "Consejo práctico 2"
+      ]
     }}
-    Note: Write 'phonetic_feedback', 'fluency_prosody', 'grammar_accuracy', and 'actionable_tips' in clear, encouraging Spanish (keeping English example words and IPA symbols in English) so the student understands every correction clearly.
     """
 
-    modelos_audio = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-2.5-pro"]
-    ultimo_err = None
-    for mod in modelos_audio:
+    ultimo_error = ""
+    for modelo_oral in ["gemini-3.1-pro-preview", "gemini-2.5-flash"]:
         try:
-            resp = client.models.generate_content(
-                model=mod,
+            response = gm_client.models.generate_content(
+                model=modelo_oral,
                 contents=[
                     types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
                     prompt_eval
                 ],
                 config=types.GenerateContentConfig(
-                    temperature=0.2,
-                    response_mime_type="application/json"
+                    response_mime_type="application/json",
+                    temperature=0.2
                 )
             )
-            if resp and resp.text:
-                cleaned = resp.text.strip()
-                if cleaned.startswith("```"):
-                    cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
-                return json.loads(cleaned)
-        except Exception as e:
-            ultimo_err = e
-            continue
-    raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_err}")
+            raw_json = str(response.text or "").strip()
+            raw_json = raw_json.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            return json.loads(raw_json)
+        except Exception as e_mod:
+            ultimo_error = f"{modelo_oral}: {e_mod}"
+
+    raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
+
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> list[dict]:
@@ -3789,6 +3791,7 @@ with col_tools_right:
                         st.session_state["speaking_eval_result"] = eval_res
                         if st.session_state.current_folio and "score_percent" in eval_res:
                             save_best_speaking_pg(st.session_state.current_folio, int(eval_res["score_percent"]))
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error en evaluación oral: {e}")
 
@@ -3805,6 +3808,7 @@ with col_tools_right:
                 st.markdown("**💡 Recomendaciones de Mejora:**")
                 for t in tips:
                     st.markdown(f"- {t}")
+
 
     st.divider()
     if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
