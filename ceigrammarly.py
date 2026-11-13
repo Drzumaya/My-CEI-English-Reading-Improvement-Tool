@@ -383,40 +383,49 @@ def load_permissions_matrix() -> dict:
     }
 
 
-@st.cache_data(ttl=15, show_spinner=False)
+@st.cache_data(ttl=60)
 def load_padron_records() -> list[dict]:
-    """Carga el padrón desde PostgreSQL o Google Sheets con diagnóstico claro en sesión."""
     from psycopg.rows import dict_row
-    st.session_state["db_auth_diag"] = ""
-    
-       # 1. Intentar PostgreSQL (Supabase)
-    try:
-        conn = get_pg_conn()
-        if conn:
-            with conn:
-                with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute("SELECT * FROM users_padron ORDER BY id ASC;")
-                    rows = cur.fetchall()
-                    if rows and len(rows) > 0:
-                        st.session_state["db_auth_diag"] = f"Supabase OK ({len(rows)} usuarios cargados). Verifica mayúsculas/espacios en Usuario o Clave."
-                        return [
-                            {
-                                "ID": r.get("id"),
-                                "Matricula": r.get("matricula") or f"CEI-{datetime.now().year}-{int(r.get('id', 0)):04d}",
-                                "Usuario": r.get("usuario", ""),
-                                "Clave": r.get("clave_hash", ""),
-                                "Rol": r.get("rol", "Estudiante"),
-                                "Grado_Academico": r.get("grado_academico", "Licenciatura / Universidad"),
-                                "Nivel": r.get("nivel_cefr", "B1"),
-                                "Permisos": r.get("permisos", "Basico"),
-                                "Estatus": r.get("estatus", "Activo")
-                            }
-                            for r in rows
-                        ]
-                    else:
-                        st.session_state["db_auth_diag"] += "Supabase conectado, pero tabla users_padron tiene 0 filas. "
-    except Exception as e_pg:
-        st.session_state["db_auth_diag"] += f"Supabase Error: {e_pg} | "
+    conn = get_pg_conn()
+    if not conn:
+        return []
+    with conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""
+                SELECT
+                    u.id,
+                    u.matricula,
+                    u.usuario,
+                    u.clave_hash,
+                    u.rol,
+                    u.grado_academico,
+                    u.nivel_cefr,
+                    u.permisos,
+                    u.estatus,
+                    u.afiliador_id,
+                    COALESCE(aff.matricula || ' — ' || aff.usuario, 'Directo / Sin afiliador') AS afiliador_nombre
+                FROM users_padron u
+                LEFT JOIN users_padron aff ON u.afiliador_id = aff.id
+                ORDER BY u.id ASC;
+            """)
+            rows = cur.fetchall()
+            return [
+                {
+                    "ID": r.get("id"),
+                    "Matricula": r.get("matricula") or f"CEI-2026-{int(r.get('id', 0)):04d}",
+                    "Usuario": r.get("usuario", ""),
+                    "Clave": r.get("clave_hash", ""),
+                    "Rol": r.get("rol", "Estudiante"),
+                    "Grado_Academico": r.get("grado_academico", "Licenciatura / Universidad"),
+                    "Nivel": r.get("nivel_cefr", "B1"),
+                    "Permisos": r.get("permisos", "Basico"),
+                    "Estatus": r.get("estatus", "Activo"),
+                    "Afiliador_ID": r.get("afiliador_id"),
+                    "Socio_Afiliador": r.get("afiliador_nombre", "Directo / Sin afiliador")
+                }
+                for r in rows
+            ]
+
 
 
     # 2. Intentar Google Sheets (Respaldo)
@@ -1086,7 +1095,66 @@ def upsert_user_padron_pg(usuario: str, clave: str, rol: str, grado: str, nivel:
     load_padron_records.clear()
     return mat_actual
 
+def upsert_user_padron_pg(
+    usuario: str, clave: str, rol: str, grado: str, nivel: str, permisos: str, estatus: str,
+    afiliador_id: int | None = None
+) -> str:
+    """Inserta o actualiza un usuario en Supabase, asigna su Matrícula Oficial y vincula su Socio Afiliado."""
+    conn = get_pg_conn()
+    if not conn:
+        raise RuntimeError("Sin conexión activa a PostgreSQL.")
+    anio_actual = datetime.now(ZoneInfo("America/Hermosillo")).year
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (permisos.strip(),))
+            cur.execute("""
+                INSERT INTO users_padron (usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus, afiliador_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (usuario) DO UPDATE SET
+                    clave_hash = EXCLUDED.clave_hash,
+                    rol = EXCLUDED.rol,
+                    grado_academico = EXCLUDED.grado_academico,
+                    nivel_cefr = EXCLUDED.nivel_cefr,
+                    permisos = EXCLUDED.permisos,
+                    estatus = EXCLUDED.estatus,
+                    afiliador_id = COALESCE(EXCLUDED.afiliador_id, users_padron.afiliador_id)
+                RETURNING id, matricula;
+            """, (
+                usuario.strip(),
+                clave.strip(),
+                rol.strip(),
+                grado.strip(),
+                normalize_cefr(nivel),
+                permisos.strip(),
+                "Activo" if estatus.strip().lower() == "activo" else "Inactivo",
+                afiliador_id
+            ))
+            row_ret = cur.fetchone()
+            user_id_db = row_ret
+            mat_actual = row_ret
 
+            if not mat_actual:
+                mat_actual = f"CEI-{anio_actual}-{int(user_id_db):04d}"
+                cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_actual, user_id_db))
+
+    load_padron_records.clear()
+    return mat_actual
+
+
+def set_student_affiliate_pg(student_id: int, afiliador_id: int | None):
+    """Guarda el ID del socio afiliador directamente en la columna afiliador_id del estudiante."""
+    conn = get_pg_conn()
+    if not conn:
+        raise RuntimeError("Sin conexión activa a PostgreSQL.")
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users_padron SET afiliador_id = %s WHERE id = %s;",
+                (afiliador_id, int(student_id))
+            )
+    load_padron_records.clear()
+
+        
 def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
     """Guarda o actualiza un perfil de permisos RBAC directamente en Supabase PostgreSQL."""
     conn = get_pg_conn()
@@ -1119,6 +1187,7 @@ def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
                 json.dumps(caps_dict)
             ))
     load_permissions_matrix.clear()
+    
 def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_sel: str, grado_sel: str, programa_c: str, calif_c: str, fecha_c: str, sello_h: str):
     """Guarda un certificado oficial timbrado directamente en Supabase PostgreSQL."""
     conn = get_pg_conn()
@@ -2505,8 +2574,8 @@ with st.sidebar:
     st.header("⚙️ Academic Parameters")
     usuario = st.session_state.current_user
 
-    if can("Previsualizar_A1_C2") and (not is_mobile):
-        st.subheader("🎯 Target Calibration (Faculty)")
+    if is_owner:
+        st.subheader("🎯 Target Calibration (Owner / Admin)")
         default_idx = (
             cefr_options.index(st.session_state.user_assigned_level)
             if st.session_state.user_assigned_level in cefr_options else 2
@@ -2565,6 +2634,7 @@ with st.sidebar:
     
     st.markdown("---")
     generar_btn = st.button(f"🚀 Generate {cefr_level.split()[0]} Lesson", type="primary", width="stretch")
+    
 
 # --- 12. CABECERA INSTITUCIONAL ---
 try:
@@ -2977,6 +3047,13 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                 col_form_reg, col_tabla_reg = st.columns([1.2, 2.0])
                 with col_form_reg:
                     st.markdown("#### ➕ Formulario de Inscripción")
+                    records_afiliadores = load_padron_records()
+                    opciones_afiliadores = {"Sin afiliador (Inscripción directa)": None}
+                    for r_aff in records_afiliadores:
+                        if r_aff.get("ID"):
+                            etiqueta_aff = f"ID #{r_aff['ID']} — {r_aff['Matricula']} ({r_aff['Usuario']})"
+                            opciones_afiliadores[etiqueta_aff] = int(r_aff["ID"])
+
                     with st.form("form_registro_estudiante", clear_on_submit=True):
                         reg_usuario = st.text_input("👤 Nombre Completo / Usuario:", placeholder="Ej: Carlos Mendoza")
                         reg_clave = st.text_input("🔑 Clave de Acceso asignada:", placeholder="Ej: CEI-2026-05")
@@ -2988,13 +3065,18 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                         
                         reg_grado = st.selectbox("🎓 Nivel Académico:", GRADOS_ACADEMICOS, index=1)
                         reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", permisos_disponibles, index=default_perm_idx)
+                        reg_afiliador_label = st.selectbox(
+                            "🤝 Socio Afiliado / Recomendado por:",
+                            list(opciones_afiliadores.keys()),
+                            index=0
+                        )
+                        reg_afiliador_id = opciones_afiliadores[reg_afiliador_label]
                         
                         if st.form_submit_button("💾 Guardar Inscripción", type="primary", width="stretch"):
                             if reg_usuario.strip() and reg_clave.strip():
                                 try:
-                                    records_actuales = load_padron_records()
-                                    existentes_u = [str(r.get("Usuario", "")).strip().lower() for r in records_actuales]
-                                    existentes_c = [str(r.get("Clave", "")).strip().lower() for r in records_actuales]
+                                    existentes_u = [str(r.get("Usuario", "")).strip().lower() for r in records_afiliadores]
+                                    existentes_c = [str(r.get("Clave", "")).strip().lower() for r in records_afiliadores]
                                     
                                     if reg_usuario.strip().lower() in existentes_u:
                                         st.error("⚠️ Ese nombre de usuario ya está registrado.")
@@ -3008,16 +3090,15 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                             grado=reg_grado,
                                             nivel=reg_nivel,
                                             permisos=reg_permiso,
-                                            estatus="Activo"
+                                            estatus="Activo",
+                                            afiliador_id=reg_afiliador_id
                                         )
-                                        st.success(f"✅ {reg_usuario.strip()} inscrito con Matrícula Oficial **{matricula_nueva}** ({reg_grado} - {reg_nivel}).")
+                                        st.success(f"✅ {reg_usuario.strip()} inscrito con Matrícula Oficial **{matricula_nueva}**.")
                                         st.rerun()
-
                                 except Exception as e:
                                     st.error(f"Error al registrar en Supabase: {e}")
                             else:
                                 st.warning("⚠️ Completa tanto el usuario como la clave.")
-
                 with col_tabla_reg:
                     st.markdown("#### 📋 Tabla de Registros Activos")
                     try:
@@ -3025,7 +3106,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                         if records_p:
                             df_p = pd.DataFrame(records_p)
                             cols_mostrar = [
-                                c for c in ["Matricula", "Usuario", "Rol", "Nivel", "Grado_Academico", "Permisos", "Estatus"]
+                                c for c in ["ID", "Matricula", "Usuario", "Rol", "Nivel", "Socio_Afiliador", "Permisos", "Estatus"]
                                 if c in df_p.columns
                             ]
                             st.dataframe(df_p[cols_mostrar], height=205, width="stretch", hide_index=True)
@@ -3079,8 +3160,39 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Error al actualizar en Supabase: {e}")
+
+                            st.divider()
+                            st.markdown("##### 🤝 Asignar o Cambiar Socio Afiliado")
+                            c_af1, c_af2, c_af3 = st.columns([1.4, 1.6, 1.1])
+                            with c_af1:
+                                est_af_label = st.selectbox(
+                                    "Estudiante:",
+                                    [f"ID #{r['ID']} — {r['Usuario']}" for r in records_p if r.get("ID")],
+                                    key="sel_est_afiliar"
+                                )
+                                est_af_id = int(est_af_label.split(" — ")[0].replace("ID #", ""))
+                            with c_af2:
+                                soc_opts = {"Sin afiliador (Ninguno)": None}
+                                for r_s in records_p:
+                                    if r_s.get("ID") and int(r_s["ID"]) != est_af_id:
+                                        soc_opts[f"ID #{r_s['ID']} — {r_s['Matricula']} ({r_s['Usuario']})"] = int(r_s["ID"])
+                                soc_af_label = st.selectbox(
+                                    "Socio Afiliado:",
+                                    list(soc_opts.keys()),
+                                    key="sel_soc_afiliar"
+                                )
+                            with c_af3:
+                                st.write("")
+                                if st.button("🤝 Afiliar ID", type="primary", width="stretch", key="btn_save_afiliacion"):
+                                    try:
+                                        set_student_affiliate_pg(est_af_id, soc_opts[soc_af_label])
+                                        st.success(f"✅ Afiliación guardada en PostgreSQL para el estudiante ID #{est_af_id}.")
+                                        st.rerun()
+                                    except Exception as e_af:
+                                        st.error(f"Error al guardar afiliación: {e_af}")
                     except Exception as e:
                         st.error(f"Error al cargar padrón: {e}")
+
 
         
                # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
