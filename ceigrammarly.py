@@ -3604,7 +3604,7 @@ with col_tools_right:
             width="stretch"
         )
 
-        if st.session_state.get("generated_text"):
+    if st.session_state.get("generated_text"):
         nota_actual_pdf = st.session_state.get("best_stored_score") or st.session_state.get("quiz_score")
         pdf_bytes = create_lesson_pdf(
             st.session_state.generated_text.replace("*", ""),
