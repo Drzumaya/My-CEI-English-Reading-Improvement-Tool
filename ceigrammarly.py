@@ -68,6 +68,74 @@ DEFAULT_PERMISSIONS_MATRIX = [
 ]
 
 # --- 3. CLIENTES EN CACHÉ (GEMINI Y GOOGLE SHEETS) ---
+CEFR_GRAMMAR_TOPICS = {
+    "A1": [
+        "Verb To Be & Personal Pronouns",
+        "Present Simple (Affirmative, Negative & Questions)",
+        "Articles (a, an, the) & Plurals",
+        "There is / There are & Prepositions of Place",
+        "Possessive Adjectives & Saxon Genitive ('s)",
+        "Can / Can't for Ability & Permission",
+        "Present Continuous (Actions Happening Now)"
+    ],
+    "A2": [
+        "Past Simple (Regular & Irregular Verbs)",
+        "Past Continuous vs. Past Simple",
+        "Going to & Will for Future Plans/Predictions",
+        "Comparatives & Superlatives",
+        "Countable & Uncountable Nouns (some, any, much, many)",
+        "Modal Verbs of Obligation (must, have to, should)",
+        "Present Perfect Simple (ever, never, just, already, yet)",
+        "Adverbs of Frequency & Manner"
+    ],
+    "B1": [
+        "Present Perfect vs. Past Simple",
+        "First & Second Conditionals (If / Unless)",
+        "Modal Verbs of Deduction & Possibility (might, may, could, must)",
+        "Passive Voice (Present & Past Simple)",
+        "Relative Clauses (who, which, that, where, whose)",
+        "Used to / Would for Past Habits",
+        "Reported Speech (Statements & Questions)",
+        "Gerunds vs. Infinitives",
+        "Connectors of Contrast, Cause & Result"
+    ],
+    "B2": [
+        "Third Conditional & Mixed Conditionals",
+        "Passive Voice (All Tenses & Causative Have/Get)",
+        "Modal Perfects (must have, should have, could have)",
+        "Narrative Tenses (Past Simple, Continuous & Perfect)",
+        "Reported Speech (Commands, Reporting Verbs & Indirect Questions)",
+        "Defining & Non-Defining Relative Clauses",
+        "Future Continuous & Future Perfect",
+        "Phrasal Verbs & Collocations in Academic Contexts",
+        "Wish / If Only for Regrets & Hypothetical Situations"
+    ],
+    "C1": [
+        "Inversion after Negative & Restrictive Adverbials",
+        "Cleft Sentences for Emphasis (It-clefts & Wh-clefts)",
+        "Subjunctive Mood & Unreal Past",
+        "Participle Clauses (Present, Past & Perfect Participles)",
+        "Advanced Passive Structures (It is said that / He is believed to)",
+        "Mixed Conditionals & Ellipsis in If-Clauses",
+        "Nuanced Modality & Epistemic Stance",
+        "Nominalization & Academic Cohesion",
+        "Discourse Markers for Argumentation & Concession",
+        "Hedging & Academic Register Precision"
+    ],
+    "C2": [
+        "Complex Syntactic Inversion & Fronting",
+        "Advanced Ellipsis, Substitution & Parallelism",
+        "Subtlety in Modality, Counterfactuals & Subjunctive",
+        "Rhetorical Clefting & Information Packaging",
+        "Lexical Precision, Idiomaticity & Register Shifts",
+        "Nominalized Academic Discourse & Dense Clause Embedding",
+        "Pragmatic Hedging & Critical Stance",
+        "Cohesive Devices in High-Level Academic Prose",
+        "Stylistic Variation & Syntactic Economy",
+        "Cross-Clause Referencing & Advanced Conjunctions"
+    ]
+}
+
 @st.cache_resource
 def init_gemini_client():
     """Inicializa el cliente oficial de Google Gemini leyendo la clave desde cualquier nivel de Secrets."""
@@ -760,6 +828,8 @@ class AcademicPDF(FPDF):
         self.set_font("Times", "", 7.5)
         self.set_text_color(110, 110, 110)
         self.cell(self.epw, 4, text=_safe_latin1(self.address_str), align="C")
+
+
 def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, speaking_eval=None) -> bytes:
     """Genera un documento académico de Alta Escuela con numeración de páginas, ilustración y examen."""
     folio_doc = st.session_state.current_folio or "SIN-FOLIO"
@@ -837,6 +907,47 @@ def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, spe
     pdf.cell(w_meta, 5, text=_safe_latin1(f"Digital Verification & Recovery: {link_doc}"), new_x="LMARGIN", new_y="NEXT", align="L", link=link_doc)
 
     pdf.set_y(y_box_start + 48)
+
+    pdf.set_y(y_box_start + 48)
+
+    # --- CUADRO DE CALIFICACIÓN DE LA LECCIÓN, TÓPICO Y PROMEDIO GENERAL ---
+    try:
+        topico_lec_pdf = (
+            st.session_state.get("selected_grammar_topic")
+            or (gramatica_b1 if "gramatica_b1" in globals() else "Applied Grammar")
+        )
+        gb_lec_actual = fetch_student_gradebook_pg(usuario_doc) if usuario_doc else {}
+        t_match = next(
+            (t for t in gb_lec_actual.get("topic_summary", []) if t["Grammar Topic"] == topico_lec_pdf),
+            {}
+        )
+        nota_leccion_str = str(score or "Pendiente")
+        nota_topico_str = f"{t_match.get('Dominio (%)', 0.0)}%"
+        nota_general_str = f"{gb_lec_actual.get('overall_avg', 0.0)}%"
+
+        y_perf = pdf.get_y()
+        pdf.set_fill_color(244, 247, 251)
+        pdf.set_draw_color(11, 37, 69)
+        pdf.set_line_width(0.35)
+        pdf.rect(pdf.l_margin, y_perf, pdf.epw, 13, style="FD")
+
+        # Acento dorado izquierdo a juego con el membrete
+        pdf.set_fill_color(184, 134, 11)
+        pdf.rect(pdf.l_margin, y_perf, 2.5, 13, style="F")
+
+        pdf.set_xy(pdf.l_margin + 5, y_perf + 3)
+        pdf.set_font("Times", "B", 9.2)
+        pdf.set_text_color(11, 37, 69)
+        resumen_notas_txt = (
+            f"Lesson Score: {nota_leccion_str}   |   "
+            f"Topic Avg ({topico_lec_pdf[:26]}): {nota_topico_str}   |   "
+            f"Overall Student Avg: {nota_general_str}"
+        )
+        pdf.cell(pdf.epw - 8, 7, text=_safe_latin1(resumen_notas_txt), new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.set_y(y_perf + 17)
+    except Exception:
+        pass
+
 
     # --- ILUSTRACIÓN ESCÉNICA CON MARCO EDITORIAL ---
     img_to_embed = st.session_state.get("image_bytes")
@@ -1870,6 +1981,335 @@ if verify_folio:
     st.stop()
     
 # --- 8. AUTENTICACIÓN, LOCALSTORAGE FIRMADO Y CAPTURA DE FOLIO ---
+def fetch_student_gradebook_pg(target_usuario: str) -> dict:
+    """Calcula promedios en tiempo real y desglose completo por todos los Grammar Topics del nivel CEFR del alumno."""
+    import re
+    from psycopg.rows import dict_row
+
+    conn = get_pg_conn()
+    if not conn:
+        return {"records": [], "topic_summary": [], "overall_avg": 0.0, "quiz_avg": 0.0, "oral_avg": 0.0, "matricula": "N/A", "nivel_cefr": "B1", "grado": ""}
+
+    with conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""
+                SELECT id, COALESCE(matricula, 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
+                       COALESCE(nivel_cefr, 'B1') AS nivel_cefr,
+                       COALESCE(grado_academico, 'Licenciatura / Universidad') AS grado_academico
+                FROM users_padron
+                WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s))
+                LIMIT 1;
+            """, (target_usuario.strip(),))
+            u_row = cur.fetchone() or {}
+
+            cur.execute("""
+                SELECT
+                    l.folio,
+                    l.tema,
+                    COALESCE(NULLIF(TRIM(l.grammar_topic), ''), 'General Applied Grammar') AS grammar_topic,
+                    l.nivel_cefr,
+                    l.best_score,
+                    COALESCE(l.speaking_score, 0) AS speaking_score,
+                    TO_CHAR(l.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha
+                FROM lessons_archive l
+                JOIN users_padron u ON l.user_id = u.id
+                WHERE LOWER(TRIM(u.usuario)) = LOWER(TRIM(%s))
+                ORDER BY l.created_at DESC;
+            """, (target_usuario.strip(),))
+            rows = cur.fetchall()
+    def _parse_quiz_pct(score_str: str) -> float | None:
+        m = re.search(r"\((\d+(?:\.\d+)?)%\)", str(score_str or ""))
+        return float(m.group(1)) if m else None
+
+    nivel_alumno = normalize_cefr(u_row.get("nivel_cefr", "B1"))
+    catalogo_nivel = CEFR_GRAMMAR_TOPICS.get(nivel_alumno, CEFR_GRAMMAR_TOPICS["B1"])
+
+    por_tema = {t: {"scores": [], "lecciones": 0} for t in catalogo_nivel}
+    registros_procesados = []
+    todas_quiz, todas_oral, todas_combinadas = [], [], []
+
+    for r in rows:
+        q_pct = _parse_quiz_pct(r.get("best_score"))
+        o_raw = float(r.get("speaking_score") or 0)
+        o_pct = o_raw if o_raw > 0 else None
+
+        notas_item = [x for x in [q_pct, o_pct] if x is not None]
+        prom_leccion = round(sum(notas_item) / len(notas_item), 1) if notas_item else None
+
+        if q_pct is not None:
+            todas_quiz.append(q_pct)
+        if o_pct is not None:
+            todas_oral.append(o_pct)
+        if prom_leccion is not None:
+            todas_combinadas.append(prom_leccion)
+
+        g_topic = str(r.get("grammar_topic") or "General Applied Grammar").strip()
+        if g_topic not in por_tema:
+            por_tema[g_topic] = {"scores": [], "lecciones": 0}
+        por_tema[g_topic]["lecciones"] += 1
+        if prom_leccion is not None:
+            por_tema[g_topic]["scores"].append(prom_leccion)
+
+        registros_procesados.append({
+            "Folio": r.get("folio", ""),
+            "Fecha": r.get("fecha", ""),
+            "Nivel": r.get("nivel_cefr", ""),
+            "Grammar_Topic": g_topic,
+            "Tema_Leccion": r.get("tema", ""),
+            "Quiz_Pct": f"{q_pct}%" if q_pct is not None else "Pendiente",
+            "Oral_Pct": f"{o_pct}%" if o_pct is not None else "Pendiente",
+            "Promedio_Leccion": f"{prom_leccion}%" if prom_leccion is not None else "Sin evaluar"
+        })
+
+    resumen_temas = []
+    for topic_name, info in por_tema.items():
+        avg_t = round(sum(info["scores"]) / len(info["scores"]), 1) if info["scores"] else 0.0
+        estado_t = "Acreditado" if avg_t >= 70.0 else ("En progreso" if info["lecciones"] > 0 else "Pendiente")
+        resumen_temas.append({
+            "Grammar Topic": topic_name,
+            "Dominio (%)": avg_t,
+            "Lecciones": info["lecciones"],
+            "Estatus": estado_t
+        })
+
+    return {
+        "matricula": u_row.get("matricula", "CEI-2026-0000"),
+        "nivel_cefr": nivel_alumno,
+        "grado": u_row.get("grado_academico", ""),
+        "records": registros_procesados,
+        "topic_summary": resumen_temas,
+        "overall_avg": round(sum(todas_combinadas) / len(todas_combinadas), 1) if todas_combinadas else 0.0,
+        "quiz_avg": round(sum(todas_quiz) / len(todas_quiz), 1) if todas_quiz else 0.0,
+        "oral_avg": round(sum(todas_oral) / len(todas_oral), 1) if todas_oral else 0.0
+    }
+
+
+def stamp_and_save_transcript_pg(student_name: str, gb_data: dict, topic_filter: str) -> dict:
+    """Timbra criptográficamente el Boletín Oficial con HMAC-SHA256, fecha exacta y lo guarda en Supabase."""
+    import hashlib
+    import hmac
+
+    ahora_sonora = datetime.now(ZoneInfo("America/Hermosillo"))
+    fecha_str = ahora_sonora.strftime("%Y-%m-%d %H:%M:%S MST")
+    folio_bol = f"BOL-{ahora_sonora.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+    matricula = str(gb_data.get("matricula") or "CEI-2026-0000").strip()
+    nivel_c = str(gb_data.get("nivel_cefr") or "B1").strip()
+    ov_avg = float(gb_data.get("overall_avg") or 0.0)
+    qz_avg = float(gb_data.get("quiz_avg") or 0.0)
+    or_avg = float(gb_data.get("oral_avg") or 0.0)
+    tot_lec = len(gb_data.get("records") or [])
+
+    # Llave secreta institucional para firma HMAC-SHA256
+    secret_hmac = str(st.secrets.get("CERT_HMAC_SECRET", "CEI_AGUA_PRIETA_2026_OFFICIAL_SEAL")).encode("utf-8")
+    cadena_original = (
+        f"{folio_bol}|{matricula}|{student_name.strip().upper()}|{nivel_c}|"
+        f"{topic_filter}|{ov_avg:.2f}|{qz_avg:.2f}|{or_avg:.2f}|{tot_lec}|{fecha_str}"
+    )
+    sello_hmac = hmac.new(secret_hmac, cadena_original.encode("utf-8"), hashlib.sha256).hexdigest().upper()
+
+    conn = get_pg_conn()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO transcripts_archive (
+                            folio_boletin, matricula, student_name, nivel_cefr, topic_filter,
+                            overall_avg, quiz_avg, oral_avg, total_lessons, hmac_seal, issued_at
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    """, (
+                        folio_bol, matricula, student_name.strip(), nivel_c, topic_filter,
+                        ov_avg, qz_avg, or_avg, tot_lec, sello_hmac, ahora_sonora
+                    ))
+        except Exception:
+            pass
+
+    return {
+        "folio_boletin": folio_bol,
+        "fecha_generacion": fecha_str,
+        "sello_hmac": sello_hmac,
+        "cadena_original": cadena_original
+    }
+
+
+def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter: str = "Vista General") -> tuple[bytes, dict]:
+    """Genera y timbra el Boletín Oficial de Calificaciones en formato APA 7a Ed. con QR y sello HMAC-SHA256."""
+    import tempfile
+    import qrcode
+    from fpdf import FPDF
+
+    timbre = stamp_and_save_transcript_pg(student_name, gb_data, topic_filter)
+    folio_bol = timbre["folio_boletin"]
+    fecha_gen = timbre["fecha_generacion"]
+    sello_hmac = timbre["sello_hmac"]
+
+    # Genera código QR de verificación del boletín
+    app_base_url = str(st.secrets.get("APP_PUBLIC_URL", "https://streamlit.app")).rstrip("/")
+    verify_url = f"{app_base_url}/?verify_transcript={folio_bol}"
+    qr_img = qrcode.make(verify_url)
+    tmp_qr = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+    qr_img.save(tmp_qr.name)
+
+    class GradebookPDF(FPDF):
+        def header(self):
+            self.set_draw_color(26, 42, 68)
+            self.set_line_width(0.7)
+            self.rect(12, 10, 186, 26)
+            logo_p = get_logo_path() if "get_logo_path" in globals() else None
+            if logo_p and os.path.exists(logo_p):
+                self.image(logo_p, x=15, y=13, w=20)
+            self.set_xy(38, 13)
+            self.set_font("Times", "B", 13)
+            self.set_text_color(26, 42, 68)
+            self.cell(156, 6, "CAREER ENGLISH INSTITUTE", ln=True, align="L")
+            self.set_x(38)
+            self.set_font("Times", "I", 9.5)
+            self.set_text_color(60, 60, 60)
+            self.multi_cell(
+                156, 4.3,
+                "Official Stamped Academic Transcript & CEFR Applied Grammar Proficiency Report\n"
+                "APA 7th Edition Academic Standard  |  Author: Jacob Zumaya Prianti",
+                align="L"
+            )
+            self.set_y(40)
+
+        def footer(self):
+            self.set_y(-16)
+            self.set_draw_color(180, 180, 180)
+            self.line(12, self.get_y(), 198, self.get_y())
+            self.ln(1.5)
+            self.set_font("Times", "I", 8)
+            self.set_text_color(90, 90, 90)
+            self.set_x(12)
+            self.cell(186, 4, f"© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti | APA 7th Ed. Standard | Page {self.page_no()}", ln=True, align="C")
+            self.set_x(12)
+            self.cell(186, 4, clean_pdf_text(institute_address), ln=True, align="C")
+
+    pdf = GradebookPDF()
+    pdf.set_auto_page_break(auto=True, margin=22)
+    pdf.add_page()
+
+    # Título APA centrado con Folio de Timbrado y Fecha/Hora exacta de generación
+    pdf.set_font("Times", "B", 13)
+    pdf.set_text_color(20, 20, 20)
+    pdf.cell(0, 7, clean_pdf_text(f"OFFICIAL ACADEMIC TRANSCRIPT: {student_name.upper()}"), ln=True, align="C")
+    pdf.set_font("Times", "B", 9.5)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 5, clean_pdf_text(f"Transcript Folio: {folio_bol}   |   Generation Date: {fecha_gen}"), ln=True, align="C")
+    pdf.set_font("Times", "I", 9.5)
+    pdf.set_text_color(60, 60, 60)
+    pdf.cell(0, 5, clean_pdf_text(f"Registration ID: {gb_data.get('matricula')}  |  CEFR Level: {gb_data.get('nivel_cefr')}  |  View: {topic_filter}"), ln=True, align="C")
+    pdf.ln(3)
+
+    # Cuadro de Promedios Generales
+    pdf.set_fill_color(242, 245, 250)
+    pdf.set_draw_color(26, 42, 68)
+    pdf.rect(12, pdf.get_y(), 186, 15, style="DF")
+    y_box = pdf.get_y() + 3.5
+    pdf.set_xy(15, y_box)
+    pdf.set_font("Times", "B", 10.5)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(46, 8, f"Overall Avg: {gb_data['overall_avg']}%", align="C")
+    pdf.cell(46, 8, f"Written (Quiz): {gb_data['quiz_avg']}%", align="C")
+    pdf.cell(46, 8, f"Oral (Speaking): {gb_data['oral_avg']}%", align="C")
+    pdf.cell(44, 8, f"Total Lessons: {len(gb_data['records'])}", align="C")
+    pdf.ln(15)
+
+    # Tabla APA 1: Desempeño por Grammar Topic
+    pdf.set_font("Times", "B", 11)
+    pdf.set_text_color(20, 20, 20)
+    pdf.cell(0, 6, "Table 1", ln=True)
+    pdf.set_font("Times", "I", 10.5)
+    pdf.cell(0, 6, clean_pdf_text(f"Applied Grammar Competency Breakdown by CEFR {gb_data.get('nivel_cefr')} Topic"), ln=True)
+    pdf.ln(1)
+
+    pdf.set_font("Times", "B", 9.5)
+    pdf.set_draw_color(20, 20, 20)
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+    pdf.cell(112, 7, "Grammar Topic", align="L")
+    pdf.cell(24, 7, "Lessons", align="C")
+    pdf.cell(25, 7, "Mastery (%)", align="C")
+    pdf.cell(25, 7, "Status", align="C", ln=True)
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+
+    pdf.set_font("Times", "", 9.5)
+    temas_pdf = gb_data.get("topic_summary", [])
+    if topic_filter != "Vista General":
+        temas_pdf = [t for t in temas_pdf if t["Grammar Topic"] == topic_filter]
+
+    for t_row in temas_pdf:
+        pdf.cell(112, 6.2, clean_pdf_text(t_row["Grammar Topic"])[:62], align="L")
+        pdf.cell(24, 6.2, str(t_row["Lecciones"]), align="C")
+        pdf.cell(25, 6.2, f"{t_row['Dominio (%)']}%", align="C")
+        pdf.cell(25, 6.2, clean_pdf_text(t_row["Estatus"]), align="C", ln=True)
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+    pdf.ln(5)
+
+    # Tabla APA 2: Registro Cronológico de Lecciones Evaluadas
+    pdf.set_font("Times", "B", 11)
+    pdf.cell(0, 6, "Table 2", ln=True)
+    pdf.set_font("Times", "I", 10.5)
+    pdf.cell(0, 6, "Chronological Archive of Assessed Lessons and Folios", ln=True)
+    pdf.ln(1)
+
+    pdf.set_font("Times", "B", 9)
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+    pdf.cell(38, 7, "Folio", align="L")
+    pdf.cell(74, 7, "Grammar Topic", align="L")
+    pdf.cell(24, 7, "Quiz", align="C")
+    pdf.cell(24, 7, "Oral", align="C")
+    pdf.cell(26, 7, "Lesson Avg", align="C", ln=True)
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+
+    pdf.set_font("Times", "", 8.8)
+    recs_pdf = gb_data.get("records", [])
+    if topic_filter != "Vista General":
+        recs_pdf = [r for r in recs_pdf if r["Grammar_Topic"] == topic_filter]
+
+    for r_item in recs_pdf:
+        pdf.cell(38, 6, clean_pdf_text(r_item["Folio"]), align="L")
+        pdf.cell(74, 6, clean_pdf_text(r_item["Grammar_Topic"])[:42], align="L")
+        pdf.cell(24, 6, clean_pdf_text(r_item["Quiz_Pct"]), align="C")
+        pdf.cell(24, 6, clean_pdf_text(r_item["Oral_Pct"]), align="C")
+        pdf.cell(26, 6, clean_pdf_text(r_item["Promedio_Leccion"]), align="C", ln=True)
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+    pdf.ln(6)
+
+    # Cuadro Oficial de Timbrado Digital HMAC-SHA256 + Código QR
+    if pdf.get_y() > 235:
+        pdf.add_page()
+    y_seal = pdf.get_y()
+    pdf.set_fill_color(248, 250, 252)
+    pdf.set_draw_color(26, 42, 68)
+    pdf.rect(12, y_seal, 186, 30, style="DF")
+
+    pdf.image(tmp_qr.name, x=15, y=y_seal + 2.5, w=25)
+    pdf.set_xy(43, y_seal + 3)
+    pdf.set_font("Times", "B", 9.5)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(152, 5, f"DIGITAL INSTITUTIONAL STAMP (HMAC-SHA256)  |  FOLIO: {folio_bol}", ln=True)
+
+    pdf.set_x(43)
+    pdf.set_font("Courier", "", 7.2)
+    pdf.set_text_color(40, 40, 40)
+    pdf.multi_cell(152, 3.6, f"SHA-256 SEAL: {sello_hmac}\nISSUED AT: {fecha_gen}  |  VERIFY: {verify_url}")
+
+    pdf.set_xy(43, y_seal + 22)
+    pdf.set_font("Times", "B", 8.5)
+    pdf.set_text_color(20, 20, 20)
+    pdf.cell(152, 5, "Signed digitally by: Jacob Zumaya Prianti — Academic Director, Career English Institute", ln=True)
+
+    try:
+        os.unlink(tmp_qr.name)
+    except Exception:
+        pass
+
+    return bytes(pdf.output()), timbre
+
+
+
+#A quí estaba la Parte 8.
 def _sign_session_token(usuario: str, clave: str) -> str:
     secret = str(st.secrets.get("HMAC_SECRET_KEY", "CEI-SESSION-KEY")).encode("utf-8")
     raw_data = f"{usuario}|{clave}"
@@ -2805,7 +3245,6 @@ with col_exit:
         st.session_state.app_exited = True
         st.session_state.authenticated = False
         st.rerun()
-        
 # --- 13. BUSCADOR DE FOLIOS Y BOLETÍN DE CALIFICACIONES EN TIEMPO REAL ---
 if "show_gradebook_panel" not in st.session_state:
     st.session_state.show_gradebook_panel = False
@@ -2860,24 +3299,61 @@ if st.session_state.show_gradebook_panel:
 
         gb_data = fetch_student_gradebook_pg(alumno_objetivo_gb)
 
+        # Selector de Vista General o Filtro por Tópico Gramatical + Descarga PDF Timbrado
+        lista_topicos_disp = ["Vista General"] + [t["Grammar Topic"] for t in gb_data["topic_summary"]]
+        col_f_top, col_f_pdf = st.columns([2.1, 1.4])
+        with col_f_top:
+            topico_seleccionado_gb = st.selectbox(
+                f"🎯 Filtrar Desempeño por Grammar Topic (Nivel CEFR {gb_data['nivel_cefr']}):",
+                lista_topicos_disp,
+                key="sel_filtro_topico_gradebook"
+            )
+        with col_f_pdf:
+            st.write("")
+            pdf_boletin_bytes, timbre_info = create_official_gradebook_pdf(
+                alumno_objetivo_gb,
+                gb_data,
+                topico_seleccionado_gb
+            )
+            st.download_button(
+                label=f"📥 Descargar Boletín Timbrado ({timbre_info['folio_boletin']})",
+                data=pdf_boletin_bytes,
+                file_name=f"{timbre_info['folio_boletin']}_{gb_data['matricula']}_{alumno_objetivo_gb.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                type="primary",
+                width="stretch",
+                key="btn_dl_official_gradebook_pdf"
+            )
+            st.caption(f"🛡️ Timbrado: `{timbre_info['folio_boletin']}` | 📅 `{timbre_info['fecha_generacion']}`")
+
+        # Cálculo de métricas según vista elegida (General o Tópico específico)
+        if topico_seleccionado_gb == "Vista General":
+            prom_vista = gb_data["overall_avg"]
+            recs_filtrados = gb_data["records"]
+            temas_filtrados = gb_data["topic_summary"]
+        else:
+            t_info = next((t for t in gb_data["topic_summary"] if t["Grammar Topic"] == topico_seleccionado_gb), {})
+            prom_vista = t_info.get("Dominio (%)", 0.0)
+            recs_filtrados = [r for r in gb_data["records"] if r["Grammar_Topic"] == topico_seleccionado_gb]
+            temas_filtrados = [t_info] if t_info else []
+
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("🏆 Promedio General", f"{gb_data['overall_avg']}%")
-        m2.metric("📝 Promedio Escrito (Quiz)", f"{gb_data['quiz_avg']}%")
-        m3.metric("🎙️ Promedio Oral (Audio/Video)", f"{gb_data['oral_avg']}%")
-        m4.metric("📚 Lecciones Generadas", len(gb_data["records"]))
+        m2.metric("🎯 Promedio Vista Actual", f"{prom_vista}%")
+        m3.metric("📝 Escrito / 🎙️ Oral", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
+        m4.metric("📚 Lecciones Evaluadas", len(recs_filtrados))
 
-        if gb_data["topic_summary"]:
+        if temas_filtrados:
             st.markdown("#### 📈 Porcentaje de Dominio por Grammar Topic")
-            df_chart = pd.DataFrame(gb_data["topic_summary"]).set_index("Grammar Topic")
+            df_chart = pd.DataFrame(temas_filtrados).set_index("Grammar Topic")
             st.bar_chart(df_chart[["Dominio (%)"]], height=260)
-            st.dataframe(pd.DataFrame(gb_data["topic_summary"]), width="stretch", hide_index=True)
+            st.dataframe(pd.DataFrame(temas_filtrados), width="stretch", hide_index=True)
 
         st.markdown("#### 📋 Historial Completo de Lecciones Evaluadas")
-        if gb_data["records"]:
-            st.dataframe(pd.DataFrame(gb_data["records"]), width="stretch", hide_index=True)
+        if recs_filtrados:
+            st.dataframe(pd.DataFrame(recs_filtrados), width="stretch", hide_index=True)
         else:
-            st.warning("Aún no hay lecciones registradas para este estudiante en Supabase.")
-
+            st.warning("Aún no hay lecciones registradas para este filtro en Supabase.")
 auto_fetch_url_folio = bool(
     st.session_state.current_folio
     and not st.session_state.generated_text
@@ -2952,6 +3428,7 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
 st.divider()
 
 
+
 # --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
 if is_owner or is_faculty_desktop:
     btn_txt_admin = (
@@ -2980,7 +3457,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
             "🏛️ Datos del Instituto"
         ])
 
-        # 14.1 PESTAÑA CERTIFICADOS
+# 14.1 PESTAÑA CERTIFICADOS
         with tab_certificados:
             if not (is_owner or can("Emitir_Certificados")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
