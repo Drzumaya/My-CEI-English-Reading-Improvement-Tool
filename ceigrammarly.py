@@ -2977,9 +2977,8 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Genera ilustración educativa con Hugging Face FLUX o Pollinations AI sin errores de URL."""
+    """Genera ilustración educativa con Hugging Face (FLUX / SDXL) o tarjeta visual académica en Pillow."""
     import re
-    import urllib.parse
     import requests
     from PIL import Image, ImageDraw, ImageFont
 
@@ -2989,9 +2988,9 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     full_prompt = (
         f"Educational textbook illustration, clean digital comic art style, "
         f"bright natural lighting, expressive characters. {escena_limpia}"
-    )[:320]
+    )[:360]
 
-    # 1. Hugging Face Inference API (FLUX.1-schnell)
+    # Busca HF_TOKEN en cualquier nivel de Secrets
     hf_token = ""
     for k, v in st.secrets.items():
         if isinstance(v, str) and ("HF" in k.upper() or v.strip().startswith("hf_")):
@@ -3007,45 +3006,43 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
 
     errores = []
     if hf_token:
-        try:
-            r_hf = requests.post(
-                "https://huggingface.co",
-                headers={"Authorization": f"Bearer {hf_token}"},
-                json={"inputs": full_prompt},
-                timeout=25
-            )
-            if r_hf.status_code == 200 and len(r_hf.content) > 2000:
-                return r_hf.content
-            errores.append(f"HF HTTP {r_hf.status_code}: {r_hf.text[:100]}")
-        except Exception as e_hf:
-            errores.append(f"HF: {e_hf}")
-
-    # 2. Pollinations.ai usando requests con params (nunca se pega el dominio con el texto)
-    try:
-        ruta_segura = "/prompt/" + urllib.parse.quote(full_prompt, safe="")
-        url_poll = urllib.parse.urlunparse(("https", "image.pollinations.ai", ruta_segura, "", f"width=800&height=450&nologo=true&seed={random.randint(1, 999999)}", ""))
-        r_poll = requests.get(url_poll, timeout=25)
-        if r_poll.status_code == 200 and len(r_poll.content) > 2000:
-            return r_poll.content
-        errores.append(f"Pollinations HTTP {r_poll.status_code}")
-    except Exception as e_poll:
-        errores.append(f"Pollinations: {e_poll}")
+        headers_hf = {
+            "Authorization": f"Bearer {hf_token}",
+            "Content-Type": "application/json",
+            "User-Agent": "CareerEnglishInstituteApp/1.0"
+        }
+        modelos_hf = [
+            "https://huggingface.co",
+            "https://huggingface.co"
+        ]
+        for url_hf in modelos_hf:
+            try:
+                r_hf = requests.post(url_hf, headers=headers_hf, json={"inputs": full_prompt}, timeout=28)
+                if r_hf.status_code == 200 and len(r_hf.content) > 2000:
+                    st.session_state["last_img_error"] = None
+                    return r_hf.content
+                errores.append(f"HF ({url_hf.split('/')[-1]}) HTTP {r_hf.status_code}")
+            except Exception as e_hf:
+                errores.append(f"HF error: {e_hf}")
+    else:
+        errores.append("HF_TOKEN no detectado en Secrets")
 
     st.session_state["last_img_error"] = " | ".join(errores)
 
-    # 3. Respaldo nativo Pillow
+    # Respaldo visual institucional de alta calidad en Pillow (siempre disponible)
     w, h = 800, 420
-    img = Image.new("RGB", (w, h), color=(24, 42, 72))
+    img = Image.new("RGB", (w, h), color=(18, 36, 66))
     draw = ImageDraw.Draw(img)
-    draw.rectangle([16, 16, w - 16, h - 16], outline=(212, 175, 55), width=4)
-    draw.rectangle([32, 32, w - 32, 95], fill=(36, 62, 104))
-    font_title = ImageFont.load_default()
-    draw.text((48, 52), f"CAREER ENGLISH INSTITUTE  |  {folio_tag}  |  CEFR {cefr_lvl}", fill=(255, 223, 128), font=font_title)
+    draw.rectangle([14, 14, w - 14, h - 14], outline=(212, 175, 55), width=4)
+    draw.rectangle([28, 28, w - 28, 92], fill=(30, 56, 98))
+
+    font_std = ImageFont.load_default()
+    draw.text((46, 50), f"CAREER ENGLISH INSTITUTE  |  {folio_tag}  |  CEFR {cefr_lvl}", fill=(255, 223, 128), font=font_std)
 
     words = escena_limpia.split()
     lines, curr = [], ""
     for wd in words:
-        if len(curr) + len(wd) + 1 <= 78:
+        if len(curr) + len(wd) + 1 <= 76:
             curr = f"{curr} {wd}".strip()
         else:
             lines.append(curr)
@@ -3053,14 +3050,15 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     if curr:
         lines.append(curr)
 
-    y_cursor = 125
+    y_cursor = 122
     for ln in lines[:8]:
-        draw.text((48, y_cursor), ln, fill=(240, 244, 248), font=font_title)
+        draw.text((46, y_cursor), ln, fill=(242, 246, 252), font=font_std)
         y_cursor += 28
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
 
 
 
