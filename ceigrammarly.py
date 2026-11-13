@@ -2404,7 +2404,6 @@ if verify_bol_param:
     st.stop()
 
 if not st.session_state.authenticated:
-:
     col_l, col_c, col_r = st.columns([1, 1.5, 1])
     with col_c:
         b64_l, mime_l = (
