@@ -2412,20 +2412,23 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Cascada de 4 niveles: Nano Banana -> Hugging Face FLUX.1-schnell -> Pollinations -> Tarjeta Pillow."""
-    import urllib.request
+    """Genera ilustración educativa con Gemini, Hugging Face FLUX o Pollinations AI sin errores de URL."""
+    import re
     import urllib.parse
+    import requests
     from PIL import Image, ImageDraw, ImageFont
     from google.genai import types
 
     st.session_state["last_img_error"] = None
-    estilo_visual = (
-        "Warm friendly educational textbook illustration, clean digital comic art style, "
-        "bright natural lighting, expressive characters, vibrant colors: "
-    )
-    full_prompt = f"{estilo_visual} {scene_prompt}"
+    # Limpia caracteres especiales (: / " \n) que rompen URLs en motores GET
+    escena_limpia = re.sub(r'[:/"\'\n\r]+', ' ', str(scene_prompt or "")).strip()
+    escena_limpia = re.sub(r'\s+', ' ', escena_limpia)
+    full_prompt = (
+        f"Warm friendly educational textbook illustration, clean digital comic art style, "
+        f"bright natural lighting, expressive characters, vibrant colors. {escena_limpia}"
+    )[:420]
 
-    # 1. Nivel 1: Nano Banana / Gemini Image
+    # 1. Nivel 1: Gemini Image (si hay cuota activa)
     if client_gm is not None:
         for model_img in ["gemini-2.5-flash-image", "gemini-3.1-flash-image-preview"]:
             try:
@@ -2439,10 +2442,10 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
                         inline = getattr(part, "inline_data", None)
                         if inline and getattr(inline, "data", None):
                             return inline.data
-            except Exception as e_m:
-                st.session_state["last_img_error"] = f"{model_img}: cuota Free Tier (pasando a Hugging Face FLUX)"
+            except Exception:
+                pass
 
-        # 2. Nivel 2: Hugging Face Inference API (FLUX.1-schnell) detectando cualquier clave HF / hf_
+    # 2. Nivel 2: Hugging Face FLUX.1-schnell (si HF_TOKEN está en Secrets)
     hf_token = ""
     for k, v in st.secrets.items():
         if isinstance(v, str) and ("HF" in k.upper() or v.strip().startswith("hf_")):
@@ -2458,49 +2461,44 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
 
     if hf_token:
         try:
-            req_hf = urllib.request.Request(
+            r_hf = requests.post(
                 "https://huggingface.co",
-                data=json.dumps({"inputs": full_prompt[:480]}).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {hf_token}",
-                    "Content-Type": "application/json"
-                }
+                headers={"Authorization": f"Bearer {hf_token}"},
+                json={"inputs": full_prompt},
+                timeout=25
             )
-            with urllib.request.urlopen(req_hf, timeout=22) as resp_hf:
-                hf_bytes = resp_hf.read()
-                if hf_bytes and len(hf_bytes) > 2000:
-                    st.session_state["last_img_error"] = None
-                    return hf_bytes
-        except Exception as e_hf:
-            st.session_state["last_img_error"] = f"Hugging Face FLUX: {e_hf}"
-
-    # 3. Nivel 3: Pollinations.ai (con safe="" para evitar error de puerto no numérico)
-    try:
-        clean_p = full_prompt.replace("\n", " ").strip()[:400]
-        prompt_url = urllib.parse.quote(clean_p, safe="")
-        seed_rnd = random.randint(1, 999999)
-        url_free_ai = f"https://pollinations.ai{prompt_url}?width=800&height=450&nologo=true&seed={seed_rnd}"
-        req = urllib.request.Request(url_free_ai, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            img_data = resp.read()
-            if img_data and len(img_data) > 2000:
+            if r_hf.status_code == 200 and len(r_hf.content) > 2000:
                 st.session_state["last_img_error"] = None
-                return img_data
-    except Exception as e_free:
-        st.session_state["last_img_error"] = f"Pollinations AI: {e_free}"
+                return r_hf.content
+            else:
+                st.session_state["last_img_error"] = f"Hugging Face HTTP {r_hf.status_code}: {r_hf.text[:140]}"
+        except Exception as e_hf:
+            st.session_state["last_img_error"] = f"Hugging Face error: {e_hf}"
 
-    # 4. Nivel 4: Respaldo visual nativo en Pillow (100% offline)
+    # 3. Nivel 3: Pollinations.ai vía requests (inmune a nonnumeric port)
+    try:
+        prompt_enc = urllib.parse.quote(full_prompt, safe="")
+        seed_rnd = random.randint(1, 999999)
+        url_poll = f"https://pollinations.ai{prompt_enc}?width=800&height=450&nologo=true&seed={seed_rnd}"
+        r_poll = requests.get(url_poll, timeout=22)
+        if r_poll.status_code == 200 and len(r_poll.content) > 2000:
+            st.session_state["last_img_error"] = None
+            return r_poll.content
+        else:
+            st.session_state["last_img_error"] = f"Pollinations HTTP {r_poll.status_code}"
+    except Exception as e_poll:
+        st.session_state["last_img_error"] = f"Pollinations error: {e_poll}"
+
+    # 4. Nivel 4: Respaldo nativo Pillow
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(24, 42, 72))
     draw = ImageDraw.Draw(img)
     draw.rectangle([16, 16, w - 16, h - 16], outline=(212, 175, 55), width=4)
     draw.rectangle([32, 32, w - 32, 95], fill=(36, 62, 104))
-
     font_title = ImageFont.load_default()
     draw.text((48, 52), f"CAREER ENGLISH INSTITUTE  |  {folio_tag}  |  CEFR {cefr_lvl}", fill=(255, 223, 128), font=font_title)
 
-    clean_scene = str(scene_prompt or "Academic English Reading & Discourse Context").replace("*", "").replace("#", "")
-    words = clean_scene.split()
+    words = escena_limpia.split()
     lines, curr = [], ""
     for wd in words:
         if len(curr) + len(wd) + 1 <= 78:
@@ -2519,6 +2517,7 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
 
 
 
