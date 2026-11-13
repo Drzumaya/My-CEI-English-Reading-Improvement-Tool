@@ -2321,9 +2321,13 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.cell(152, 5, clean_pdf_text(f"DIGITAL INSTITUTIONAL STAMP (HMAC-SHA256)  |  FOLIO: {folio_bol}"), new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_x(43)
-    pdf.set_font("Courier", "", 7.2)
+    pdf.set_font("Courier", "", 7.0)
     pdf.set_text_color(40, 40, 40)
-    pdf.multi_cell(152, 3.6, clean_pdf_text(f"SHA-256 SEAL: {sello_hmac}\nISSUED AT: {fecha_gen}  |  VERIFY: {verify_url}"))
+    pdf.multi_cell(152, 3.5, clean_pdf_text(f"SHA-256 SEAL: {sello_hmac}\nISSUED AT: {fecha_gen}"))
+    pdf.set_x(43)
+    pdf.set_font("Courier", "", 6.2)
+    pdf.cell(152, 3.5, clean_pdf_text(f"VERIFY: {verify_url}"), new_x="LMARGIN", new_y="NEXT")
+
 
     pdf.set_xy(43, y_seal + 22)
     pdf.set_font("Times", "B", 8.5)
