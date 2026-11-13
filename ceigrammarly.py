@@ -2347,45 +2347,7 @@ if st.session_state.pending_ls_token is not None:
         streamlit_js_eval(js_expressions=f"localStorage.setItem('cei_auth_token', {safe_js_token})", key="sv_ls_init")
     st.session_state.pending_ls_token = None
 
-if not st.session_state.authenticated and not st.session_state.app_exited:
-    saved_token = streamlit_js_eval(js_expressions="localStorage.getItem('cei_auth_token')", key="get_ls_token")
-    if saved_token and isinstance(saved_token, str):
-        try:
-            u_tok, c_tok = _verify_session_token(saved_token)
-            if u_tok and c_tok:
-                for reg in load_padron_records():
-                    if (
-                        str(reg.get("Usuario", "")).strip().lower() == u_tok.lower()
-                        and str(reg.get("Clave", "")).strip() == c_tok
-                        and str(reg.get("Estatus", "Activo")).strip().lower() == "activo"
-                    ):
-                        r_db = str(reg.get("Rol", "Estudiante")).strip()
-                        p_db = resolve_permission_profile(reg.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
-                        lvl_norm = normalize_cefr(reg.get("Nivel", "B1"))
-                        g_db = str(reg.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
-                        
-                        st.session_state.authenticated = True
-                        st.session_state.current_user = str(reg.get("Usuario", "")).strip()
-                        st.session_state.user_role = r_db
-                        st.session_state.user_permissions = p_db
-                        st.session_state.user_assigned_level = lvl_norm
-                        st.session_state.selected_cefr = lvl_norm
-                        st.session_state.user_academic_grade = g_db
-                        st.session_state.selected_academic_grade = g_db
-                        st.rerun()
-        except Exception:
-            pass
 
-if st.session_state.app_exited:
-    streamlit_js_eval(js_expressions="localStorage.removeItem('cei_auth_token')", key="exit_rm_ls")
-    st.title("👋 Academic Session Ended")
-    st.info("Thank you for using the CEFR Academic Grammar & Discourse System by CAREER ENGLISH INSTITUTE.")
-    st.caption(f"📍 {institute_address} | © 2026 CAREER ENGLISH INSTITUTE. Author: Jacob Zumaya Prianti.")
-    if st.button("Volver al Inicio de Sesión"):
-        st.session_state.app_exited = False
-        st.session_state.authenticated = False
-        st.rerun()
-    st.stop()
 
 # --- VERIFICACIÓN PÚBLICA DE BOLETÍN OFICIAL TIMBRADO (VÍA QR) ---
 verify_bol_param = st.query_params.get("verify_transcript", "")
@@ -2439,6 +2401,44 @@ if verify_bol_param:
 
     if st.button("🔐 Ir al Acceso Institucional de la Plataforma"):
         st.query_params.clear()
+        st.rerun()
+    st.stop() and not st.session_state.app_exited:
+    saved_token = streamlit_js_eval(js_expressions="localStorage.getItem('cei_auth_token')", key="get_ls_token")
+    if saved_token and isinstance(saved_token, str):
+        try:
+            u_tok, c_tok = _verify_session_token(saved_token)
+            if u_tok and c_tok:
+                for reg in load_padron_records():
+                    if (
+                        str(reg.get("Usuario", "")).strip().lower() == u_tok.lower()
+                        and str(reg.get("Clave", "")).strip() == c_tok
+                        and str(reg.get("Estatus", "Activo")).strip().lower() == "activo"
+                    ):
+                        r_db = str(reg.get("Rol", "Estudiante")).strip()
+                        p_db = resolve_permission_profile(reg.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
+                        lvl_norm = normalize_cefr(reg.get("Nivel", "B1"))
+                        g_db = str(reg.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
+                        
+                        st.session_state.authenticated = True
+                        st.session_state.current_user = str(reg.get("Usuario", "")).strip()
+                        st.session_state.user_role = r_db
+                        st.session_state.user_permissions = p_db
+                        st.session_state.user_assigned_level = lvl_norm
+                        st.session_state.selected_cefr = lvl_norm
+                        st.session_state.user_academic_grade = g_db
+                        st.session_state.selected_academic_grade = g_db
+                        st.rerun()
+        except Exception:
+            pass
+
+if st.session_state.app_exited:
+    streamlit_js_eval(js_expressions="localStorage.removeItem('cei_auth_token')", key="exit_rm_ls")
+    st.title("👋 Academic Session Ended")
+    st.info("Thank you for using the CEFR Academic Grammar & Discourse System by CAREER ENGLISH INSTITUTE.")
+    st.caption(f"📍 {institute_address} | © 2026 CAREER ENGLISH INSTITUTE. Author: Jacob Zumaya Prianti.")
+    if st.button("Volver al Inicio de Sesión"):
+        st.session_state.app_exited = False
+        st.session_state.authenticated = False
         st.rerun()
     st.stop()
 
