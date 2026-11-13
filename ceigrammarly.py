@@ -2719,20 +2719,19 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                             clave_sel = str(datos_alumno.get("Matricula", "")).strip()
                             nombre_sel = str(datos_alumno.get("Usuario", "")).strip()
                             nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
-                            grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
+                            grado_sel = ""
                             st.info(
                                 f"**Titular:** {nombre_sel}\n\n"
-                                f"**Matrícula:** `{clave_sel}` | **Nivel:** {nivel_sel}\n\n"
-                                f"**Grado:** {grado_sel}"
+                                f"**Matrícula:** `{clave_sel}` | **Nivel CEFR:** {nivel_sel}"
                             )
-
 
                         with col_c2:
                             programa_cert = st.text_input(
                                 "📚 Programa / Curso Acreditado:",
-                                value=f"CEFR {nivel_sel} ({grado_sel}) Academic English Grammar & Applied Discourse",
+                                value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse",
                                 key="cert_prog_input"
                             )
+
                             calif_cert = st.text_input(
                                 "🏆 Calificación / Resultado Final:",
                                 value="98.0% — Passed with Academic Distinction",
