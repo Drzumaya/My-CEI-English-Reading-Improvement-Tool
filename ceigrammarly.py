@@ -68,13 +68,11 @@ DEFAULT_PERMISSIONS_MATRIX = [
 ]
 
 # --- 3. CLIENTES EN CACHÉ (GEMINI Y GOOGLE SHEETS) ---
-@st.cache_resource
-def init_gemini_client():
-    api_key = st.secrets.get("GEMINI_API_KEY")
-    if not api_key:
-        st.error("Falta configurar GEMINI_API_KEY en los Secrets de Streamlit.")
-        st.stop()
-    return genai.Client(api_key=api_key)
+GEMINI_API_KEY = str(
+    st.secrets.get("GEMINI_API_KEY", "")
+    or next((sec["GEMINI_API_KEY"] for sec in st.secrets.values() if isinstance(sec, dict) and "GEMINI_API_KEY" in sec), "")
+).strip()
+
 
 @st.cache_resource
 def get_gspread_client():
