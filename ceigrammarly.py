@@ -1345,6 +1345,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
     sin_bib = partes_bib[0].strip() if partes_bib else ""
 
 
+
     # 2. Conserva título y todos los párrafos del cuerpo, omitiendo solo las líneas de metadatos APA
     lineas_limpias = []
     for linea in sin_bib.splitlines():
