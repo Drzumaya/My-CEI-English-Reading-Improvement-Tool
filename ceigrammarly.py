@@ -2412,7 +2412,7 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Genera ilustración con Gemini Image, respaldo gratuito de imagen IA (Flux) o tarjeta Pillow."""
+    """Cascada de 4 niveles: Nano Banana -> Hugging Face FLUX.1-schnell -> Pollinations -> Tarjeta Pillow."""
     import urllib.request
     import urllib.parse
     from PIL import Image, ImageDraw, ImageFont
@@ -2425,7 +2425,7 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     )
     full_prompt = f"{estilo_visual} {scene_prompt}"
 
-    # 1. Intento principal: Gemini Image (si la cuenta tiene Tier 1 activo)
+    # 1. Nivel 1: Nano Banana / Gemini Image
     if client_gm is not None:
         for model_img in ["gemini-2.5-flash-image", "gemini-3.1-flash-image-preview"]:
             try:
@@ -2440,9 +2440,38 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
                         if inline and getattr(inline, "data", None):
                             return inline.data
             except Exception as e_m:
-                st.session_state["last_img_error"] = f"{model_img}: cuota Free Tier (usando motor gratuito de respaldo)"
+                st.session_state["last_img_error"] = f"{model_img}: cuota Free Tier (pasando a Hugging Face FLUX)"
 
-    # 2. Respaldo gratuito de ilustración real con IA (Flux sin requerir API Key)
+    # 2. Nivel 2: Hugging Face Inference API (FLUX.1-schnell) leyendo HF_TOKEN o HF-TOKEN
+    hf_token = ""
+    for key_cand in ["HF_TOKEN", "HF-TOKEN"]:
+        val = str(
+            st.secrets.get(key_cand, "")
+            or next((sec[key_cand] for sec in st.secrets.values() if isinstance(sec, dict) and key_cand in sec), "")
+        ).strip()
+        if val:
+            hf_token = val
+            break
+
+    if hf_token:
+        try:
+            req_hf = urllib.request.Request(
+                "https://huggingface.co",
+                data=json.dumps({"inputs": full_prompt[:480]}).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {hf_token}",
+                    "Content-Type": "application/json"
+                }
+            )
+            with urllib.request.urlopen(req_hf, timeout=22) as resp_hf:
+                hf_bytes = resp_hf.read()
+                if hf_bytes and len(hf_bytes) > 2000:
+                    st.session_state["last_img_error"] = None
+                    return hf_bytes
+        except Exception as e_hf:
+            st.session_state["last_img_error"] = f"Hugging Face FLUX: {e_hf}"
+
+    # 3. Nivel 3: Pollinations.ai (sin API key)
     try:
         prompt_url = urllib.parse.quote(full_prompt[:450])
         seed_rnd = random.randint(1, 999999)
@@ -2451,11 +2480,12 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
         with urllib.request.urlopen(req, timeout=18) as resp:
             img_data = resp.read()
             if img_data and len(img_data) > 2000:
+                st.session_state["last_img_error"] = None
                 return img_data
     except Exception as e_free:
-        st.session_state["last_img_error"] = f"Motor gratuito IA: {e_free}"
+        st.session_state["last_img_error"] = f"Pollinations AI: {e_free}"
 
-    # 3. Respaldo final nativo en Pillow (100% offline, cero errores)
+    # 4. Nivel 4: Respaldo visual nativo en Pillow (100% offline)
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(24, 42, 72))
     draw = ImageDraw.Draw(img)
@@ -2485,6 +2515,7 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
 
 
 def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
