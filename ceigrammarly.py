@@ -2261,7 +2261,7 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
     except Exception as e:
         st.error(f"Error al buscar folio: {e}") 
 
-st.divider()
+        st.divider()
         # 14.1 PESTAÑA CERTIFICADOS
         with tab_certificados:
             if not (is_owner or can("Emitir_Certificados")):
