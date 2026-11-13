@@ -3161,8 +3161,8 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                 except Exception as e:
                                     st.error(f"Error al actualizar en Supabase: {e}")
 
-                            st.divider()
-                            st.markdown("##### 🤝 Asignar o Cambiar Socio Afiliado")
+                                                        st.divider()
+                            st.markdown("##### 🤝 Asignar, Cambiar o Registrar Socio Afiliado")
                             c_af1, c_af2, c_af3 = st.columns([1.4, 1.6, 1.1])
                             with c_af1:
                                 est_af_label = st.selectbox(
@@ -3190,12 +3190,53 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                         st.rerun()
                                     except Exception as e_af:
                                         st.error(f"Error al guardar afiliación: {e_af}")
-                    except Exception as e:
-                        st.error(f"Error al cargar padrón: {e}")
+
+                            with st.expander("➕ Registrar Nuevo Socio Afiliador en el Sistema"):
+                                c_ns1, c_ns2, c_ns3 = st.columns([1.6, 1.3, 1.1])
+                                with c_ns1:
+                                    nuevo_soc_nombre = st.text_input(
+                                        "Nombre del Socio Afiliador:",
+                                        placeholder="Ej: Lic. Roberto Ruiz",
+                                        key="in_nuevo_socio_nom"
+                                    )
+                                with c_ns2:
+                                    nuevo_soc_clave = st.text_input(
+                                        "Clave de Acceso:",
+                                        placeholder="Ej: SOC-2026-01",
+                                        key="in_nuevo_socio_clv"
+                                    )
+                                with c_ns3:
+                                    st.write("")
+                                    if st.button("💾 Registrar Socio", type="secondary", width="stretch", key="btn_reg_nuevo_socio"):
+                                        if nuevo_soc_nombre.strip() and nuevo_soc_clave.strip():
+                                            try:
+                                                exist_u = [str(r.get("Usuario", "")).strip().lower() for r in records_p]
+                                                exist_c = [str(r.get("Clave", "")).strip().lower() for r in records_p]
+                                                if nuevo_soc_nombre.strip().lower() in exist_u:
+                                                    st.error("⚠️ Ese nombre ya está registrado.")
+                                                elif nuevo_soc_clave.strip().lower() in exist_c:
+                                                    st.error("⚠️ Esa clave ya está asignada.")
+                                                else:
+                                                    mat_socio = upsert_user_padron_pg(
+                                                        usuario=nuevo_soc_nombre.strip(),
+                                                        clave=nuevo_soc_clave.strip(),
+                                                        rol="Socio Afiliado",
+                                                        grado="Licenciatura / Universidad",
+                                                        nivel="B1",
+                                                        permisos="Basico",
+                                                        estatus="Activo",
+                                                        afiliador_id=None
+                                                    )
+                                                    st.success(f"✅ Socio Afiliador **{nuevo_soc_nombre.strip()}** registrado con Matrícula **{mat_socio}**.")
+                                                    st.rerun()
+                                            except Exception as e_ns:
+                                                st.error(f"Error al registrar socio: {e_ns}")
+                                        else:
+                                            st.warning("⚠️ Completa el nombre y la clave del socio.")
 
 
         
-               # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
+        ss# 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         with tab_matriz_perm:
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
