@@ -16,7 +16,7 @@ svglib
 pydub
 static-ffmpeg
 cairosvg
-
+pypdfium2
 
 
 
