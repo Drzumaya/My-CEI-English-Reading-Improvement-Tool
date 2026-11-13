@@ -2162,7 +2162,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
             self.set_xy(38, 13)
             self.set_font("Times", "B", 13)
             self.set_text_color(26, 42, 68)
-            self.cell(156, 6, "CAREER ENGLISH INSTITUTE", ln=True, align="L")
+            self.cell(156, 6, "CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="L")
             self.set_x(38)
             self.set_font("Times", "I", 9.5)
             self.set_text_color(60, 60, 60)
@@ -2182,9 +2182,9 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
             self.set_font("Times", "I", 8)
             self.set_text_color(90, 90, 90)
             self.set_x(12)
-            self.cell(186, 4, f"© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti | APA 7th Ed. Standard | Page {self.page_no()}", ln=True, align="C")
+            self.cell(186, 4, f"© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti | APA 7th Ed. Standard | Page {self.page_no()}", new_x="LMARGIN", new_y="NEXT", align="C")
             self.set_x(12)
-            self.cell(186, 4, clean_pdf_text(institute_address), ln=True, align="C")
+            self.cell(186, 4, clean_pdf_text(institute_address), new_x="LMARGIN", new_y="NEXT", align="C")
 
     pdf = GradebookPDF()
     pdf.set_auto_page_break(auto=True, margin=22)
@@ -2193,13 +2193,13 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     # Título APA centrado con Folio de Timbrado y Fecha/Hora exacta de generación
     pdf.set_font("Times", "B", 13)
     pdf.set_text_color(20, 20, 20)
-    pdf.cell(0, 7, clean_pdf_text(f"OFFICIAL ACADEMIC TRANSCRIPT: {student_name.upper()}"), ln=True, align="C")
+    pdf.cell(0, 7, clean_pdf_text(f"OFFICIAL ACADEMIC TRANSCRIPT: {student_name.upper()}"), new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.set_font("Times", "B", 9.5)
     pdf.set_text_color(26, 42, 68)
-    pdf.cell(0, 5, clean_pdf_text(f"Transcript Folio: {folio_bol}   |   Generation Date: {fecha_gen}"), ln=True, align="C")
+    pdf.cell(0, 5, clean_pdf_text(f"Transcript Folio: {folio_bol}   |   Generation Date: {fecha_gen}"), new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.set_font("Times", "I", 9.5)
     pdf.set_text_color(60, 60, 60)
-    pdf.cell(0, 5, clean_pdf_text(f"Registration ID: {gb_data.get('matricula')}  |  CEFR Level: {gb_data.get('nivel_cefr')}  |  View: {topic_filter}"), ln=True, align="C")
+    pdf.cell(0, 5, clean_pdf_text(f"Registration ID: {gb_data.get('matricula')}  |  CEFR Level: {gb_data.get('nivel_cefr')}  |  View: {topic_filter}"), new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.ln(3)
 
     # Cuadro de Promedios Generales
@@ -2219,9 +2219,9 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     # Tabla APA 1: Desempeño por Grammar Topic
     pdf.set_font("Times", "B", 11)
     pdf.set_text_color(20, 20, 20)
-    pdf.cell(0, 6, "Table 1", ln=True)
+    pdf.cell(0, 6, "Table 1", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Times", "I", 10.5)
-    pdf.cell(0, 6, clean_pdf_text(f"Applied Grammar Competency Breakdown by CEFR {gb_data.get('nivel_cefr')} Topic"), ln=True)
+    pdf.cell(0, 6, clean_pdf_text(f"Applied Grammar Competency Breakdown by CEFR {gb_data.get('nivel_cefr')} Topic"), new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
 
     pdf.set_font("Times", "B", 9.5)
@@ -2230,7 +2230,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.cell(112, 7, "Grammar Topic", align="L")
     pdf.cell(24, 7, "Lessons", align="C")
     pdf.cell(25, 7, "Mastery (%)", align="C")
-    pdf.cell(25, 7, "Status", align="C", ln=True)
+    pdf.cell(25, 7, "Status", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
 
     pdf.set_font("Times", "", 9.5)
@@ -2242,15 +2242,15 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
         pdf.cell(112, 6.2, clean_pdf_text(t_row["Grammar Topic"])[:62], align="L")
         pdf.cell(24, 6.2, str(t_row["Lecciones"]), align="C")
         pdf.cell(25, 6.2, f"{t_row['Dominio (%)']}%", align="C")
-        pdf.cell(25, 6.2, clean_pdf_text(t_row["Estatus"]), align="C", ln=True)
+        pdf.cell(25, 6.2, clean_pdf_text(t_row["Estatus"]), align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
     pdf.ln(5)
 
     # Tabla APA 2: Registro Cronológico de Lecciones Evaluadas
     pdf.set_font("Times", "B", 11)
-    pdf.cell(0, 6, "Table 2", ln=True)
+    pdf.cell(0, 6, "Table 2", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Times", "I", 10.5)
-    pdf.cell(0, 6, "Chronological Archive of Assessed Lessons and Folios", ln=True)
+    pdf.cell(0, 6, "Chronological Archive of Assessed Lessons and Folios", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
 
     pdf.set_font("Times", "B", 9)
@@ -2259,7 +2259,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.cell(74, 7, "Grammar Topic", align="L")
     pdf.cell(24, 7, "Quiz", align="C")
     pdf.cell(24, 7, "Oral", align="C")
-    pdf.cell(26, 7, "Lesson Avg", align="C", ln=True)
+    pdf.cell(26, 7, "Lesson Avg", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
 
     pdf.set_font("Times", "", 8.8)
@@ -2272,7 +2272,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
         pdf.cell(74, 6, clean_pdf_text(r_item["Grammar_Topic"])[:42], align="L")
         pdf.cell(24, 6, clean_pdf_text(r_item["Quiz_Pct"]), align="C")
         pdf.cell(24, 6, clean_pdf_text(r_item["Oral_Pct"]), align="C")
-        pdf.cell(26, 6, clean_pdf_text(r_item["Promedio_Leccion"]), align="C", ln=True)
+        pdf.cell(26, 6, clean_pdf_text(r_item["Promedio_Leccion"]), align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
     pdf.ln(6)
 
@@ -2288,7 +2288,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.set_xy(43, y_seal + 3)
     pdf.set_font("Times", "B", 9.5)
     pdf.set_text_color(26, 42, 68)
-    pdf.cell(152, 5, clean_pdf_text(f"DIGITAL INSTITUTIONAL STAMP (HMAC-SHA256)  |  FOLIO: {folio_bol}"), ln=True)
+    pdf.cell(152, 5, clean_pdf_text(f"DIGITAL INSTITUTIONAL STAMP (HMAC-SHA256)  |  FOLIO: {folio_bol}"), new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_x(43)
     pdf.set_font("Courier", "", 7.2)
@@ -2298,7 +2298,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.set_xy(43, y_seal + 22)
     pdf.set_font("Times", "B", 8.5)
     pdf.set_text_color(20, 20, 20)
-    pdf.cell(152, 5, clean_pdf_text("Signed digitally by: Jacob Zumaya Prianti - Academic Director, Career English Institute"), ln=True)
+    pdf.cell(152, 5, clean_pdf_text("Signed digitally by: Jacob Zumaya Prianti - Academic Director, Career English Institute"), new_x="LMARGIN", new_y="NEXT")
 
     try:
         os.unlink(tmp_qr.name)
@@ -2386,6 +2386,62 @@ if st.session_state.app_exited:
         st.session_state.authenticated = False
         st.rerun()
     st.stop()
+
+# --- VERIFICACIÓN PÚBLICA DE BOLETÍN OFICIAL TIMBRADO (VÍA QR) ---
+verify_bol_param = st.query_params.get("verify_transcript", "")
+if isinstance(verify_bol_param, list):
+    verify_bol_param = next(iter(verify_bol_param), "")
+verify_bol_param = str(verify_bol_param).strip().upper()
+
+if verify_bol_param:
+    st.markdown("### 🛡️ Verificación Oficial de Boletín Académico — Career English Institute")
+    try:
+        conn_vb = get_pg_conn()
+        row_vb = None
+        if conn_vb:
+            from psycopg.rows import dict_row
+            with conn_vb:
+                with conn_vb.cursor(row_factory=dict_row) as cur:
+                    cur.execute("""
+                        SELECT
+                            folio_boletin, matricula, student_name, nivel_cefr, topic_filter,
+                            overall_avg, quiz_avg, oral_avg, total_lessons, hmac_seal,
+                            TO_CHAR(issued_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI:SS') AS fecha_emision
+                        FROM transcripts_archive
+                        WHERE UPPER(TRIM(folio_boletin)) = %s
+                        LIMIT 1;
+                    """, (verify_bol_param,))
+                    row_vb = cur.fetchone()
+
+        if row_vb:
+            st.success(f"✅ **DOCUMENTO AUTÉNTICO Y VIGENTE** — Folio Oficial: `{row_vb['folio_boletin']}`")
+            with st.container(border=True):
+                c_v1, c_v2 = st.columns(2)
+                with c_v1:
+                    st.markdown(f"**👤 Estudiante:** {row_vb['student_name']}")
+                    st.markdown(f"**🎓 Matrícula Oficial:** `{row_vb['matricula']}`")
+                    st.markdown(f"**📘 Nivel CEFR:** {row_vb['nivel_cefr']} ({row_vb['topic_filter']})")
+                    st.markdown(f"**📅 Fecha y Hora de Emisión:** {row_vb['fecha_emision']} MST")
+                with c_v2:
+                    st.metric("🏆 Promedio General Oficial", f"{row_vb['overall_avg']}%")
+                    st.markdown(
+                        f"**📝 Escrito (Quiz):** {row_vb['quiz_avg']}%  |  "
+                        f"**🎙️ Oral:** {row_vb['oral_avg']}%  |  "
+                        f"**📚 Lecciones:** {row_vb['total_lessons']}"
+                    )
+                st.divider()
+                st.caption(f"🔐 **Sello Criptográfico HMAC-SHA256:** `{row_vb['hmac_seal']}`")
+                st.caption("🏛️ Emitido por **CAREER ENGLISH INSTITUTE** | Director Académico: **Jacob Zumaya Prianti**")
+        else:
+            st.error(f"⛔ No se encontró ningún Boletín Oficial registrado con el folio `{verify_bol_param}`.")
+    except Exception as e_vb:
+        st.error(f"Error al verificar boletín en Supabase: {e_vb}")
+
+    if st.button("🔐 Ir al Acceso Institucional de la Plataforma"):
+        st.query_params.clear()
+        st.rerun()
+    st.stop()
+
 
 if not st.session_state.authenticated:
     col_l, col_c, col_r = st.columns([1, 1.5, 1])
@@ -3060,6 +3116,7 @@ def _serialize_lesson_package(text_val: str, quiz_val, cefr_val: str, grade_val:
         "grade": grade_val,
         "created_at": created_val
     }, ensure_ascii=False)
+    
 # --- 10. EVALUACIÓN DINÁMICA DE CAPACIDADES ---
 user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
 def can(capability_name: str) -> bool:
