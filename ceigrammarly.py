@@ -2959,6 +2959,21 @@ if generar_btn:
         campos_faltantes.append("Personas / Personajes")
     if not asunto.strip():
         campos_faltantes.append("Asunto / Materia")
+        
+@st.cache_resource
+def init_gemini_client():
+    """Inicializa el cliente oficial de Google Gemini leyendo la clave desde cualquier nivel de Secrets."""
+    from google import genai
+    api_key = str(
+        st.secrets.get("GEMINI_API_KEY", "")
+        or next((sec["GEMINI_API_KEY"] for sec in st.secrets.values() if isinstance(sec, dict) and "GEMINI_API_KEY" in sec), "")
+    ).strip()
+    if not api_key:
+        st.warning("⚠️ GEMINI_API_KEY no configurada en Secrets.")
+        return None
+    return genai.Client(api_key=api_key)
+
+client = init_gemini_client()
 
     if "GEMINI_API_KEY" not in st.secrets:
         st.sidebar.error("⚠️ GEMINI_API_KEY no configurada.")
