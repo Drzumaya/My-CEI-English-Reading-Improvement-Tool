@@ -2348,7 +2348,63 @@ if st.session_state.pending_ls_token is not None:
     st.session_state.pending_ls_token = None
 
 
+# --- VERIFICACIÓN PÚBLICA DE BOLETÍN OFICIAL TIMBRADO (VÍA QR) ---
+verify_bol_param = st.query_params.get("verify_transcript", "")
+if isinstance(verify_bol_param, list):
+    verify_bol_param = verify_bol_param[0] if verify_bol_param else ""
+verify_bol_param = str(verify_bol_param).strip().upper()
+
+if verify_bol_param:
+    st.markdown("### 🛡️ Verificación Oficial de Boletín Académico — Career English Institute")
+    try:
+        conn_vb = get_pg_conn()
+        row_vb = None
+        if conn_vb:
+            from psycopg.rows import dict_row
+            with conn_vb:
+                with conn_vb.cursor(row_factory=dict_row) as cur:
+                    cur.execute("""
+                        SELECT
+                            folio_boletin, matricula, student_name, nivel_cefr, topic_filter,
+                            overall_avg, quiz_avg, oral_avg, total_lessons, hmac_seal,
+                            TO_CHAR(issued_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI:SS') AS fecha_emision
+                        FROM transcripts_archive
+                        WHERE UPPER(TRIM(folio_boletin)) = %s
+                        LIMIT 1;
+                    """, (verify_bol_param,))
+                    row_vb = cur.fetchone()
+
+        if row_vb:
+            st.success(f"✅ **DOCUMENTO AUTÉNTICO Y VIGENTE** — Folio Oficial: `{row_vb['folio_boletin']}`")
+            with st.container(border=True):
+                c_v1, c_v2 = st.columns(2)
+                with c_v1:
+                    st.markdown(f"**👤 Estudiante:** {row_vb['student_name']}")
+                    st.markdown(f"**🎓 Matrícula Oficial:** `{row_vb['matricula']}`")
+                    st.markdown(f"**📘 Nivel CEFR:** {row_vb['nivel_cefr']} ({row_vb['topic_filter']})")
+                    st.markdown(f"**📅 Fecha y Hora de Emisión:** {row_vb['fecha_emision']} MST")
+                with c_v2:
+                    st.metric("🏆 Promedio General Oficial", f"{row_vb['overall_avg']}%")
+                    st.markdown(
+                        f"**📝 Escrito (Quiz):** {row_vb['quiz_avg']}%  |  "
+                        f"**🎙️ Oral:** {row_vb['oral_avg']}%  |  "
+                        f"**📚 Lecciones:** {row_vb['total_lessons']}"
+                    )
+                st.divider()
+                st.caption(f"🔐 **Sello Criptográfico HMAC-SHA256:** `{row_vb['hmac_seal']}`")
+                st.caption("🏛️ Emitido por **CAREER ENGLISH INSTITUTE** | Director Académico: **Jacob Zumaya Prianti**")
+        else:
+            st.error(f"⛔ No se encontró ningún Boletín Oficial registrado con el folio `{verify_bol_param}`.")
+    except Exception as e_vb:
+        st.error(f"Error al verificar boletín en Supabase: {e_vb}")
+
+    if st.button("🔐 Ir al Acceso Institucional de la Plataforma"):
+        st.query_params.clear()
+        st.rerun()
+    st.stop()
+
 if not st.session_state.authenticated:
+:
     col_l, col_c, col_r = st.columns([1, 1.5, 1])
     with col_c:
         b64_l, mime_l = (
