@@ -503,7 +503,96 @@ def get_default_logo_b64():
         return None, None
         
 # --- 5. MOTOR DE TIMBRADO CRIPTOGRÁFICO (HMAC-SHA256) Y CERTIFICADO PDF ---
+def fetch_student_gradebook_pg(target_usuario: str) -> dict:
+    """Calcula en tiempo real el promedio general, desglose por Grammar Topic e historial de lecciones desde Supabase."""
+    import re
+    from psycopg.rows import dict_row
 
+    conn = get_pg_conn()
+    if not conn:
+        return {"records": [], "topic_summary": [], "overall_avg": 0.0, "quiz_avg": 0.0, "oral_avg": 0.0}
+
+    with conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""
+                SELECT
+                    l.folio,
+                    l.tema,
+                    COALESCE(NULLIF(TRIM(l.grammar_topic), ''), 'General Applied Grammar') AS grammar_topic,
+                    l.nivel_cefr,
+                    l.best_score,
+                    COALESCE(l.speaking_score, 0) AS speaking_score,
+                    TO_CHAR(l.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha
+                FROM lessons_archive l
+                JOIN users_padron u ON l.user_id = u.id
+                WHERE LOWER(TRIM(u.usuario)) = LOWER(TRIM(%s))
+                ORDER BY l.created_at DESC;
+            """, (target_usuario.strip(),))
+            rows = cur.fetchall()
+
+    def _parse_quiz_pct(score_str: str) -> float | None:
+        m = re.search(r"\((\d+(?:\.\d+)?)%\)", str(score_str or ""))
+        return float(m.group(1)) if m else None
+
+    registros_procesados = []
+    por_tema = {}
+    todas_quiz = []
+    todas_oral = []
+    todas_combinadas = []
+
+    for r in rows:
+        q_pct = _parse_quiz_pct(r.get("best_score"))
+        o_raw = float(r.get("speaking_score") or 0)
+        o_pct = o_raw if o_raw > 0 else None
+
+        notas_item = [x for x in [q_pct, o_pct] if x is not None]
+        prom_leccion = round(sum(notas_item) / len(notas_item), 1) if notas_item else None
+
+        if q_pct is not None:
+            todas_quiz.append(q_pct)
+        if o_pct is not None:
+            todas_oral.append(o_pct)
+        if prom_leccion is not None:
+            todas_combinadas.append(prom_leccion)
+
+        g_topic = str(r.get("grammar_topic") or "General Applied Grammar").strip()
+        if g_topic not in por_tema:
+            por_tema[g_topic] = {"scores": [], "lecciones": 0}
+        por_tema[g_topic]["lecciones"] += 1
+        if prom_leccion is not None:
+            por_tema[g_topic]["scores"].append(prom_leccion)
+
+        registros_procesados.append({
+            "Folio": r.get("folio", ""),
+            "Fecha": r.get("fecha", ""),
+            "Nivel": r.get("nivel_cefr", ""),
+            "Grammar_Topic": g_topic,
+            "Tema_Leccion": r.get("tema", ""),
+            "Quiz_Pct": f"{q_pct}%" if q_pct is not None else "Pendiente",
+            "Oral_Pct": f"{o_pct}%" if o_pct is not None else "Pendiente",
+            "Promedio_Leccion": f"{prom_leccion}%" if prom_leccion is not None else "Sin evaluar"
+        })
+
+    resumen_temas = []
+    for topic_name, info in por_tema.items():
+        avg_t = round(sum(info["scores"]) / len(info["scores"]), 1) if info["scores"] else 0.0
+        resumen_temas.append({
+            "Grammar Topic": topic_name,
+            "Dominio (%)": avg_t,
+            "Lecciones": info["lecciones"]
+        })
+
+    resumen_temas.sort(key=lambda x: x["Dominio (%)"], reverse=True)
+
+    return {
+        "records": registros_procesados,
+        "topic_summary": resumen_temas,
+        "overall_avg": round(sum(todas_combinadas) / len(todas_combinadas), 1) if todas_combinadas else 0.0,
+        "quiz_avg": round(sum(todas_quiz) / len(todas_quiz), 1) if todas_quiz else 0.0,
+        "oral_avg": round(sum(todas_oral) / len(todas_oral), 1) if todas_oral else 0.0
+    }
+
+        
 def fetch_certificate_public_pg(folio_cert: str) -> dict | None:
     """Busca un certificado por su folio directamente en PostgreSQL para verificación QR sin login."""
     from psycopg.rows import dict_row
@@ -2717,23 +2806,77 @@ with col_exit:
         st.session_state.authenticated = False
         st.rerun()
         
-# --- 13. BUSCADOR DE FOLIOS DE LECCIÓN ---
+# --- 13. BUSCADOR DE FOLIOS Y BOLETÍN DE CALIFICACIONES EN TIEMPO REAL ---
+if "show_gradebook_panel" not in st.session_state:
+    st.session_state.show_gradebook_panel = False
+
 with st.container(border=True):
-    col_f1, col_f2, col_f3 = st.columns([2.5, 1.2, 2.3])
+    col_f1, col_f2, col_f3, col_f4 = st.columns([2.1, 1.1, 1.5, 2.0])
     with col_f1:
         folio_input = st.text_input(
             "🔍 Buscador de Folio Académico:",
             value=st.session_state.current_folio,
-            placeholder="Ej: CEI-20261110-4821",
+            placeholder="Ej: CEI-20261113-4821",
             label_visibility="collapsed"
         )
     with col_f2:
         buscar_folio_btn = st.button("🔍 Buscar Folio", width="stretch")
     with col_f3:
+        if st.button("📊 Calificaciones", type="primary", width="stretch", key="btn_toggle_gradebook"):
+            st.session_state.show_gradebook_panel = not st.session_state.show_gradebook_panel
+    with col_f4:
         if st.session_state.current_folio and st.session_state.generated_text:
             st.info(f"📄 **Folio:** `{st.session_state.current_folio}` | 📅 `{st.session_state.current_creation_date}`")
         else:
-            st.caption("Ingresa un Folio para recuperar una lección o presentar su examen.")
+            st.caption("Busca un Folio o consulta tu Boletín en Tiempo Real.")
+
+# PANEL DESPLEGABLE: CALIFICACIONES, PROMEDIOS Y GRÁFICA POR GRAMMAR TOPIC
+if st.session_state.show_gradebook_panel:
+    with st.container(border=True):
+        st.subheader("📊 Boletín Académico Integral y Desempeño por Grammar Topic")
+
+        if is_owner:
+            padron_gb = load_padron_records()
+            opciones_gb = {}
+            for r_u in padron_gb:
+                mat_u = str(r_u.get("Matricula", "")).strip()
+                nom_u = str(r_u.get("Usuario", "")).strip()
+                niv_u = str(r_u.get("Nivel", "")).strip()
+                if nom_u:
+                    opciones_gb[f"{mat_u} — {nom_u} (CEFR {niv_u})"] = nom_u
+
+            if opciones_gb:
+                sel_gb_label = st.selectbox(
+                    "🔎 Buscar Estudiante por Matrícula Oficial o Nombre (Vista Propietario / Admin):",
+                    list(opciones_gb.keys()),
+                    key="sel_owner_gradebook_matricula"
+                )
+                alumno_objetivo_gb = opciones_gb[sel_gb_label]
+            else:
+                alumno_objetivo_gb = st.session_state.current_user
+        else:
+            alumno_objetivo_gb = st.session_state.current_user
+            st.info(f"🎓 **Expediente Académico de:** {alumno_objetivo_gb}")
+
+        gb_data = fetch_student_gradebook_pg(alumno_objetivo_gb)
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("🏆 Promedio General", f"{gb_data['overall_avg']}%")
+        m2.metric("📝 Promedio Escrito (Quiz)", f"{gb_data['quiz_avg']}%")
+        m3.metric("🎙️ Promedio Oral (Audio/Video)", f"{gb_data['oral_avg']}%")
+        m4.metric("📚 Lecciones Generadas", len(gb_data["records"]))
+
+        if gb_data["topic_summary"]:
+            st.markdown("#### 📈 Porcentaje de Dominio por Grammar Topic")
+            df_chart = pd.DataFrame(gb_data["topic_summary"]).set_index("Grammar Topic")
+            st.bar_chart(df_chart[["Dominio (%)"]], height=260)
+            st.dataframe(pd.DataFrame(gb_data["topic_summary"]), width="stretch", hide_index=True)
+
+        st.markdown("#### 📋 Historial Completo de Lecciones Evaluadas")
+        if gb_data["records"]:
+            st.dataframe(pd.DataFrame(gb_data["records"]), width="stretch", hide_index=True)
+        else:
+            st.warning("Aún no hay lecciones registradas para este estudiante en Supabase.")
 
 auto_fetch_url_folio = bool(
     st.session_state.current_folio
@@ -2744,72 +2887,70 @@ auto_fetch_url_folio = bool(
 if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
     if auto_fetch_url_folio:
         st.session_state.url_folio_checked = True
-        
+
     folio_buscado = folio_input.strip().upper()
     try:
-        with st.spinner(f"Buscando Folio {folio_buscado} en Hoja 1..."):
-            sheet1 = get_google_sheet()
-            registros_h1 = sheet1.get_all_records()
-            encontrado = False
-            
-            for idx_fila, row in enumerate(registros_h1, start=2):
-                if str(row.get("Folio", "")).strip().upper() == folio_buscado:
-                    encontrado = True
-                    try:
-                        usos_actuales = int(float(str(row.get("Usos_Estudiante") or 0).strip()))
-                    except ValueError:
-                        usos_actuales = 0
-                    
-                    if (not has_faculty_access) and (usos_actuales >= 1):
-                        st.error(f"⛔ El Folio **{folio_buscado}** ya alcanzó el límite de 1 reúso permitido. Solicita un nuevo folio a tu Teacher.")
-                    else:
-                        raw_json = str(row.get("Contenido_JSON", "")).strip()
-                        if not raw_json:
-                            st.warning("⚠️ Este folio corresponde solo a una grabación de audio antigua.")
-                        else:
-                            paquete = json.loads(raw_json)
-                            st.session_state.generated_text = paquete.get("text", "")
-                            st.session_state.quiz_data = paquete.get("quiz", None)
-                            st.session_state.selected_cefr = paquete.get("cefr", "B1 (Intermediate)")
-                            st.session_state.selected_academic_grade = paquete.get("grade", "Licenciatura / Universidad")
-                            st.session_state.current_folio = folio_buscado
-                            st.session_state.current_pdf_link = str(row.get("PDF_Link", ""))
-                            st.session_state.current_creation_date = paquete.get("created_at") or str(row.get("Fecha_de_subida", ""))
-                            st.session_state.quiz_graded = False
-                            st.session_state.quiz_score = None
-                            st.session_state.quiz_user_answers = {}
-                            st.session_state.image_bytes = None
-                            st.session_state.audio_bytes = None
-                            
-                            if st.session_state.generated_text:
-                                try:
-                                    clean_tts = st.session_state.generated_text.replace("*", "").replace("#", "")
-                                    tts = gTTS(text=clean_tts, lang="en", slow=False)
-                                    afp = io.BytesIO()
-                                    tts.write_to_fp(afp)
-                                    st.session_state.audio_bytes = afp.getvalue()
-                                except Exception:
-                                    st.warning("⚠️ Lección recuperada, pero el audio no pudo sintetizarse en este momento.")
-                            
-                            if not has_faculty_access:
-                                try:
-                                    headers = sheet1.row_values(1)
-                                    col_usos = headers.index("Usos_Estudiante") + 1 if "Usos_Estudiante" in headers else 7
-                                except Exception:
-                                    col_usos = 7
-                                sheet1.update_cell(idx_fila, col_usos, usos_actuales + 1)
-                                st.success(f"✅ Folio **{folio_buscado}** recuperado (Reúso único activado).")
-                            else:
-                                st.success(f"✅ Folio **{folio_buscado}** recuperado (Acceso ilimitado).")
-                            st.rerun()
-                    break
-                    
-            if not encontrado:
-                st.warning(f"⚠️ No se encontró ningún registro con el Folio `{folio_buscado}` en Hoja 1.")
-    except Exception as e:
-        st.error(f"Error al buscar folio: {e}") 
+        with st.spinner(f"Buscando Folio {folio_buscado} en Supabase PostgreSQL..."):
+            conn_f = get_pg_conn()
+            row_f = None
+            if conn_f:
+                from psycopg.rows import dict_row
+                with conn_f:
+                    with conn_f.cursor(row_factory=dict_row) as cur:
+                        cur.execute("""
+                            SELECT
+                                folio, tema, nivel_cefr, grado_academico, lesson_text,
+                                quiz_json, pdf_link,
+                                TO_CHAR(created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha
+                            FROM lessons_archive
+                            WHERE UPPER(TRIM(folio)) = %s
+                            LIMIT 1;
+                        """, (folio_buscado,))
+                        row_f = cur.fetchone()
 
-        st.divider()
+            if not row_f:
+                st.warning(f"⚠️ No se encontró ningún registro con el Folio `{folio_buscado}` en Supabase.")
+            else:
+                st.session_state.generated_text = str(row_f.get("lesson_text", ""))
+                st.session_state.selected_cefr = str(row_f.get("nivel_cefr", "B1 (Intermediate)"))
+                st.session_state.selected_academic_grade = str(row_f.get("grado_academico", "Licenciatura / Universidad"))
+                st.session_state.current_folio = folio_buscado
+                st.session_state.current_pdf_link = str(row_f.get("pdf_link") or "")
+                st.session_state.current_creation_date = str(row_f.get("fecha") or "")
+                st.session_state.study_mode_active = False
+                st.session_state.quiz_graded = False
+                st.session_state.quiz_score = None
+                st.session_state.quiz_user_answers = {}
+                st.session_state.image_bytes = None
+                st.session_state.audio_bytes = None
+
+                raw_qz = str(row_f.get("quiz_json") or "").strip()
+                if raw_qz:
+                    try:
+                        qz_obj = json.loads(raw_qz)
+                        st.session_state.quiz_data = qz_obj.get("questions") if isinstance(qz_obj, dict) else qz_obj
+                    except Exception:
+                        st.session_state.quiz_data = None
+                else:
+                    st.session_state.quiz_data = None
+
+                if st.session_state.generated_text:
+                    try:
+                        clean_tts = st.session_state.generated_text.replace("*", "").replace("#", "")
+                        tts = gTTS(text=clean_tts, lang="en", slow=False)
+                        afp = io.BytesIO()
+                        tts.write_to_fp(afp)
+                        st.session_state.audio_bytes = afp.getvalue()
+                    except Exception:
+                        st.warning("⚠️ Lección recuperada, pero el audio no pudo sintetizarse en este momento.")
+
+                st.success(f"✅ Folio **{folio_buscado}** recuperado desde Supabase.")
+                st.rerun()
+    except Exception as e:
+        st.error(f"Error al buscar folio en Supabase: {e}")
+
+st.divider()
+
 
 # --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
 if is_owner or is_faculty_desktop:
