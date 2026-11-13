@@ -1536,18 +1536,15 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
-    """Extrae título y cuerpo completo de la lección, etiqueta categorías y genera diccionario EN->ES."""
+    """Tokeniza la lección completa y obtiene traducciones EN->ES reales por palabra."""
     import re
     from google.genai import types
 
-    # 1. Corta la bibliografía APA usando split de cadena (100% seguro)
     texto_sin_bib = str(lesson_text or "")
     for marcador in ["**Bibliography", "Bibliography ("]:
         if marcador in texto_sin_bib:
-            texto_sin_bib = texto_sin_bib.split(marcador, 1)[0]
+            texto_sin_bib = texto_sin_bib.split(marcador, 1)
 
-
-    # 2. Conserva título y párrafos de lectura, omitiendo metadatos APA
     lineas_limpias = []
     for linea in texto_sin_bib.splitlines():
         l_strip = linea.strip()
@@ -1557,12 +1554,21 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
             continue
         lineas_limpias.append(l_strip)
 
-    solo_titulo_y_cuerpo = "\n\n".join(lineas_limpias)[:3200]
+    solo_titulo_y_cuerpo = "\n\n".join(lineas_limpias)[:2800]
 
-    # 3. Tokenización base garantizada en Python (asegura que el texto SIEMPRE se renderice completo)
+    stopwords = {
+        "the", "and", "for", "that", "this", "with", "from", "have", "has", "had",
+        "are", "was", "were", "been", "being", "will", "would", "could", "should",
+        "into", "about", "than", "then", "them", "they", "their", "there", "here",
+        "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
+        "all", "any", "both", "each", "few", "more", "most", "other", "some", "such",
+        "not", "only", "own", "same", "too", "very", "can", "just", "don", "now"
+    }
     conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"}
+
     oraciones_base = []
-    palabras_unicas = set()
+    palabras_clave = []
+    vistas = set()
 
     for idx_linea, bloque in enumerate(lineas_limpias):
         sub_oraciones = [bloque] if idx_linea == 0 else re.split(r"(?<=[.!?])\s+", bloque)
@@ -1585,60 +1591,65 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
                 else:
                     pos = "other"
                 toks.append({"w": tk, "pos": pos})
-                if low.isalpha() and len(low) >= 2:
-                    palabras_unicas.add(low)
+
+                if low.isalpha() and len(low) >= 3 and low not in stopwords and low not in vistas:
+                    vistas.add(low)
+                    palabras_clave.append(low)
             oraciones_base.append({"sentence_es": "", "tokens": toks})
 
-    # 4. Enriquece con Gemini: etiquetas gramaticales precisas, traducción de oraciones y diccionario EN->ES
-    vocab_lista = sorted(list(palabras_unicas))[:90]
-    prompt = f"""
-    You are an English-Spanish lexicographer for CEFR {cefr_level} students.
-    Given the English text and its unique word list below, return ONLY a valid JSON object with:
-    1. "sentence_translations": array of Spanish translations corresponding in exact order to the {len(oraciones_base)} lines/sentences of the text.
-    2. "dictionary": object mapping EACH word in {json.dumps(vocab_lista)} to:
-       - "pos": "verb" | "noun" | "adjective" | "conjunction" | "other"
-       - "ipa": US English IPA (e.g. "/krɪˈtiːk/")
-       - "pos_es": "Verbo" | "Sustantivo" | "Adjetivo" | "Conjunción" | "Adverbio / Preposición"
-       - "es": exact primary Spanish translation in this lesson context
-       - "alt_es": 2-3 alternative Spanish meanings separated by commas
-       - "def_es": 1 short sentence defining the word in Spanish
-       - "examples": 2 short bilingual examples [{{"en": "English sentence.", "es": "Traducción al español."}}]
-
-    Text:
-    {solo_titulo_y_cuerpo}
-    """
+    vocab_target = palabras_clave[:55]
     dict_final = {}
-    try:
-        gm_client = init_gemini_client()
-        if gm_client and oraciones_base:
-            response = gm_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    temperature=0.1
+
+    if vocab_target:
+        prompt_dict = f"""
+        Translate these English words (from a CEFR {cefr_level} lesson) into natural Spanish for a bilingual dictionary.
+        Words: {json.dumps(vocab_target)}
+        Context: {solo_titulo_y_cuerpo[:1200]}
+
+        Return ONLY a JSON object where each key is the lowercase English word and its value is:
+        {{
+          "pos": "verb"|"noun"|"adjective"|"conjunction"|"other",
+          "ipa": "/US_IPA/",
+          "pos_es": "Verbo"|"Sustantivo"|"Adjetivo"|"Conjunción"|"Adverbio",
+          "es": "traducción principal exacta en español",
+          "alt_es": "sinónimo 1, sinónimo 2",
+          "def_es": "definición breve en español (máximo 12 palabras)",
+          "ex_en": "Short English example sentence.",
+          "ex_es": "Traducción corta al español."
+        }}
+        """
+        try:
+            gm_client = init_gemini_client()
+            if gm_client:
+                res_d = gm_client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_dict,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        temperature=0.1
+                    )
                 )
-            )
-            raw_txt = str(response.text or "").strip()
-            raw_txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_txt, flags=re.MULTILINE).strip()
-            parsed = json.loads(raw_txt)
-            if isinstance(parsed, dict):
-                tr_list = parsed.get("sentence_translations", [])
-                for i, s_obj in enumerate(oraciones_base):
-                    if i < len(tr_list) and isinstance(tr_list[i], str):
-                        s_obj["sentence_es"] = tr_list[i]
-                dict_final = parsed.get("dictionary", {}) or {}
-                for s_obj in oraciones_base:
-                    for tk in s_obj["tokens"]:
-                        info_w = dict_final.get(tk["w"].lower())
-                        if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
-                            tk["pos"] = info_w["pos"]
-    except Exception:
-        pass
+                raw_d = str(res_d.text or "").strip()
+                raw_d = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_d, flags=re.MULTILINE).strip()
+                parsed_d = json.loads(raw_d)
+                if isinstance(parsed_d, dict):
+                    for k_w, v_info in parsed_d.items():
+                        if isinstance(v_info, dict):
+                            # Normaliza ejemplos para compatibilidad con el visor
+                            if "examples" not in v_info and v_info.get("ex_en"):
+                                v_info["examples"] = [{"en": v_info.get("ex_en", ""), "es": v_info.get("ex_es", "")}]
+                            dict_final[k_w.lower().strip()] = v_info
+
+                    for s_obj in oraciones_base:
+                        for tk in s_obj["tokens"]:
+                            info_w = dict_final.get(tk["w"].lower())
+                            if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
+                                tk["pos"] = info_w["pos"]
+        except Exception:
+            pass
 
     return {"sentences": oraciones_base, "dictionary": dict_final}
-
 
 
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
@@ -2838,7 +2849,16 @@ def render_interactive_study_viewer(study_payload: dict):
 
           const cleanW = (token.w || '').trim();
           const keyLow = cleanW.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g, '');
-          const entry = vocabDict[keyLow] || {{}};
+          const basicWordsEs = {{
+            "between": {{ ipa: "/bɪˈtwiːn/", pos_es: "Preposición", es: "entre", alt_es: "en medio de", def_es: "Indica relación o espacio que separa dos elementos." }},
+            "and": {{ ipa: "/ænd/", pos_es: "Conjunción", es: "y / e", alt_es: "además", def_es: "Une palabras u oraciones." }},
+            "the": {{ ipa: "/ðə/", pos_es: "Artículo", es: "el / la / los / las", alt_es: "lo", def_es: "Artículo definido en inglés." }},
+            "with": {{ ipa: "/wɪð/", pos_es: "Preposición", es: "con", alt_es: "junto a, mediante", def_es: "Indica compañía, medio o instrumento." }},
+            "from": {{ ipa: "/frʌm/", pos_es: "Preposición", es: "de / desde", alt_es: "a partir de", def_es: "Indica origen o procedencia." }},
+            "for": {{ ipa: "/fɔːr/", pos_es: "Preposición", es: "para / por / durante", alt_es: "debido a", def_es: "Indica propósito, destinatario o duración." }}
+          }};
+          const entry = vocabDict[keyLow] || basicWordsEs[keyLow] || {{}};
+
 
           currentBubbleWord = cleanW;
           speakWordUS(cleanW, 1.0);
@@ -2934,6 +2954,8 @@ def render_interactive_study_viewer(study_payload: dict):
     """
     altura_dinamica = max(480, min(820, len(sentences_list) * 115 + 160))
     st.iframe(html_code, height=altura_dinamica)
+
+    
 
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
     modelos_potentes = [
