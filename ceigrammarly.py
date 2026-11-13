@@ -3161,7 +3161,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                 except Exception as e:
                                     st.error(f"Error al actualizar en Supabase: {e}")
 
-                                                        st.divider()
+                            st.divider()
                             st.markdown("##### 🤝 Asignar, Cambiar o Registrar Socio Afiliado")
                             c_af1, c_af2, c_af3 = st.columns([1.4, 1.6, 1.1])
                             with c_af1:
