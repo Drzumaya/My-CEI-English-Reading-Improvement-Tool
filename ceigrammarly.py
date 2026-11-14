@@ -1568,9 +1568,12 @@ CEFR_MAP = {
 
 
 
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v5") -> dict:
-    """Tokeniza al instante la lección completa para el visor interactivo con Google Translate en vivo."""
+@st.cache_data(ttl=3600, show_spinner=False)
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v6_server") -> dict:
+    """Tokeniza la lección y resuelve el diccionario EN->ES en el servidor (sin bloqueos CORS del navegador)."""
     import re
+    import requests
+    from google.genai import types
 
     texto_sin_bib = str(lesson_text or "")
     for marcador in ["**Bibliography", "Bibliography ("]:
@@ -1588,6 +1591,8 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
 
     conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"}
     oraciones_base = []
+    palabras_clave = []
+    vistas = set()
 
     for idx_linea, bloque in enumerate(lineas_limpias):
         sub_oraciones = [bloque] if idx_linea == 0 else re.split(r"(?<=[.!?])\s+", bloque)
@@ -1610,9 +1615,87 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                 else:
                     pos = "other"
                 toks.append({"w": tk, "pos": pos})
+
+                if low.isalpha() and len(low) >= 2 and low not in vistas:
+                    vistas.add(low)
+                    palabras_clave.append(low)
             oraciones_base.append({"sentence_es": "", "tokens": toks})
 
-    return {"sentences": oraciones_base, "dictionary": {}}
+    dict_final = {}
+    gm_client = init_gemini_client()
+
+    # 1. Traducción masiva rápida en una sola llamada con Gemini 2.5 Flash (sin límite de lotes largos)
+    if gm_client and palabras_clave:
+        lista_str = ", ".join(palabras_clave[:90])
+        prompt_rapido = (
+            f"Translate each English word in this list to Spanish (CEFR {cefr_level} context): [{lista_str}]. "
+            "Return ONLY a JSON object mapping lowercase English word -> "
+            '{"es":"traducción principal","alt":"sinónimo 1, sinónimo 2","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Preposición","def":"definición breve en español"}.'
+        )
+        try:
+            res_d = gm_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt_rapido,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    temperature=0.1
+                )
+            )
+            raw_d = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(res_d.text or "").strip(), flags=re.MULTILINE).strip()
+            parsed_d = json.loads(raw_d)
+            if isinstance(parsed_d, dict):
+                for k_w, v_info in parsed_d.items():
+                    if isinstance(v_info, dict) and v_info.get("es"):
+                        dict_final[k_w.lower().strip()] = {
+                            "es": v_info.get("es", k_w),
+                            "alt_es": v_info.get("alt", ""),
+                            "ipa": v_info.get("ipa", ""),
+                            "pos": v_info.get("pos", "other"),
+                            "pos_es": v_info.get("pos_es", "Inglés (US)"),
+                            "def_es": v_info.get("def", ""),
+                            "examples": []
+                        }
+        except Exception:
+            pass
+
+    # 2. Respaldo directo en Python a Google Translate si alguna palabra quedó sin traducir
+    faltantes = [w for w in palabras_clave[:60] if w not in dict_final]
+    if faltantes:
+        try:
+            texto_lote = "\n".join(faltantes)
+            r_gt = requests.get(
+                "https://googleapis.com",
+                params={"client": "gtx", "sl": "en", "tl": "es", "dt": "t", "q": texto_lote},
+                timeout=8
+            )
+            if r_gt.status_code == 200:
+                data_gt = r_gt.json()
+                traduccion_unida = "".join(seg[0] for seg in data_gt[0] if seg and seg[0])
+                lineas_tr = [x.strip() for x in traduccion_unida.splitlines()]
+                for orig_w, tr_w in zip(faltantes, lineas_tr):
+                    if tr_w:
+                        dict_final[orig_w] = {
+                            "es": tr_w,
+                            "alt_es": "",
+                            "ipa": "",
+                            "pos": "other",
+                            "pos_es": "Inglés (US)",
+                            "def_es": "",
+                            "examples": []
+                        }
+        except Exception:
+            pass
+
+    # Actualiza etiquetas gramaticales en las oraciones
+    for s_obj in oraciones_base:
+        for tk in s_obj["tokens"]:
+            info_w = dict_final.get(tk["w"].lower())
+            if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
+                tk["pos"] = info_w["pos"]
+
+    return {"sentences": oraciones_base, "dictionary": dict_final}
+
 
 
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
@@ -2811,26 +2894,33 @@ def render_interactive_study_viewer(study_payload: dict):
 
                         const liveCache = {{}};
 
-        async function openBubbleAtElement(event, el, token, fullSentence) {{
+        function openBubbleAtElement(event, el, token, fullSentence) {{
           event.stopPropagation();
           document.querySelectorAll('.word-active').forEach(x => x.classList.remove('word-active'));
           el.classList.add('word-active');
 
           const cleanW = (token.w || '').trim();
           const keyLow = cleanW.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g, '');
+          const entry = vocabDict[keyLow] || {{}};
 
           currentBubbleWord = cleanW;
           speakWordUS(cleanW, 1.0);
 
           document.getElementById('b-word').innerText = cleanW;
-          document.getElementById('b-ipa').innerText = '';
-          document.getElementById('b-pos').innerText = posLabelsEs[token.pos] || 'Inglés (US)';
-          document.getElementById('b-es').innerText = '⏳ Traduciendo con Google...';
-          document.getElementById('b-alt').innerText = '';
-          document.getElementById('b-def').innerText = '';
+          document.getElementById('b-ipa').innerText = entry.ipa || '';
+          document.getElementById('b-pos').innerText = entry.pos_es || posLabelsEs[token.pos] || 'Inglés (US)';
+          document.getElementById('b-es').innerText = entry.es || cleanW;
+          document.getElementById('b-alt').innerText = entry.alt_es ? ('Otras acepciones: ' + entry.alt_es) : '';
+          document.getElementById('b-def').innerText = entry.def_es ? ('📖 ' + entry.def_es) : '';
 
           const exContainer = document.getElementById('b-examples');
           exContainer.innerHTML = '';
+          if (fullSentence) {{
+            const ctxDiv = document.createElement('div');
+            ctxDiv.className = 'ex-item';
+            ctxDiv.innerHTML = '<div class="ex-en">📖 En esta lección: "' + fullSentence + '"</div>';
+            exContainer.appendChild(ctxDiv);
+          }}
 
           const bubble = document.getElementById('gt-bubble');
           bubble.style.display = 'block';
@@ -2839,6 +2929,8 @@ def render_interactive_study_viewer(study_payload: dict):
           const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
           bubble.style.left = Math.max(10, Math.min(rect.left + scrollLeft, document.body.clientWidth - 365)) + 'px';
           bubble.style.top = (rect.bottom + scrollTop + 6) + 'px';
+        }}
+
 
           if (!liveCache[keyLow]) {{
             try {{
