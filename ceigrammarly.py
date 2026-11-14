@@ -1548,6 +1548,24 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
     raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
 
 
+# --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
+try:
+    user_agent = st.context.headers.get("User-Agent", "").lower()
+except Exception:
+    user_agent = ""
+is_mobile = any(device in user_agent for device in ["iphone", "android", "ipad", "mobile"])
+
+CEFR_MAP = {
+    "A1": "A1 (Beginner)",
+    "A2": "A2 (Elementary)",
+    "B1": "B1 (Intermediate)",
+    "B2": "B2 (Upper-Intermediate)",
+    "C1": "C1 (Advanced)",
+    "C2": "C2 (Proficiency)"
+}
+
+
+
 
 
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v5") -> dict:
