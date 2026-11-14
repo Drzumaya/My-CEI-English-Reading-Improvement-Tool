@@ -2721,266 +2721,102 @@ def generar_pdf_certificado(
     return bytes(pdf.output())
 
 
-# --- 9. MOTOR DE IA MULTIMODAL ---
 def render_interactive_study_viewer(study_payload: dict):
-import streamlit.components.v1 as components
+    """Visor interactivo ultra-ligero con voz US English y diccionario EN->ES."""
+    import streamlit.components.v1 as components
 
-sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
-dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
-
-sentences_json = json.dumps(sentences_list, ensure_ascii=True).replace("</", "<\\/")
-dict_json = json.dumps(dict_map, ensure_ascii=True).replace("</", "<\\/")
-
-    """Visor interactivo con voz US English y diccionario/traductor EN->ES pre-cargado por IA."""
     sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
 
-    sentences_json = json.dumps(sentences_list, ensure_ascii=False).replace("</script>", "<\\/script>")
-    dict_json = json.dumps(dict_map, ensure_ascii=False).replace("</script>", "<\\/script>")
+    # Compacta el JSON al mínimo (separators sin espacios) para evitar desbordar el WebSocket
+    sentences_compact = [
+        [[t.get("w", ""), t.get("pos", "other")] for t in s.get("tokens", [])]
+        for s in sentences_list
+    ]
+    dict_compact = {
+        k.lower(): [
+            v.get("es", k),
+            v.get("pos_es", ""),
+            v.get("ipa", ""),
+            v.get("alt_es", ""),
+            v.get("def_es", "")
+        ]
+        for k, v in dict_map.items() if isinstance(v, dict)
+    }
 
-    html_code = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="utf-8">
-    <style>
-      html, body {{
-        font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
-        margin: 0; padding: 12px; background: #f8fafc; color: #1e293b;
-        position: relative; min-height: 480px;
-      }}
-      .toolbar {{
-        display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-        justify-content: space-between; background: #ffffff; padding: 10px 14px;
-        border-radius: 10px; border: 1px solid #cbd5e1; margin-bottom: 14px;
-      }}
-      .legend {{ display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; font-weight: 600; }}
-      .badge {{ padding: 3px 9px; border-radius: 6px; }}
-      .pos-verb {{ background: #fee2e2; color: #991b1b; border-bottom: 2px solid #ef4444; }}
-      .pos-noun {{ background: #dbeafe; color: #1e40af; border-bottom: 2px solid #3b82f6; }}
-      .pos-adjective {{ background: #dcfce7; color: #166534; border-bottom: 2px solid #22c55e; }}
-      .pos-conjunction {{ background: #fef3c7; color: #92400e; border-bottom: 2px solid #f59e0b; }}
-      .pos-other {{ background: #f1f5f9; color: #334155; }}
-      .title-box {{
-        background: #1a2a44; color: #ffffff; padding: 14px 18px;
-        border-radius: 10px; margin-bottom: 14px; font-size: 20px; font-weight: 700;
-      }}
-      .title-box .word-token {{ color: #1e293b; font-size: 18px; }}
-      .title-box .sentence-tr {{ color: #cbd5e1; border-top-color: #334155; }}
-      .sentence-box {{
-        background: #ffffff; border-left: 4px solid #1a2a44;
-        padding: 12px 16px; margin-bottom: 10px; border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.06); line-height: 2.1; font-size: 17px;
-      }}
-      .word-token {{
-        display: inline-block; padding: 1px 6px; margin: 2px 2px;
-        border-radius: 5px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s;
-      }}
-      .word-token:hover {{ transform: translateY(-2px); box-shadow: 0 3px 8px rgba(0,0,0,0.16); }}
-      .word-active {{ outline: 2px solid #1a73e8; transform: translateY(-2px); }}
-      .sentence-tr {{
-        display: block; font-size: 13px; color: #64748b; margin-top: 6px;
-        border-top: 1px dashed #e2e8f0; padding-top: 5px; font-style: italic;
-      }}
-      #gt-bubble {{
-        display: none; position: absolute; z-index: 9999; width: 350px;
-        background: #ffffff; border: 1.5px solid #1a73e8; border-radius: 12px;
-        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.28); overflow: hidden;
-      }}
-      .gt-topbar {{
-        display: flex; justify-content: space-between; align-items: center;
-        background: #e8f0fe; padding: 8px 12px; border-bottom: 1px solid #d2e3fc;
-        font-size: 12px; font-weight: 700; color: #1a73e8;
-      }}
-      .gt-panel-en {{ padding: 10px 14px; background: #ffffff; border-bottom: 1px solid #e2e8f0; }}
-      .gt-panel-es {{ padding: 10px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }}
-      .gt-word {{ font-size: 20px; font-weight: 700; color: #202124; }}
-      .gt-ipa {{ font-size: 13px; color: #5f6368; margin-left: 6px; }}
-      .gt-translation {{ font-size: 19px; font-weight: 700; color: #1a73e8; margin-top: 2px; }}
-      .gt-alt {{ font-size: 12px; color: #475569; margin-top: 4px; }}
-      .gt-def {{ font-size: 13px; color: #334155; margin-top: 6px; line-height: 1.4; }}
-      .gt-scroll {{ max-height: 175px; overflow-y: auto; padding: 10px 14px; background: #ffffff; }}
-      .ex-item {{
-        margin-bottom: 8px; padding: 7px 9px; background: #f8fafc;
-        border-left: 3px solid #1a73e8; border-radius: 6px; font-size: 13px;
-      }}
-      .ex-en {{ font-weight: 600; color: #202124; }}
-      .ex-es {{ color: #475569; margin-top: 2px; }}
-      .btn-mini {{
-        border: 1px solid #cbd5e1; background: #ffffff; border-radius: 6px;
-        padding: 4px 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: #334155;
-      }}
-      .btn-mini:hover {{ background: #e2e8f0; }}
-    </style>
-    </head>
-    <body>
-      <div class="toolbar">
-        <div class="legend">
-          <span class="badge pos-verb">Verbos</span>
-          <span class="badge pos-noun">Sustantivos</span>
-          <span class="badge pos-adjective">Adjetivos</span>
-          <span class="badge pos-conjunction">Conjunciones</span>
-          <span class="badge pos-other">Otros</span>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <label style="font-size:12px; font-weight:600; cursor:pointer;">
-            <input type="checkbox" id="hoverAudioToggle" checked> 🇺🇸 Voz US al pasar cursor
-          </label>
-          <button class="btn-mini" onclick="toggleSpeed()" id="speedBtn">1.0x</button>
-        </div>
-      </div>
-      <div id="lesson-container"></div>
+    s_json = json.dumps(sentences_compact, ensure_ascii=True, separators=(",", ":")).replace("</", "<\\/")
+    d_json = json.dumps(dict_compact, ensure_ascii=True, separators=(",", ":")).replace("</", "<\\/")
 
-      <div id="gt-bubble" onclick="event.stopPropagation()">
-        <div class="gt-topbar">
-          <span>🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
-          <div>
-            <button class="btn-mini" onclick="speakCurrent(1.0)" title="Voz US normal">🔊</button>
-            <button class="btn-mini" onclick="speakCurrent(0.65)" title="Voz US lenta">🐢</button>
-            <button class="btn-mini" onclick="closeBubble()" title="Cerrar">✖</button>
-          </div>
-        </div>
-        <div class="gt-panel-en">
-          <span class="gt-word" id="b-word"></span>
-          <span class="gt-ipa" id="b-ipa"></span>
-          <div id="b-pos" style="font-size:11px; text-transform:uppercase; color:#1a73e8; font-weight:700; margin-top:3px;"></div>
-        </div>
-        <div class="gt-panel-es">
-          <div class="gt-translation" id="b-es"></div>
-          <div class="gt-alt" id="b-alt"></div>
-          <div class="gt-def" id="b-def"></div>
-        </div>
-        <div class="gt-scroll">
-          <div style="font-size:11px; font-weight:700; color:#5f6368; margin-bottom:6px; text-transform:uppercase;">
-            Ejemplos de traducción en contexto:
-          </div>
-          <div id="b-examples"></div>
-        </div>
-      </div>
-            <script>
-        const sentences = {sentences_json};
-        const vocabDict = {dict_json};
-        const posLabelsEs = {{
-          verb: "Verbo",
-          noun: "Sustantivo",
-          adjective: "Adjetivo",
-          conjunction: "Conjunción",
-          other: "Preposición / Adverbio"
-        }};
+    html_code = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{{font-family:system-ui,sans-serif;margin:0;padding:10px;background:#f8fafc;color:#1e293b;position:relative;min-height:460px}}
+    .tb{{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;margin-bottom:12px;font-size:12px;font-weight:600}}
+    .bg{{padding:2px 8px;border-radius:5px}}
+    .verb{{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}}
+    .noun{{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}}
+    .adjective{{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}}
+    .conjunction{{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}}
+    .other{{background:#f1f5f9;color:#334155}}
+    .tbox{{background:#1a2a44;color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:12px;font-size:18px;font-weight:700}}
+    .tbox .wt{{color:#1e293b;font-size:16px}}
+    .sbox{{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:8px;border-radius:7px;line-height:2.0;font-size:16px}}
+    .wt{{display:inline-block;padding:1px 5px;margin:2px;border-radius:4px;cursor:pointer}}
+    .wt:hover,.act{{outline:2px solid #1a73e8}}
+    #bub{{display:none;position:absolute;z-index:99;width:330px;background:#fff;border:1.5px solid #1a73e8;border-radius:10px;box-shadow:0 10px 25px rgba(0,0,0,.22);overflow:hidden}}
+    .top{{display:flex;justify-content:space-between;align-items:center;background:#e8f0fe;padding:6px 10px;font-size:12px;font-weight:700;color:#1a73e8}}
+    .p1{{padding:8px 12px;border-bottom:1px solid #e2e8f0}}.p2{{padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0}}
+    .btn{{border:1px solid #cbd5e1;background:#fff;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:12px}}
+    </style></head><body>
+    <div class="tb">
+      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span> <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span> <span class="bg other">Otros</span></div>
+      <div><label><input type="checkbox" id="hov" checked> 🇺🇸 Voz US</label> <button class="btn" onclick="spd()" id="sb">1.0x</button></div>
+    </div>
+    <div id="lc"></div>
+    <div id="bub" onclick="event.stopPropagation()">
+      <div class="top"><span>🇺🇸 EN ➔ 🇪🇸 ES</span><div><button class="btn" onclick="spk(curW,1)">🔊</button> <button class="btn" onclick="spk(curW,0.65)">🐢</button> <button class="btn" onclick="cls()">✖</button></div></div>
+      <div class="p1"><b id="bw" style="font-size:19px"></b> <span id="bi" style="color:#64748b;font-size:13px"></span><div id="bp" style="font-size:11px;color:#1a73e8;font-weight:700"></div></div>
+      <div class="p2"><div id="be" style="font-size:18px;font-weight:700;color:#1a73e8"></div><div id="ba" style="font-size:12px;color:#475569;margin-top:3px"></div><div id="bd" style="font-size:12px;color:#334155;margin-top:4px"></div></div>
+      <div id="bx" style="padding:8px 12px;font-size:12px;color:#334155;background:#fff"></div>
+    </div>
+    <script>
+    const S={s_json},D={d_json},L={{verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"}};
+    let curW="",lst="",sp=1;
+    function spd(){{sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}}
+    function spk(w,r){{if(!('speechSynthesis'in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';u.rate=r||sp;speechSynthesis.speak(u);}}
+    function cls(){{document.getElementById('bub').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}}
+    function op(e,el,w,p,fs){{
+      e.stopPropagation();cls();el.classList.add('act');curW=w;spk(w,1);
+      const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,''),inf=D[k]||[];
+      document.getElementById('bw').innerText=w;
+      document.getElementById('be').innerText=inf||w;
+      document.getElementById('bp').innerText=inf||L[p]||'Inglés';
+      document.getElementById('bi').innerText=inf||'';
+      document.getElementById('ba').innerText=inf?('Acepciones: '+inf):'';
+      document.getElementById('bd').innerText=inf?('📖 '+inf):'';
+      document.getElementById('bx').innerText='Contexto: "'+fs+'"';
+      const b=document.getElementById('bub'),rc=el.getBoundingClientRect();
+      b.style.display='block';
+      b.style.left=Math.max(8,Math.min(rc.left+scrollX,document.body.clientWidth-345))+'px';
+      b.style.top=(rc.bottom+scrollY+5)+'px';
+    }}
+    const c=document.getElementById('lc');
+    S.forEach((s,i)=>{{
+      const box=document.createElement('div');box.className=i===0?'tbox':'sbox';
+      const fs=s.map(t=>t).join(' ');
+      s.forEach(t=>{{
+        if(/^[.,!?;:"'()—-]+$/.test(t.trim())){{box.appendChild(document.createTextNode(t+' '));return;}}
+        const spn=document.createElement('span');spn.className='wt '+(L[t]?t:'other');spn.textContent=t;
+        spn.onmouseenter=()=>{{if(document.getElementById('hov').checked&&lst!==t){{lst=t;spk(t);}}}};
+        spn.onmouseleave=()=>{{lst="";}};
+        spn.onclick=(e)=>op(e,spn,t,t,fs);
+        box.appendChild(spn);
+      }});
+      c.appendChild(box);
+    }});
+    document.body.onclick=cls;
+    </script></body></html>"""
 
-        let currentBubbleWord = "";
-        let lastHovered = "";
-
-        function speakWordUS(wordText, rateOverride) {{
-          if (!('speechSynthesis' in window)) return;
-          window.speechSynthesis.cancel();
-          const utter = new SpeechSynthesisUtterance(wordText);
-          utter.lang = 'en-US';
-          const slider = document.getElementById('rateSlider');
-          utter.rate = rateOverride || (slider ? parseFloat(slider.value) : 1.0);
-          const voices = window.speechSynthesis.getVoices();
-          const usVoice = voices.find(v => v.lang === 'en-US' && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft')))
-                       || voices.find(v => v.lang.startsWith('en-US'));
-          if (usVoice) utter.voice = usVoice;
-          window.speechSynthesis.speak(utter);
-        }}
-
-        function speakCurrent(rateVal) {{
-          if (currentBubbleWord) speakWordUS(currentBubbleWord, rateVal);
-        }}
-
-        let currentSpeed = 1.0;
-        function toggleSpeed() {{
-          currentSpeed = (currentSpeed === 1.0) ? 0.75 : 1.0;
-          const btn = document.getElementById('speedBtn');
-          if (btn) btn.innerText = currentSpeed.toFixed(2).replace('.00', '.0') + 'x';
-        }}
-
-        function closeBubble() {{
-          const bubble = document.getElementById('gt-bubble');
-          if (bubble) bubble.style.display = 'none';
-          document.querySelectorAll('.word-active').forEach(x => x.classList.remove('word-active'));
-        }}
-
-        function openBubbleAtElement(event, el, token, fullSentence) {{
-          event.stopPropagation();
-          document.querySelectorAll('.word-active').forEach(x => x.classList.remove('word-active'));
-          el.classList.add('word-active');
-
-          const cleanW = (token.w || '').trim();
-          const keyLow = cleanW.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g, '');
-          const entry = vocabDict[keyLow] || {{}};
-
-          currentBubbleWord = cleanW;
-          speakWordUS(cleanW, 1.0);
-
-          document.getElementById('b-word').innerText = cleanW;
-          document.getElementById('b-ipa').innerText = entry.ipa || '';
-          document.getElementById('b-pos').innerText = entry.pos_es || posLabelsEs[token.pos] || 'Inglés (US)';
-          document.getElementById('b-es').innerText = entry.es || cleanW;
-          document.getElementById('b-alt').innerText = entry.alt_es ? ('Otras acepciones: ' + entry.alt_es) : '';
-          document.getElementById('b-def').innerText = entry.def_es ? ('📖 ' + entry.def_es) : '';
-
-          const exContainer = document.getElementById('b-examples');
-          exContainer.innerHTML = '';
-          if (fullSentence) {{
-            const ctxDiv = document.createElement('div');
-            ctxDiv.className = 'ex-item';
-            const ctxEn = document.createElement('div');
-            ctxEn.className = 'ex-en';
-            ctxEn.textContent = '📖 En esta lección: "' + fullSentence + '"';
-            ctxDiv.appendChild(ctxEn);
-            exContainer.appendChild(ctxDiv);
-          }}
-
-          const bubble = document.getElementById('gt-bubble');
-          bubble.style.display = 'block';
-          const rect = el.getBoundingClientRect();
-          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-          const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-          bubble.style.left = Math.max(10, Math.min(rect.left + scrollLeft, document.body.clientWidth - 365)) + 'px';
-          bubble.style.top = (rect.bottom + scrollTop + 6) + 'px';
-        }}
-
-        const container = document.getElementById('lesson-container');
-        sentences.forEach((s, idx) => {{
-          const box = document.createElement('div');
-          box.className = (idx === 0) ? 'title-box' : 'sentence-box';
-          const fullSentence = (s.tokens || []).map(t => t.w).join(' ');
-
-          (s.tokens || []).forEach(tok => {{
-            const isPunct = /^[.,!?;:"'()—-]+$/.test(tok.w.trim());
-            if (isPunct) {{
-              box.appendChild(document.createTextNode(tok.w + ' '));
-              return;
-            }}
-            const span = document.createElement('span');
-            const posClass = ['verb','noun','adjective','conjunction'].includes(tok.pos) ? 'pos-' + tok.pos : 'pos-other';
-            span.className = 'word-token ' + posClass;
-            span.textContent = tok.w;
-
-            span.onmouseenter = () => {{
-              const tog = document.getElementById('hoverAudioToggle');
-              if (tog && tog.checked && lastHovered !== tok.w) {{
-                lastHovered = tok.w;
-                speakWordUS(tok.w);
-              }}
-            }};
-            span.onmouseleave = () => {{ lastHovered = ""; }};
-            span.onclick = (e) => openBubbleAtElement(e, span, tok, fullSentence);
-            box.appendChild(span);
-          }});
-
-          container.appendChild(box);
-        }});
-
-        document.body.onclick = () => closeBubble();
-      </script>
-    </body>
-    </html>
-    """
-    altura_dinamica = max(480, min(820, len(sentences_list) * 115 + 160))
-    components.html(html_code, height=altura_dinamica, scrolling=True)
+    altura = max(460, min(800, len(sentences_list) * 110 + 150))
+    components.html(html_code, height=altura, scrolling=True)
 
 
     
