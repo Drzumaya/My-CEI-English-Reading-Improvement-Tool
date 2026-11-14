@@ -1522,9 +1522,11 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
     if not gm_client:
         raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
 
-    prompt_audio = f"""
+def evaluate_speaking_audio_with_gemini(audio_bytes: bytes, mime_type: str, lesson_text: str, nivel_cefr: str, grado_acad: str, gramatica_obj: str) -> dict:
+    """Evalúa la lectura oral en audio/video usando Gemini multimodal."""
+    prompt = f"""
     Listen carefully to the student's audio reading the target lesson below (CEFR {nivel_cefr}, Academic Level: {grado_acad}, Target Grammar: {gramatica_obj}).
-    
+
     Target text:
     {texto_objetivo[:2500]}
 
