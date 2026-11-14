@@ -1498,22 +1498,6 @@ def update_certificate_status_pg(folio_cert: str, nuevo_estatus_ui: str):
             )
 
  
-# --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
-try:
-    user_agent = st.context.headers.get("User-Agent", "").lower()
-except Exception:
-    user_agent = ""
-is_mobile = any(device in user_agent for device in ["iphone", "android", "ipad", "mobile"])
-
-CEFR_MAP = {
-    "A1": "A1 (Beginner)",
-    "A2": "A2 (Elementary)",
-    "B1": "B1 (Intermediate)",
-    "B2": "B2 (Upper-Intermediate)",
-    "C1": "C1 (Advanced)",
-    "C2": "C2 (Proficiency)"
-}
-
 def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
     """Evalúa fonética, fluidez y gramática oral usando gemini-3.1-pro-preview con respaldo a gemini-2.5-flash."""
     from google.genai import types
@@ -1522,9 +1506,7 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
     if not gm_client:
         raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
 
-def evaluate_speaking_audio_with_gemini(audio_bytes: bytes, mime_type: str, lesson_text: str, nivel_cefr: str, grado_acad: str, gramatica_obj: str) -> dict:
-    """Evalúa la lectura oral en audio/video usando Gemini multimodal."""
-    prompt = f"""
+    prompt_eval = f"""
     Listen carefully to the student's audio reading the target lesson below (CEFR {nivel_cefr}, Academic Level: {grado_acad}, Target Grammar: {gramatica_obj}).
 
     Target text:
@@ -1568,6 +1550,7 @@ def evaluate_speaking_audio_with_gemini(audio_bytes: bytes, mime_type: str, less
             ultimo_error = f"{modelo_oral}: {e_mod}"
 
     raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
+
 
 
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v5") -> dict:
