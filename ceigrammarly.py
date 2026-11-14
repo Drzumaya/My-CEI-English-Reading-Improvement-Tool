@@ -1436,11 +1436,9 @@ def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_s
                 """, (nombre_sel.strip(), clave_sel.strip()))
                 uid = next(iter(cur.fetchone()), 1)
                 
-            app_pub_cert = str(
-                st.secrets.get("APP_PUBLIC_URL")
-                or "https://streamlit.app"
-            ).rstrip("/")
-            verify_url = f"{app_pub_cert}/?verify_cert={folio_c.strip().upper()}"
+            app_pub_cert = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
+                verify_url = f"{app_pub_cert}/?verify_cert={folio_c.strip().upper()}"
+
 
             cur.execute("""
                 INSERT INTO certificates (
@@ -1568,11 +1566,9 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
     raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v4") -> dict:
-    """Tokeniza la lección completa y construye un diccionario bilingüe EN->ES garantizado por lotes."""
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v5") -> dict:
+    """Tokeniza al instante la lección completa para el visor interactivo con Google Translate en vivo."""
     import re
-    from google.genai import types
 
     texto_sin_bib = str(lesson_text or "")
     for marcador in ["**Bibliography", "Bibliography ("]:
@@ -1589,10 +1585,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
         lineas_limpias.append(l_strip)
 
     conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"}
-
     oraciones_base = []
-    palabras_clave = []
-    vistas = set()
 
     for idx_linea, bloque in enumerate(lineas_limpias):
         sub_oraciones = [bloque] if idx_linea == 0 else re.split(r"(?<=[.!?])\s+", bloque)
@@ -1615,62 +1608,9 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                 else:
                     pos = "other"
                 toks.append({"w": tk, "pos": pos})
-
-                if low.isalpha() and len(low) >= 2 and low not in vistas:
-                    vistas.add(low)
-                    palabras_clave.append(low)
             oraciones_base.append({"sentence_es": "", "tokens": toks})
 
-    dict_final = {}
-    gm_client = init_gemini_client()
-
-    if gm_client and palabras_clave:
-        for i in range(0, min(len(palabras_clave), 100), 25):
-            lote = palabras_clave[i:i + 25]
-            prompt_lote = f"""
-            Translate each English word in {json.dumps(lote)} into Spanish (context: CEFR {cefr_level} academic reading).
-            Return ONLY a valid JSON object mapping each lowercase English word to:
-            {{
-              "pos": "verb"|"noun"|"adjective"|"conjunction"|"other",
-              "ipa": "/US_IPA/",
-              "pos_es": "Verbo"|"Sustantivo"|"Adjetivo"|"Conjunción"|"Preposición / Adverbio",
-              "es": "traducción principal exacta al español",
-              "alt_es": "sinónimo 1, sinónimo 2",
-              "def_es": "definición corta en español (8 a 12 palabras)",
-              "ex_en": "Short natural English example sentence.",
-              "ex_es": "Traducción al español del ejemplo."
-            }}
-            """
-            try:
-                res_d = gm_client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt_lote,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
-                        temperature=0.1
-                    )
-                )
-                raw_d = str(res_d.text or "").strip()
-                raw_d = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw_d, flags=re.MULTILINE).strip()
-                parsed_d = json.loads(raw_d)
-                if isinstance(parsed_d, dict):
-                    for k_w, v_info in parsed_d.items():
-                        if isinstance(v_info, dict) and v_info.get("es"):
-                            v_info["examples"] = [{"en": v_info.get("ex_en", ""), "es": v_info.get("ex_es", "")}]
-                            dict_final[k_w.lower().strip()] = v_info
-            except Exception:
-                continue
-
-        for s_obj in oraciones_base:
-            for tk in s_obj["tokens"]:
-                info_w = dict_final.get(tk["w"].lower())
-                if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
-                    tk["pos"] = info_w["pos"]
-
-    return {"sentences": oraciones_base, "dictionary": dict_final}
-
-
+    return {"sentences": oraciones_base, "dictionary": {}}
 
 
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
@@ -2867,60 +2807,122 @@ def render_interactive_study_viewer(study_payload: dict):
           document.querySelectorAll('.word-active').forEach(el => el.classList.remove('word-active'));
         }}
 
-        function openBubbleAtElement(event, el, token, fullSentence) {{
+                const liveCache = {{}};
+
+        async function openBubbleAtElement(event, el, token, fullSentence) {{
           event.stopPropagation();
           document.querySelectorAll('.word-active').forEach(x => x.classList.remove('word-active'));
           el.classList.add('word-active');
 
           const cleanW = (token.w || '').trim();
           const keyLow = cleanW.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g, '');
-          const basicWordsEs = {{
-            "between": {{ ipa: "/bɪˈtwiːn/", pos_es: "Preposición", es: "entre", alt_es: "en medio de", def_es: "Indica relación o espacio que separa dos elementos." }},
-            "and": {{ ipa: "/ænd/", pos_es: "Conjunción", es: "y / e", alt_es: "además", def_es: "Une palabras u oraciones." }},
-            "the": {{ ipa: "/ðə/", pos_es: "Artículo", es: "el / la / los / las", alt_es: "lo", def_es: "Artículo definido en inglés." }},
-            "with": {{ ipa: "/wɪð/", pos_es: "Preposición", es: "con", alt_es: "junto a, mediante", def_es: "Indica compañía, medio o instrumento." }},
-            "from": {{ ipa: "/frʌm/", pos_es: "Preposición", es: "de / desde", alt_es: "a partir de", def_es: "Indica origen o procedencia." }},
-            "for": {{ ipa: "/fɔːr/", pos_es: "Preposición", es: "para / por / durante", alt_es: "debido a", def_es: "Indica propósito, destinatario o duración." }}
-          }};
-          const entry = vocabDict[keyLow] || basicWordsEs[keyLow] || {{}};
-
 
           currentBubbleWord = cleanW;
           speakWordUS(cleanW, 1.0);
 
           document.getElementById('b-word').innerText = cleanW;
-          document.getElementById('b-ipa').innerText = entry.ipa || '';
-          document.getElementById('b-pos').innerText = entry.pos_es || posLabelsEs[token.pos] || 'Inglés (US)';
-          document.getElementById('b-es').innerText = entry.es || cleanW;
-          document.getElementById('b-alt').innerText = entry.alt_es ? ('Otras traducciones: ' + entry.alt_es) : '';
-          document.getElementById('b-def').innerText = entry.def_es || '';
+          document.getElementById('b-ipa').innerText = '';
+          document.getElementById('b-pos').innerText = posLabelsEs[token.pos] || 'Inglés (US)';
+          document.getElementById('b-es').innerText = '⏳ Traduciendo con Google...';
+          document.getElementById('b-alt').innerText = '';
+          document.getElementById('b-def').innerText = '';
+
+          const gtLink = document.getElementById('b-gt-link');
+          if (gtLink) {{
+            gtLink.href = 'https://google.com' + encodeURIComponent(cleanW) + '&op=translate';
+          }}
 
           const exContainer = document.getElementById('b-examples');
           exContainer.innerHTML = '';
+
+          const bubble = document.getElementById('gt-bubble');
+          bubble.style.display = 'block';
+          const rect = el.getBoundingClientRect();
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+          const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+          bubble.style.left = Math.max(10, Math.min(rect.left + scrollLeft, document.body.clientWidth - 365)) + 'px';
+          bubble.style.top = (rect.bottom + scrollTop + 6) + 'px';
+
+          if (!liveCache[keyLow]) {{
+            try {{
+              const [gtRes, dictRes] = await Promise.all([
+                fetch('https://googleapis.com' + encodeURIComponent(keyLow)).then(r => r.json()).catch(() => null),
+                fetch('https://dictionaryapi.dev' + encodeURIComponent(keyLow)).then(r => r.json()).catch(() => null)
+              ]);
+
+              let mainTr = cleanW;
+              let altList = [];
+              let posDetected = posLabelsEs[token.pos] || 'Inglés (US)';
+
+              if (gtRes && Array.isArray(gtRes) && gtRes && gtRes) {{
+                mainTr = gtRes;
+              }}
+              if (gtRes && Array.isArray(gtRes)) {{
+                const posMapGt = {{ verb: 'Verbo', noun: 'Sustantivo', adjective: 'Adjetivo', adverb: 'Adverbio', conjunction: 'Conjunción', preposition: 'Preposición' }};
+                const firstCat = gtRes;
+                if (firstCat && firstCat) {{
+                  posDetected = posMapGt[firstCat.toLowerCase()] || firstCat;
+                }}
+                gtRes.forEach(cat => {{
+                  if (Array.isArray(cat)) {{
+                    altList.push(...cat.slice(0, 4));
+                  }}
+                }});
+              }}
+
+              let ipaTxt = '';
+              let defEnTxt = '';
+              if (Array.isArray(dictRes) && dictRes) {{
+                const entryD = dictRes;
+                ipaTxt = entryD.phonetic || (entryD.phonetics && entryD.phonetics.find(p => p.text)?.text) || '';
+                const m0 = entryD.meanings && entryD.meanings;
+                if (m0 && m0.definitions && m0.definitions) {{
+                  defEnTxt = m0.definitions.definition || '';
+                }}
+              }}
+
+              liveCache[keyLow] = {{
+                es: mainTr,
+                alt_es: [...new Set(altList)].filter(x => x.toLowerCase() !== mainTr.toLowerCase()).slice(0, 6).join(', '),
+                pos_es: posDetected,
+                ipa: ipaTxt,
+                def_es: defEnTxt
+              }};
+            }} catch (e) {{
+              liveCache[keyLow] = {{ es: cleanW, alt_es: '', pos_es: posLabelsEs[token.pos] || 'Inglés', ipa: '', def_es: '' }};
+            }}
+          }}
+
+          const info = liveCache[keyLow];
+          document.getElementById('b-es').innerText = info.es || cleanW;
+          document.getElementById('b-pos').innerText = info.pos_es;
+          document.getElementById('b-ipa').innerText = info.ipa;
+          document.getElementById('b-alt').innerText = info.alt_es ? ('Otras acepciones: ' + info.alt_es) : '';
+          document.getElementById('b-def').innerText = info.def_es ? ('📖 ' + info.def_es) : '';
 
           if (fullSentence) {{
             const ctxDiv = document.createElement('div');
             ctxDiv.className = 'ex-item';
             const ctxEn = document.createElement('div');
             ctxEn.className = 'ex-en';
-            ctxEn.textContent = '📖 En esta lección: "' + fullSentence + '"';
+            ctxEn.textContent = '🇺🇸 En esta lección: "' + fullSentence + '"';
+            const ctxEs = document.createElement('div');
+            ctxEs.className = 'ex-es';
+            ctxEs.textContent = '🇪🇸 Traduciendo oración completa...';
             ctxDiv.appendChild(ctxEn);
+            ctxDiv.appendChild(ctxEs);
             exContainer.appendChild(ctxDiv);
-          }}
 
-          (entry.examples || []).forEach(ex => {{
-            const div = document.createElement('div');
-            div.className = 'ex-item';
-            const dEn = document.createElement('div');
-            dEn.className = 'ex-en';
-            dEn.textContent = '🇺🇸 ' + (ex.en || '');
-            const dEs = document.createElement('div');
-            dEs.className = 'ex-es';
-            dEs.textContent = '🇪🇸 ' + (ex.es || '');
-            div.appendChild(dEn);
-            div.appendChild(dEs);
-            exContainer.appendChild(div);
-          }});
+            fetch('https://googleapis.com' + encodeURIComponent(fullSentence))
+              .then(r => r.json())
+              .then(sData => {{
+                if (sData && Array.isArray(sData)) {{
+                  ctxEs.textContent = '🇪🇸 ' + sData.map(seg => seg || '').join('');
+                }}
+              }})
+              .catch(() => {{ ctxEs.textContent = ''; }});
+          }}
+        }}
 
           const bubble = document.getElementById('gt-bubble');
           bubble.style.display = 'block';
