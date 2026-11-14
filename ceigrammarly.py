@@ -2809,7 +2809,7 @@ def render_interactive_study_viewer(study_payload: dict):
           document.querySelectorAll('.word-active').forEach(el => el.classList.remove('word-active'));
         }}
 
-                const liveCache = {{}};
+                        const liveCache = {{}};
 
         async function openBubbleAtElement(event, el, token, fullSentence) {{
           event.stopPropagation();
@@ -2828,11 +2828,6 @@ def render_interactive_study_viewer(study_payload: dict):
           document.getElementById('b-es').innerText = '⏳ Traduciendo con Google...';
           document.getElementById('b-alt').innerText = '';
           document.getElementById('b-def').innerText = '';
-
-          const gtLink = document.getElementById('b-gt-link');
-          if (gtLink) {{
-            gtLink.href = 'https://google.com' + encodeURIComponent(cleanW) + '&op=translate';
-          }}
 
           const exContainer = document.getElementById('b-examples');
           exContainer.innerHTML = '';
@@ -2925,6 +2920,9 @@ def render_interactive_study_viewer(study_payload: dict):
               .catch(() => {{ ctxEs.textContent = ''; }});
           }}
         }}
+
+
+       
 
           const bubble = document.getElementById('gt-bubble');
           bubble.style.display = 'block';
@@ -3028,59 +3026,47 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Genera ilustración educativa con Hugging Face (FLUX / SDXL) o tarjeta visual académica en Pillow."""
+    """Genera ilustración educativa usando Google Imagen 3 (con respaldo visual Pillow)."""
     import re
-    import requests
+    from google.genai import types
     from PIL import Image, ImageDraw, ImageFont
 
     st.session_state["last_img_error"] = None
     escena_limpia = re.sub(r'[^a-zA-Z0-9 ,.-]+', ' ', str(scene_prompt or "")).strip()
     escena_limpia = re.sub(r'\s+', ' ', escena_limpia)
     full_prompt = (
-        f"Educational textbook illustration, clean digital comic art style, "
-        f"bright natural lighting, expressive characters. {escena_limpia}"
-    )[:360]
-
-    # Busca HF_TOKEN en cualquier nivel de Secrets
-    hf_token = ""
-    for k, v in st.secrets.items():
-        if isinstance(v, str) and ("HF" in k.upper() or v.strip().startswith("hf_")):
-            hf_token = v.strip()
-            break
-        elif isinstance(v, dict):
-            for sub_k, sub_v in v.items():
-                if isinstance(sub_v, str) and ("HF" in sub_k.upper() or sub_v.strip().startswith("hf_")):
-                    hf_token = sub_v.strip()
-                    break
-            if hf_token:
-                break
+        f"Educational textbook illustration, clean modern digital editorial art style, "
+        f"bright natural lighting, expressive characters, no text inside image. {escena_limpia}"
+    )[:400]
 
     errores = []
-    if hf_token:
-        headers_hf = {
-            "Authorization": f"Bearer {hf_token}",
-            "Content-Type": "application/json",
-            "User-Agent": "CareerEnglishInstituteApp/1.0"
-        }
-        modelos_hf = [
-            "https://huggingface.co",
-            "https://huggingface.co"
-        ]
-        for url_hf in modelos_hf:
+    gm = client_gm or init_gemini_client()
+
+    if gm:
+        for modelo_img in ["imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"]:
             try:
-                r_hf = requests.post(url_hf, headers=headers_hf, json={"inputs": full_prompt}, timeout=28)
-                if r_hf.status_code == 200 and len(r_hf.content) > 2000:
-                    st.session_state["last_img_error"] = None
-                    return r_hf.content
-                errores.append(f"HF ({url_hf.split('/')[-1]}) HTTP {r_hf.status_code}")
-            except Exception as e_hf:
-                errores.append(f"HF error: {e_hf}")
+                res_img = gm.models.generate_images(
+                    model=modelo_img,
+                    prompt=full_prompt,
+                    config=types.GenerateImagesConfig(
+                        number_of_images=1,
+                        aspect_ratio="16:9",
+                        output_mime_type="image/png"
+                    )
+                )
+                if res_img and getattr(res_img, "generated_images", None):
+                    img_bytes = res_img.generated_images.image.image_bytes
+                    if img_bytes and len(img_bytes) > 2000:
+                        st.session_state["last_img_error"] = None
+                        return img_bytes
+            except Exception as e_im:
+                errores.append(f"{modelo_img}: {e_im}")
     else:
-        errores.append("HF_TOKEN no detectado en Secrets")
+        errores.append("GEMINI_API_KEY no inicializada")
 
     st.session_state["last_img_error"] = " | ".join(errores)
 
-    # Respaldo visual institucional de alta calidad en Pillow (siempre disponible)
+    # Respaldo visual institucional de alta calidad en Pillow
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(18, 36, 66))
     draw = ImageDraw.Draw(img)
