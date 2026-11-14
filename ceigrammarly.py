@@ -1154,6 +1154,31 @@ def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
     except Exception:
         pass
     return None
+    
+def update_certificate_link_pg(folio_cert: str, new_url: str = "") -> bool:
+    """Guarda o actualiza directamente la URL de verificación del certificado en Supabase PostgreSQL."""
+    f_clean = str(folio_cert or "").strip().upper()
+    if not f_clean:
+        return False
+
+    app_pub = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
+    url_final = str(new_url or "").strip() or (f"{app_pub}/?verify_cert={f_clean}" if app_pub else "")
+
+    conn = get_pg_conn()
+    if not conn:
+        return False
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE certificates
+                    SET verify_url = %s
+                    WHERE UPPER(TRIM(folio_cert)) = %s;
+                """, (url_final, f_clean))
+        return True
+    except Exception:
+        return False
 
 
 def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
