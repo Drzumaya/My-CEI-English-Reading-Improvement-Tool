@@ -1623,6 +1623,14 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
 
     dict_final = {}
     gm_client = init_gemini_client()
+    
+        with st.spinner("🧠 Preparando análisis sintáctico, pronunciación y diccionario contextual..."):
+            estudio_data = analyze_lesson_for_study_mode(
+                st.session_state.generated_text,
+                st.session_state.get("selected_cefr", "B1"),
+                "v7_final"
+            )
+
 
     # 1. Traducción en Python con Gemini 2.5 Flash
     if gm_client and palabras_clave:
