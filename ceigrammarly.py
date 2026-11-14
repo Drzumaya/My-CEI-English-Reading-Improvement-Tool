@@ -2723,6 +2723,14 @@ def generar_pdf_certificado(
 
 # --- 9. MOTOR DE IA MULTIMODAL ---
 def render_interactive_study_viewer(study_payload: dict):
+import streamlit.components.v1 as components
+
+sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
+dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
+
+sentences_json = json.dumps(sentences_list, ensure_ascii=True).replace("</", "<\\/")
+dict_json = json.dumps(dict_map, ensure_ascii=True).replace("</", "<\\/")
+
     """Visor interactivo con voz US English y diccionario/traductor EN->ES pre-cargado por IA."""
     sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
@@ -2881,6 +2889,13 @@ def render_interactive_study_viewer(study_payload: dict):
           if (currentBubbleWord) speakWordUS(currentBubbleWord, rateVal);
         }}
 
+        let currentSpeed = 1.0;
+        function toggleSpeed() {{
+          currentSpeed = (currentSpeed === 1.0) ? 0.75 : 1.0;
+          const btn = document.getElementById('speedBtn');
+          if (btn) btn.innerText = currentSpeed.toFixed(2).replace('.00', '.0') + 'x';
+        }}
+
         function closeBubble() {{
           const bubble = document.getElementById('gt-bubble');
           if (bubble) bubble.style.display = 'none';
@@ -2965,7 +2980,7 @@ def render_interactive_study_viewer(study_payload: dict):
     </html>
     """
     altura_dinamica = max(480, min(820, len(sentences_list) * 115 + 160))
-    st.iframe(html_code, height=altura_dinamica)
+    components.html(html_code, height=altura_dinamica, scrolling=True)
 
 
     
