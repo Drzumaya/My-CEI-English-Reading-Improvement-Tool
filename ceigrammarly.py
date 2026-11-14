@@ -1421,8 +1421,11 @@ def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_s
     conn = get_pg_conn()
     if not conn:
         raise RuntimeError("Sin conexión activa a PostgreSQL.")
-    base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
-    verify_url = f"{base_url}/?verify={urllib.parse.quote(folio_c)}"
+
+    app_pub_cert = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+    f_upper = folio_c.strip().upper()
+    verify_url = f"{app_pub_cert}/?verify_cert={urllib.parse.quote(f_upper)}" if app_pub_cert else f"/?verify_cert={urllib.parse.quote(f_upper)}"
+
     with conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM users_padron WHERE LOWER(usuario) = LOWER(%s) LIMIT 1;", (nombre_sel.strip(),))
@@ -1434,14 +1437,7 @@ def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_s
                     VALUES (%s, %s, 'Estudiante', 'Basico', 'Activo')
                     RETURNING id;
                 """, (nombre_sel.strip(), clave_sel.strip()))
-                uid = next(iter(cur.fetchone()), 1)  
-            app_pub_cert = str(
-                st.secrets.get("APP_PUBLIC_URL")
-                or "https://streamlit.app"
-            ).rstrip("/")
-            verify_url = f"{app_pub_cert}/?verify_cert={folio_c.strip().upper()}"
-            cur.execute("""
-
+                uid = next(iter(cur.fetchone()), 1)
 
             cur.execute("""
                 INSERT INTO certificates (
@@ -1451,7 +1447,7 @@ def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_s
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Valido', %s)
                 ON CONFLICT (folio_cert) DO NOTHING;
             """, (
-                folio_c.strip().upper(), uid, clave_sel.strip(), nombre_sel.strip(),
+                f_upper, uid, clave_sel.strip(), nombre_sel.strip(),
                 nivel_sel.strip(), grado_sel.strip(), programa_c.strip(),
                 calif_c.strip(), fecha_c.strip(), sello_h.strip(), verify_url
             ))
@@ -1496,6 +1492,8 @@ def update_certificate_status_pg(folio_cert: str, nuevo_estatus_ui: str):
                 "UPDATE certificates SET estatus = %s WHERE UPPER(folio_cert) = %s;",
                 (db_status, str(folio_cert).strip().upper())
             )
+
+
 def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
     """Evalúa fonética, fluidez y gramática oral usando gemini-3.1-pro-preview con respaldo a gemini-2.5-flash."""
     from google.genai import types
@@ -1548,6 +1546,7 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
             ultimo_error = f"{modelo_oral}: {e_mod}"
 
     raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
+
 
 
 
