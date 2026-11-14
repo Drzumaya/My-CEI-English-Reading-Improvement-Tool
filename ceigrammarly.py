@@ -1569,7 +1569,7 @@ CEFR_MAP = {
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v7_final") -> dict:
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v9_gt_fixed") -> dict:
     """Tokeniza la lección y garantiza traducciones EN->ES reales desde Python."""
     import re
     import requests
@@ -1623,14 +1623,6 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
 
     dict_final = {}
     gm_client = init_gemini_client()
-    
-        with st.spinner("🧠 Preparando análisis sintáctico, pronunciación y diccionario contextual..."):
-            estudio_data = analyze_lesson_for_study_mode(
-                st.session_state.generated_text,
-                st.session_state.get("selected_cefr", "B1"),
-                "v7_final"
-            )
-
 
     # 1. Traducción en Python con Gemini 2.5 Flash
     if gm_client and palabras_clave:
@@ -1667,7 +1659,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
         except Exception:
             pass
 
-    # 2. Respaldo directo HTTP desde Python a Google Translate (con índice exacto seg[0])
+    # 2. Respaldo directo HTTP desde Python a Google Translate (endpoint completo)
     faltantes = [w for w in palabras_clave[:100] if w not in dict_final]
     if faltantes:
         try:
@@ -1704,6 +1696,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                 tk["pos"] = info_w["pos"]
 
     return {"sentences": oraciones_base, "dictionary": dict_final}
+
 
 
 
