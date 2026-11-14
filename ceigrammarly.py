@@ -3619,8 +3619,13 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
                         if st.session_state.get("last_cert_pdf"):
                             f_actual = st.session_state["last_cert_folio"]
-                            base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
-                            link_cert_directo = f"{base_url}/?verify={urllib.parse.quote(f_actual)}"
+                            app_pub_prev = str(
+                                st.secrets.get("APP_PUBLIC_URL")
+                                or st.secrets.get("APP_BASE_URL")
+                                or "https://myceigrammarly.streamlit.app"
+                            ).strip().rstrip("/")
+                            link_cert_directo = f"{app_pub_prev}/?verify_cert={urllib.parse.quote(f_actual)}"
+
 
                             st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
                             try:
