@@ -1522,8 +1522,7 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
     if not gm_client:
         raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
 
-    prompt_eval = f"""
-    You are an expert English Phonetics & Applied Linguistics Evaluator at Career English Institute.
+    prompt_audio = f"""
     Listen carefully to the student's audio reading the target lesson below (CEFR {nivel_cefr}, Academic Level: {grado_acad}, Target Grammar: {gramatica_obj}).
     
     Target text:
