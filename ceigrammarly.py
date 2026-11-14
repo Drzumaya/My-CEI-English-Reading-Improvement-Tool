@@ -2846,53 +2846,43 @@ def render_interactive_study_viewer(study_payload: dict):
           <div id="b-examples"></div>
         </div>
       </div>
-      <script>
+            <script>
         const sentences = {sentences_json};
         const vocabDict = {dict_json};
-        const posLabelsEs = {{ verb: 'Verbo', noun: 'Sustantivo', adjective: 'Adjetivo', conjunction: 'Conjunción', other: 'Expresión / Partícula' }};
-        let speechRate = 1.0;
-        let lastHovered = "";
+        const posLabelsEs = {{
+          verb: "Verbo",
+          noun: "Sustantivo",
+          adjective: "Adjetivo",
+          conjunction: "Conjunción",
+          other: "Preposición / Adverbio"
+        }};
+
         let currentBubbleWord = "";
-        let usEnglishVoice = null;
+        let lastHovered = "";
 
-        function loadUSVoice() {{
+        function speakWordUS(wordText, rateOverride) {{
           if (!('speechSynthesis' in window)) return;
-          const voices = window.speechSynthesis.getVoices();
-          usEnglishVoice =
-            voices.find(v => v.lang === 'en-US' && (v.name.includes('Google US') || v.name.includes('Aria') || v.name.includes('Jenny') || v.name.includes('Samantha'))) ||
-            voices.find(v => v.lang === 'en-US') ||
-            voices.find(v => v.lang.startsWith('en-'));
-        }}
-        if ('speechSynthesis' in window) {{
-          loadUSVoice();
-          window.speechSynthesis.onvoiceschanged = loadUSVoice;
-        }}
-
-        function speakWordUS(text, rateOverride = null) {{
-          if (!('speechSynthesis' in window) || !text) return;
           window.speechSynthesis.cancel();
-          const utter = new SpeechSynthesisUtterance(text);
+          const utter = new SpeechSynthesisUtterance(wordText);
           utter.lang = 'en-US';
-          if (usEnglishVoice) utter.voice = usEnglishVoice;
-          utter.rate = rateOverride || speechRate;
+          const slider = document.getElementById('rateSlider');
+          utter.rate = rateOverride || (slider ? parseFloat(slider.value) : 1.0);
+          const voices = window.speechSynthesis.getVoices();
+          const usVoice = voices.find(v => v.lang === 'en-US' && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft')))
+                       || voices.find(v => v.lang.startsWith('en-US'));
+          if (usVoice) utter.voice = usVoice;
           window.speechSynthesis.speak(utter);
         }}
 
-        function toggleSpeed() {{
-          speechRate = (speechRate === 1.0) ? 0.7 : 1.0;
-          document.getElementById('speedBtn').innerText = speechRate + 'x';
-        }}
-
-        function speakCurrent(rate) {{
-          if (currentBubbleWord) speakWordUS(currentBubbleWord, rate);
+        function speakCurrent(rateVal) {{
+          if (currentBubbleWord) speakWordUS(currentBubbleWord, rateVal);
         }}
 
         function closeBubble() {{
-          document.getElementById('gt-bubble').style.display = 'none';
-          document.querySelectorAll('.word-active').forEach(el => el.classList.remove('word-active'));
+          const bubble = document.getElementById('gt-bubble');
+          if (bubble) bubble.style.display = 'none';
+          document.querySelectorAll('.word-active').forEach(x => x.classList.remove('word-active'));
         }}
-
-                        const liveCache = {{}};
 
         function openBubbleAtElement(event, el, token, fullSentence) {{
           event.stopPropagation();
@@ -2918,7 +2908,10 @@ def render_interactive_study_viewer(study_payload: dict):
           if (fullSentence) {{
             const ctxDiv = document.createElement('div');
             ctxDiv.className = 'ex-item';
-            ctxDiv.innerHTML = '<div class="ex-en">📖 En esta lección: "' + fullSentence + '"</div>';
+            const ctxEn = document.createElement('div');
+            ctxEn.className = 'ex-en';
+            ctxEn.textContent = '📖 En esta lección: "' + fullSentence + '"';
+            ctxDiv.appendChild(ctxEn);
             exContainer.appendChild(ctxDiv);
           }}
 
@@ -2929,104 +2922,6 @@ def render_interactive_study_viewer(study_payload: dict):
           const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
           bubble.style.left = Math.max(10, Math.min(rect.left + scrollLeft, document.body.clientWidth - 365)) + 'px';
           bubble.style.top = (rect.bottom + scrollTop + 6) + 'px';
-        }}
-
-
-          if (!liveCache[keyLow]) {{
-            try {{
-              const [gtRes, dictRes] = await Promise.all([
-                fetch('https://googleapis.com' + encodeURIComponent(keyLow)).then(r => r.json()).catch(() => null),
-                fetch('https://dictionaryapi.dev' + encodeURIComponent(keyLow)).then(r => r.json()).catch(() => null)
-              ]);
-
-              let mainTr = cleanW;
-              let altList = [];
-              let posDetected = posLabelsEs[token.pos] || 'Inglés (US)';
-
-              if (gtRes && Array.isArray(gtRes) && gtRes && gtRes) {{
-                mainTr = gtRes;
-              }}
-              if (gtRes && Array.isArray(gtRes)) {{
-                const posMapGt = {{ verb: 'Verbo', noun: 'Sustantivo', adjective: 'Adjetivo', adverb: 'Adverbio', conjunction: 'Conjunción', preposition: 'Preposición' }};
-                const firstCat = gtRes;
-                if (firstCat && firstCat) {{
-                  posDetected = posMapGt[firstCat.toLowerCase()] || firstCat;
-                }}
-                gtRes.forEach(cat => {{
-                  if (Array.isArray(cat)) {{
-                    altList.push(...cat.slice(0, 4));
-                  }}
-                }});
-              }}
-
-              let ipaTxt = '';
-              let defEnTxt = '';
-              if (Array.isArray(dictRes) && dictRes) {{
-                const entryD = dictRes;
-                ipaTxt = entryD.phonetic || (entryD.phonetics && entryD.phonetics.find(p => p.text)?.text) || '';
-                const m0 = entryD.meanings && entryD.meanings;
-                if (m0 && m0.definitions && m0.definitions) {{
-                  defEnTxt = m0.definitions.definition || '';
-                }}
-              }}
-
-              liveCache[keyLow] = {{
-                es: mainTr,
-                alt_es: [...new Set(altList)].filter(x => x.toLowerCase() !== mainTr.toLowerCase()).slice(0, 6).join(', '),
-                pos_es: posDetected,
-                ipa: ipaTxt,
-                def_es: defEnTxt
-              }};
-            }} catch (e) {{
-              liveCache[keyLow] = {{ es: cleanW, alt_es: '', pos_es: posLabelsEs[token.pos] || 'Inglés', ipa: '', def_es: '' }};
-            }}
-          }}
-
-          const info = liveCache[keyLow];
-          document.getElementById('b-es').innerText = info.es || cleanW;
-          document.getElementById('b-pos').innerText = info.pos_es;
-          document.getElementById('b-ipa').innerText = info.ipa;
-          document.getElementById('b-alt').innerText = info.alt_es ? ('Otras acepciones: ' + info.alt_es) : '';
-          document.getElementById('b-def').innerText = info.def_es ? ('📖 ' + info.def_es) : '';
-
-          if (fullSentence) {{
-            const ctxDiv = document.createElement('div');
-            ctxDiv.className = 'ex-item';
-            const ctxEn = document.createElement('div');
-            ctxEn.className = 'ex-en';
-            ctxEn.textContent = '🇺🇸 En esta lección: "' + fullSentence + '"';
-            const ctxEs = document.createElement('div');
-            ctxEs.className = 'ex-es';
-            ctxEs.textContent = '🇪🇸 Traduciendo oración completa...';
-            ctxDiv.appendChild(ctxEn);
-            ctxDiv.appendChild(ctxEs);
-            exContainer.appendChild(ctxDiv);
-
-            fetch('https://googleapis.com' + encodeURIComponent(fullSentence))
-              .then(r => r.json())
-              .then(sData => {{
-                if (sData && Array.isArray(sData)) {{
-                  ctxEs.textContent = '🇪🇸 ' + sData.map(seg => seg || '').join('');
-                }}
-              }})
-              .catch(() => {{ ctxEs.textContent = ''; }});
-          }}
-        }}
-
-
-       
-
-          const bubble = document.getElementById('gt-bubble');
-          bubble.style.display = 'block';
-
-          const rect = el.getBoundingClientRect();
-          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-          const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
-
-          const leftPos = Math.min(rect.left + scrollLeft, document.body.clientWidth - 365);
-          const topPos = rect.bottom + scrollTop + 6;
-          bubble.style.left = Math.max(10, leftPos) + 'px';
-          bubble.style.top = topPos + 'px';
         }}
 
         const container = document.getElementById('lesson-container');
@@ -3047,7 +2942,8 @@ def render_interactive_study_viewer(study_payload: dict):
             span.textContent = tok.w;
 
             span.onmouseenter = () => {{
-              if (document.getElementById('hoverAudioToggle').checked && lastHovered !== tok.w) {{
+              const tog = document.getElementById('hoverAudioToggle');
+              if (tog && tog.checked && lastHovered !== tok.w) {{
                 lastHovered = tok.w;
                 speakWordUS(tok.w);
               }}
@@ -3057,12 +2953,6 @@ def render_interactive_study_viewer(study_payload: dict):
             box.appendChild(span);
           }});
 
-          if (s.sentence_es) {{
-            const tr = document.createElement('div');
-            tr.className = 'sentence-tr';
-            tr.textContent = '🇪🇸 ' + s.sentence_es;
-            box.appendChild(tr);
-          }}
           container.appendChild(box);
         }});
 
@@ -3073,6 +2963,7 @@ def render_interactive_study_viewer(study_payload: dict):
     """
     altura_dinamica = max(480, min(820, len(sentences_list) * 115 + 160))
     st.iframe(html_code, height=altura_dinamica)
+
 
     
 
