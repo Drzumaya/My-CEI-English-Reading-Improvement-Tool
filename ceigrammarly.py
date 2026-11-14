@@ -1135,6 +1135,14 @@ def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
                     cur.execute("SELECT * FROM certificates WHERE UPPER(folio_cert) = %s;", (f_clean,))
                     row = cur.fetchone()
                     if row:
+                        app_pub = str(
+                            st.secrets.get("APP_PUBLIC_URL")
+                            or "https://streamlit.app"
+                        ).rstrip("/")
+                        url_db = str(row.get("verify_url") or "")
+                        if not url_db or "https://streamlit.app" in url_db:
+                            url_db = f"{app_pub}/?verify_cert={row['folio_cert']}"
+
                         return {
                             "Folio_Certificado": row["folio_cert"],
                             "Clave_Alumno": row["clave_alumno"],
@@ -1146,11 +1154,12 @@ def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
                             "Fecha_Emision": row["fecha_emision"],
                             "Firma_HMAC": row["firma_hmac"],
                             "Estatus": row["estatus"],
-                            "URL_Verificacion": row["verify_url"]
+                            "URL_Verificacion": url_db
                         }
     except Exception:
         pass
     return None
+
 
 
 def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
@@ -1407,6 +1416,12 @@ def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_s
                     RETURNING id;
                 """, (nombre_sel.strip(), clave_sel.strip()))
                 uid = next(iter(cur.fetchone()), 1)
+                
+            app_pub_cert = str(
+                st.secrets.get("APP_PUBLIC_URL")
+                or "https://streamlit.app"
+            ).rstrip("/")
+            verify_url = f"{app_pub_cert}/?verify_cert={folio_c.strip().upper()}"
 
             cur.execute("""
                 INSERT INTO certificates (
