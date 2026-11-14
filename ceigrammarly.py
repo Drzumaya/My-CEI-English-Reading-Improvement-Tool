@@ -1569,15 +1569,15 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
-    """Tokeniza la lección completa y obtiene traducciones EN->ES reales por palabra."""
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v4") -> dict:
+    """Tokeniza la lección completa y construye un diccionario bilingüe EN->ES garantizado por lotes."""
     import re
     from google.genai import types
 
     texto_sin_bib = str(lesson_text or "")
     for marcador in ["**Bibliography", "Bibliography ("]:
         if marcador in texto_sin_bib:
-            texto_sin_bib = texto_sin_bib.split(marcador, 1)[0]
+            texto_sin_bib = texto_sin_bib.split(marcador, 1)
 
     lineas_limpias = []
     for linea in texto_sin_bib.splitlines():
@@ -1588,16 +1588,6 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
             continue
         lineas_limpias.append(l_strip)
 
-    solo_titulo_y_cuerpo = "\n\n".join(lineas_limpias)[:2800]
-
-    stopwords = {
-        "the", "and", "for", "that", "this", "with", "from", "have", "has", "had",
-        "are", "was", "were", "been", "being", "will", "would", "could", "should",
-        "into", "about", "than", "then", "them", "they", "their", "there", "here",
-        "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
-        "all", "any", "both", "each", "few", "more", "most", "other", "some", "such",
-        "not", "only", "own", "same", "too", "very", "can", "just", "don", "now"
-    }
     conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"}
 
     oraciones_base = []
@@ -1626,38 +1616,35 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
                     pos = "other"
                 toks.append({"w": tk, "pos": pos})
 
-                if low.isalpha() and len(low) >= 3 and low not in stopwords and low not in vistas:
+                if low.isalpha() and len(low) >= 2 and low not in vistas:
                     vistas.add(low)
                     palabras_clave.append(low)
             oraciones_base.append({"sentence_es": "", "tokens": toks})
 
-    vocab_target = palabras_clave[:55]
     dict_final = {}
+    gm_client = init_gemini_client()
 
-    if vocab_target:
-        prompt_dict = f"""
-        Translate these English words (from a CEFR {cefr_level} lesson) into natural Spanish for a bilingual dictionary.
-        Words: {json.dumps(vocab_target)}
-        Context: {solo_titulo_y_cuerpo[:1200]}
-
-        Return ONLY a JSON object where each key is the lowercase English word and its value is:
-        {{
-          "pos": "verb"|"noun"|"adjective"|"conjunction"|"other",
-          "ipa": "/US_IPA/",
-          "pos_es": "Verbo"|"Sustantivo"|"Adjetivo"|"Conjunción"|"Adverbio",
-          "es": "traducción principal exacta en español",
-          "alt_es": "sinónimo 1, sinónimo 2",
-          "def_es": "definición breve en español (máximo 12 palabras)",
-          "ex_en": "Short English example sentence.",
-          "ex_es": "Traducción corta al español."
-        }}
-        """
-        try:
-            gm_client = init_gemini_client()
-            if gm_client:
+    if gm_client and palabras_clave:
+        for i in range(0, min(len(palabras_clave), 100), 25):
+            lote = palabras_clave[i:i + 25]
+            prompt_lote = f"""
+            Translate each English word in {json.dumps(lote)} into Spanish (context: CEFR {cefr_level} academic reading).
+            Return ONLY a valid JSON object mapping each lowercase English word to:
+            {{
+              "pos": "verb"|"noun"|"adjective"|"conjunction"|"other",
+              "ipa": "/US_IPA/",
+              "pos_es": "Verbo"|"Sustantivo"|"Adjetivo"|"Conjunción"|"Preposición / Adverbio",
+              "es": "traducción principal exacta al español",
+              "alt_es": "sinónimo 1, sinónimo 2",
+              "def_es": "definición corta en español (8 a 12 palabras)",
+              "ex_en": "Short natural English example sentence.",
+              "ex_es": "Traducción al español del ejemplo."
+            }}
+            """
+            try:
                 res_d = gm_client.models.generate_content(
                     model="gemini-2.5-flash",
-                    contents=prompt_dict,
+                    contents=prompt_lote,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
@@ -1669,21 +1656,21 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str) -> dict:
                 parsed_d = json.loads(raw_d)
                 if isinstance(parsed_d, dict):
                     for k_w, v_info in parsed_d.items():
-                        if isinstance(v_info, dict):
-                            # Normaliza ejemplos para compatibilidad con el visor
-                            if "examples" not in v_info and v_info.get("ex_en"):
-                                v_info["examples"] = [{"en": v_info.get("ex_en", ""), "es": v_info.get("ex_es", "")}]
+                        if isinstance(v_info, dict) and v_info.get("es"):
+                            v_info["examples"] = [{"en": v_info.get("ex_en", ""), "es": v_info.get("ex_es", "")}]
                             dict_final[k_w.lower().strip()] = v_info
+            except Exception:
+                continue
 
-                    for s_obj in oraciones_base:
-                        for tk in s_obj["tokens"]:
-                            info_w = dict_final.get(tk["w"].lower())
-                            if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
-                                tk["pos"] = info_w["pos"]
-        except Exception:
-            pass
+        for s_obj in oraciones_base:
+            for tk in s_obj["tokens"]:
+                info_w = dict_final.get(tk["w"].lower())
+                if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
+                    tk["pos"] = info_w["pos"]
 
     return {"sentences": oraciones_base, "dictionary": dict_final}
+
+
 
 
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
