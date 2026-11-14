@@ -1496,8 +1496,6 @@ def update_certificate_status_pg(folio_cert: str, nuevo_estatus_ui: str):
                 "UPDATE certificates SET estatus = %s WHERE UPPER(folio_cert) = %s;",
                 (db_status, str(folio_cert).strip().upper())
             )
-
- 
 def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
     """Evalúa fonética, fluidez y gramática oral usando gemini-3.1-pro-preview con respaldo a gemini-2.5-flash."""
     from google.genai import types
