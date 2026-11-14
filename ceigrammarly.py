@@ -1122,7 +1122,7 @@ def _extract_numeric_score(score_str: str) -> float:
 
 
 def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
-    """Consulta y valida un certificado oficial directamente desde PostgreSQL."""
+    """Consulta y valida un certificado oficial directamente desde PostgreSQL usando APP_PUBLIC_URL desde Secrets."""
     from psycopg.rows import dict_row
     f_clean = str(folio_cert or "").strip().upper()
     if not f_clean:
@@ -1135,13 +1135,8 @@ def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
                     cur.execute("SELECT * FROM certificates WHERE UPPER(folio_cert) = %s;", (f_clean,))
                     row = cur.fetchone()
                     if row:
-                        app_pub = str(
-                            st.secrets.get("APP_PUBLIC_URL")
-                            or "https://streamlit.app"
-                        ).rstrip("/")
-                        url_db = str(row.get("verify_url") or "")
-                        if not url_db or "https://streamlit.app" in url_db:
-                            url_db = f"{app_pub}/?verify_cert={row['folio_cert']}"
+                        app_pub = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
+                        url_db = f"{app_pub}/?verify_cert={row['folio_cert']}" if app_pub else str(row.get("verify_url") or "")
 
                         return {
                             "Folio_Certificado": row["folio_cert"],
@@ -1159,7 +1154,6 @@ def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
     except Exception:
         pass
     return None
-
 
 
 def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
