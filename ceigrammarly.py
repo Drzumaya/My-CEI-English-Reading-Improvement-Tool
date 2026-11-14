@@ -1569,8 +1569,8 @@ CEFR_MAP = {
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v6_server") -> dict:
-    """Tokeniza la lección y resuelve el diccionario EN->ES en el servidor (sin bloqueos CORS del navegador)."""
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v7_final") -> dict:
+    """Tokeniza la lección y garantiza traducciones EN->ES reales desde Python."""
     import re
     import requests
     from google.genai import types
@@ -1624,13 +1624,13 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
     dict_final = {}
     gm_client = init_gemini_client()
 
-    # 1. Traducción masiva rápida en una sola llamada con Gemini 2.5 Flash (sin límite de lotes largos)
+    # 1. Traducción en Python con Gemini 2.5 Flash
     if gm_client and palabras_clave:
-        lista_str = ", ".join(palabras_clave[:90])
+        lista_str = ", ".join(palabras_clave[:100])
         prompt_rapido = (
-            f"Translate each English word in this list to Spanish (CEFR {cefr_level} context): [{lista_str}]. "
-            "Return ONLY a JSON object mapping lowercase English word -> "
-            '{"es":"traducción principal","alt":"sinónimo 1, sinónimo 2","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Preposición","def":"definición breve en español"}.'
+            f"Translate every English word in [{lista_str}] into Spanish (CEFR {cefr_level} context). "
+            "Return ONLY a JSON object mapping each lowercase English word to: "
+            '{"es":"traducción principal exacta","alt":"sinónimo 1, sinónimo 2","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Determinante / Preposición","def":"definición corta en español"}.'
         )
         try:
             res_d = gm_client.models.generate_content(
@@ -1648,30 +1648,31 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                 for k_w, v_info in parsed_d.items():
                     if isinstance(v_info, dict) and v_info.get("es"):
                         dict_final[k_w.lower().strip()] = {
-                            "es": v_info.get("es", k_w),
-                            "alt_es": v_info.get("alt", ""),
-                            "ipa": v_info.get("ipa", ""),
-                            "pos": v_info.get("pos", "other"),
-                            "pos_es": v_info.get("pos_es", "Inglés (US)"),
-                            "def_es": v_info.get("def", ""),
+                            "es": str(v_info.get("es", k_w)),
+                            "alt_es": str(v_info.get("alt", "")),
+                            "ipa": str(v_info.get("ipa", "")),
+                            "pos": str(v_info.get("pos", "other")),
+                            "pos_es": str(v_info.get("pos_es", "Inglés (US)")),
+                            "def_es": str(v_info.get("def", "")),
                             "examples": []
                         }
         except Exception:
             pass
 
-    # 2. Respaldo directo en Python a Google Translate si alguna palabra quedó sin traducir
-    faltantes = [w for w in palabras_clave[:60] if w not in dict_final]
+    # 2. Respaldo directo HTTP desde Python a Google Translate (con índice exacto seg[0])
+    faltantes = [w for w in palabras_clave[:100] if w not in dict_final]
     if faltantes:
         try:
             texto_lote = "\n".join(faltantes)
             r_gt = requests.get(
                 "https://googleapis.com",
                 params={"client": "gtx", "sl": "en", "tl": "es", "dt": "t", "q": texto_lote},
+                headers={"User-Agent": "Mozilla/5.0"},
                 timeout=8
             )
             if r_gt.status_code == 200:
                 data_gt = r_gt.json()
-                traduccion_unida = "".join(seg[0] for seg in data_gt[0] if seg and seg[0])
+                traduccion_unida = "".join(seg[0] for seg in data_gt[0] if isinstance(seg, list) and seg and seg[0])
                 lineas_tr = [x.strip() for x in traduccion_unida.splitlines()]
                 for orig_w, tr_w in zip(faltantes, lineas_tr):
                     if tr_w:
@@ -1687,7 +1688,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
         except Exception:
             pass
 
-    # Actualiza etiquetas gramaticales en las oraciones
+    # Actualiza etiquetas gramaticales en los tokens
     for s_obj in oraciones_base:
         for tk in s_obj["tokens"]:
             info_w = dict_final.get(tk["w"].lower())
@@ -1695,6 +1696,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                 tk["pos"] = info_w["pos"]
 
     return {"sentences": oraciones_base, "dictionary": dict_final}
+
 
 
 
