@@ -1434,10 +1434,13 @@ def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_s
                     VALUES (%s, %s, 'Estudiante', 'Basico', 'Activo')
                     RETURNING id;
                 """, (nombre_sel.strip(), clave_sel.strip()))
-                uid = next(iter(cur.fetchone()), 1)
-                
-            app_pub_cert = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
-                verify_url = f"{app_pub_cert}/?verify_cert={folio_c.strip().upper()}"
+                uid = next(iter(cur.fetchone()), 1)  
+            app_pub_cert = str(
+                st.secrets.get("APP_PUBLIC_URL")
+                or "https://streamlit.app"
+            ).rstrip("/")
+            verify_url = f"{app_pub_cert}/?verify_cert={folio_c.strip().upper()}"
+            cur.execute("""
 
 
             cur.execute("""
