@@ -1,5 +1,6 @@
 import base64
 from datetime import date
+import random
 import psycopg
 import streamlit as st
 
@@ -18,11 +19,17 @@ def _get_conn_afiliados():
 
 
 def render_formulario_registro_afiliado(registrado_por: str = "Sistema", key_prefix: str = "aff_reg"):
-    """Formulario completo de expediente de Socio Afiliado vinculado a Supabase PostgreSQL."""
+    """Formulario completo de expediente de Socio Afiliado con ID único vinculado a Supabase PostgreSQL."""
     st.markdown("### 🤝 Registro Oficial de Socio Afiliado — Career English Institute")
     st.caption("Expediente institucional vinculado en tiempo real a Supabase PostgreSQL.")
 
+    id_sugerido = f"AFIL-CEI-{date.today().year}-{random.randint(1000, 9999)}"
+
     with st.form(f"{key_prefix}_form", clear_on_submit=True):
+        c_id1, c_id2 = st.columns([1.2, 1.8])
+        affiliate_id = c_id1.text_input("🆔 ID de Socio Afiliado *", value=id_sugerido, help="Identificador único institucional del socio afiliado.")
+        usuario_login = c_id2.text_input("👤 Usuario de Acceso a Plataforma *", placeholder="Ej. Carlos Mendoza")
+
         c1, c2, c3 = st.columns(3)
         nombre = c1.text_input("Nombre(s) *", placeholder="Ej. Carlos Alberto")
         ap_paterno = c2.text_input("Apellido Paterno *", placeholder="Ej. Mendoza")
@@ -31,19 +38,18 @@ def render_formulario_registro_afiliado(registrado_por: str = "Sistema", key_pre
         c4, c5, c6 = st.columns(3)
         telefono = c4.text_input("Teléfono / WhatsApp *", placeholder="Ej. 633-123-4567")
         email = c5.text_input("Correo Electrónico *", placeholder="afiliado@correo.com")
-        usuario_login = c6.text_input("Usuario de Acceso a Plataforma *", placeholder="Ej. Carlos Mendoza")
+        clave_acceso = c6.text_input("Contraseña Inicial *", type="password", placeholder="Mínimo 6 caracteres")
 
         domicilio = st.text_input("Domicilio Completo *", placeholder="Calle, Número, Colonia, Ciudad, Estado, C.P.")
 
         c7, c8, c9 = st.columns(3)
-        clave_acceso = c7.text_input("Contraseña Inicial *", type="password", placeholder="Mínimo 6 caracteres")
-        pct_default = c8.number_input("Porcentaje de Comisión Base (%)", min_value=0.0, max_value=100.0, value=10.0, step=1.0)
-        fecha_ingreso = c9.date_input("Fecha de Ingreso *", value=date.today())
+        pct_default = c7.number_input("Porcentaje de Comisión Base (%)", min_value=0.0, max_value=100.0, value=10.0, step=1.0)
+        fecha_ingreso = c8.date_input("Fecha de Ingreso *", value=date.today())
+        estatus = c9.selectbox("Estado del Afiliado *", ["Activo", "Inactivo", "Baja"])
 
-        c10, c11, c12 = st.columns(3)
-        estatus = c10.selectbox("Estado del Afiliado *", ["Activo", "Inactivo", "Baja"])
-        fecha_inact = c11.date_input("Fecha de Inactividad (si aplica)", value=None)
-        fecha_baja = c12.date_input("Fecha de Baja (si aplica)", value=None)
+        c10, c11 = st.columns(2)
+        fecha_inact = c10.date_input("Fecha de Inactividad (si aplica)", value=None)
+        fecha_baja = c11.date_input("Fecha de Baja (si aplica)", value=None)
 
         st.markdown("##### 🪪 Identificación Oficial Vigente (INE / IFE) — Ambos Lados")
         col_ine1, col_ine2 = st.columns(2)
@@ -53,8 +59,8 @@ def render_formulario_registro_afiliado(registrado_por: str = "Sistema", key_pre
         submitted = st.form_submit_button("💾 Guardar Expediente y Crear Cuenta de Socio Afiliado", type="primary", width="stretch")
 
         if submitted:
-            if not nombre.strip() or not ap_paterno.strip() or not usuario_login.strip() or not clave_acceso.strip():
-                st.error("⚠️ Completa al menos Nombre, Apellido Paterno, Usuario de Acceso y Contraseña.")
+            if not affiliate_id.strip() or not nombre.strip() or not ap_paterno.strip() or not usuario_login.strip() or not clave_acceso.strip():
+                st.error("⚠️ Completa ID de Afiliado, Nombre, Apellido Paterno, Usuario de Acceso y Contraseña.")
                 return
             if not ine_frente or not ine_reverso:
                 st.error("⚠️ Es obligatorio adjuntar ambos lados de la Identificación Oficial (INE Anverso y Reverso).")
@@ -63,6 +69,7 @@ def render_formulario_registro_afiliado(registrado_por: str = "Sistema", key_pre
             ine_f_b64 = base64.b64encode(ine_frente.read()).decode("utf-8")
             ine_r_b64 = base64.b64encode(ine_reverso.read()).decode("utf-8")
             u_clean = usuario_login.strip()
+            id_clean = affiliate_id.strip().upper()
 
             conn = _get_conn_afiliados()
             if not conn:
@@ -74,12 +81,13 @@ def render_formulario_registro_afiliado(registrado_por: str = "Sistema", key_pre
                     with conn.cursor() as cur:
                         cur.execute("""
                             INSERT INTO affiliate_partners (
-                                usuario_login, nombre, apellido_paterno, apellido_materno,
+                                affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
                                 telefono, email, domicilio, ine_anverso_b64, ine_reverso_b64,
                                 fecha_ingreso, estatus, fecha_inactividad, fecha_baja,
                                 porcentaje_default, registrado_por
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (usuario_login) DO UPDATE SET
+                                affiliate_id = EXCLUDED.affiliate_id,
                                 nombre = EXCLUDED.nombre,
                                 apellido_paterno = EXCLUDED.apellido_paterno,
                                 apellido_materno = EXCLUDED.apellido_materno,
@@ -94,7 +102,7 @@ def render_formulario_registro_afiliado(registrado_por: str = "Sistema", key_pre
                                 fecha_baja = EXCLUDED.fecha_baja,
                                 porcentaje_default = EXCLUDED.porcentaje_default;
                         """, (
-                            u_clean, nombre.strip(), ap_paterno.strip(), ap_materno.strip(),
+                            id_clean, u_clean, nombre.strip(), ap_paterno.strip(), ap_materno.strip(),
                             telefono.strip(), email.strip(), domicilio.strip(),
                             ine_f_b64, ine_r_b64, fecha_ingreso, estatus,
                             fecha_inact if estatus == "Inactivo" else None,
@@ -112,7 +120,7 @@ def render_formulario_registro_afiliado(registrado_por: str = "Sistema", key_pre
                                 porcentaje_comision = EXCLUDED.porcentaje_comision;
                         """, (u_clean, clave_acceso.strip(), estatus_padron, float(pct_default)))
 
-                st.success(f"✅ Expediente completo y cuenta de **Socio Afiliado** (`{u_clean}`) registrados exitosamente en Supabase.")
+                st.success(f"✅ Expediente guardado con **ID: `{id_clean}`** y cuenta de **Socio Afiliado** (`{u_clean}`) activa en Supabase.")
             except Exception as e:
                 st.error(f"Error al guardar expediente: {e}")
 
