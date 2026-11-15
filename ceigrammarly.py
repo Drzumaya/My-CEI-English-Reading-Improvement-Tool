@@ -4033,7 +4033,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
         # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
-     if seccion_inst_sel == "👥 Inscripción y Padrón":
+        if seccion_inst_sel == "👥 Inscripción y Padrón":
 
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
