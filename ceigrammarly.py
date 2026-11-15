@@ -3965,14 +3965,27 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                     estado_f = evaluar_estado_financiero_alumno(est_objetivo)
 
                     f1, f2, f3, f4 = st.columns(4)
-                    f1.metric("📅 Ciclo a Cobrar (28 días)", f"Mes/Ciclo {estado_f['ciclo_a_cobrar']} (Sem. {estado_f['semana_ciclo']}/4)")
-                    f2.metric("💵 Mensualidad Base", f"${estado_f['mensualidad_base']:,.2f}", delta=f"Subtotal: ${estado_f['subtotal_ajustado']:,.2f}")
+                    f1.metric(
+                        "📅 Ciclo a Cobrar (28 días)",
+                        f"Mes/Ciclo {estado_f['ciclo_a_cobrar']}",
+                        delta=f"Semana {estado_f['semana_ciclo']} de 4"
+                    )
+                    f2.metric(
+                        "💵 Subtotal (Con/Sin Ajuste)",
+                        f"${estado_f['subtotal_ajustado']:,.2f}",
+                        delta=f"Base: ${estado_f['mensualidad_base']:,.2f} ({estado_f['ajuste_monto']:+,.2f})"
+                    )
                     f3.metric(
                         "🧾 Total a Pagar" + (" (+16% IVA)" if estado_f["aplicar_iva"] else " (Sin IVA)"),
                         f"${estado_f['monto_a_pagar']:,.2f}",
-                        delta=f"IVA: +${estado_f['iva_monto']:,.2f}" if estado_f["aplicar_iva"] else estado_f["ajuste_label"]
+                        delta=f"IVA 16%: +${estado_f['iva_monto']:,.2f}" if estado_f["aplicar_iva"] else "IVA no aplicado"
                     )
-                    f4.metric("📄 Estatus Boletín", "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado")
+                    f4.metric(
+                        "📄 Estatus Boletín",
+                        "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
+                        delta="Al corriente" if estado_f["descarga_permitida"] else "Adeudo vencido"
+                    )
+
 
                     col_cfg1, col_cfg2 = st.columns(2)
                     with col_cfg1:
