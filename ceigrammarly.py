@@ -3837,7 +3837,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
 
-# 14.1 PESTAÑA CERTIFICADOS
+     # 14.1 PESTAÑA CERTIFICADOS
      if seccion_inst_sel == "🏅 Certificados (Timbre y QR)":
             if not (is_owner or can("Emitir_Certificados")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
