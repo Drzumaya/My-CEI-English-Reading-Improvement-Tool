@@ -3079,6 +3079,44 @@ with st.sidebar:
 
 
 
+def get_billing_global_settings_pg() -> bool:
+    """Consulta si el sistema de incentivo (-7%) y recargo moratorio (+5%) está activo globalmente."""
+    conn = get_pg_conn()
+    if not conn:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT activar_incentivo_recargo FROM billing_global_settings WHERE id = 1;")
+                row = cur.fetchone()
+                return bool(next(iter(row), False)) if row else False
+    except Exception:
+        return False
+
+
+def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> bool:
+    """Activa o desactiva globalmente el esquema de incentivos y recargos (solo Propietario)."""
+    conn = get_pg_conn()
+    if not conn:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO billing_global_settings (id, activar_incentivo_recargo, updated_by, updated_at)
+                    VALUES (1, %s, %s, NOW())
+                    ON CONFLICT (id) DO UPDATE
+                    SET activar_incentivo_recargo = EXCLUDED.activar_incentivo_recargo,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = NOW();
+                """, (bool(activo), usuario_op))
+        return True
+    except Exception:
+        return False
+
+
+
+
 def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     """
     Regla mensual (ciclos de 4 semanas / 28 días, no acumulable):
