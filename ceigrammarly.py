@@ -3542,17 +3542,12 @@ if st.session_state.show_gradebook_panel:
                 lista_topicos_disp,
                 key="sel_filtro_topico_gradebook"
             )
+            
+        
         with col_f_pdf:
             st.write("")
             fin_alumno = evaluar_estado_financiero_alumno(alumno_objetivo_gb)
-            if not fin_alumno["descarga_permitida"] and not is_owner:
-                st.error(
-                    f"🔒 **Descarga de Boletín Suspendida**\n\n"
-                    f"El **Mes/Ciclo {fin_alumno['ciclo_a_cobrar']}** presenta saldo vencido.\n"
-                    f"• **Total a cubrir ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
-                    f"Realiza tu pago mensual para habilitar la descarga oficial."
-                )
-            else:
+            if is_owner or fin_alumno["descarga_permitida"]:
                 pdf_boletin_bytes, timbre_info = create_official_gradebook_pdf(
                     alumno_objetivo_gb,
                     gb_data,
@@ -3568,16 +3563,18 @@ if st.session_state.show_gradebook_panel:
                     key="btn_dl_official_gradebook_pdf"
                 )
                 if not fin_alumno["descarga_permitida"] and is_owner:
-                    st.warning(f"⚠️ Vista de Propietario: Para el alumno este boletín está **🔒 BLOQUEADO** por adeudo del Mes {fin_alumno['ciclo_a_cobrar']} (${fin_alumno['monto_a_pagar']:,.2f}).")
+                    st.warning(
+                        f"⚠️ **Vista de Propietario:** Para el alumno este boletín está **🔒 BLOQUEADO** "
+                        f"por adeudo del Mes/Ciclo {fin_alumno['ciclo_a_cobrar']} (`${fin_alumno['monto_a_pagar']:,.2f} MXN`)."
+                    )
                 else:
                     st.caption(f"🛡️ Timbrado: `{timbre_info['folio_boletin']}` | {fin_alumno['mensaje_estado']}")
-
             else:
                 st.error(
                     f"🔒 **Descarga de Boletín Suspendida**\n\n"
-                    f"Tu **Ciclo {fin_alumno['ciclo_actual']}** (Semana {fin_alumno['semana_ciclo']} de 4) presenta saldo vencido.\n"
-                    f"• **Ventana ordinaria (Semana 3):** {fin_alumno['ventana_pago_inicio']} al {fin_alumno['ventana_pago_fin']}\n"
-                    f"• **Monto actual ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
+                    f"Tu **Mes/Ciclo {fin_alumno['ciclo_a_cobrar']}** (Semana {fin_alumno['semana_ciclo']} de 4) presenta saldo vencido al iniciar el mes siguiente.\n"
+                    f"• **Periodo ordinario (Semanas 1–4):** {fin_alumno['ventana_pago_inicio']} al {fin_alumno['ventana_pago_fin']}\n"
+                    f"• **Total a cubrir ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
                     f"Realiza tu pago mensual para desbloquear la descarga oficial."
                 )
 
