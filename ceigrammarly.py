@@ -3549,6 +3549,7 @@ if st.session_state.show_gradebook_panel:
         with col_f_pdf:
             st.write("")
             fin_alumno = evaluar_estado_financiero_alumno(alumno_objetivo_gb)
+            d_ret = int(fin_alumno.get("dias_retraso", 0))
             if is_owner or fin_alumno["descarga_permitida"]:
                 pdf_boletin_bytes, timbre_info = create_official_gradebook_pdf(
                     alumno_objetivo_gb,
@@ -3566,19 +3567,20 @@ if st.session_state.show_gradebook_panel:
                 )
                 if not fin_alumno["descarga_permitida"] and is_owner:
                     st.warning(
-                        f"⚠️ **Vista de Propietario:** Para el alumno este boletín está **🔒 BLOQUEADO** "
-                        f"por adeudo del Mes/Ciclo {fin_alumno['ciclo_a_cobrar']} (`${fin_alumno['monto_a_pagar']:,.2f} MXN`)."
+                        f"⚠️ **Vista de Propietario:** El estudiante tiene **{d_ret} {'día' if d_ret == 1 else 'días'} de retraso** "
+                        f"en el Mes/Ciclo {fin_alumno['ciclo_a_cobrar']} (Para el alumno este boletín está **🔒 BLOQUEADO** — Adeudo: `${fin_alumno['monto_a_pagar']:,.2f} MXN`)."
                     )
                 else:
                     st.caption(f"🛡️ Timbrado: `{timbre_info['folio_boletin']}` | {fin_alumno['mensaje_estado']}")
             else:
                 st.error(
-                    f"🔒 **Descarga de Boletín Suspendida**\n\n"
-                    f"Tu **Mes/Ciclo {fin_alumno['ciclo_a_cobrar']}** (Semana {fin_alumno['semana_ciclo']} de 4) presenta saldo vencido al iniciar el mes siguiente.\n"
-                    f"• **Periodo ordinario (Semanas 1–4):** {fin_alumno['ventana_pago_inicio']} al {fin_alumno['ventana_pago_fin']}\n"
+                    f"🔒 **Descarga de Boletín Suspendida — {d_ret} {'día' if d_ret == 1 else 'días'} de retraso**\n\n"
+                    f"Tu **Mes/Ciclo {fin_alumno['ciclo_a_cobrar']}** venció el `{fin_alumno['ventana_pago_fin']}`.\n"
+                    f"• **Días de retraso acumulados:** **{d_ret} {'día' if d_ret == 1 else 'días'}**\n"
                     f"• **Total a cubrir ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
                     f"Realiza tu pago mensual para desbloquear la descarga oficial."
                 )
+
 
 
 
