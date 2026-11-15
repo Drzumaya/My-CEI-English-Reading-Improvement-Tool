@@ -3813,11 +3813,12 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
         ]
         default_idx_menu = 2 if curr_r_clean in ["socio afiliado", "afiliado", "affiliate"] else 0
         seccion_inst_sel = st.selectbox(
-            "📂 Seleccionar Módulo Administrativo / Financiero:",
+            "📂 Seleccionar Módulo Institucional:",
             options=opciones_menu_inst,
             index=default_idx_menu,
             key="sel_menu_institucional_desplegable"
         )
+
 
         class _ConditionalTab:
             def __init__(self, active: bool):
