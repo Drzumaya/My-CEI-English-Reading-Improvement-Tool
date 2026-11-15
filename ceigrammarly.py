@@ -13,7 +13,7 @@ import base64
 import hashlib
 import hmac
 import urllib.parse
-import requests
+impors
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import gspread
@@ -3986,7 +3986,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                     st.divider()
 
 
-                  # 3. GESTIÓN FINANCIERA POR ESTUDIANTE (BASE, IVA 16%, FECHA DE INICIO Y COMISIÓN DE AFILIADO)
+                # 3. GESTIÓN FINANCIERA POR ESTUDIANTE (BASE, IVA 16%, FECHA DE INICIO Y COMISIÓN DE AFILIADO)
                 padron_fin = load_padron_records()
                 estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
                 afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
@@ -3996,6 +3996,9 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                     sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
                     est_objetivo = mapa_est_fin[sel_est_lbl]
                     estado_f = evaluar_estado_financiero_alumno(est_objetivo)
+
+                    # Contenedor superior para mostrar las 4 tarjetas sincronizadas al final
+                    metrics_placeholder = st.container()
 
                     col_cfg1, col_cfg2 = st.columns(2)
                     with col_cfg1:
@@ -4038,26 +4041,57 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                             disabled=not puede_gestionar_afiliados,
                             key="inp_pct_comision_aff"
                         )
+
+                        # Cálculo reactivo en vivo (sincroniza métricas, resumen inferior y panel derecho)
+                        if not estado_f["reglas_incentivo_activas"]:
+                            ajuste_vivo = 0.0
+                        elif "Recargo" in estado_f["ajuste_label"]:
+                            ajuste_vivo = round(nueva_mensualidad * 0.05, 2)
+                        else:
+                            ajuste_vivo = round(-nueva_mensualidad * 0.07, 2)
+
+                        subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
+                        iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
+                        total_vivo = round(subtotal_vivo + iva_vivo, 2)
+
                         if st.button("💾 Guardar Configuración Financiera, IVA y Comisión", type="primary", key="btn_save_fin_cfg"):
                             aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
                             if actualizar_config_financiera_alumno_pg(
                                 est_objetivo, nueva_fecha_ini, nueva_mensualidad,
                                 nuevo_aplicar_iva, aff_save, nuevo_pct_com
                             ):
-                                st.success("✅ Configuración financiera, IVA y comisión actualizados en Supabase.")
+                                st.success(f"✅ Configuración guardada. Total mensual vigente: ${total_vivo:,.2f} MXN.")
                                 st.rerun()
 
-                    # Cálculo reactivo en vivo (refleja al instante el checkbox de IVA y cambios en base)
-                    if not estado_f["reglas_incentivo_activas"]:
-                        ajuste_vivo = 0.0
-                    elif "Recargo" in estado_f["ajuste_label"]:
-                        ajuste_vivo = round(nueva_mensualidad * 0.05, 2)
-                    else:
-                        ajuste_vivo = round(-nueva_mensualidad * 0.07, 2)
+                        st.caption(
+                            f"🧮 **Cálculo Total Vigente:** Base `${nueva_mensualidad:,.2f}` | "
+                            f"Subtotal `${subtotal_vivo:,.2f}` | "
+                            f"IVA (16%) `${iva_vivo:,.2f}` ➔ **Total: `${total_vivo:,.2f} MXN`**"
+                        )
 
-                    subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
-                    iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
-                    total_vivo = round(subtotal_vivo + iva_vivo, 2)
+                    # Rellena las 4 tarjetas superiores con los valores vivos sincronizados
+                    with metrics_placeholder:
+                        f1, f2, f3, f4 = st.columns(4)
+                        f1.metric(
+                            "📅 Ciclo a Cobrar (28 días)",
+                            f"Mes/Ciclo {estado_f['ciclo_a_cobrar']}",
+                            delta=f"Semana {estado_f['semana_ciclo']} de 4"
+                        )
+                        f2.metric(
+                            "💵 Subtotal (Con/Sin Ajuste)",
+                            f"${subtotal_vivo:,.2f}",
+                            delta=f"Base: ${nueva_mensualidad:,.2f} ({ajuste_vivo:+,.2f})"
+                        )
+                        f3.metric(
+                            "🧾 Cálculo Total" + (" (+16% IVA)" if nuevo_aplicar_iva else " (Sin IVA)"),
+                            f"${total_vivo:,.2f}",
+                            delta=f"IVA 16%: +${iva_vivo:,.2f}" if nuevo_aplicar_iva else "IVA no aplicado"
+                        )
+                        f4.metric(
+                            "📄 Estatus Boletín",
+                            "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
+                            delta="Al corriente" if estado_f["descarga_permitida"] else "Adeudo vencido"
+                        )
 
                     with col_cfg2:
                         st.markdown("##### 🧾 Desglose y Registro de Pago Mensual")
