@@ -3179,7 +3179,122 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
         pass
     return info
 
-    
+
+
+def registrar_pago_mensual_y_comision_pg(student_user: str, registrado_por: str) -> dict:
+    """Registra el pago mensual del ciclo actual (aplicando -7%, 0% o +5%) y calcula la comisión del socio afiliado."""
+    est = evaluar_estado_financiero_alumno(student_user)
+    if est["ciclo_pagado"]:
+        return {"ok": False, "msg": f"El Ciclo {est['ciclo_actual']} ya está pagado."}
+
+    conn = get_pg_conn()
+    if not conn:
+        return {"ok": False, "msg": "Sin conexión a Supabase PostgreSQL."}
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO tuition_payments (
+                        student_user, ciclo_numero, fecha_vencimiento,
+                        monto_base, ajuste_tipo, monto_final, estatus, registrado_por
+                    ) VALUES (%s, %s, %s, %s, %s, %s, 'Pagado', %s)
+                    ON CONFLICT (student_user, ciclo_numero) DO UPDATE
+                    SET estatus = 'Pagado', monto_final = EXCLUDED.monto_final,
+                        ajuste_tipo = EXCLUDED.ajuste_tipo, fecha_pago = NOW(), registrado_por = EXCLUDED.registrado_por;
+                """, (
+                    student_user.strip(), est["ciclo_actual"], est["ventana_pago_fin"],
+                    est["mensualidad_base"], est["ajuste_label"], est["monto_a_pagar"], registrado_por
+                ))
+
+                afiliado = str(est.get("afiliado_usuario") or "").strip()
+                pct_com = float(est.get("porcentaje_comision") or 0.0)
+                comision_calc = 0.0
+
+                if afiliado and pct_com > 0:
+                    comision_calc = round(est["monto_a_pagar"] * (pct_com / 100.0), 2)
+                    cur.execute("""
+                        INSERT INTO affiliate_commissions (
+                            affiliate_user, student_user, ciclo_numero,
+                            monto_pagado, porcentaje_aplicado, comision_ganada, estatus_pago_comision
+                        ) VALUES (%s, %s, %s, %s, %s, %s, 'Pendiente')
+                        ON CONFLICT (affiliate_user, student_user, ciclo_numero) DO UPDATE
+                        SET monto_pagado = EXCLUDED.monto_pagado,
+                            porcentaje_aplicado = EXCLUDED.porcentaje_aplicado,
+                            comision_ganada = EXCLUDED.comision_ganada;
+                    """, (
+                        afiliado, student_user.strip(), est["ciclo_actual"],
+                        est["monto_a_pagar"], pct_com, comision_calc
+                    ))
+
+        return {
+            "ok": True,
+            "msg": f"✅ Pago registrado: ${est['monto_a_pagar']:,.2f} ({est['ajuste_label']})."
+                   + (f" Comisión generada para {afiliado}: ${comision_calc:,.2f} ({pct_com}%)." if comision_calc > 0 else "")
+        }
+    except Exception as e:
+        return {"ok": False, "msg": f"Error al registrar pago: {e}"}
+
+
+def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, mensualidad_val: float, afiliado_user: str, pct_comision: float) -> bool:
+    """Actualiza fecha de inicio de curso, colegiatura base y porcentaje de comisión del socio afiliado."""
+    conn = get_pg_conn()
+    if not conn:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE users_padron
+                    SET fecha_inicio_curso = %s,
+                        mensualidad_base = %s,
+                        afiliado_usuario = %s,
+                        porcentaje_comision = %s
+                    WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
+                """, (fecha_inicio_val, float(mensualidad_val), afiliado_user.strip(), float(pct_comision), student_user.strip()))
+        return True
+    except Exception:
+        return False
+
+
+def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
+    """Obtiene estudiantes referidos y comisiones calculadas para el portal del Socio Afiliado."""
+    from psycopg.rows import dict_row
+    res = {"students": [], "commissions": [], "total_ganado": 0.0, "total_pendiente": 0.0, "total_pagado": 0.0}
+    conn = get_pg_conn()
+    if not conn:
+        return res
+    try:
+        with conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute("""
+                    SELECT usuario, nivel, fecha_inicio_curso, mensualidad_base, porcentaje_comision, estatus
+                    FROM users_padron
+                    WHERE LOWER(TRIM(afiliado_usuario)) = LOWER(TRIM(%s))
+                    ORDER BY usuario ASC;
+                """, (affiliate_user,))
+                res["students"] = [dict(r) for r in cur.fetchall()]
+
+                cur.execute("""
+                    SELECT student_user AS "Estudiante", ciclo_numero AS "Ciclo (4 Sem)",
+                           monto_pagado AS "Colegiatura Pagada ($)", porcentaje_aplicado AS "Comisión (%)",
+                           comision_ganada AS "Comisión Generada ($)", estatus_pago_comision AS "Estatus Pago",
+                           TO_CHAR(created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD') AS "Fecha"
+                    FROM affiliate_commissions
+                    WHERE LOWER(TRIM(affiliate_user)) = LOWER(TRIM(%s))
+                    ORDER BY created_at DESC;
+                """, (affiliate_user,))
+                comms = [dict(r) for r in cur.fetchall()]
+                res["commissions"] = comms
+                res["total_ganado"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms), 2)
+                res["total_pendiente"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms if c["Estatus Pago"] == "Pendiente"), 2)
+                res["total_pagado"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms if c["Estatus Pago"] != "Pendiente"), 2)
+    except Exception:
+        pass
+    return res
+
+
+
 
 # --- 12. CABECERA INSTITUCIONAL ---
 try:
@@ -3335,23 +3450,38 @@ if st.session_state.show_gradebook_panel:
                 lista_topicos_disp,
                 key="sel_filtro_topico_gradebook"
             )
-        with col_f_pdf:
+                with col_f_pdf:
             st.write("")
-            pdf_boletin_bytes, timbre_info = create_official_gradebook_pdf(
-                alumno_objetivo_gb,
-                gb_data,
-                topico_seleccionado_gb
-            )
-            st.download_button(
-                label=f"📥 Descargar Boletín Timbrado ({timbre_info['folio_boletin']})",
-                data=pdf_boletin_bytes,
-                file_name=f"{timbre_info['folio_boletin']}_{gb_data['matricula']}_{alumno_objetivo_gb.replace(' ', '_')}.pdf",
-                mime="application/pdf",
-                type="primary",
-                width="stretch",
-                key="btn_dl_official_gradebook_pdf"
-            )
-            st.caption(f"🛡️ Timbrado: `{timbre_info['folio_boletin']}` | 📅 `{timbre_info['fecha_generacion']}`")
+            fin_alumno = evaluar_estado_financiero_alumno(alumno_objetivo_gb)
+            if is_owner or fin_alumno["descarga_permitida"]:
+                pdf_boletin_bytes, timbre_info = create_official_gradebook_pdf(
+                    alumno_objetivo_gb,
+                    gb_data,
+                    topico_seleccionado_gb
+                )
+                st.download_button(
+                    label=f"📥 Descargar Boletín Timbrado ({timbre_info['folio_boletin']})",
+                    data=pdf_boletin_bytes,
+                    file_name=f"{timbre_info['folio_boletin']}_{gb_data['matricula']}_{alumno_objetivo_gb.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    type="primary",
+                    width="stretch",
+                    key="btn_dl_official_gradebook_pdf"
+                )
+                st.caption(f"🛡️ Timbrado: `{timbre_info['folio_boletin']}` | {fin_alumno['mensaje_estado']}")
+            else:
+                st.error(
+                    f"🔒 **Descarga de Boletín Suspendida**\n\n"
+                    f"Tu **Ciclo {fin_alumno['ciclo_actual']}** (Semana {fin_alumno['semana_ciclo']} de 4) presenta saldo vencido.\n"
+                    f"• **Ventana ordinaria (Semana 3):** {fin_alumno['ventana_pago_inicio']} al {fin_alumno['ventana_pago_fin']}\n"
+                    f"• **Monto actual ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
+                    f"Realiza tu pago mensual para desbloquear la descarga oficial."
+                )
+
+
+
+
+
 
         # Cálculo de métricas según vista elegida (General o Tópico específico)
         if topico_seleccionado_gb == "Vista General":
@@ -3483,6 +3613,111 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
             "🔐 Matriz Global de Permisos",
             "🏛️ Datos del Instituto"
         ])
+
+
+# --- MÓDULO FINANCIERO: COBRANZA MENSUAL (4 SEMANAS) Y PORTAL DE SOCIOS AFILIADOS ---
+puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
+puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
+es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
+
+if es_socio_afiliado:
+    with st.expander("🤝 Portal Oficial del Socio Afiliado — Estudiantes Inscritos y Comisiones", expanded=True):
+        aff_data = fetch_affiliate_dashboard_pg(st.session_state.current_user)
+        ca1, ca2, ca3, ca4 = st.columns(4)
+        ca1.metric("👥 Estudiantes Inscritos", len(aff_data["students"]))
+        ca2.metric("💰 Comisiones Totales", f"${aff_data['total_ganado']:,.2f}")
+        ca3.metric("⏳ Por Cobrar (Pendiente)", f"${aff_data['total_pendiente']:,.2f}")
+        ca4.metric("✅ Comisiones Liquidadas", f"${aff_data['total_pagado']:,.2f}")
+
+        if aff_data["students"]:
+            st.markdown("#### 🎓 Mis Estudiantes Referidos")
+            st.dataframe(pd.DataFrame(aff_data["students"]), width="stretch", hide_index=True)
+        else:
+            st.info("Aún no tienes estudiantes asignados en el padrón institucional.")
+
+        if aff_data["commissions"]:
+            st.markdown("#### 💵 Historial Detallado de Comisiones Calculadas")
+            st.dataframe(pd.DataFrame(aff_data["commissions"]), width="stretch", hide_index=True)
+
+if is_owner or puede_editar_inicio or puede_gestionar_afiliados:
+    with st.expander("💳 Control Financiero Mensual (Ciclo 4 Semanas) y Comisiones de Afiliados", expanded=False):
+        padron_fin = load_padron_records()
+        estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+        afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+
+        if estudiantes_fin:
+            mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
+            sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
+            est_objetivo = mapa_est_fin[sel_est_lbl]
+            estado_f = evaluar_estado_financiero_alumno(est_objetivo)
+
+            f1, f2, f3, f4 = st.columns(4)
+            f1.metric("📅 Ciclo Actual (28 días)", f"Ciclo {estado_f['ciclo_actual']} (Sem. {estado_f['semana_ciclo']}/4)")
+            f2.metric("🗓️ Ventana Pago (Sem. 3)", f"{estado_f['ventana_pago_inicio']} a {estado_f['ventana_pago_fin']}")
+            f3.metric("💵 Monto Aplicable", f"${estado_f['monto_a_pagar']:,.2f}", delta=estado_f["ajuste_label"])
+            f4.metric("📄 Estatus Boletín", "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado")
+
+            col_cfg1, col_cfg2 = st.columns(2)
+            with col_cfg1:
+                st.markdown("##### ⚙️ Configuración de Curso y Comisión de Afiliado")
+                nueva_fecha_ini = st.date_input(
+                    "Fecha de Inicio del Curso:",
+                    value=estado_f["fecha_inicio"],
+                    disabled=not puede_editar_inicio,
+                    key="inp_fecha_inicio_curso"
+                )
+                nueva_mensualidad = st.number_input(
+                    "Mensualidad Base ($ MXN):",
+                    min_value=0.0,
+                    value=float(estado_f["mensualidad_base"]),
+                    step=100.0,
+                    disabled=not puede_editar_inicio,
+                    key="inp_mensualidad_base"
+                )
+                opciones_aff = ["Sin Afiliado"] + afiliados_fin
+                idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
+                sel_aff_user = st.selectbox(
+                    "Socio Afiliado Asignado:",
+                    opciones_aff,
+                    index=idx_aff,
+                    disabled=not puede_gestionar_afiliados,
+                    key="sel_aff_assigned"
+                )
+                nuevo_pct_com = st.number_input(
+                    "Porcentaje de Comisión para el Afiliado (%):",
+                    min_value=0.0,
+                    max_value=100.0,
+                    value=float(estado_f["porcentaje_comision"]),
+                    step=1.0,
+                    disabled=not puede_gestionar_afiliados,
+                    key="inp_pct_comision_aff"
+                )
+                if st.button("💾 Guardar Configuración Financiera y Comisión", type="primary", key="btn_save_fin_cfg"):
+                    aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
+                    if actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, aff_save, nuevo_pct_com):
+                        st.success("✅ Configuración actualizada en Supabase.")
+                        st.rerun()
+
+            with col_cfg2:
+                st.markdown("##### 🧾 Registrar Pago Mensual del Ciclo Actual")
+                st.info(
+                    f"**Regla Institucional:**\n"
+                    f"- **Semanas 1 y 2:** Incentivo **-7%** (`${estado_f['mensualidad_base']*0.93:,.2f}`)\n"
+                    f"- **Semana 3 (Ventana Oficial):** Tarifa ordinaria (`${estado_f['mensualidad_base']:,.2f}`)\n"
+                    f"- **Semana 4+ (Moratorio):** Recargo **+5%** (`${estado_f['mensualidad_base']*1.05:,.2f}`) + Bloqueo de Boletín."
+                )
+                if estado_f["ciclo_pagado"]:
+                    st.success(f"✅ El Ciclo {estado_f['ciclo_actual']} de **{est_objetivo}** ya está pagado y su Boletín está desbloqueado.")
+                else:
+                    if st.button(f"✅ Registrar Pago de ${estado_f['monto_a_pagar']:,.2f} (Ciclo {estado_f['ciclo_actual']})", type="primary", width="stretch", key="btn_reg_tuition_pay"):
+                        res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
+                        if res_p["ok"]:
+                            st.success(res_p["msg"])
+                            st.rerun()
+                        else:
+                            st.error(res_p["msg"])
+
+
 
 # 14.1 PESTAÑA CERTIFICADOS
         with tab_certificados:
