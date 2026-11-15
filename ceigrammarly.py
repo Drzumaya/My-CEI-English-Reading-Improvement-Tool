@@ -3086,6 +3086,14 @@ def get_billing_global_settings_pg() -> bool:
     try:
         with conn:
             with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS billing_global_settings (
+                        id INT PRIMARY KEY DEFAULT 1,
+                        activar_incentivo_recargo BOOLEAN DEFAULT FALSE,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    );
+                """)
                 cur.execute("SELECT activar_incentivo_recargo FROM billing_global_settings WHERE id = 1;")
                 row = cur.fetchone()
                 return bool(next(iter(row), False)) if row else False
@@ -3093,14 +3101,22 @@ def get_billing_global_settings_pg() -> bool:
         return False
 
 
-def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> bool:
+def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool, str]:
     """Activa o desactiva globalmente el esquema de incentivos y recargos (solo Propietario)."""
     conn = get_pg_conn()
     if not conn:
-        return False
+        return False, "Sin conexión activa a Supabase PostgreSQL."
     try:
         with conn:
             with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS billing_global_settings (
+                        id INT PRIMARY KEY DEFAULT 1,
+                        activar_incentivo_recargo BOOLEAN DEFAULT FALSE,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    );
+                """)
                 cur.execute("""
                     INSERT INTO billing_global_settings (id, activar_incentivo_recargo, updated_by, updated_at)
                     VALUES (1, %s, %s, NOW())
@@ -3108,10 +3124,11 @@ def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> bool:
                     SET activar_incentivo_recargo = EXCLUDED.activar_incentivo_recargo,
                         updated_by = EXCLUDED.updated_by,
                         updated_at = NOW();
-                """, (bool(activo), usuario_op))
-        return True
-    except Exception:
-        return False
+                """, (bool(activo), str(usuario_op)))
+        return True, f"Esquema {'ACTIVADO' if activo else 'DESACTIVADO'} correctamente."
+    except Exception as e:
+        return False, f"Error en base de datos: {e}"
+
 
 
 
@@ -4195,10 +4212,19 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                 est_glob = get_billing_global_settings_pg()
                 c_sw1, c_sw2 = st.columns([2.2, 1.0])
                 nuevo_glob = c_sw1.toggle("Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)", value=est_glob, key="tgl_glob_bill")
-                if nuevo_glob != est_glob and c_sw2.button("💾 Aplicar", type="primary", key="btn_glob_bill"):
-                    if set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user):
-                        st.success("✅ Actualizado.")
-                        st.rerun()
+                est_glob = get_billing_global_settings_pg()
+                c_sw1, c_sw2 = st.columns([2.2, 1.0])
+                nuevo_glob = c_sw1.toggle("Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)", value=est_glob, key="tgl_glob_bill")
+                if nuevo_glob != est_glob:
+                    if c_sw2.button("💾 Aplicar", type="primary", key="btn_glob_bill"):
+                        ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
+                        if ok_g:
+                            st.success(f"✅ {msg_g}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_g}")
+                st.caption(f"Estado actual en sistema: **{'🟢 ACTIVADO (Incentivo -7% / Recargo +5%)' if est_glob else '⚪ DESACTIVADO (Tarifa Base sin incentivos ni recargos)'}**")
+
                 st.divider()
             if is_owner or puede_gestionar_afiliados:
                 if "show_reg_afiliado_panel" not in st.session_state:
