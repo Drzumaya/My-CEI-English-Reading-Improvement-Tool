@@ -3879,11 +3879,12 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
 
-# 14.1a --- MÓDULO FINANCIERO: COBRANZA MENSUAL (4 SEMANAS), IVA (16%) Y SOCIOS AFILIADOS ---
-puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
-puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
-puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
-es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
+        # 14.1a --- MÓDULO FINANCIERO: COBRANZA MENSUAL (4 SEMANAS), IVA (16%) Y SOCIOS AFILIADOS ---
+        puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
+        puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
+        puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
+        es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
+
 
 if es_socio_afiliado:
     with st.expander("🤝 Portal Oficial del Socio Afiliado — Estudiantes, Comisiones y Simulador", expanded=True):
