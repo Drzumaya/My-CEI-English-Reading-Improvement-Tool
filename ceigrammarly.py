@@ -3308,8 +3308,8 @@ def registrar_pago_mensual_y_comision_pg(student_user: str, registrado_por: str)
         return {"ok": False, "msg": f"Error al registrar pago: {e}"}
 
 
-def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, mensualidad_val: float, afiliado_user: str, pct_comision: float) -> bool:
-    """Actualiza fecha de inicio de curso, colegiatura base y porcentaje de comisión del socio afiliado."""
+def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, mensualidad_val: float, aplicar_iva_val: bool, afiliado_user: str, pct_comision: float) -> bool:
+    """Actualiza fecha de inicio, colegiatura base, IVA (16%) y comisión del socio afiliado."""
     conn = get_pg_conn()
     if not conn:
         return False
@@ -3320,10 +3320,14 @@ def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, 
                     UPDATE users_padron
                     SET fecha_inicio_curso = %s,
                         mensualidad_base = %s,
+                        aplicar_iva = %s,
                         afiliado_usuario = %s,
                         porcentaje_comision = %s
                     WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
-                """, (fecha_inicio_val, float(mensualidad_val), afiliado_user.strip(), float(pct_comision), student_user.strip()))
+                """, (
+                    fecha_inicio_val, float(mensualidad_val), bool(aplicar_iva_val),
+                    afiliado_user.strip(), float(pct_comision), student_user.strip()
+                ))
         return True
     except Exception:
         return False
