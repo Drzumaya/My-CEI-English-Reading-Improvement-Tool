@@ -3682,12 +3682,14 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                 st.session_state["show_teacher_registry"] = False
                 st.rerun()
 
-                tab_certificados, tab_reg_usuarios, tab_permisos, tab_instituto, tab_finanzas, tab_afiliado = st.tabs([
+        
+        
+        tab_certificados, tab_reg_usuarios, tab_permisos, tab_instituto, tab_finanzas, tab_afiliado = st.tabs([
             "🏅 Certificados (Timbre y QR)",
             "👥 Inscripción y Padrón",
             "🔐 Matriz Global de Permisos",
             "🏛️ Datos del Instituto",
-            "💳 Cobranza Mensual y Comisiones",
+            "💳 Cobranza Mensual e IVA",
             "🤝 Portal Socio Afiliado"
         ])
 
