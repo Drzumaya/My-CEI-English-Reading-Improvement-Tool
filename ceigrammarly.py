@@ -3268,6 +3268,93 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     return info
 
 
+
+def generar_estado_financiero_global_pg() -> dict:
+    """Consolida el Balance de Cobranza, Cartera Vencida (Aging) y KPIs Financieros Globales."""
+    from psycopg.rows import dict_row
+
+    padron = load_padron_records()
+    estudiantes = [r for r in padron if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+
+    filas = []
+    ingresos_cobrados_hist = 0.0
+    comisiones_generadas_hist = 0.0
+
+    conn = get_pg_conn()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute("SELECT COALESCE(SUM(monto_final), 0) AS total_ing FROM tuition_payments WHERE estatus = 'Pagado';")
+                    row_ing = cur.fetchone()
+                    ingresos_cobrados_hist = float(row_ing["total_ing"]) if row_ing else 0.0
+
+                    cur.execute("SELECT COALESCE(SUM(comision_ganada), 0) AS total_com FROM affiliate_commissions;")
+                    row_com = cur.fetchone()
+                    comisiones_generadas_hist = float(row_com["total_com"]) if row_com else 0.0
+        except Exception:
+            pass
+
+    cartera_por_cobrar_vigente = 0.0
+    cartera_vencida_moratoria = 0.0
+    conteo_al_corriente = 0
+    conteo_moratorios = 0
+
+    for r in estudiantes:
+        u_nom = str(r.get("Usuario", "")).strip()
+        mat_id = str(r.get("Matricula", "")).strip() or "SIN-ID"
+        est = evaluar_estado_financiero_alumno(u_nom)
+
+        es_vencido = not est["descarga_permitida"]
+        esta_pagado_ciclo = est["ciclo_pagado"]
+
+        if es_vencido:
+            estatus_fin = "🔴 Moratorio (Vencido)"
+            cartera_vencida_moratoria += est["monto_a_pagar"]
+            conteo_moratorios += 1
+        elif esta_pagado_ciclo:
+            estatus_fin = "🟢 Pagado (Al Corriente)"
+            conteo_al_corriente += 1
+        else:
+            estatus_fin = "🟡 Pendiente (En Tiempo)"
+            cartera_por_cobrar_vigente += est["monto_a_pagar"]
+            conteo_al_corriente += 1
+
+        filas.append({
+            "ID / Matrícula": mat_id,
+            "Estudiante": u_nom,
+            "Estatus Financiero": estatus_fin,
+            "Mes/Ciclo": int(est["ciclo_a_cobrar"]),
+            "Días Retraso": int(est.get("dias_retraso", 0)),
+            "Base ($)": float(est["mensualidad_base"]),
+            "Subtotal ($)": float(est["subtotal_ajustado"]),
+            "IVA 16% ($)": float(est["iva_monto"]),
+            "Monto Ciclo ($)": float(est["monto_a_pagar"]),
+            "Boletín": "✅ Activo" if est["descarga_permitida"] else "🔒 Bloqueado",
+            "Afiliado": est["afiliado_usuario"] or "Directo"
+        })
+
+    total_alumnos = len(filas)
+    facturacion_esperada_ciclo = sum(f["Monto Ciclo ($)"] for f in filas)
+    pagado_ciclo_actual = sum(f["Monto Ciclo ($)"] for f in filas if "Pagado" in f["Estatus Financiero"])
+    tasa_cobranza_pct = round((pagado_ciclo_actual / facturacion_esperada_ciclo) * 100, 1) if facturacion_esperada_ciclo > 0 else 0.0
+    indice_morosidad_pct = round((cartera_vencida_moratoria / facturacion_esperada_ciclo) * 100, 1) if facturacion_esperada_ciclo > 0 else 0.0
+    ingreso_neto_post_comision = round(ingresos_cobrados_hist - comisiones_generadas_hist, 2)
+
+    return {
+        "rows": filas,
+        "total_alumnos": total_alumnos,
+        "conteo_al_corriente": conteo_al_corriente,
+        "conteo_moratorios": conteo_moratorios,
+        "ingresos_cobrados_hist": round(ingresos_cobrados_hist, 2),
+        "comisiones_generadas_hist": round(comisiones_generadas_hist, 2),
+        "ingreso_neto_post_comision": ingreso_neto_post_comision,
+        "cartera_por_cobrar_vigente": round(cartera_por_cobrar_vigente, 2),
+        "cartera_vencida_moratoria": round(cartera_vencida_moratoria, 2),
+        "tasa_cobranza_pct": tasa_cobranza_pct,
+        "indice_morosidad_pct": indice_morosidad_pct
+    }
+
  
 
 
@@ -3713,14 +3800,16 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
         
         
-        tab_finanzas, tab_afiliado, tab_reg_usuarios, tab_matriz_perm, tab_certificados, tab_datos_inst = st.tabs([
+        tab_finanzas, tab_estados_fin, tab_afiliado, tab_reg_usuarios, tab_matriz_perm, tab_certificados, tab_datos_inst = st.tabs([
             "💳 Cobranza Mensual e IVA",
+            "📊 Estados Financieros",
             "🤝 Portal Socio Afiliado",
             "👥 Inscripción y Padrón",
             "🔐 Matriz Global de Permisos",
             "🏅 Certificados (Timbre y QR)",
             "🏛️ Datos del Instituto"
         ])
+
 
 
 
@@ -4332,6 +4421,78 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                 st.rerun()
                             else:
                                 st.error(res_p["msg"])
+
+
+    # 14.5b PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
+    with tab_estados_fin:
+        if not (is_owner or can("Ver_Panel_Admin")):
+            st.warning("⛔ Tu perfil actual no tiene acceso a los Estados Financieros institucionales.")
+        else:
+            st.markdown("#### 📊 Estado Financiero Consolidado y Control de Cartera")
+            ef_data = generar_estado_financiero_global_pg()
+
+            # Fila 1: KPIs de Tesorería e Ingresos Netos
+            k1, k2, k3, k4 = st.columns(4)
+            k1.metric("💰 Ingreso Bruto Recaudado", f"${ef_data['ingresos_cobrados_hist']:,.2f} MXN")
+            k2.metric("🤝 Provisión Comisiones Afiliados", f"-${ef_data['comisiones_generadas_hist']:,.2f} MXN")
+            k3.metric("🏦 Ingreso Neto Operativo", f"${ef_data['ingreso_neto_post_comision']:,.2f} MXN")
+            k4.metric("📈 Eficiencia de Cobranza (Ciclo)", f"{ef_data['tasa_cobranza_pct']}%", delta=f"Morosidad: {ef_data['indice_morosidad_pct']}%", delta_color="inverse")
+
+            # Fila 2: Cuentas por Cobrar (Vigente vs. Cartera Vencida)
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("🎓 Matrícula Activa Evaluada", f"{ef_data['total_alumnos']} alumnos")
+            c2.metric("🟡 Por Cobrar en Tiempo (Sem. 1-4)", f"${ef_data['cartera_por_cobrar_vigente']:,.2f} MXN")
+            c3.metric("🔴 Cartera Vencida (Moratorios)", f"${ef_data['cartera_vencida_moratoria']:,.2f} MXN", delta=f"{ef_data['conteo_moratorios']} en mora", delta_color="inverse")
+            c4.metric("🟢 Al Corriente / Pagados", f"{ef_data['conteo_al_corriente']} alumnos")
+
+            st.divider()
+
+            # Buscador por ID / Nombre y Selector de Filtro (Todos / Moratorios / Pagos realizados)
+            col_f1, col_f2 = st.columns([1.4, 1.6])
+            busqueda_id = col_f1.text_input(
+                "🔍 Buscar por ID / Matrícula o Nombre:",
+                placeholder="Ej. CEI-2026-001 o Juan...",
+                key="inp_search_ef_id"
+            ).strip().lower()
+
+            filtro_tipo_ef = col_f2.radio(
+                "Filtrar Estado de Cuenta:",
+                options=["Todos", "Moratorios", "Pagos realizados", "Pendientes en tiempo"],
+                horizontal=True,
+                key="rad_filter_ef_status"
+            )
+
+            df_ef = pd.DataFrame(ef_data["rows"])
+            if not df_ef.empty:
+                if busqueda_id:
+                    mask_id = (
+                        df_ef["ID / Matrícula"].str.lower().str.contains(busqueda_id, na=False)
+                        | df_ef["Estudiante"].str.lower().str.contains(busqueda_id, na=False)
+                    )
+                    df_ef = df_ef[mask_id]
+
+                if filtro_tipo_ef == "Moratorios":
+                    df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Moratorio", na=False)]
+                elif filtro_tipo_ef == "Pagos realizados":
+                    df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pagado", na=False)]
+                elif filtro_tipo_ef == "Pendientes en tiempo":
+                    df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pendiente", na=False)]
+
+                st.dataframe(df_ef, width="stretch", hide_index=True)
+
+                csv_ef = df_ef.to_csv(index=False).encode("utf-8-sig")
+                st.download_button(
+                    label="📥 Exportar Reporte Financiero (CSV / Excel)",
+                    data=csv_ef,
+                    file_name=f"Estado_Financiero_CEI_{datetime.now(ZoneInfo('America/Hermosillo')).strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    key="btn_dl_ef_csv"
+                )
+            else:
+                st.info("No hay registros financieros de estudiantes para mostrar.")
+
+
+
 
     # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
     with tab_afiliado:
