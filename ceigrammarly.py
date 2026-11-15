@@ -3928,18 +3928,50 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                     st.rerun()
                     st.divider()
 
-                # 2. BOTÓN EMPODERADO: REGISTRAR NUEVO SOCIO AFILIADO EN EL SISTEMA
+                                # 2. BOTÓN EMPODERADO Y QR ESCANEABLE: REGISTRAR NUEVO SOCIO AFILIADO
                 if is_owner or puede_gestionar_afiliados:
                     if "show_reg_afiliado_panel" not in st.session_state:
                         st.session_state["show_reg_afiliado_panel"] = False
 
-                    if st.button(
-                        "➕ Registrar Nuevo Socio Afiliador en el Sistema" if not st.session_state["show_reg_afiliado_panel"] else "🔼 Cerrar Formulario de Socio Afiliado",
-                        type="secondary",
-                        key="btn_toggle_reg_afiliado_panel"
-                    ):
-                        st.session_state["show_reg_afiliado_panel"] = not st.session_state["show_reg_afiliado_panel"]
-                        st.rerun()
+                    app_pub_aff = str(
+                        st.secrets.get("AFFILIATE_REG_URL")
+                        or st.secrets.get("APP_PUBLIC_URL")
+                        or "https://streamlit.app"
+                    ).strip().rstrip("/")
+                    url_qr_afiliados = (
+                        app_pub_aff if "AFFILIATE_REG_URL" in st.secrets
+                        else f"{app_pub_aff}/?registro_afiliado=1"
+                    )
+
+                    col_aff_btn, col_aff_qr = st.columns([2.2, 1.0])
+                    with col_aff_btn:
+                        st.markdown("##### 🤝 Alta de Socios Afiliados")
+                        st.caption("Abre el formulario en esta pantalla o escanea el código QR desde un dispositivo móvil autorizado.")
+                        if st.button(
+                            "➕ Registrar Nuevo Socio Afiliador en el Sistema" if not st.session_state["show_reg_afiliado_panel"] else "🔼 Cerrar Formulario de Socio Afiliado",
+                            type="secondary",
+                            key="btn_toggle_reg_afiliado_panel"
+                        ):
+                            st.session_state["show_reg_afiliado_panel"] = not st.session_state["show_reg_afiliado_panel"]
+                            st.rerun()
+
+                    with col_aff_qr:
+                        try:
+                            import qrcode
+                            qr_aff = qrcode.make(url_qr_afiliados)
+                            buf_qr_aff = io.BytesIO()
+                            qr_aff.save(buf_qr_aff, format="PNG")
+                            qr_aff_bytes = buf_qr_aff.getvalue()
+                            st.image(qr_aff_bytes, caption="📲 QR Registro Afiliados", width=135)
+                            st.download_button(
+                                label="⬇️ Descargar QR",
+                                data=qr_aff_bytes,
+                                file_name="QR_Registro_Socios_Afiliados_CEI.png",
+                                mime="image/png",
+                                key="btn_dl_qr_afiliados"
+                            )
+                        except Exception:
+                            st.caption(f"🔗 Enlace directo: `{url_qr_afiliados}`")
 
                     if st.session_state["show_reg_afiliado_panel"]:
                         with st.container(border=True):
@@ -3952,6 +3984,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                             except Exception as e_aff_mod:
                                 st.error(f"Asegúrate de tener el archivo `registro_afiliados.py` en la raíz del repositorio: {e_aff_mod}")
                     st.divider()
+
 
                   # 3. GESTIÓN FINANCIERA POR ESTUDIANTE (BASE, IVA 16%, FECHA DE INICIO Y COMISIÓN DE AFILIADO)
                 padron_fin = load_padron_records()
