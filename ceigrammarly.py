@@ -36,7 +36,7 @@ DEFAULT_ADDRESS = st.secrets.get(
     "Dirección no configurada | Tel. / Contacto: No disponible"
 )
 
-ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado"]
+ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado", "Socio Afiliado"]
 
 GRADOS_ACADEMICOS = [
     "Preescolar",
@@ -56,15 +56,17 @@ CAPABILITY_COLS = [
     "Revocar_Certificados",
     "Editar_Instituto_Logo",
     "Previsualizar_A1_C2",
-    "Reuso_Ilimitado_Folios"
+    "Reuso_Ilimitado_Folios",
+    "Editar_Fecha_Inicio_Curso",
+    "Gestionar_Comisiones_Afiliados"
 ]
 
 DEFAULT_PERMISSIONS_MATRIX = [
-    ["Total",        "SI", "SI", "SI", "SI", "SI", "SI", "SI", "SI"],
-    ["Academico",    "SI", "SI", "NO", "SI", "NO", "NO", "SI", "SI"],
-    ["Certificador", "SI", "NO", "NO", "SI", "SI", "NO", "NO", "SI"],
-    ["Auditoria",    "SI", "NO", "NO", "NO", "NO", "NO", "SI", "SI"],
-    ["Basico",       "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO"]
+    ["Total",        "SI", "SI", "SI", "SI", "SI", "SI", "SI", "SI", "SI", "SI"],
+    ["Academico",    "SI", "SI", "NO", "SI", "NO", "NO", "SI", "SI", "NO", "NO"],
+    ["Certificador", "SI", "NO", "NO", "SI", "SI", "NO", "NO", "SI", "NO", "NO"],
+    ["Auditoria",    "SI", "NO", "NO", "NO", "NO", "NO", "SI", "SI", "NO", "NO"],
+    ["Basico",       "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO"]
 ]
 
 # --- 3. CLIENTES EN CACHÉ (GEMINI Y GOOGLE SHEETS) ---
@@ -2722,92 +2724,94 @@ def generar_pdf_certificado(
 
 
 def render_interactive_study_viewer(study_payload: dict):
-    """Visor interactivo ultra-ligero con voz US English y diccionario EN->ES."""
+    """Visor interactivo con voz US English y diccionario bilingüe EN->ES con claves explícitas."""
     import streamlit.components.v1 as components
 
     sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
 
-    # Compacta el JSON al mínimo (separators sin espacios) para evitar desbordar el WebSocket
-    sentences_compact = [
-        [[t.get("w", ""), t.get("pos", "other")] for t in s.get("tokens", [])]
-        for s in sentences_list
-    ]
-    dict_compact = {
-        k.lower(): [
-            v.get("es", k),
-            v.get("pos_es", ""),
-            v.get("ipa", ""),
-            v.get("alt_es", ""),
-            v.get("def_es", "")
-        ]
-        for k, v in dict_map.items() if isinstance(v, dict)
-    }
+    clean_sentences = []
+    for s in sentences_list:
+        toks = [{"w": str(t.get("w", "")), "p": str(t.get("pos", "other"))} for t in s.get("tokens", [])]
+        clean_sentences.append(toks)
 
-    s_json = json.dumps(sentences_compact, ensure_ascii=True, separators=(",", ":")).replace("</", "<\\/")
-    d_json = json.dumps(dict_compact, ensure_ascii=True, separators=(",", ":")).replace("</", "<\\/")
+    clean_dict = {}
+    for k, v in dict_map.items():
+        if isinstance(v, dict):
+            clean_dict[str(k).lower().strip()] = {
+                "es": str(v.get("es", k)),
+                "pos": str(v.get("pos_es", "")),
+                "ipa": str(v.get("ipa", "")),
+                "alt": str(v.get("alt_es", "")),
+                "def": str(v.get("def_es", ""))
+            }
+
+    s_json = json.dumps(clean_sentences, ensure_ascii=True).replace("</", "<\\/")
+    d_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
 
     html_code = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    body{{font-family:system-ui,sans-serif;margin:0;padding:10px;background:#f8fafc;color:#1e293b;position:relative;min-height:460px}}
-    .tb{{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #cbd5e1;margin-bottom:12px;font-size:12px;font-weight:600}}
-    .bg{{padding:2px 8px;border-radius:5px}}
+    body{{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b;position:relative;min-height:480px}}
+    .tb{{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:14px;font-size:12px;font-weight:600}}
+    .bg{{padding:3px 9px;border-radius:6px}}
     .verb{{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}}
     .noun{{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}}
     .adjective{{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}}
     .conjunction{{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}}
     .other{{background:#f1f5f9;color:#334155}}
-    .tbox{{background:#1a2a44;color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:12px;font-size:18px;font-weight:700}}
-    .tbox .wt{{color:#1e293b;font-size:16px}}
-    .sbox{{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:8px;border-radius:7px;line-height:2.0;font-size:16px}}
-    .wt{{display:inline-block;padding:1px 5px;margin:2px;border-radius:4px;cursor:pointer}}
-    .wt:hover,.act{{outline:2px solid #1a73e8}}
-    #bub{{display:none;position:absolute;z-index:99;width:330px;background:#fff;border:1.5px solid #1a73e8;border-radius:10px;box-shadow:0 10px 25px rgba(0,0,0,.22);overflow:hidden}}
-    .top{{display:flex;justify-content:space-between;align-items:center;background:#e8f0fe;padding:6px 10px;font-size:12px;font-weight:700;color:#1a73e8}}
-    .p1{{padding:8px 12px;border-bottom:1px solid #e2e8f0}}.p2{{padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0}}
-    .btn{{border:1px solid #cbd5e1;background:#fff;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:12px}}
+    .tbox{{background:#1a2a44;color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:14px;font-size:19px;font-weight:700}}
+    .tbox .wt{{color:#1e293b;font-size:17px}}
+    .sbox{{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;border-radius:8px;line-height:2.1;font-size:17px;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
+    .wt{{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:transform .1s}}
+    .wt:hover,.act{{outline:2px solid #1a73e8;transform:translateY(-2px)}}
+    #bub{{display:none;position:absolute;z-index:999;width:345px;background:#fff;border:1.5px solid #1a73e8;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.25);overflow:hidden}}
+    .top{{display:flex;justify-content:space-between;align-items:center;background:#e8f0fe;padding:8px 12px;font-size:12px;font-weight:700;color:#1a73e8}}
+    .p1{{padding:10px 14px;border-bottom:1px solid #e2e8f0}}.p2{{padding:10px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0}}
+    .btn{{border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;font-weight:600}}
     </style></head><body>
     <div class="tb">
       <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span> <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span> <span class="bg other">Otros</span></div>
-      <div><label><input type="checkbox" id="hov" checked> 🇺🇸 Voz US</label> <button class="btn" onclick="spd()" id="sb">1.0x</button></div>
+      <div><label style="cursor:pointer"><input type="checkbox" id="hov" checked> 🇺🇸 Voz US al pasar cursor</label> <button class="btn" onclick="spd()" id="sb">1.0x</button></div>
     </div>
     <div id="lc"></div>
     <div id="bub" onclick="event.stopPropagation()">
-      <div class="top"><span>🇺🇸 EN ➔ 🇪🇸 ES</span><div><button class="btn" onclick="spk(curW,1)">🔊</button> <button class="btn" onclick="spk(curW,0.65)">🐢</button> <button class="btn" onclick="cls()">✖</button></div></div>
-      <div class="p1"><b id="bw" style="font-size:19px"></b> <span id="bi" style="color:#64748b;font-size:13px"></span><div id="bp" style="font-size:11px;color:#1a73e8;font-weight:700"></div></div>
-      <div class="p2"><div id="be" style="font-size:18px;font-weight:700;color:#1a73e8"></div><div id="ba" style="font-size:12px;color:#475569;margin-top:3px"></div><div id="bd" style="font-size:12px;color:#334155;margin-top:4px"></div></div>
-      <div id="bx" style="padding:8px 12px;font-size:12px;color:#334155;background:#fff"></div>
+      <div class="top"><span>🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span><div><button class="btn" onclick="spk(curW,1)">🔊</button> <button class="btn" onclick="spk(curW,0.65)">🐢</button> <button class="btn" onclick="cls()">✖</button></div></div>
+      <div class="p1"><b id="bw" style="font-size:20px"></b> <span id="bi" style="color:#64748b;font-size:13px"></span><div id="bp" style="font-size:11px;color:#1a73e8;font-weight:700;margin-top:2px"></div></div>
+      <div class="p2"><div id="be" style="font-size:19px;font-weight:700;color:#1a73e8"></div><div id="ba" style="font-size:12px;color:#475569;margin-top:4px"></div><div id="bd" style="font-size:12px;color:#334155;margin-top:5px"></div></div>
+      <div id="bx" style="padding:9px 14px;font-size:12px;color:#334155;background:#fff"></div>
     </div>
     <script>
-    const S={s_json},D={d_json},L={{verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"}};
-    let curW="",lst="",sp=1;
+    const S={s_json}, D={d_json};
+    const L={{verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"}};
+    let curW="", lst="", sp=1;
     function spd(){{sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}}
     function spk(w,r){{if(!('speechSynthesis'in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';u.rate=r||sp;speechSynthesis.speak(u);}}
     function cls(){{document.getElementById('bub').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}}
     function op(e,el,w,p,fs){{
       e.stopPropagation();cls();el.classList.add('act');curW=w;spk(w,1);
-      const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,''),inf=D[k]||[];
+      const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
+      const inf=D[k]||{{}};
       document.getElementById('bw').innerText=w;
-      document.getElementById('be').innerText=inf||w;
-      document.getElementById('bp').innerText=inf||L[p]||'Inglés';
-      document.getElementById('bi').innerText=inf||'';
-      document.getElementById('ba').innerText=inf?('Acepciones: '+inf):'';
-      document.getElementById('bd').innerText=inf?('📖 '+inf):'';
+      document.getElementById('be').innerText=inf.es||w;
+      document.getElementById('bp').innerText=inf.pos||L[p]||'Inglés (US)';
+      document.getElementById('bi').innerText=inf.ipa||'';
+      document.getElementById('ba').innerText=inf.alt?('Otras acepciones: '+inf.alt):'';
+      document.getElementById('bd').innerText=inf.def?('📖 '+inf.def):'';
       document.getElementById('bx').innerText='Contexto: "'+fs+'"';
       const b=document.getElementById('bub'),rc=el.getBoundingClientRect();
       b.style.display='block';
-      b.style.left=Math.max(8,Math.min(rc.left+scrollX,document.body.clientWidth-345))+'px';
-      b.style.top=(rc.bottom+scrollY+5)+'px';
+      b.style.left=Math.max(10,Math.min(rc.left+scrollX,document.body.clientWidth-360))+'px';
+      b.style.top=(rc.bottom+scrollY+6)+'px';
     }}
     const c=document.getElementById('lc');
     S.forEach((s,i)=>{{
       const box=document.createElement('div');box.className=i===0?'tbox':'sbox';
-      const fs=s.map(t=>t).join(' ');
+      const fs=s.map(t=>t.w).join(' ');
       s.forEach(t=>{{
-        if(/^[.,!?;:"'()—-]+$/.test(t.trim())){{box.appendChild(document.createTextNode(t+' '));return;}}
-        const spn=document.createElement('span');spn.className='wt '+(L[t]?t:'other');spn.textContent=t;
-        spn.onmouseenter=()=>{{if(document.getElementById('hov').checked&&lst!==t){{lst=t;spk(t);}}}};
+        if(/^[.,!?;:"'()—-]+$/.test(t.w.trim())){{box.appendChild(document.createTextNode(t.w+' '));return;}}
+        const spn=document.createElement('span');spn.className='wt '+(L[t.p]?t.p:'other');spn.textContent=t.w;
+        spn.onmouseenter=()=>{{if(document.getElementById('hov').checked&&lst!==t.w){{lst=t.w;spk(t.w);}}}};
         spn.onmouseleave=()=>{{lst="";}};
-        spn.onclick=(e)=>op(e,spn,t,t,fs);
+        spn.onclick=(e)=>op(e,spn,t.w,t.p,fs);
         box.appendChild(spn);
       }});
       c.appendChild(box);
@@ -2815,8 +2819,9 @@ def render_interactive_study_viewer(study_payload: dict):
     document.body.onclick=cls;
     </script></body></html>"""
 
-    altura = max(460, min(800, len(sentences_list) * 110 + 150))
+    altura = max(480, min(820, len(clean_sentences) * 115 + 160))
     components.html(html_code, height=altura, scrolling=True)
+
 
 
     
@@ -2863,7 +2868,7 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Genera ilustración educativa usando Google Imagen 3 (con respaldo visual Pillow)."""
+    """Genera ilustración educativa usando Gemini Multimodal Image Generation (con respaldo Pillow)."""
     import re
     from google.genai import types
     from PIL import Image, ImageDraw, ImageFont
@@ -2872,44 +2877,46 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     escena_limpia = re.sub(r'[^a-zA-Z0-9 ,.-]+', ' ', str(scene_prompt or "")).strip()
     escena_limpia = re.sub(r'\s+', ' ', escena_limpia)
     full_prompt = (
-        f"Educational textbook illustration, clean modern digital editorial art style, "
-        f"bright natural lighting, expressive characters, no text inside image. {escena_limpia}"
+        f"Create a clean, modern educational textbook illustration (no text or letters inside the image), "
+        f"bright natural lighting, expressive characters. Scene: {escena_limpia}"
     )[:400]
 
     errores = []
     gm = client_gm or init_gemini_client()
 
     if gm:
-        for modelo_img in ["imagen-3.0-generate-002", "imagen-3.0-fast-generate-001"]:
+        for modelo_mm in ["gemini-2.5-flash-image", "gemini-2.0-flash-exp-image-generation"]:
             try:
-                res_img = gm.models.generate_images(
-                    model=modelo_img,
-                    prompt=full_prompt,
-                    config=types.GenerateImagesConfig(
-                        number_of_images=1,
-                        aspect_ratio="16:9",
-                        output_mime_type="image/png"
+                res = gm.models.generate_content(
+                    model=modelo_mm,
+                    contents=full_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"]
                     )
                 )
-                if res_img and getattr(res_img, "generated_images", None):
-                    img_bytes = res_img.generated_images.image.image_bytes
-                    if img_bytes and len(img_bytes) > 2000:
-                        st.session_state["last_img_error"] = None
-                        return img_bytes
-            except Exception as e_im:
-                errores.append(f"{modelo_img}: {e_im}")
+                for cand in getattr(res, "candidates", []) or []:
+                    for part in getattr(cand.content, "parts", []) or []:
+                        inline = getattr(part, "inline_data", None)
+                        if inline and getattr(inline, "data", None):
+                            img_b = inline.data
+                            if isinstance(img_b, str):
+                                img_b = base64.b64decode(img_b)
+                            if img_b and len(img_b) > 2000:
+                                st.session_state["last_img_error"] = None
+                                return img_b
+            except Exception as e_mm:
+                errores.append(f"{modelo_mm}: {e_mm}")
     else:
         errores.append("GEMINI_API_KEY no inicializada")
 
     st.session_state["last_img_error"] = " | ".join(errores)
 
-    # Respaldo visual institucional de alta calidad en Pillow
+    # Respaldo visual institucional en Pillow
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(18, 36, 66))
     draw = ImageDraw.Draw(img)
     draw.rectangle([14, 14, w - 14, h - 14], outline=(212, 175, 55), width=4)
     draw.rectangle([28, 28, w - 28, 92], fill=(30, 56, 98))
-
     font_std = ImageFont.load_default()
     draw.text((46, 50), f"CAREER ENGLISH INSTITUTE  |  {folio_tag}  |  CEFR {cefr_lvl}", fill=(255, 223, 128), font=font_std)
 
@@ -2932,6 +2939,11 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
+
+
+
+
 
 
 
@@ -2967,6 +2979,9 @@ def _serialize_lesson_package(text_val: str, quiz_val, cefr_val: str, grade_val:
         "grade": grade_val,
         "created_at": created_val
     }, ensure_ascii=False)
+
+
+    
     
 # --- 10. EVALUACIÓN DINÁMICA DE CAPACIDADES ---
 user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
@@ -3061,6 +3076,109 @@ with st.sidebar:
     
     st.markdown("---")
     generar_btn = st.button(f"🚀 Generate {cefr_level.split()[0]} Lesson", type="primary", width="stretch")
+
+
+
+def evaluar_estado_financiero_alumno(student_user: str) -> dict:
+    """Evalúa ciclo de 4 semanas desde fecha_inicio_curso, incentivo -7%, recargo +5% y bloqueo de boletín."""
+    from datetime import date, timedelta
+    from psycopg.rows import dict_row
+
+    hoy = datetime.now(ZoneInfo("America/Hermosillo")).date()
+    info = {
+        "fecha_inicio": hoy,
+        "mensualidad_base": 1500.00,
+        "afiliado_usuario": "",
+        "porcentaje_comision": 0.0,
+        "ciclo_actual": 1,
+        "semana_ciclo": 1,
+        "ventana_pago_inicio": hoy + timedelta(days=14),
+        "ventana_pago_fin": hoy + timedelta(days=20),
+        "ajuste_label": "Incentivo Pronto Pago (-7%)",
+        "factor_ajuste": 0.93,
+        "monto_a_pagar": 1395.00,
+        "ciclo_pagado": False,
+        "descarga_permitida": True,
+        "mensaje_estado": "Al corriente (En ventana de incentivo)"
+    }
+
+    conn = get_pg_conn()
+    if not conn:
+        return info
+
+    try:
+        with conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute("""
+                    SELECT rol, fecha_inicio_curso, mensualidad_base, afiliado_usuario, porcentaje_comision
+                    FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;
+                """, (student_user,))
+                u = cur.fetchone()
+                if not u:
+                    return info
+
+                # Propietario, Admin, Docentes y Afiliados no tienen bloqueo de descarga
+                if str(u.get("rol", "")).lower() not in ["estudiante", "student", "alumno"]:
+                    return info
+
+                f_ini = u.get("fecha_inicio_curso") or hoy
+                base = float(u.get("mensualidad_base") or 1500.0)
+                dias_transcurridos = max(0, (hoy - f_ini).days)
+                ciclo_num = (dias_transcurridos // 28) + 1
+                dia_en_ciclo = (dias_transcurridos % 28) + 1  # Día 1 a 28
+                semana_en_ciclo = ((dia_en_ciclo - 1) // 7) + 1  # Semana 1, 2, 3 o 4
+
+                inicio_ciclo = f_ini + timedelta(days=(ciclo_num - 1) * 28)
+                sem3_ini = inicio_ciclo + timedelta(days=14)
+                sem3_fin = inicio_ciclo + timedelta(days=20)
+
+                if semana_en_ciclo in:
+                    ajuste_lbl = "Incentivo Pronto Pago (-7%)"
+                    factor = 0.93
+                elif semana_en_ciclo == 3:
+                    ajuste_lbl = "Pago Ordinario Semana 3 (0%)"
+                    factor = 1.00
+                else:
+                    ajuste_lbl = "Recargo Moratorio Semana 4 (+5%)"
+                    factor = 1.05
+
+                monto_calc = round(base * factor, 2)
+
+                cur.execute("""
+                    SELECT id FROM tuition_payments
+                    WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s)) AND ciclo_numero = %s AND estatus = 'Pagado'
+                    LIMIT 1;
+                """, (student_user, ciclo_num))
+                pagado_row = cur.fetchone()
+                esta_pagado = bool(pagado_row)
+
+                # Se bloquea descarga si ya pasó la 3ra semana (semana 4) y no ha pagado el ciclo actual
+                bloqueado = (not esta_pagado) and (semana_en_ciclo >= 4)
+
+                info.update({
+                    "fecha_inicio": f_ini,
+                    "mensualidad_base": base,
+                    "afiliado_usuario": str(u.get("afiliado_usuario") or ""),
+                    "porcentaje_comision": float(u.get("porcentaje_comision") or 0.0),
+                    "ciclo_actual": ciclo_num,
+                    "semana_ciclo": semana_en_ciclo,
+                    "ventana_pago_inicio": sem3_ini,
+                    "ventana_pago_fin": sem3_fin,
+                    "ajuste_label": ajuste_lbl,
+                    "factor_ajuste": factor,
+                    "monto_a_pagar": monto_calc,
+                    "ciclo_pagado": esta_pagado,
+                    "descarga_permitida": not bloqueado,
+                    "mensaje_estado": (
+                        f"✅ Ciclo {ciclo_num} Pagado" if esta_pagado
+                        else (f"⛔ Descarga bloqueada: Pago vencido (Semana {semana_en_ciclo} del Ciclo {ciclo_num})" if bloqueado
+                              else f"⏳ Ciclo {ciclo_num} — Semana {semana_en_ciclo} ({ajuste_lbl}: ${monto_calc:,.2f})")
+                    )
+                })
+    except Exception:
+        pass
+    return info
+
     
 
 # --- 12. CABECERA INSTITUCIONAL ---
