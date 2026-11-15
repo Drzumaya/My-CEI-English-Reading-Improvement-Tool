@@ -3217,6 +3217,7 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
 
                 inicio_ciclo_obj = f_ini + timedelta(days=(ciclo_objetivo - 1) * 28)
                 fin_sem4_obj = inicio_ciclo_obj + timedelta(days=27)
+                dias_retraso_calc = max(0, (hoy - fin_sem4_obj).days) if es_moratorio else 0
 
                 if not reglas_activas:
                     ajuste_lbl = "Mensualidad Estándar (Incentivos/Recargos desactivados)"
@@ -3235,7 +3236,6 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
 
                 # Bloquea boletín si existe al menos un ciclo vencido (ya inició la semana del mes siguiente sin pagar)
                 bloqueado = es_moratorio
-
 
                 info.update({
                     "fecha_inicio": f_ini,
@@ -3256,15 +3256,17 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
                     "monto_a_pagar": monto_calc,
                     "ciclo_pagado": esta_pagado,
                     "descarga_permitida": not bloqueado,
+                    "dias_retraso": dias_retraso_calc,
                     "mensaje_estado": (
                         f"✅ Mes/Ciclo {ciclo_vigente} Pagado (Al corriente)" if esta_pagado
-                        else (f"⛔ Descarga bloqueada: Mes {ciclo_objetivo} vencido (Inició mes siguiente — Recargo +5%: ${monto_calc:,.2f})" if bloqueado
+                        else (f"⛔ Descarga bloqueada: Mes {ciclo_objetivo} vencido ({dias_retraso_calc} {'día' if dias_retraso_calc == 1 else 'días'} de retraso — Recargo +5%: ${monto_calc:,.2f})" if bloqueado
                               else f"⏳ Mes {ciclo_vigente} — Sem. {semana_en_ciclo}/4 ({ajuste_lbl}: ${monto_calc:,.2f})")
                     )
                 })
     except Exception:
         pass
     return info
+
 
  
 
@@ -4300,11 +4302,13 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                     f1.metric("📅 Ciclo", f"Mes {estado_f['ciclo_a_cobrar']}", delta=f"Sem. {estado_f['semana_ciclo']}/4")
                     f2.metric("💵 Subtotal", f"${subtotal_vivo:,.2f}", delta=f"Base: ${nueva_mensualidad:,.2f}")
                     f3.metric("🧾 Total" + (" (+IVA)" if nuevo_aplicar_iva else ""), f"${total_vivo:,.2f}", delta=f"IVA: +${iva_vivo:,.2f}" if nuevo_aplicar_iva else "Sin IVA")
+                    d_ret_m = int(estado_f.get("dias_retraso", 0))
                     f4.metric(
                         "📄 Boletín",
                         "✅ Activo" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
-                        delta="Al corriente" if estado_f["descarga_permitida"] else f"Adeudo Mes {estado_f['ciclo_a_cobrar']}"
+                        delta="Al corriente" if estado_f["descarga_permitida"] else f"{d_ret_m} {'día' if d_ret_m == 1 else 'días'} de retraso (Mes {estado_f['ciclo_a_cobrar']})"
                     )
+
 
 
                 with col_cfg2:
