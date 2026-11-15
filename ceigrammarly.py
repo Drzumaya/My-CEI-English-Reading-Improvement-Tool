@@ -4295,12 +4295,17 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                             st.success(f"✅ Guardado. Total: ${total_vivo:,.2f} MXN")
                             st.rerun()
                     st.caption(f"🧮 **Cálculo Total:** Base `${nueva_mensualidad:,.2f}` | Subtotal `${subtotal_vivo:,.2f}` | IVA `${iva_vivo:,.2f}` ➔ **Total: `${total_vivo:,.2f}`**")
-                with metrics_placeholder:
+                               with metrics_placeholder:
                     f1, f2, f3, f4 = st.columns(4)
                     f1.metric("📅 Ciclo", f"Mes {estado_f['ciclo_a_cobrar']}", delta=f"Sem. {estado_f['semana_ciclo']}/4")
                     f2.metric("💵 Subtotal", f"${subtotal_vivo:,.2f}", delta=f"Base: ${nueva_mensualidad:,.2f}")
                     f3.metric("🧾 Total" + (" (+IVA)" if nuevo_aplicar_iva else ""), f"${total_vivo:,.2f}", delta=f"IVA: +${iva_vivo:,.2f}" if nuevo_aplicar_iva else "Sin IVA")
-                    f4.metric("📄 Boletín", "✅ Activo" if estado_f["descarga_permitida"] else "🔒 Bloqueado")
+                    f4.metric(
+                        "📄 Boletín",
+                        "✅ Activo" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
+                        delta="Al corriente" if estado_f["descarga_permitida"] else f"Adeudo Mes {estado_f['ciclo_a_cobrar']}"
+                    )
+
 
                 with col_cfg2:
                     st.markdown("##### 🧾 Desglose y Cobro Mensual")
