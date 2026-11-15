@@ -4442,7 +4442,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
 
-                  padron_fin = load_padron_records()
+            padron_fin = load_padron_records()
             estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
             afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
 
