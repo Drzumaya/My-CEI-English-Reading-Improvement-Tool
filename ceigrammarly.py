@@ -3838,7 +3838,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
 # 14.1 PESTAÑA CERTIFICADOS
-        with tab_certificados:
+     if seccion_inst_sel == "🏅 Certificados (Timbre y QR)":
             if not (is_owner or can("Emitir_Certificados")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
             else:
@@ -4032,7 +4032,8 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
         # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
-        with tab_reg_usuarios:
+     if seccion_inst_sel == "👥 Inscripción y Padrón":
+
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
             else:
@@ -4232,7 +4233,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                         st.error(f"Error al cargar padrón: {e}")
 
         # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
-        with tab_matriz_perm:
+     if seccion_inst_sel == "🔐 Matriz Global de Permisos":
 
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
@@ -4273,7 +4274,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
-        with tab_datos_inst:
+     if seccion_inst_sel == "🏛️ Datos del Instituto":
             if not can("Editar_Instituto_Logo"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
             else:
@@ -4322,7 +4323,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
     # 14.5 PESTAÑA COBRANZA MENSUAL, IVA Y SOCIOS AFILIADOS
-    with tab_finanzas:
+     if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
         puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
@@ -4446,7 +4447,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
     # 14.5b PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
-    with tab_estados_fin:
+     if seccion_inst_sel == "📊 Estados Financieros":
         if not (is_owner or can("Ver_Panel_Admin")):
             st.warning("⛔ Tu perfil actual no tiene acceso a los Estados Financieros institucionales.")
         else:
@@ -4517,7 +4518,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
     # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
-    with tab_afiliado:
+     if seccion_inst_sel == "🤝 Portal Socio Afiliado":
         try:
             from portal_afiliado import render_portal_socio_afiliado
             if is_owner or puede_gestionar_afiliados:
