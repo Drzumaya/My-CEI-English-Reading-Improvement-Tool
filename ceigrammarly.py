@@ -3800,7 +3800,9 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
         
         
-        tab_finanzas, tab_estados_fin, tab_afiliado, tab_reg_usuarios, tab_matriz_perm, tab_certificados, tab_datos_inst = st.tabs([
+        from contextlib import nullcontext
+
+        opciones_menu_inst = [
             "💳 Cobranza Mensual e IVA",
             "📊 Estados Financieros",
             "🤝 Portal Socio Afiliado",
@@ -3808,7 +3810,26 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
             "🔐 Matriz Global de Permisos",
             "🏅 Certificados (Timbre y QR)",
             "🏛️ Datos del Instituto"
-        ])
+        ]
+        default_idx_menu = 2 if curr_r_clean in ["socio afiliado", "afiliado", "affiliate"] else 0
+        seccion_inst_sel = st.selectbox(
+            "📂 Seleccionar Módulo Administrativo / Financiero:",
+            options=opciones_menu_inst,
+            index=default_idx_menu,
+            key="sel_menu_institucional_desplegable"
+        )
+
+        class _ConditionalTab:
+            def __init__(self, active: bool):
+                self.active = active
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+
+        # Mantiene intactos tus bloques `with tab_...:` sin mover ni un espacio de sangría
+        tab_finanzas = nullcontext() if seccion_inst_sel == "💳 Cobranza Mensual e IVA" else None
+
 
 
 
