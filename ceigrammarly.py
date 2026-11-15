@@ -3995,75 +3995,75 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
             afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
 
 
-                if estudiantes_fin:
-                    mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
-                    sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
-                    est_objetivo = mapa_est_fin[sel_est_lbl]
-                    estado_f = evaluar_estado_financiero_alumno(est_objetivo)
+            if estudiantes_fin:
+                mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
+                sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
+                est_objetivo = mapa_est_fin[sel_est_lbl]
+                estado_f = evaluar_estado_financiero_alumno(est_objetivo)
 
-                    # Contenedor superior para mostrar las 4 tarjetas sincronizadas al final
-                    metrics_placeholder = st.container()
+                # Contenedor superior para mostrar las 4 tarjetas sincronizadas al final
+                metrics_placeholder = st.container()
 
-                    col_cfg1, col_cfg2 = st.columns(2)
-                    with col_cfg1:
-                        st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
-                        nueva_fecha_ini = st.date_input(
-                            "Fecha de Inicio del Curso:",
-                            value=estado_f["fecha_inicio"],
-                            disabled=not puede_editar_inicio,
-                            key="inp_fecha_inicio_curso"
-                        )
-                        nueva_mensualidad = st.number_input(
-                            "Mensualidad Base ($ MXN):",
-                            min_value=0.0,
-                            value=float(estado_f["mensualidad_base"]),
-                            step=100.0,
-                            disabled=not puede_editar_inicio,
-                            key="inp_mensualidad_base"
-                        )
-                        nuevo_aplicar_iva = st.checkbox(
-                            "Aplicar +16% de IVA sobre la mensualidad con descuento o recargo aplicado",
-                            value=bool(estado_f["aplicar_iva"]),
-                            disabled=not puede_gestionar_iva,
-                            key="chk_aplicar_iva_alumno"
-                        )
-                        opciones_aff = ["Sin Afiliado"] + afiliados_fin
-                        idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
-                        sel_aff_user = st.selectbox(
-                            "Socio Afiliado Asignado:",
-                            opciones_aff,
-                            index=idx_aff,
-                            disabled=not puede_gestionar_afiliados,
-                            key="sel_aff_assigned"
-                        )
-                        nuevo_pct_com = st.number_input(
-                            "Porcentaje de Comisión para el Afiliado (%):",
-                            min_value=0.0,
-                            max_value=100.0,
-                            value=float(estado_f["porcentaje_comision"]),
-                            step=1.0,
-                            disabled=not puede_gestionar_afiliados,
-                            key="inp_pct_comision_aff"
-                        )
+                col_cfg1, col_cfg2 = st.columns(2)
+                with col_cfg1:
+                    st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
+                    nueva_fecha_ini = st.date_input(
+                        "Fecha de Inicio del Curso:",
+                        value=estado_f["fecha_inicio"],
+                        disabled=not puede_editar_inicio,
+                        key="inp_fecha_inicio_curso"
+                    )
+                    nueva_mensualidad = st.number_input(
+                        "Mensualidad Base ($ MXN):",
+                        min_value=0.0,
+                        value=float(estado_f["mensualidad_base"]),
+                        step=100.0,
+                        disabled=not puede_editar_inicio,
+                        key="inp_mensualidad_base"
+                    )
+                    nuevo_aplicar_iva = st.checkbox(
+                        "Aplicar +16% de IVA sobre la mensualidad con descuento o recargo aplicado",
+                        value=bool(estado_f["aplicar_iva"]),
+                        disabled=not puede_gestionar_iva,
+                        key="chk_aplicar_iva_alumno"
+                    )
+                    opciones_aff = ["Sin Afiliado"] + afiliados_fin
+                    idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
+                    sel_aff_user = st.selectbox(
+                        "Socio Afiliado Asignado:",
+                        opciones_aff,
+                        index=idx_aff,
+                        disabled=not puede_gestionar_afiliados,
+                        key="sel_aff_assigned"
+                    )
+                    nuevo_pct_com = st.number_input(
+                        "Porcentaje de Comisión para el Afiliado (%):",
+                        min_value=0.0,
+                        max_value=100.0,
+                        value=float(estado_f["porcentaje_comision"]),
+                        step=1.0,
+                        disabled=not puede_gestionar_afiliados,
+                        key="inp_pct_comision_aff"
+                    )
 
-                        # Cálculo reactivo en vivo (sincroniza métricas, resumen inferior y panel derecho)
-                        if not estado_f["reglas_incentivo_activas"]:
-                            ajuste_vivo = 0.0
-                        elif "Recargo" in estado_f["ajuste_label"]:
-                            ajuste_vivo = round(nueva_mensualidad * 0.05, 2)
-                        else:
-                            ajuste_vivo = round(-nueva_mensualidad * 0.07, 2)
+                    # Cálculo reactivo en vivo (sincroniza métricas, resumen inferior y panel derecho)
+                    if not estado_f["reglas_incentivo_activas"]:
+                        ajuste_vivo = 0.0
+                    elif "Recargo" in estado_f["ajuste_label"]:
+                        ajuste_vivo = round(nueva_mensualidad * 0.05, 2)
+                    else:
+                        ajuste_vivo = round(-nueva_mensualidad * 0.07, 2)
 
-                        subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
-                        iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
-                        total_vivo = round(subtotal_vivo + iva_vivo, 2)
+                    subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
+                    iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
+                    total_vivo = round(subtotal_vivo + iva_vivo, 2)
 
-                        if st.button("💾 Guardar Configuración Financiera, IVA y Comisión", type="primary", key="btn_save_fin_cfg"):
-                            aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
-                            if actualizar_config_financiera_alumno_pg(
-                                est_objetivo, nueva_fecha_ini, nueva_mensualidad,
-                                nuevo_aplicar_iva, aff_save, nuevo_pct_com
-                            ):
+                    if st.button("💾 Guardar Configuración Financiera, IVA y Comisión", type="primary", key="btn_save_fin_cfg"):
+                        aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
+                        if actualizar_config_financiera_alumno_pg(
+                            est_objetivo, nueva_fecha_ini, nueva_mensualidad,
+                            nuevo_aplicar_iva, aff_save, nuevo_pct_com
+                        ):
                                 st.success(f"✅ Configuración guardada. Total mensual vigente: ${total_vivo:,.2f} MXN.")
                                 st.rerun()
 
