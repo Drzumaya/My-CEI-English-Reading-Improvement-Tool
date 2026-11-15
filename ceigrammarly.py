@@ -3964,29 +3964,6 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                     est_objetivo = mapa_est_fin[sel_est_lbl]
                     estado_f = evaluar_estado_financiero_alumno(est_objetivo)
 
-                    f1, f2, f3, f4 = st.columns(4)
-                    f1.metric(
-                        "📅 Ciclo a Cobrar (28 días)",
-                        f"Mes/Ciclo {estado_f['ciclo_a_cobrar']}",
-                        delta=f"Semana {estado_f['semana_ciclo']} de 4"
-                    )
-                    f2.metric(
-                        "💵 Subtotal (Con/Sin Ajuste)",
-                        f"${estado_f['subtotal_ajustado']:,.2f}",
-                        delta=f"Base: ${estado_f['mensualidad_base']:,.2f} ({estado_f['ajuste_monto']:+,.2f})"
-                    )
-                    f3.metric(
-                        "🧾 Total a Pagar" + (" (+16% IVA)" if estado_f["aplicar_iva"] else " (Sin IVA)"),
-                        f"${estado_f['monto_a_pagar']:,.2f}",
-                        delta=f"IVA 16%: +${estado_f['iva_monto']:,.2f}" if estado_f["aplicar_iva"] else "IVA no aplicado"
-                    )
-                    f4.metric(
-                        "📄 Estatus Boletín",
-                        "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
-                        delta="Al corriente" if estado_f["descarga_permitida"] else "Adeudo vencido"
-                    )
-
-
                     col_cfg1, col_cfg2 = st.columns(2)
                     with col_cfg1:
                         st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
@@ -4037,20 +4014,37 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                 st.success("✅ Configuración financiera, IVA y comisión actualizados en Supabase.")
                                 st.rerun()
 
+                    # Cálculo reactivo en vivo (refleja al instante el checkbox de IVA y cambios en base)
+                    if not estado_f["reglas_incentivo_activas"]:
+                        ajuste_vivo = 0.0
+                    elif "Recargo" in estado_f["ajuste_label"]:
+                        ajuste_vivo = round(nueva_mensualidad * 0.05, 2)
+                    else:
+                        ajuste_vivo = round(-nueva_mensualidad * 0.07, 2)
+
+                    subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
+                    iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
+                    total_vivo = round(subtotal_vivo + iva_vivo, 2)
+
                     with col_cfg2:
                         st.markdown("##### 🧾 Desglose y Registro de Pago Mensual")
                         st.info(
                             f"**Desglose del Mes/Ciclo {estado_f['ciclo_a_cobrar']}:**\n"
-                            f"- **Mensualidad Base:** `${estado_f['mensualidad_base']:,.2f} MXN`\n"
-                            f"- **Ajuste ({estado_f['ajuste_label']}):** `${estado_f['ajuste_monto']:+,.2f} MXN`\n"
-                            f"- **Subtotal Ajustado:** `${estado_f['subtotal_ajustado']:,.2f} MXN`\n"
-                            f"- **IVA (16% sobre subtotal ajustado):** `${estado_f['iva_monto']:,.2f} MXN`\n"
-                            f"- **TOTAL FINAL A PAGAR:** **`${estado_f['monto_a_pagar']:,.2f} MXN`**"
+                            f"- **Mensualidad Base:** `${nueva_mensualidad:,.2f} MXN`\n"
+                            f"- **Ajuste ({estado_f['ajuste_label']}):** `${ajuste_vivo:+,.2f} MXN`\n"
+                            f"- **Subtotal (Con/Sin Ajuste):** `${subtotal_vivo:,.2f} MXN`\n"
+                            f"- **IVA (16% sobre subtotal):** `${iva_vivo:,.2f} MXN` {'✅ (Activo)' if nuevo_aplicar_iva else '⚪ (No aplicado)'}\n"
+                            f"- **TOTAL FINAL A PAGAR:** **`${total_vivo:,.2f} MXN`**"
                         )
                         if estado_f["ciclo_pagado"]:
                             st.success(f"✅ El Mes/Ciclo {estado_f['ciclo_a_cobrar']} de **{est_objetivo}** ya está pagado y su Boletín está habilitado.")
                         else:
-                            if st.button(f"✅ Registrar Pago de ${estado_f['monto_a_pagar']:,.2f} (Mes/Ciclo {estado_f['ciclo_a_cobrar']})", type="primary", width="stretch", key="btn_reg_tuition_pay"):
+                            if st.button(f"✅ Registrar Pago de ${total_vivo:,.2f} (Mes/Ciclo {estado_f['ciclo_a_cobrar']})", type="primary", width="stretch", key="btn_reg_tuition_pay"):
+                                aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
+                                actualizar_config_financiera_alumno_pg(
+                                    est_objetivo, nueva_fecha_ini, nueva_mensualidad,
+                                    nuevo_aplicar_iva, aff_save, nuevo_pct_com
+                                )
                                 res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
                                 if res_p["ok"]:
                                     st.success(res_p["msg"])
@@ -4058,6 +4052,31 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                 else:
                                     st.error(res_p["msg"])
 
+
+                    f1, f2, f3, f4 = st.columns(4)
+                    f1.metric(
+                        "📅 Ciclo a Cobrar (28 días)",
+                        f"Mes/Ciclo {estado_f['ciclo_a_cobrar']}",
+                        delta=f"Semana {estado_f['semana_ciclo']} de 4"
+                    )
+                    f2.metric(
+                        "💵 Subtotal (Con/Sin Ajuste)",
+                        f"${estado_f['subtotal_ajustado']:,.2f}",
+                        delta=f"Base: ${estado_f['mensualidad_base']:,.2f} ({estado_f['ajuste_monto']:+,.2f})"
+                    )
+                    f3.metric(
+                        "🧾 Total a Pagar" + (" (+16% IVA)" if estado_f["aplicar_iva"] else " (Sin IVA)"),
+                        f"${estado_f['monto_a_pagar']:,.2f}",
+                        delta=f"IVA 16%: +${estado_f['iva_monto']:,.2f}" if estado_f["aplicar_iva"] else "IVA no aplicado"
+                    )
+                    f4.metric(
+                        "📄 Estatus Boletín",
+                        "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
+                        delta="Al corriente" if estado_f["descarga_permitida"] else "Adeudo vencido"
+                    )
+
+
+                   
 
 
 
