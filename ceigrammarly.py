@@ -4043,7 +4043,7 @@ if is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestion
 
 
 
-# 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
+        # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
         with tab_reg_usuarios:
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
