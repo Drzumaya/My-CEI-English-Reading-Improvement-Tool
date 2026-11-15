@@ -4212,9 +4212,6 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                 est_glob = get_billing_global_settings_pg()
                 c_sw1, c_sw2 = st.columns([2.2, 1.0])
                 nuevo_glob = c_sw1.toggle("Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)", value=est_glob, key="tgl_glob_bill")
-                est_glob = get_billing_global_settings_pg()
-                c_sw1, c_sw2 = st.columns([2.2, 1.0])
-                nuevo_glob = c_sw1.toggle("Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)", value=est_glob, key="tgl_glob_bill")
                 if nuevo_glob != est_glob:
                     if c_sw2.button("💾 Aplicar", type="primary", key="btn_glob_bill"):
                         ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
