@@ -3684,7 +3684,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
         
         
-        tab_certificados, tab_reg_usuarios, tab_permisos, tab_instituto, tab_finanzas, tab_afiliado = st.tabs([
+        tab_certificados, tab_reg_usuarios, tab_matriz_perm, tab_instituto, tab_finanzas, tab_afiliado = st.tabs([
             "🏅 Certificados (Timbre y QR)",
             "👥 Inscripción y Padrón",
             "🔐 Matriz Global de Permisos",
