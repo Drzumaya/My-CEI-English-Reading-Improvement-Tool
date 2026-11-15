@@ -3545,7 +3545,14 @@ if st.session_state.show_gradebook_panel:
         with col_f_pdf:
             st.write("")
             fin_alumno = evaluar_estado_financiero_alumno(alumno_objetivo_gb)
-            if is_owner or fin_alumno["descarga_permitida"]:
+            if not fin_alumno["descarga_permitida"] and not is_owner:
+                st.error(
+                    f"🔒 **Descarga de Boletín Suspendida**\n\n"
+                    f"El **Mes/Ciclo {fin_alumno['ciclo_a_cobrar']}** presenta saldo vencido.\n"
+                    f"• **Total a cubrir ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
+                    f"Realiza tu pago mensual para habilitar la descarga oficial."
+                )
+            else:
                 pdf_boletin_bytes, timbre_info = create_official_gradebook_pdf(
                     alumno_objetivo_gb,
                     gb_data,
@@ -3560,7 +3567,11 @@ if st.session_state.show_gradebook_panel:
                     width="stretch",
                     key="btn_dl_official_gradebook_pdf"
                 )
-                st.caption(f"🛡️ Timbrado: `{timbre_info['folio_boletin']}` | {fin_alumno['mensaje_estado']}")
+                if not fin_alumno["descarga_permitida"] and is_owner:
+                    st.warning(f"⚠️ Vista de Propietario: Para el alumno este boletín está **🔒 BLOQUEADO** por adeudo del Mes {fin_alumno['ciclo_a_cobrar']} (${fin_alumno['monto_a_pagar']:,.2f}).")
+                else:
+                    st.caption(f"🛡️ Timbrado: `{timbre_info['folio_boletin']}` | {fin_alumno['mensaje_estado']}")
+
             else:
                 st.error(
                     f"🔒 **Descarga de Boletín Suspendida**\n\n"
