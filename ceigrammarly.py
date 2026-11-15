@@ -3080,26 +3080,38 @@ with st.sidebar:
 
 
 def evaluar_estado_financiero_alumno(student_user: str) -> dict:
-    """Evalúa ciclo de 4 semanas desde fecha_inicio_curso, incentivo -7%, recargo +5% y bloqueo de boletín."""
-    from datetime import date, timedelta
+    """
+    Regla mensual (ciclos de 4 semanas / 28 días, no acumulable):
+    - Pago realizado dentro de la Semana 4 o antes (días 1-28 del mes): Incentivo -7% sobre base.
+    - Si inicia la semana del mes siguiente (día 29+) sin pagar el ciclo vencido: Recargo +5% y bloqueo de boletín.
+    - IVA (16%) se aplica sobre el subtotal con descuento o recargo ya aplicado.
+    """
+    from datetime import timedelta
     from psycopg.rows import dict_row
 
     hoy = datetime.now(ZoneInfo("America/Hermosillo")).date()
+    reglas_activas = get_billing_global_settings_pg()
+
     info = {
         "fecha_inicio": hoy,
         "mensualidad_base": 1500.00,
+        "aplicar_iva": False,
+        "subtotal_ajustado": 1500.00,
+        "iva_monto": 0.00,
+        "reglas_incentivo_activas": reglas_activas,
         "afiliado_usuario": "",
         "porcentaje_comision": 0.0,
         "ciclo_actual": 1,
+        "ciclo_a_cobrar": 1,
         "semana_ciclo": 1,
-        "ventana_pago_inicio": hoy + timedelta(days=14),
-        "ventana_pago_fin": hoy + timedelta(days=20),
-        "ajuste_label": "Incentivo Pronto Pago (-7%)",
-        "factor_ajuste": 0.93,
-        "monto_a_pagar": 1395.00,
+        "ventana_pago_inicio": hoy,
+        "ventana_pago_fin": hoy + timedelta(days=27),
+        "ajuste_label": "Tarifa Base (Incentivos/Recargos desactivados)",
+        "ajuste_monto": 0.00,
+        "monto_a_pagar": 1500.00,
         "ciclo_pagado": False,
         "descarga_permitida": True,
-        "mensaje_estado": "Al corriente (En ventana de incentivo)"
+        "mensaje_estado": "Al corriente"
     }
 
     conn = get_pg_conn()
@@ -3110,74 +3122,96 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
         with conn:
             with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute("""
-                    SELECT rol, fecha_inicio_curso, mensualidad_base, afiliado_usuario, porcentaje_comision
+                    SELECT rol, fecha_inicio_curso, mensualidad_base, aplicar_iva, afiliado_usuario, porcentaje_comision
                     FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;
                 """, (student_user,))
                 u = cur.fetchone()
                 if not u:
                     return info
 
-                # Propietario, Admin, Docentes y Afiliados no tienen bloqueo de descarga
                 if str(u.get("rol", "")).lower() not in ["estudiante", "student", "alumno"]:
                     return info
 
                 f_ini = u.get("fecha_inicio_curso") or hoy
                 base = float(u.get("mensualidad_base") or 1500.0)
+                con_iva = bool(u.get("aplicar_iva") or False)
+
                 dias_transcurridos = max(0, (hoy - f_ini).days)
-                ciclo_num = (dias_transcurridos // 28) + 1
-                dia_en_ciclo = (dias_transcurridos % 28) + 1  # Día 1 a 28
-                semana_en_ciclo = ((dia_en_ciclo - 1) // 7) + 1  # Semana 1, 2, 3 o 4
+                ciclo_vigente = (dias_transcurridos // 28) + 1
+                dia_en_ciclo = (dias_transcurridos % 28) + 1
+                semana_en_ciclo = ((dia_en_ciclo - 1) // 7) + 1
 
-                inicio_ciclo = f_ini + timedelta(days=(ciclo_num - 1) * 28)
-                sem3_ini = inicio_ciclo + timedelta(days=14)
-                sem3_fin = inicio_ciclo + timedelta(days=20)
-
-                if semana_en_ciclo <= 2:
-                    ajuste_lbl = "Incentivo Pronto Pago (-7%)"
-                    factor = 0.93
-                elif semana_en_ciclo == 3:
-                    ajuste_lbl = "Pago Ordinario Semana 3 (0%)"
-                    factor = 1.00
-                else:
-                    ajuste_lbl = "Recargo Moratorio Semana 4 (+5%)"
-                    factor = 1.05
-
-                monto_calc = round(base * factor, 2)
-
+                # Consulta todos los ciclos ya pagados por el estudiante
                 cur.execute("""
-                    SELECT id FROM tuition_payments
-                    WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s)) AND ciclo_numero = %s AND estatus = 'Pagado'
-                    LIMIT 1;
-                """, (student_user, ciclo_num))
-                pagado_row = cur.fetchone()
-                esta_pagado = bool(pagado_row)
+                    SELECT ciclo_numero FROM tuition_payments
+                    WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s)) AND estatus = 'Pagado';
+                """, (student_user,))
+                ciclos_pagados = {int(r["ciclo_numero"]) for r in cur.fetchall() if r.get("ciclo_numero") is not None}
 
-                # Se bloquea descarga si ya pasó la 3ra semana (semana 4) y no ha pagado el ciclo actual
-                bloqueado = (not esta_pagado) and (semana_en_ciclo >= 4)
+                # Busca el primer ciclo vencido (cuya semana 4 ya terminó y ya inició el mes siguiente)
+                ciclos_vencidos = [c for c in range(1, ciclo_vigente) if c not in ciclos_pagados]
+
+                if ciclos_vencidos:
+                    # Adeudo moratorio: ya inició la semana del mes siguiente sin cubrir este ciclo
+                    ciclo_objetivo = ciclos_vencidos[0]
+                    es_moratorio = True
+                    esta_pagado = False
+                else:
+                    # Al corriente de meses anteriores: evalúa el mes/ciclo vigente (Sem. 1 a 4)
+                    ciclo_objetivo = ciclo_vigente
+                    es_moratorio = False
+                    esta_pagado = ciclo_vigente in ciclos_pagados
+
+                inicio_ciclo_obj = f_ini + timedelta(days=(ciclo_objetivo - 1) * 28)
+                fin_sem4_obj = inicio_ciclo_obj + timedelta(days=27)
+
+                if not reglas_activas:
+                    ajuste_lbl = "Mensualidad Estándar (Incentivos/Recargos desactivados)"
+                    ajuste_mto = 0.0
+                elif es_moratorio:
+                    ajuste_lbl = f"Recargo Moratorio Mes {ciclo_objetivo} Vencido (+5%)"
+                    ajuste_mto = round(base * 0.05, 2)
+                else:
+                    # Pago dentro de la Semana 4 o antes (días 1 a 28 del ciclo vigente)
+                    ajuste_lbl = f"Incentivo Pago en Tiempo Sem. {semana_en_ciclo}/4 (-7%)"
+                    ajuste_mto = round(-base * 0.07, 2)
+
+                subtotal_mes = round(base + ajuste_mto, 2)
+                iva_mto = round(subtotal_mes * 0.16, 2) if con_iva else 0.0
+                monto_calc = round(subtotal_mes + iva_mto, 2)
+
+                # Bloquea boletín si existe al menos un ciclo vencido (ya inició la semana del mes siguiente sin pagar)
+                bloqueado = bool(ciclos_vencidos)
 
                 info.update({
                     "fecha_inicio": f_ini,
                     "mensualidad_base": base,
+                    "aplicar_iva": con_iva,
+                    "subtotal_ajustado": subtotal_mes,
+                    "iva_monto": iva_mto,
+                    "reglas_incentivo_activas": reglas_activas,
                     "afiliado_usuario": str(u.get("afiliado_usuario") or ""),
                     "porcentaje_comision": float(u.get("porcentaje_comision") or 0.0),
-                    "ciclo_actual": ciclo_num,
+                    "ciclo_actual": ciclo_objetivo,
+                    "ciclo_a_cobrar": ciclo_objetivo,
                     "semana_ciclo": semana_en_ciclo,
-                    "ventana_pago_inicio": sem3_ini,
-                    "ventana_pago_fin": sem3_fin,
+                    "ventana_pago_inicio": inicio_ciclo_obj,
+                    "ventana_pago_fin": fin_sem4_obj,
                     "ajuste_label": ajuste_lbl,
-                    "factor_ajuste": factor,
+                    "ajuste_monto": ajuste_mto,
                     "monto_a_pagar": monto_calc,
                     "ciclo_pagado": esta_pagado,
                     "descarga_permitida": not bloqueado,
                     "mensaje_estado": (
-                        f"✅ Ciclo {ciclo_num} Pagado" if esta_pagado
-                        else (f"⛔ Descarga bloqueada: Pago vencido (Semana {semana_en_ciclo} del Ciclo {ciclo_num})" if bloqueado
-                              else f"⏳ Ciclo {ciclo_num} — Semana {semana_en_ciclo} ({ajuste_lbl}: ${monto_calc:,.2f})")
+                        f"✅ Mes/Ciclo {ciclo_vigente} Pagado (Al corriente)" if esta_pagado
+                        else (f"⛔ Descarga bloqueada: Mes {ciclo_objetivo} vencido (Inició mes siguiente — Recargo +5%: ${monto_calc:,.2f})" if bloqueado
+                              else f"⏳ Mes {ciclo_vigente} — Sem. {semana_en_ciclo}/4 ({ajuste_lbl}: ${monto_calc:,.2f})")
                     )
                 })
     except Exception:
         pass
     return info
+
 
 
 
