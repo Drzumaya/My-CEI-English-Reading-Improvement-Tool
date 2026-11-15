@@ -13,7 +13,6 @@ import base64
 import hashlib
 import hmac
 import urllib.parse
-impors
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import gspread
