@@ -3684,13 +3684,13 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
         
         
-        tab_certificados, tab_reg_usuarios, tab_matriz_perm, tab_datos_inst, tab_finanzas, tab_afiliado = st.tabs([
-            "💳 Cobranza Mensual e IVA",
-            "👥 Inscripción y Padrón",
-            "🤝 Portal Socio Afiliado"
-            "🔐 Matriz Global de Permisos",
+        tab_certificados, tab_reg_usuarios, tab_matriz_perm, tab_instituto, tab_finanzas, tab_afiliado = st.tabs([
             "🏅 Certificados (Timbre y QR)",
+            "👥 Inscripción y Padrón",
+            "🔐 Matriz Global de Permisos",
             "🏛️ Datos del Instituto",
+            "💳 Cobranza Mensual e IVA",
+            "🤝 Portal Socio Afiliado"
         ])
 
 
