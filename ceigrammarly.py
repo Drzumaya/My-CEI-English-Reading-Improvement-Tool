@@ -3879,168 +3879,168 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
 
-        # 14.1a --- MÓDULO FINANCIERO: COBRANZA MENSUAL (4 SEMANAS), IVA (16%) Y SOCIOS AFILIADOS ---
+              # 14.1a --- MÓDULO FINANCIERO: COBRANZA MENSUAL (4 SEMANAS), IVA (16%) Y SOCIOS AFILIADOS ---
         puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
         es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
 
+        if es_socio_afiliado:
+            with st.expander("🤝 Portal Oficial del Socio Afiliado — Estudiantes, Comisiones y Simulador", expanded=True):
+                try:
+                    from portal_afiliado import render_portal_socio_afiliado
+                    render_portal_socio_afiliado(st.session_state.current_user)
+                except Exception:
+                    aff_data = fetch_affiliate_dashboard_pg(st.session_state.current_user)
+                    ca1, ca2, ca3, ca4 = st.columns(4)
+                    ca1.metric("👥 Estudiantes Inscritos", len(aff_data["students"]))
+                    ca2.metric("💰 Comisiones Totales", f"${aff_data['total_ganado']:,.2f}")
+                    ca3.metric("⏳ Por Cobrar (Pendiente)", f"${aff_data['total_pendiente']:,.2f}")
+                    ca4.metric("✅ Comisiones Cobradas", f"${aff_data['total_pagado']:,.2f}")
+                    if aff_data["students"]:
+                        st.dataframe(pd.DataFrame(aff_data["students"]), width="stretch", hide_index=True)
+                    if aff_data["commissions"]:
+                        st.dataframe(pd.DataFrame(aff_data["commissions"]), width="stretch", hide_index=True)
 
-if es_socio_afiliado:
-    with st.expander("🤝 Portal Oficial del Socio Afiliado — Estudiantes, Comisiones y Simulador", expanded=True):
-        try:
-            from portal_afiliado import render_portal_socio_afiliado
-            render_portal_socio_afiliado(st.session_state.current_user)
-        except Exception:
-            aff_data = fetch_affiliate_dashboard_pg(st.session_state.current_user)
-            ca1, ca2, ca3, ca4 = st.columns(4)
-            ca1.metric("👥 Estudiantes Inscritos", len(aff_data["students"]))
-            ca2.metric("💰 Comisiones Totales", f"${aff_data['total_ganado']:,.2f}")
-            ca3.metric("⏳ Por Cobrar (Pendiente)", f"${aff_data['total_pendiente']:,.2f}")
-            ca4.metric("✅ Comisiones Cobradas", f"${aff_data['total_pagado']:,.2f}")
-            if aff_data["students"]:
-                st.dataframe(pd.DataFrame(aff_data["students"]), width="stretch", hide_index=True)
-            if aff_data["commissions"]:
-                st.dataframe(pd.DataFrame(aff_data["commissions"]), width="stretch", hide_index=True)
-
-if is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva:
-    with st.expander("💳 Control Financiero Mensual (Ciclo 4 Semanas), IVA y Socios Afiliados", expanded=False):
-        # 1. INTERRUPTOR GLOBAL DE INCENTIVOS (-7%) Y RECARGOS (+5%) — SOLO PROPIETARIO
-        if is_owner:
-            st.markdown("##### 🎛️ Control Global del Sistema de Incentivos (-7%) y Recargos (+5%)")
-            estado_global_reglas = get_billing_global_settings_pg()
-            col_sw1, col_sw2 = st.columns([2.2, 1.0])
-            with col_sw1:
-                nuevo_estado_reglas = st.toggle(
-                    "Activar Sistema de Incentivo (-7% hasta Semana 4) y Recargo Moratorio (+5% al iniciar mes siguiente)",
-                    value=estado_global_reglas,
-                    key="tgl_global_incentivo_recargo",
-                    help="Desactívalo durante el periodo informativo para cobrar únicamente la Mensualidad Base (+ IVA si aplica)."
-                )
-            with col_sw2:
-                if nuevo_estado_reglas != estado_global_reglas:
-                    if st.button("💾 Aplicar Cambio Global", type="primary", key="btn_save_global_billing_rules"):
-                        if set_billing_global_settings_pg(nuevo_estado_reglas, st.session_state.current_user):
-                            st.success(f"✅ Esquema de incentivos y recargos {'ACTIVADO' if nuevo_estado_reglas else 'DESACTIVADO'}.")
-                            st.rerun()
-            st.divider()
-
-        # 2. BOTÓN EMPODERADO: REGISTRAR NUEVO SOCIO AFILIADO EN EL SISTEMA
-        if is_owner or puede_gestionar_afiliados:
-            if "show_reg_afiliado_panel" not in st.session_state:
-                st.session_state["show_reg_afiliado_panel"] = False
-
-            if st.button(
-                "➕ Registrar Nuevo Socio Afiliador en el Sistema" if not st.session_state["show_reg_afiliado_panel"] else "🔼 Cerrar Formulario de Socio Afiliado",
-                type="secondary",
-                key="btn_toggle_reg_afiliado_panel"
-            ):
-                st.session_state["show_reg_afiliado_panel"] = not st.session_state["show_reg_afiliado_panel"]
-                st.rerun()
-
-            if st.session_state["show_reg_afiliado_panel"]:
-                with st.container(border=True):
-                    try:
-                        from registro_afiliados import render_formulario_registro_afiliado
-                        render_formulario_registro_afiliado(
-                            registrado_por=st.session_state.current_user,
-                            key_prefix="panel_admin_aff"
+        if is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva:
+            with st.expander("💳 Control Financiero Mensual (Ciclo 4 Semanas), IVA y Socios Afiliados", expanded=False):
+                # 1. INTERRUPTOR GLOBAL DE INCENTIVOS (-7%) Y RECARGOS (+5%) — SOLO PROPIETARIO
+                if is_owner:
+                    st.markdown("##### 🎛️ Control Global del Sistema de Incentivos (-7%) y Recargos (+5%)")
+                    estado_global_reglas = get_billing_global_settings_pg()
+                    col_sw1, col_sw2 = st.columns([2.2, 1.0])
+                    with col_sw1:
+                        nuevo_estado_reglas = st.toggle(
+                            "Activar Sistema de Incentivo (-7% hasta Semana 4) y Recargo Moratorio (+5% al iniciar mes siguiente)",
+                            value=estado_global_reglas,
+                            key="tgl_global_incentivo_recargo",
+                            help="Desactívalo durante el periodo informativo para cobrar únicamente la Mensualidad Base (+ IVA si aplica)."
                         )
-                    except Exception as e_aff_mod:
-                        st.error(f"Asegúrate de tener el archivo `registro_afiliados.py` en la raíz del repositorio: {e_aff_mod}")
-            st.divider()
+                    with col_sw2:
+                        if nuevo_estado_reglas != estado_global_reglas:
+                            if st.button("💾 Aplicar Cambio Global", type="primary", key="btn_save_global_billing_rules"):
+                                if set_billing_global_settings_pg(nuevo_estado_reglas, st.session_state.current_user):
+                                    st.success(f"✅ Esquema de incentivos y recargos {'ACTIVADO' if nuevo_estado_reglas else 'DESACTIVADO'}.")
+                                    st.rerun()
+                    st.divider()
 
-        # 3. GESTIÓN FINANCIERA POR ESTUDIANTE (BASE, IVA 16%, FECHA DE INICIO Y COMISIÓN DE AFILIADO)
-        padron_fin = load_padron_records()
-        estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
-        afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+                # 2. BOTÓN EMPODERADO: REGISTRAR NUEVO SOCIO AFILIADO EN EL SISTEMA
+                if is_owner or puede_gestionar_afiliados:
+                    if "show_reg_afiliado_panel" not in st.session_state:
+                        st.session_state["show_reg_afiliado_panel"] = False
 
-        if estudiantes_fin:
-            mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
-            sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
-            est_objetivo = mapa_est_fin[sel_est_lbl]
-            estado_f = evaluar_estado_financiero_alumno(est_objetivo)
-
-            f1, f2, f3, f4 = st.columns(4)
-            f1.metric("📅 Ciclo a Cobrar (28 días)", f"Mes/Ciclo {estado_f['ciclo_a_cobrar']} (Sem. {estado_f['semana_ciclo']}/4)")
-            f2.metric("💵 Mensualidad Base", f"${estado_f['mensualidad_base']:,.2f}", delta=f"Subtotal: ${estado_f['subtotal_ajustado']:,.2f}")
-            f3.metric(
-                "🧾 Total a Pagar" + (" (+16% IVA)" if estado_f["aplicar_iva"] else " (Sin IVA)"),
-                f"${estado_f['monto_a_pagar']:,.2f}",
-                delta=f"IVA: +${estado_f['iva_monto']:,.2f}" if estado_f["aplicar_iva"] else estado_f["ajuste_label"]
-            )
-            f4.metric("📄 Estatus Boletín", "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado")
-
-            col_cfg1, col_cfg2 = st.columns(2)
-            with col_cfg1:
-                st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
-                nueva_fecha_ini = st.date_input(
-                    "Fecha de Inicio del Curso:",
-                    value=estado_f["fecha_inicio"],
-                    disabled=not puede_editar_inicio,
-                    key="inp_fecha_inicio_curso"
-                )
-                nueva_mensualidad = st.number_input(
-                    "Mensualidad Base ($ MXN):",
-                    min_value=0.0,
-                    value=float(estado_f["mensualidad_base"]),
-                    step=100.0,
-                    disabled=not puede_editar_inicio,
-                    key="inp_mensualidad_base"
-                )
-                nuevo_aplicar_iva = st.checkbox(
-                    "Aplicar +16% de IVA sobre la mensualidad con descuento o recargo aplicado",
-                    value=bool(estado_f["aplicar_iva"]),
-                    disabled=not puede_gestionar_iva,
-                    key="chk_aplicar_iva_alumno"
-                )
-                opciones_aff = ["Sin Afiliado"] + afiliados_fin
-                idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
-                sel_aff_user = st.selectbox(
-                    "Socio Afiliado Asignado:",
-                    opciones_aff,
-                    index=idx_aff,
-                    disabled=not puede_gestionar_afiliados,
-                    key="sel_aff_assigned"
-                )
-                nuevo_pct_com = st.number_input(
-                    "Porcentaje de Comisión para el Afiliado (%):",
-                    min_value=0.0,
-                    max_value=100.0,
-                    value=float(estado_f["porcentaje_comision"]),
-                    step=1.0,
-                    disabled=not puede_gestionar_afiliados,
-                    key="inp_pct_comision_aff"
-                )
-                if st.button("💾 Guardar Configuración Financiera, IVA y Comisión", type="primary", key="btn_save_fin_cfg"):
-                    aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
-                    if actualizar_config_financiera_alumno_pg(
-                        est_objetivo, nueva_fecha_ini, nueva_mensualidad,
-                        nuevo_aplicar_iva, aff_save, nuevo_pct_com
+                    if st.button(
+                        "➕ Registrar Nuevo Socio Afiliador en el Sistema" if not st.session_state["show_reg_afiliado_panel"] else "🔼 Cerrar Formulario de Socio Afiliado",
+                        type="secondary",
+                        key="btn_toggle_reg_afiliado_panel"
                     ):
-                        st.success("✅ Configuración financiera, IVA y comisión actualizados en Supabase.")
+                        st.session_state["show_reg_afiliado_panel"] = not st.session_state["show_reg_afiliado_panel"]
                         st.rerun()
 
-            with col_cfg2:
-                st.markdown("##### 🧾 Desglose y Registro de Pago Mensual")
-                st.info(
-                    f"**Desglose del Mes/Ciclo {estado_f['ciclo_a_cobrar']}:**\n"
-                    f"- **Mensualidad Base:** `${estado_f['mensualidad_base']:,.2f} MXN`\n"
-                    f"- **Ajuste ({estado_f['ajuste_label']}):** `${estado_f['ajuste_monto']:+,.2f} MXN`\n"
-                    f"- **Subtotal Ajustado:** `${estado_f['subtotal_ajustado']:,.2f} MXN`\n"
-                    f"- **IVA (16% sobre subtotal ajustado):** `${estado_f['iva_monto']:,.2f} MXN`\n"
-                    f"- **TOTAL FINAL A PAGAR:** **`${estado_f['monto_a_pagar']:,.2f} MXN`**"
-                )
-                if estado_f["ciclo_pagado"]:
-                    st.success(f"✅ El Mes/Ciclo {estado_f['ciclo_a_cobrar']} de **{est_objetivo}** ya está pagado y su Boletín está habilitado.")
-                else:
-                    if st.button(f"✅ Registrar Pago de ${estado_f['monto_a_pagar']:,.2f} (Mes/Ciclo {estado_f['ciclo_a_cobrar']})", type="primary", width="stretch", key="btn_reg_tuition_pay"):
-                        res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
-                        if res_p["ok"]:
-                            st.success(res_p["msg"])
-                            st.rerun()
+                    if st.session_state["show_reg_afiliado_panel"]:
+                        with st.container(border=True):
+                            try:
+                                from registro_afiliados import render_formulario_registro_afiliado
+                                render_formulario_registro_afiliado(
+                                    registrado_por=st.session_state.current_user,
+                                    key_prefix="panel_admin_aff"
+                                )
+                            except Exception as e_aff_mod:
+                                st.error(f"Asegúrate de tener el archivo `registro_afiliados.py` en la raíz del repositorio: {e_aff_mod}")
+                    st.divider()
+
+                  # 3. GESTIÓN FINANCIERA POR ESTUDIANTE (BASE, IVA 16%, FECHA DE INICIO Y COMISIÓN DE AFILIADO)
+                padron_fin = load_padron_records()
+                estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+                afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+
+                if estudiantes_fin:
+                    mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
+                    sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
+                    est_objetivo = mapa_est_fin[sel_est_lbl]
+                    estado_f = evaluar_estado_financiero_alumno(est_objetivo)
+
+                    f1, f2, f3, f4 = st.columns(4)
+                    f1.metric("📅 Ciclo a Cobrar (28 días)", f"Mes/Ciclo {estado_f['ciclo_a_cobrar']} (Sem. {estado_f['semana_ciclo']}/4)")
+                    f2.metric("💵 Mensualidad Base", f"${estado_f['mensualidad_base']:,.2f}", delta=f"Subtotal: ${estado_f['subtotal_ajustado']:,.2f}")
+                    f3.metric(
+                        "🧾 Total a Pagar" + (" (+16% IVA)" if estado_f["aplicar_iva"] else " (Sin IVA)"),
+                        f"${estado_f['monto_a_pagar']:,.2f}",
+                        delta=f"IVA: +${estado_f['iva_monto']:,.2f}" if estado_f["aplicar_iva"] else estado_f["ajuste_label"]
+                    )
+                    f4.metric("📄 Estatus Boletín", "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado")
+
+                    col_cfg1, col_cfg2 = st.columns(2)
+                    with col_cfg1:
+                        st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
+                        nueva_fecha_ini = st.date_input(
+                            "Fecha de Inicio del Curso:",
+                            value=estado_f["fecha_inicio"],
+                            disabled=not puede_editar_inicio,
+                            key="inp_fecha_inicio_curso"
+                        )
+                        nueva_mensualidad = st.number_input(
+                            "Mensualidad Base ($ MXN):",
+                            min_value=0.0,
+                            value=float(estado_f["mensualidad_base"]),
+                            step=100.0,
+                            disabled=not puede_editar_inicio,
+                            key="inp_mensualidad_base"
+                        )
+                        nuevo_aplicar_iva = st.checkbox(
+                            "Aplicar +16% de IVA sobre la mensualidad con descuento o recargo aplicado",
+                            value=bool(estado_f["aplicar_iva"]),
+                            disabled=not puede_gestionar_iva,
+                            key="chk_aplicar_iva_alumno"
+                        )
+                        opciones_aff = ["Sin Afiliado"] + afiliados_fin
+                        idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
+                        sel_aff_user = st.selectbox(
+                            "Socio Afiliado Asignado:",
+                            opciones_aff,
+                            index=idx_aff,
+                            disabled=not puede_gestionar_afiliados,
+                            key="sel_aff_assigned"
+                        )
+                        nuevo_pct_com = st.number_input(
+                            "Porcentaje de Comisión para el Afiliado (%):",
+                            min_value=0.0,
+                            max_value=100.0,
+                            value=float(estado_f["porcentaje_comision"]),
+                            step=1.0,
+                            disabled=not puede_gestionar_afiliados,
+                            key="inp_pct_comision_aff"
+                        )
+                        if st.button("💾 Guardar Configuración Financiera, IVA y Comisión", type="primary", key="btn_save_fin_cfg"):
+                            aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
+                            if actualizar_config_financiera_alumno_pg(
+                                est_objetivo, nueva_fecha_ini, nueva_mensualidad,
+                                nuevo_aplicar_iva, aff_save, nuevo_pct_com
+                            ):
+                                st.success("✅ Configuración financiera, IVA y comisión actualizados en Supabase.")
+                                st.rerun()
+
+                    with col_cfg2:
+                        st.markdown("##### 🧾 Desglose y Registro de Pago Mensual")
+                        st.info(
+                            f"**Desglose del Mes/Ciclo {estado_f['ciclo_a_cobrar']}:**\n"
+                            f"- **Mensualidad Base:** `${estado_f['mensualidad_base']:,.2f} MXN`\n"
+                            f"- **Ajuste ({estado_f['ajuste_label']}):** `${estado_f['ajuste_monto']:+,.2f} MXN`\n"
+                            f"- **Subtotal Ajustado:** `${estado_f['subtotal_ajustado']:,.2f} MXN`\n"
+                            f"- **IVA (16% sobre subtotal ajustado):** `${estado_f['iva_monto']:,.2f} MXN`\n"
+                            f"- **TOTAL FINAL A PAGAR:** **`${estado_f['monto_a_pagar']:,.2f} MXN`**"
+                        )
+                        if estado_f["ciclo_pagado"]:
+                            st.success(f"✅ El Mes/Ciclo {estado_f['ciclo_a_cobrar']} de **{est_objetivo}** ya está pagado y su Boletín está habilitado.")
                         else:
-                            st.error(res_p["msg"])
+                            if st.button(f"✅ Registrar Pago de ${estado_f['monto_a_pagar']:,.2f} (Mes/Ciclo {estado_f['ciclo_a_cobrar']})", type="primary", width="stretch", key="btn_reg_tuition_pay"):
+                                res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
+                                if res_p["ok"]:
+                                    st.success(res_p["msg"])
+                                    st.rerun()
+                                else:
+                                    st.error(res_p["msg"])
+
 
 
 
