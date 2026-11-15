@@ -3132,7 +3132,7 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
                 sem3_ini = inicio_ciclo + timedelta(days=14)
                 sem3_fin = inicio_ciclo + timedelta(days=20)
 
-                if semana_en_ciclo in:
+                if semana_en_ciclo <= 2:
                     ajuste_lbl = "Incentivo Pronto Pago (-7%)"
                     factor = 0.93
                 elif semana_en_ciclo == 3:
