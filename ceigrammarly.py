@@ -3989,10 +3989,11 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                     st.divider()
 
 
-                # 3. GESTIÓN FINANCIERA POR ESTUDIANTE (BASE, IVA 16%, FECHA DE INICIO Y COMISIÓN DE AFILIADO)
+            # 3. GESTIÓN FINANCIERA POR ESTUDIANTE (BASE, IVA 16%, FECHA DE INICIO Y COMISIÓN DE AFILIADO)
             padron_fin = load_padron_records()
-                estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
-                afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+            estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+            afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+
 
                 if estudiantes_fin:
                     mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
