@@ -3206,15 +3206,14 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
                 ciclos_vencidos = [c for c in range(1, ciclo_vigente) if c not in ciclos_pagados]
 
                 if ciclos_vencidos:
-                    # Adeudo moratorio: ya inició la semana del mes siguiente sin cubrir este ciclo
-                    ciclo_objetivo = ciclos_vencidos[0]
+                    ciclo_objetivo = next(iter(ciclos_vencidos))
                     es_moratorio = True
                     esta_pagado = False
                 else:
-                    # Al corriente de meses anteriores: evalúa el mes/ciclo vigente (Sem. 1 a 4)
                     ciclo_objetivo = ciclo_vigente
                     es_moratorio = False
                     esta_pagado = ciclo_vigente in ciclos_pagados
+
 
                 inicio_ciclo_obj = f_ini + timedelta(days=(ciclo_objetivo - 1) * 28)
                 fin_sem4_obj = inicio_ciclo_obj + timedelta(days=27)
@@ -3235,7 +3234,8 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
                 monto_calc = round(subtotal_mes + iva_mto, 2)
 
                 # Bloquea boletín si existe al menos un ciclo vencido (ya inició la semana del mes siguiente sin pagar)
-                bloqueado = bool(ciclos_vencidos)
+                bloqueado = es_moratorio
+
 
                 info.update({
                     "fecha_inicio": f_ini,
