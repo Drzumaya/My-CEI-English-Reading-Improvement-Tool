@@ -3682,12 +3682,15 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                 st.session_state["show_teacher_registry"] = False
                 st.rerun()
 
-        tab_certificados, tab_reg_usuarios, tab_matriz_perm, tab_datos_inst = st.tabs([
+                tab_certificados, tab_reg_usuarios, tab_permisos, tab_instituto, tab_finanzas, tab_afiliado = st.tabs([
             "🏅 Certificados (Timbre y QR)",
             "👥 Inscripción y Padrón",
             "🔐 Matriz Global de Permisos",
-            "🏛️ Datos del Instituto"
+            "🏛️ Datos del Instituto",
+            "💳 Cobranza Mensual y Comisiones",
+            "🤝 Portal Socio Afiliado"
         ])
+
 
 
 # 14.1 PESTAÑA CERTIFICADOS
@@ -4434,6 +4437,175 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                             st.error(f"❌ Error durante la migración a Supabase: {e}")
 
     st.divider()
+
+
+
+        # 14.5 PESTAÑA COBRANZA MENSUAL, IVA Y REGISTRO DE SOCIOS AFILIADOS
+        with tab_finanzas:
+            puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
+            puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
+            puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
+
+            if not (is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
+                st.warning("⛔ Tu perfil actual no tiene permisos habilitados para gestión financiera o de afiliados.")
+            else:
+                if is_owner:
+                    st.markdown("##### 🎛️ Control Global del Sistema de Incentivos (-7%) y Recargos (+5%)")
+                    estado_global_reglas = get_billing_global_settings_pg()
+                    col_sw1, col_sw2 = st.columns([2.2, 1.0])
+                    with col_sw1:
+                        nuevo_estado_reglas = st.toggle(
+                            "Activar Sistema de Incentivo (-7% hasta Semana 4) y Recargo Moratorio (+5% al iniciar mes siguiente)",
+                            value=estado_global_reglas,
+                            key="tgl_global_incentivo_recargo"
+                        )
+                    with col_sw2:
+                        if nuevo_estado_reglas != estado_global_reglas:
+                            if st.button("💾 Aplicar Cambio Global", type="primary", key="btn_save_global_billing_rules"):
+                                if set_billing_global_settings_pg(nuevo_estado_reglas, st.session_state.current_user):
+                                    st.success(f"✅ Esquema {'ACTIVADO' if nuevo_estado_reglas else 'DESACTIVADO'}.")
+                                    st.rerun()
+                    st.divider()
+
+                if is_owner or puede_gestionar_afiliados:
+                    if "show_reg_afiliado_panel" not in st.session_state:
+                        st.session_state["show_reg_afiliado_panel"] = False
+
+                    app_pub_aff = str(
+                        st.secrets.get("AFFILIATE_REG_URL")
+                        or st.secrets.get("APP_PUBLIC_URL")
+                        or "https://streamlit.app"
+                    ).strip().rstrip("/")
+                    url_qr_afiliados = (
+                        app_pub_aff if "AFFILIATE_REG_URL" in st.secrets
+                        else f"{app_pub_aff}/?registro_afiliado=1"
+                    )
+
+                    col_aff_btn, col_aff_qr = st.columns([2.2, 1.0])
+                    with col_aff_btn:
+                        st.markdown("##### 🤝 Alta de Socios Afiliados")
+                        if st.button(
+                            "➕ Registrar Nuevo Socio Afiliador en el Sistema" if not st.session_state["show_reg_afiliado_panel"] else "🔼 Cerrar Formulario de Socio Afiliado",
+                            type="secondary",
+                            key="btn_toggle_reg_afiliado_panel"
+                        ):
+                            st.session_state["show_reg_afiliado_panel"] = not st.session_state["show_reg_afiliado_panel"]
+                            st.rerun()
+
+                    with col_aff_qr:
+                        try:
+                            import qrcode
+                            qr_aff = qrcode.make(url_qr_afiliados)
+                            buf_qr_aff = io.BytesIO()
+                            qr_aff.save(buf_qr_aff, format="PNG")
+                            qr_aff_bytes = buf_qr_aff.getvalue()
+                            st.image(qr_aff_bytes, caption="📲 QR Registro Afiliados", width=130)
+                            st.download_button(
+                                label="⬇️ Descargar QR",
+                                data=qr_aff_bytes,
+                                file_name="QR_Registro_Socios_Afiliados_CEI.png",
+                                mime="image/png",
+                                key="btn_dl_qr_afiliados"
+                            )
+                        except Exception:
+                            st.caption(f"🔗 `{url_qr_afiliados}`")
+
+                    if st.session_state["show_reg_afiliado_panel"]:
+                        with st.container(border=True):
+                            from registro_afiliados import render_formulario_registro_afiliado
+                            render_formulario_registro_afiliado(
+                                registrado_por=st.session_state.current_user,
+                                key_prefix="panel_admin_aff"
+                            )
+                    st.divider()
+                padron_fin = load_padron_records()
+                estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+                afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+
+                if estudiantes_fin:
+                    mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
+                    sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
+                    est_objetivo = mapa_est_fin[sel_est_lbl]
+                    estado_f = evaluar_estado_financiero_alumno(est_objetivo)
+
+                    metrics_placeholder = st.container()
+                    col_cfg1, col_cfg2 = st.columns(2)
+                    with col_cfg1:
+                        st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
+                        nueva_fecha_ini = st.date_input("Fecha de Inicio del Curso:", value=estado_f["fecha_inicio"], disabled=not puede_editar_inicio, key="inp_fecha_inicio_curso")
+                        nueva_mensualidad = st.number_input("Mensualidad Base ($ MXN):", min_value=0.0, value=float(estado_f["mensualidad_base"]), step=100.0, disabled=not puede_editar_inicio, key="inp_mensualidad_base")
+                        nuevo_aplicar_iva = st.checkbox("Aplicar +16% de IVA sobre la mensualidad con descuento o recargo aplicado", value=bool(estado_f["aplicar_iva"]), disabled=not puede_gestionar_iva, key="chk_aplicar_iva_alumno")
+                        opciones_aff = ["Sin Afiliado"] + afiliados_fin
+                        idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
+                        sel_aff_user = st.selectbox("Socio Afiliado Asignado:", opciones_aff, index=idx_aff, disabled=not puede_gestionar_afiliados, key="sel_aff_assigned")
+                        nuevo_pct_com = st.number_input("Porcentaje de Comisión para el Afiliado (%):", min_value=0.0, max_value=100.0, value=float(estado_f["porcentaje_comision"]), step=1.0, disabled=not puede_gestionar_afiliados, key="inp_pct_comision_aff")
+
+                        if not estado_f["reglas_incentivo_activas"]:
+                            ajuste_vivo = 0.0
+                        elif "Recargo" in estado_f["ajuste_label"]:
+                            ajuste_vivo = round(nueva_mensualidad * 0.05, 2)
+                        else:
+                            ajuste_vivo = round(-nueva_mensualidad * 0.07, 2)
+
+                        subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
+                        iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
+                        total_vivo = round(subtotal_vivo + iva_vivo, 2)
+
+                        if st.button("💾 Guardar Configuración Financiera, IVA y Comisión", type="primary", key="btn_save_fin_cfg"):
+                            aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
+                            if actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva, aff_save, nuevo_pct_com):
+                                st.success(f"✅ Configuración guardada. Total mensual vigente: ${total_vivo:,.2f} MXN.")
+                                st.rerun()
+
+                        st.caption(f"🧮 **Cálculo Total Vigente:** Base `${nueva_mensualidad:,.2f}` | Subtotal `${subtotal_vivo:,.2f}` | IVA (16%) `${iva_vivo:,.2f}` ➔ **Total: `${total_vivo:,.2f} MXN`**")
+
+                    with metrics_placeholder:
+                        f1, f2, f3, f4 = st.columns(4)
+                        f1.metric("📅 Ciclo a Cobrar (28 días)", f"Mes/Ciclo {estado_f['ciclo_a_cobrar']}", delta=f"Semana {estado_f['semana_ciclo']} de 4")
+                        f2.metric("💵 Subtotal (Con/Sin Ajuste)", f"${subtotal_vivo:,.2f}", delta=f"Base: ${nueva_mensualidad:,.2f} ({ajuste_vivo:+,.2f})")
+                        f3.metric("🧾 Cálculo Total" + (" (+16% IVA)" if nuevo_aplicar_iva else " (Sin IVA)"), f"${total_vivo:,.2f}", delta=f"IVA 16%: +${iva_vivo:,.2f}" if nuevo_aplicar_iva else "IVA no aplicado")
+                        f4.metric("📄 Estatus Boletín", "✅ Habilitado" if estado_f["descarga_permitida"] else "🔒 Bloqueado", delta="Al corriente" if estado_f["descarga_permitida"] else "Adeudo vencido")
+
+                    with col_cfg2:
+                        st.markdown("##### 🧾 Desglose y Registro de Pago Mensual")
+                        st.info(
+                            f"**Desglose del Mes/Ciclo {estado_f['ciclo_a_cobrar']}:**\n"
+                            f"- **Mensualidad Base:** `${nueva_mensualidad:,.2f} MXN`\n"
+                            f"- **Ajuste ({estado_f['ajuste_label']}):** `${ajuste_vivo:+,.2f} MXN`\n"
+                            f"- **Subtotal (Con/Sin Ajuste):** `${subtotal_vivo:,.2f} MXN`\n"
+                            f"- **IVA (16% sobre subtotal):** `${iva_vivo:,.2f} MXN` {'✅ (Activo)' if nuevo_aplicar_iva else '⚪ (No aplicado)'}\n"
+                            f"- **TOTAL FINAL A PAGAR:** **`${total_vivo:,.2f} MXN`**"
+                        )
+                        if estado_f["ciclo_pagado"]:
+                            st.success(f"✅ El Mes/Ciclo {estado_f['ciclo_a_cobrar']} de **{est_objetivo}** ya está pagado y su Boletín está habilitado.")
+                        else:
+                            if st.button(f"✅ Registrar Pago de ${total_vivo:,.2f} (Mes/Ciclo {estado_f['ciclo_a_cobrar']})", type="primary", width="stretch", key="btn_reg_tuition_pay"):
+                                aff_save = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
+                                actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva, aff_save, nuevo_pct_com)
+                                res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
+                                if res_p["ok"]:
+                                    st.success(res_p["msg"])
+                                    st.rerun()
+                                else:
+                                    st.error(res_p["msg"])
+
+        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
+        with tab_afiliado:
+            from portal_afiliado import render_portal_socio_afiliado
+            if is_owner or puede_gestionar_afiliados:
+                padron_aff_view = load_padron_records()
+                lista_aff_view = [str(r.get("Usuario", "")).strip() for r in padron_aff_view if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+                if lista_aff_view:
+                    aff_sel_vista = st.selectbox("Visualizar Portal del Socio Afiliado:", lista_aff_view, key="sel_preview_aff_portal")
+                    render_portal_socio_afiliado(aff_sel_vista)
+                else:
+                    st.info("Aún no hay Socios Afiliados registrados. Da de alta uno en la pestaña **💳 Cobranza Mensual y Comisiones**.")
+            else:
+                render_portal_socio_afiliado(st.session_state.current_user)
+
+
+
+
 
 # --- 15. PROCESAMIENTO Y GENERACIÓN DE LECCIÓN CON GEMINI Y POSTGRESQL ---
 
