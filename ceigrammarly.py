@@ -4286,22 +4286,22 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
     # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
     with tab_afiliado:
-        from portal_afiliado import render_portal_socio_afiliado
-        if is_owner or puede_gestionar_afiliados:
-            padron_aff_view = load_padron_records()
-            lista_aff_view = [str(r.get("Usuario", "")).strip() for r in padron_aff_view if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
-            if lista_aff_view:
-                aff_sel_vista = st.selectbox("Portal del Socio Afiliado:", lista_aff_view, key="sel_prev_aff")
-                render_portal_socio_afiliado(aff_sel_vista)
+        try:
+            from portal_afiliado import render_portal_socio_afiliado
+            if is_owner or puede_gestionar_afiliados:
+                padron_aff_view = load_padron_records()
+                lista_aff_view = [str(r.get("Usuario", "")).strip() for r in padron_aff_view if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+                if lista_aff_view:
+                    aff_sel_vista = st.selectbox("Portal del Socio Afiliado:", lista_aff_view, key="sel_prev_aff")
+                    render_portal_socio_afiliado(aff_sel_vista)
+                else:
+                    st.info("Aún no hay Socios Afiliados registrados.")
             else:
-                st.info("Aún no hay Socios Afiliados registrados.")
-        else:
-            render_portal_socio_afiliado(st.session_state.current_user)
+                render_portal_socio_afiliado(st.session_state.current_user)
+        except ModuleNotFoundError:
+            st.warning("⚠️ Crea el archivo `portal_afiliado.py` en la raíz del repositorio en GitHub para activar el portal completo.")
 
 
-
-
-   
 
 
 # --- 15. PROCESAMIENTO Y GENERACIÓN DE LECCIÓN CON GEMINI Y POSTGRESQL ---
