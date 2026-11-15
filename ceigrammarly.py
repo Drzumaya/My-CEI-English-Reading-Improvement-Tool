@@ -4234,8 +4234,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                         st.error(f"Error al cargar padrón: {e}")
 
         # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
-       if seccion_inst_sel == "🔐 Matriz Global de Permisos":
-
+        if seccion_inst_sel == "🔐 Matriz Global de Permisos":
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
                 {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
