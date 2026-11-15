@@ -3266,7 +3266,7 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
         pass
     return info
 
-
+ 
 
 
 def registrar_pago_mensual_y_comision_pg(student_user: str, registrado_por: str) -> dict:
