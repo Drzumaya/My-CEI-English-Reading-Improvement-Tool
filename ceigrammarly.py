@@ -3450,7 +3450,7 @@ if st.session_state.show_gradebook_panel:
                 lista_topicos_disp,
                 key="sel_filtro_topico_gradebook"
             )
-                with col_f_pdf:
+        with col_f_pdf:
             st.write("")
             fin_alumno = evaluar_estado_financiero_alumno(alumno_objetivo_gb)
             if is_owner or fin_alumno["descarga_permitida"]:
