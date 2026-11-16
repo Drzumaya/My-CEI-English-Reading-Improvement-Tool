@@ -1580,7 +1580,7 @@ CEFR_MAP = {
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v11_gt_safe") -> dict:
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v12_gt_ok") -> dict:
     """Tokeniza la lección y garantiza traducciones EN->ES reales para TODAS las palabras desde Python."""
     import re
     import requests
@@ -1635,16 +1635,16 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
     dict_final = {}
     gm_client = init_gemini_client()
 
-    # 1. Traducción completa en lotes con Gemini 2.5 Flash
+    # 1. Traducción en lotes cortos (60 palabras) con Gemini 2.5 Flash para evitar truncamiento JSON
     if gm_client and palabras_clave:
-        for i_batch in range(0, min(len(palabras_clave), 300), 120):
-            lote_palabras = palabras_clave[i_batch:i_batch + 120]
+        for i_batch in range(0, min(len(palabras_clave), 300), 60):
+            lote_palabras = palabras_clave[i_batch:i_batch + 60]
             lista_str = ", ".join(lote_palabras)
             prompt_rapido = (
-                f"Translate EVERY English word in [{lista_str}] into Spanish (CEFR {cefr_level} academic context). "
-                "NEVER leave any word untranslated in English. "
+                f"Translate EVERY English word in [{lista_str}] into Spanish (CEFR {cefr_level} context). "
+                "NEVER return the English word as translation. "
                 "Return ONLY a JSON object mapping each lowercase English word to: "
-                '{"es":"traducción principal exacta","alt":"sinónimo 1, sinónimo 2","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Determinante / Preposición","def":"definición corta en español"}.'
+                '{"es":"traducción exacta en español","alt":"acepción 2, acepción 3","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Determinante / Preposición","def":"definición breve en español"}.'
             )
             try:
                 res_d = gm_client.models.generate_content(
@@ -1673,7 +1673,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
             except Exception:
                 pass
 
-    # 2. Respaldo directo HTTP desde Python a Google Translate
+    # 2. Respaldo directo HTTP desde Python a Google Translate (con índices exactos)
     faltantes = [w for w in palabras_clave[:300] if w not in dict_final or dict_final[w]["es"].lower() == w]
     if faltantes:
         try:
@@ -1686,7 +1686,11 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
             )
             if r_gt.status_code == 200:
                 data_gt = r_gt.json()
-                traduccion_unida = "".join(str(seg[0]) for seg in data_gt[0] if isinstance(seg, list) and len(seg) > 0 and seg[0])
+                bloque_segs = data_gt[0] if isinstance(data_gt, list) and len(data_gt) > 0 else []
+                traduccion_unida = "".join(
+                    str(seg[0]) for seg in bloque_segs
+                    if isinstance(seg, list) and len(seg) > 0 and seg[0] is not None
+                )
                 lineas_tr = [x.strip() for x in traduccion_unida.splitlines()]
                 for orig_w, tr_w in zip(faltantes, lineas_tr):
                     if tr_w:
@@ -1709,6 +1713,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                 tk["pos"] = info_w["pos"]
 
     return {"sentences": oraciones_base, "dictionary": dict_final}
+
 
 
 
