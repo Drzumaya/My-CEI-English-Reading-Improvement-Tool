@@ -4300,6 +4300,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                         else:
                             st.warning("⚠️ La dirección institucional no puede quedar vacía.")
 
+
             if is_owner:
                 st.divider()
                 st.markdown("#### 🐘 Migración a PostgreSQL (Supabase)")
