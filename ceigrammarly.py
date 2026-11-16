@@ -4274,7 +4274,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
-       if seccion_inst_sel == "🏛️ Datos del Instituto":
+        if seccion_inst_sel == "🏛️ Datos del Instituto":
             if not can("Editar_Instituto_Logo"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
             else:
@@ -4299,7 +4299,6 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                 st.error(f"Error al guardar información: {e}")
                         else:
                             st.warning("⚠️ La dirección institucional no puede quedar vacía.")
-                            
 
             if is_owner:
                 st.divider()
