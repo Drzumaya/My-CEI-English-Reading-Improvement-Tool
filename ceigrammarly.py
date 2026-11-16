@@ -3544,6 +3544,48 @@ with col_exit:
         st.session_state.authenticated = False
         st.rerun()
 
+
+# --- BARRA DE COMANDO INSTITUCIONAL FIJA (SPA WORKSPACE SWITCHER) ---
+es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
+if is_owner or is_faculty_desktop or es_socio_afiliado:
+    if "active_admin_workspace" not in st.session_state:
+        st.session_state["active_admin_workspace"] = None
+
+    opciones_menu_inst = (
+        ["🤝 Portal Socio Afiliado"]
+        if es_socio_afiliado
+        else [
+            "💳 Cobranza Mensual e IVA",
+            "📊 Estados Financieros",
+            "🤝 Portal Socio Afiliado",
+            "👥 Inscripción y Padrón",
+            "🔐 Matriz Global de Permisos",
+            "🏅 Certificados (Timbre y QR)",
+            "🏛️ Datos del Instituto"
+        ]
+    )
+
+    with st.container(border=True):
+        c_nav1, c_nav2, c_nav3 = st.columns([3.2, 1.0, 1.2])
+        with c_nav1:
+            mod_elegido = st.selectbox(
+                "🧭 Centro de Mando Institucional:",
+                options=opciones_menu_inst,
+                label_visibility="collapsed",
+                key="sb_centro_mando_inst"
+            )
+        with c_nav2:
+            if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_workspace"):
+                st.session_state["active_admin_workspace"] = mod_elegido
+                st.rerun()
+        with c_nav3:
+            if st.session_state["active_admin_workspace"]:
+                if st.button("✖️ CERRAR", type="secondary", width="stretch", key="btn_close_workspace_top"):
+                    st.session_state["active_admin_workspace"] = None
+                    st.rerun()
+
+
+
         
 # --- 13. BUSCADOR DE FOLIOS Y BOLETÍN DE CALIFICACIONES EN TIEMPO REAL ---
 if "show_gradebook_panel" not in st.session_state:
@@ -3754,23 +3796,16 @@ st.divider()
 
 
 
-# --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, FINANZAS Y MATRIZ RBAC ---
+# --- 14. CENTRO DE MANDO INSTITUCIONAL FIJO (SPA WORKSPACE SWITCHER) ---
 es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
-if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("show_teacher_registry", False):
-    with st.container(border=True):
-        col_head_reg, col_close_reg = st.columns([4.5, 1])
-        with col_head_reg:
-            st.markdown("### 🛡️ PANEL INSTITUCIONAL, FINANCIERO Y ADMINISTRATIVO")
-        with col_close_reg:
-            if st.button("🔼 Cerrar Panel", width="stretch", key="btn_close_admin_inner"):
-                st.session_state["show_teacher_registry"] = False
-                st.rerun()
+if is_owner or is_faculty_desktop or es_socio_afiliado:
+    if "active_admin_workspace" not in st.session_state:
+        st.session_state["active_admin_workspace"] = None
 
-        puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
-        puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
-        puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
-
-        opciones_menu_inst = [
+    opciones_menu_inst = (
+        ["🤝 Portal Socio Afiliado"]
+        if es_socio_afiliado
+        else [
             "💳 Cobranza Mensual e IVA",
             "📊 Estados Financieros",
             "🤝 Portal Socio Afiliado",
@@ -3779,15 +3814,53 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             "🏅 Certificados (Timbre y QR)",
             "🏛️ Datos del Instituto"
         ]
-        default_idx_menu = 2 if es_socio_afiliado else 0
-        seccion_inst_sel = st.selectbox(
-            "📂 Seleccionar Módulo Institucional:",
-            options=opciones_menu_inst,
-            index=default_idx_menu,
-            key="sel_menu_institucional_desplegable"
-        )
+    )
 
+    with st.container(border=True):
+        c_nav1, c_nav2, c_nav3 = st.columns([3.4, 1.0, 1.2])
+        with c_nav1:
+            mod_elegido = st.selectbox(
+                "🧭 Seleccionar Módulo Institucional:",
+                options=opciones_menu_inst,
+                label_visibility="collapsed",
+                key="sb_centro_mando_inst"
+            )
+        with c_nav2:
+            if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_workspace"):
+                st.session_state["active_admin_workspace"] = mod_elegido
+                st.rerun()
+        with c_nav3:
+            if st.session_state["active_admin_workspace"]:
+                if st.button("✖️ CERRAR", type="secondary", width="stretch", key="btn_close_workspace_top"):
+                    st.session_state["active_admin_workspace"] = None
+                    st.rerun()
 
+if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("active_admin_workspace"):
+    seccion_inst_sel = st.session_state["active_admin_workspace"]
+
+    with st.container(border=True):
+        col_ws_t, col_ws_x = st.columns([4.0, 1.5])
+        with col_ws_t:
+            st.markdown(f"### {seccion_inst_sel}")
+        with col_ws_x:
+            if st.button("✖️ CERRAR Y VOLVER A LA LECCIÓN", type="primary", width="stretch", key="btn_close_workspace_header"):
+                st.session_state["active_admin_workspace"] = None
+                st.rerun()
+
+        st.divider()
+
+        puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
+        puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
+        puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
+
+        # --- AQUÍ VAN TUS 7 BLOQUES EXISTENTES SIN CAMBIAR SU SANGRÍA (8 ESPACIOS) ---
+        # if seccion_inst_sel == "🏅 Certificados (Timbre y QR)": ...
+        # if seccion_inst_sel == "👥 Inscripción y Padrón": ...
+        # if seccion_inst_sel == "🔐 Matriz Global de Permisos": ...
+        # if seccion_inst_sel == "🏛️ Datos del Instituto": ...
+        # if seccion_inst_sel == "💳 Cobranza Mensual e IVA": ...
+        # if seccion_inst_sel == "📊 Estados Financieros": ...
+        # if seccion_inst_sel == "🤝 Portal Socio Afiliado": ...
 
 
 
@@ -4488,6 +4561,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     render_portal_socio_afiliado(st.session_state.current_user)
             except ModuleNotFoundError:
                 st.warning("⚠️ Crea el archivo `portal_afiliado.py` en la raíz del repositorio en GitHub para activar el portal completo.")
+
+    st.stop()
+
 
 
 
