@@ -9,24 +9,87 @@ from PIL import Image, ImageDraw, ImageFont
 import streamlit as st
 
 
+def _fetch_real_topic_photo(keywords: str) -> bytes | None:
+    """Obtiene una fotografia educativa real y gratuita desde Wikipedia / Wikimedia Commons."""
+    clean_kw = re.sub(r'[^a-zA-Z0-9 ]+', ' ', str(keywords or "")).strip()
+    words = [w for w in clean_kw.split() if len(w) > 2][:3]
+    queries = []
+    if words:
+        queries.append(" ".join(words[:2]))
+        queries.append(words[0])
+    queries.append("education study books")
+
+    headers = {"User-Agent": "CEI-Academic-Portal/1.0 (https://careerenglish.edu)"}
+
+    # 1. Wikipedia PageImages API (altisima tasa de acierto en temas academicos y culturales)
+    for q in queries:
+        try:
+            q_enc = urllib.parse.quote(q)
+            wp_url = (
+                "https://wikipedia.org"
+                "&gsrsearch=" + q_enc + "&gsrlimit=5&prop=pageimages&pithumbsize=900&format=json"
+            )
+            req = urllib.request.Request(wp_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=7) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            pages = list((data.get("query") or {}).get("pages", {}).values())
+            for p in pages:
+                thumb = (p.get("thumbnail") or {}).get("source")
+                if thumb and any(thumb.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png")):
+                    req_i = urllib.request.Request(thumb, headers=headers)
+                    with urllib.request.urlopen(req_i, timeout=7) as ri:
+                        img_data = ri.read()
+                    if img_data and len(img_data) > 4000:
+                        return img_data
+        except Exception:
+            continue
+
+    # 2. Respaldo en Wikimedia Commons
+    for q in queries:
+        try:
+            q_enc = urllib.parse.quote(q)
+            cm_url = (
+                "https://wikimedia.org"
+                "&gsrsearch=filetype:bitmap+" + q_enc + "&gsrnamespace=6&gsrlimit=5"
+                "&prop=imageinfo&iiprop=url&iiurlwidth=900&format=json"
+            )
+            req = urllib.request.Request(cm_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=7) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            pages = list((data.get("query") or {}).get("pages", {}).values())
+            for p in pages:
+                ii_list = p.get("imageinfo") or []
+                ii = ii_list[0] if ii_list else {}
+                t_url = ii.get("thumburl") or ii.get("url")
+                if t_url and any(str(t_url).lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png")):
+                    req_i = urllib.request.Request(t_url, headers=headers)
+                    with urllib.request.urlopen(req_i, timeout=7) as ri:
+                        img_data = ri.read()
+                    if img_data and len(img_data) > 4000:
+                        return img_data
+        except Exception:
+            continue
+
+    return None
+
+
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    # Genera ilustracion educativa (IA o fotografia tematica Wikimedia) y frase celebre motivacional
+    # Genera fotografia tematica real acorde al topico y frase celebre motivacional bilingue
     st.session_state["last_img_error"] = None
     escena_limpia = re.sub(r'[^a-zA-Z0-9 ,.-]+', ' ', str(scene_prompt or "")).strip()
     escena_limpia = re.sub(r'\s+', ' ', escena_limpia)
-    full_prompt = (
-        "Create a clean, modern educational textbook illustration (no text or letters inside the image), "
-        "bright natural lighting, expressive characters. Scene: " + escena_limpia
-    )[:400]
 
-    # 1. Genera Frase Celebre Motivacional + Palabras Clave Tematicas con Gemini Flash
-    kw_busqueda = escena_limpia[:60] or "education library"
+    # Extrae palabras clave del topico actual si existen en session_state
+    topico_activo = str(st.session_state.get("current_topic") or escena_limpia[:60] or "education").strip()
+    kw_busqueda = topico_activo
+
+    # 1. Genera Frase Celebre Motivacional + Palabras Clave Visuales con Gemini Flash
     if client_gm:
         try:
             prompt_q = (
-                "Lesson scene/topic: '" + escena_limpia + "'. CEFR Level: " + str(cefr_lvl) + ".\n"
+                "Topic: '" + topico_activo + "'. Scene: '" + escena_limpia[:180] + "'. CEFR: " + str(cefr_lvl) + ".\n"
                 "Respond ONLY in valid JSON with keys:\n"
-                '{"keywords": "2-3 simple English nouns for photo search", '
+                '{"keywords": "2 simple English nouns for Wikipedia photo search", '
                 '"quote_en": "famous motivational quote in English related to topic", '
                 '"author": "real author", '
                 '"quote_es": "Spanish translation", '
@@ -42,8 +105,11 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
         except Exception:
             pass
 
-    # 2. Intento con Gemini Image Generation
+    # 2. Intento con Gemini Image Generation (si hay facturacion activa)
     if client_gm:
+        full_prompt = (
+            "Create a clean, modern educational textbook illustration (no text or letters inside the image). Scene: " + escena_limpia
+        )[:380]
         for modelo_mm in ["gemini-2.5-flash-image", "gemini-2.0-flash-exp-image-generation"]:
             try:
                 res = client_gm.models.generate_content(
@@ -63,33 +129,12 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
             except Exception:
                 pass
 
-    # 3. Opcion B Gratuita e Ilimitada: Fotografia Educativa Real desde Wikimedia Commons
-    try:
-        kw_enc = urllib.parse.quote(kw_busqueda)
-        wiki_api = (
-            "https://wikimedia.org"
-            "&gsrsearch=filetype:bitmap+" + kw_enc + "&gsrnamespace=6&gsrlimit=6"
-            "&prop=imageinfo&iiprop=url&iiurlwidth=900&format=json"
-        )
-        req_w = urllib.request.Request(wiki_api, headers={"User-Agent": "CEI-Academic-App/1.0"})
-        with urllib.request.urlopen(req_w, timeout=8) as rw:
-            w_data = json.loads(rw.read().decode("utf-8"))
-        q_obj = w_data.get("query") if isinstance(w_data, dict) else {}
-        p_obj = q_obj.get("pages") if isinstance(q_obj, dict) else {}
-        for p in list(p_obj.values()):
-            ii_list = p.get("imageinfo") if isinstance(p, dict) else []
-            ii = ii_list[0] if isinstance(ii_list, list) and len(ii_list) > 0 else {}
-            t_url = ii.get("thumburl") or ii.get("url")
-            if t_url and any(str(t_url).lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png")):
-                req_i = urllib.request.Request(t_url, headers={"User-Agent": "CEI-Academic-App/1.0"})
-                with urllib.request.urlopen(req_i, timeout=8) as ri:
-                    img_web = ri.read()
-                if img_web and len(img_web) > 3000:
-                    return img_web
-    except Exception:
-        pass
+    # 3. Fotografia Educativa Real desde Wikipedia / Wikimedia Commons (100% gratuita e ilimitada)
+    foto_real = _fetch_real_topic_photo(kw_busqueda)
+    if foto_real:
+        return foto_real
 
-    # 4. Respaldo visual institucional en Pillow
+    # 4. Respaldo visual institucional en Pillow (solo si no hay conexion externa)
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(18, 36, 66))
     draw = ImageDraw.Draw(img)
