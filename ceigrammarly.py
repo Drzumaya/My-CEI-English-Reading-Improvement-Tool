@@ -1,4 +1,4 @@
-import streamlit as st 
+loginimport streamlit as st 
 from google import genai
 from google.genai import types
 from gtts import gTTS
@@ -2595,6 +2595,68 @@ if verify_bol_param:
 
 
 
+# --- SINCRONIZACIÓN DE COOKIE PERSISTENTE EN EL NAVEGADOR PRINCIPAL ---
+if st.session_state.get("pending_ls_token"):
+    tok_act = st.session_state.pop("pending_ls_token")
+    if tok_act == "REMOVE":
+        st.iframe(
+            "<script>try{window.parent.document.cookie='cei_session_token=; max-age=0; path=/; SameSite=Lax; Secure';}catch(e){document.cookie='cei_session_token=; max-age=0; path=/; SameSite=Lax; Secure';}</script>",
+            height=1
+        )
+    else:
+        tok_safe = urllib.parse.quote(str(tok_act))
+        st.iframe(
+            f"<script>try{{window.parent.document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';}}catch(e){{document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';}}</script>",
+            height=1
+        )
+
+# --- AUTO-LOGIN DESDE COOKIE DEL NAVEGADOR SI EXISTE SESIÓN RECORDADA ---
+if not st.session_state.authenticated and not st.session_state.get("just_logged_out"):
+    ck_raw = urllib.parse.unquote(str(st.context.cookies.get("cei_session_token", "") or "")).strip()
+    if ck_raw:
+        try:
+            registros_auto = load_padron_records()
+            usuario_auto = None
+            for reg in registros_auto:
+                u_db = str(reg.get("Usuario", "")).strip()
+                c_db = str(reg.get("Clave", "")).strip()
+                if u_db and c_db and hmac.compare_digest(ck_raw, _sign_session_token(u_db, c_db)):
+                    usuario_auto = reg
+                    break
+
+            if usuario_auto is None:
+                m_user = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
+                m_key = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
+                if m_user and m_key and hmac.compare_digest(ck_raw, _sign_session_token(m_user, m_key)):
+                    usuario_auto = {
+                        "Usuario": m_user,
+                        "Clave": m_key,
+                        "Rol": "Propietario",
+                        "Permisos": "Total",
+                        "Nivel": "C2",
+                        "Grado_Academico": "Doctorado / Posgrado",
+                        "Estatus": "Activo"
+                    }
+
+            if usuario_auto and str(usuario_auto.get("Estatus", "Activo")).strip().lower() == "activo":
+                u_db = str(usuario_auto.get("Usuario", "")).strip()
+                r_db = str(usuario_auto.get("Rol", "Estudiante")).strip()
+                p_db = resolve_permission_profile(usuario_auto.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
+                n_db = normalize_cefr(usuario_auto.get("Nivel", "B1"))
+                g_db = str(usuario_auto.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
+
+                st.session_state.authenticated = True
+                st.session_state.current_user = u_db
+                st.session_state.user_role = r_db
+                st.session_state.user_permissions = p_db
+                st.session_state.user_assigned_level = n_db
+                st.session_state.selected_cefr = n_db
+                st.session_state.user_academic_grade = g_db
+                st.session_state.selected_academic_grade = g_db
+                st.rerun()
+        except Exception:
+            pass
+
 if not st.session_state.authenticated:
     col_l, col_c, col_r = st.columns([1, 1.5, 1])
     with col_c:
@@ -2615,8 +2677,8 @@ if not st.session_state.authenticated:
         
         with st.form("login_form"):
             st.subheader("🔐 Control de Acceso Académico")
-            input_user = st.text_input("👤 Usuario registrado:")
-            input_pass = st.text_input("🔑 Clave de Acceso:", type="password")
+            input_user = st.text_input("👤 Usuario registrado:", autocomplete="username")
+            input_pass = st.text_input("🔑 Clave de Acceso:", type="password", autocomplete="current-password")
             remember_me = st.checkbox("💾 Recordar mi usuario y contraseña en este navegador", value=True)
             submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", width="stretch")
             
@@ -2660,8 +2722,6 @@ if not st.session_state.authenticated:
                                 )
                                 if st.session_state.get("db_auth_diag"):
                                     st.caption(f"🔍 Diagnóstico de conexión: {st.session_state['db_auth_diag']}")
-
-                                
                             else:
                                 e_db = str(usuario_encontrado.get("Estatus", "Activo")).strip().lower()
                                 if e_db != "activo":
@@ -2676,6 +2736,7 @@ if not st.session_state.authenticated:
                                     g_db = str(usuario_encontrado.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
                                     
                                     st.session_state.authenticated = True
+                                    st.session_state.just_logged_out = False
                                     st.session_state.current_user = u_db
                                     st.session_state.user_role = r_db
                                     st.session_state.user_permissions = p_db
@@ -2693,9 +2754,11 @@ if not st.session_state.authenticated:
                         st.error(f"❌ Error de conexión al verificar credenciales en la base de datos: {e}")
         st.markdown(
             f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>",
-            unsafe_allow_html=True
-        )
-    st.stop()
+unsafe_allow_html=True
+)
+st.stop()
+
+
 
 def generar_pdf_certificado(
     folio_c: str,
