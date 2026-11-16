@@ -2078,11 +2078,10 @@ if verify_folio:
             st.error(f"Error al verificar certificado: {e}")
 
         st.write("")
-        if st.button("🏛️ Ir a la Plataforma Principal", width="stretch"):
-            st.query_params.clear()
+        if st.button("✖️ Cerrar Verificación", type="secondary", width="stretch", key="btn_close_verify_cert"):
+            st.session_state["portal_verificacion_cerrado"] = True
             st.rerun()
-        st.caption("🔒 Documento verificado de forma independiente. Puedes cerrar esta ventana al finalizar.")
-    st.stop()
+
 
     
 # --- 8. AUTENTICACIÓN, LOCALSTORAGE FIRMADO Y CAPTURA DE FOLIO ---
