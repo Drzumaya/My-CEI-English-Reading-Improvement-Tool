@@ -3812,7 +3812,49 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
             "🏛️ Datos del Instituto"
         ]
         default_idx_menu = 2 if curr_r_clean in ["socio afiliado", "afiliado", "affiliate"] else 0
+       # --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
+es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
+if is_owner or is_faculty_desktop or es_socio_afiliado:
+    btn_txt_admin = (
+        "🔼 Cerrar Panel Institucional"
+        if st.session_state.get("show_teacher_registry", False)
+        else ("🤝 Abrir Portal del Socio Afiliado" if es_socio_afiliado else "🛡️ Abrir Panel de Administración, Finanzas y Padrón")
+    )
+    if st.button(btn_txt_admin, type="secondary", width="stretch", key="btn_admin_panel_owner"):
+        st.session_state["show_teacher_registry"] = not st.session_state.get("show_teacher_registry", False)
+        st.rerun()
+
+if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("show_teacher_registry", False):
+    with st.container(border=True):
+        col_head_reg, col_close_reg = st.columns([4.5, 1])
+        with col_head_reg:
+            st.markdown("### 🛡️ PANEL INSTITUCIONAL, FINANCIERO Y ADMINISTRATIVO")
+        with col_close_reg:
+            if st.button("🔼 Cerrar Panel", width="stretch", key="btn_close_admin_inner"):
+                st.session_state["show_teacher_registry"] = False
+                st.rerun()
+
+        puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
+        puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
+        puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
+
+        opciones_menu_inst = [
+            "💳 Cobranza Mensual e IVA",
+            "📊 Estados Financieros",
+            "🤝 Portal Socio Afiliado",
+            "👥 Inscripción y Padrón",
+            "🔐 Matriz Global de Permisos",
+            "🏅 Certificados (Timbre y QR)",
+            "🏛️ Datos del Instituto"
+        ]
+        default_idx_menu = 2 if es_socio_afiliado else 0
         seccion_inst_sel = st.selectbox(
+            "📂 Seleccionar Módulo Institucional:",
+            options=opciones_menu_inst,
+            index=default_idx_menu,
+            key="sel_menu_institucional_desplegable"
+        )
+(
             "📂 Seleccionar Módulo Institucional:",
             options=opciones_menu_inst,
             index=default_idx_menu,
