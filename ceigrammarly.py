@@ -29,13 +29,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. CONFIGURACIÓN SEGURA DESDE SECRETS ---
+# --- 2. CONFIGURACIÓN SEGURA DESDE SECRETS --- 
 DEFAULT_ADDRESS = st.secrets.get(
     "INSTITUTE_ADDRESS",
     "Dirección no configurada | Tel. / Contacto: No disponible"
 )
 
-ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado", "Socio Afiliado"]
+ ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado", "Socio Afiliado"] 
 
 GRADOS_ACADEMICOS = [
     "Preescolar",
@@ -68,7 +68,7 @@ DEFAULT_PERMISSIONS_MATRIX = [
     ["Basico",       "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO"]
 ]
 
-# --- 3. CLIENTES EN CACHÉ (GEMINI Y GOOGLE SHEETS) ---
+# --- 3. CLIENTES EN CACHÉ (GEMINI Y GOOGLE SHEETS) --- 
 CEFR_GRAMMAR_TOPICS = {
     "A1": [
         "Verb To Be & Personal Pronouns",
