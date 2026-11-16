@@ -2912,7 +2912,7 @@ def generar_pdf_certificado(
 
 def render_interactive_study_viewer(study_payload: dict):
     # Visor interactivo client-side con voz US English y diccionario estilo Google Translate
-    import streamlit.components.v1 as components
+    st.iframe(html_code, height=680)
 
     raw_lesson = str(st.session_state.get("generated_text") or "").strip()
     for marcador in ["**Bibliography", "Bibliography ("]:
@@ -3060,7 +3060,7 @@ def render_interactive_study_viewer(study_payload: dict):
 
     async function fetchLiveGT(word){
       try{
-        const u='https://googleapis.com;
+        const u= https://googleapis.com;
         const r=await fetch(u);
         const j=await r.json();
         if(j && j[0] && j[0][0] && j[0][0][0])return j[0][0][0];
@@ -3078,6 +3078,8 @@ def render_interactive_study_viewer(study_payload: dict):
       const inf=lookupLocalDict(k)||{};
       const pnl=document.getElementById('gt-panel');
       pnl.style.display='block';
+
+
 
       document.getElementById('bw').innerText=w;
       document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
