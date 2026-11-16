@@ -1414,6 +1414,43 @@ def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_s
                 calif_c.strip(), fecha_c.strip(), sello_h.strip(), verify_url
             ))
 
+def register_gradebook_stamp_pg(folio_b: str, alumno: str, matricula: str, topico: str, promedio_str: str, sello_hmac: str) -> str:
+    """Registra el timbre digital del Boletín de Calificaciones en Supabase y devuelve su URL de validación."""
+    app_pub = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+    f_upper = folio_b.strip().upper()
+    verify_url = f"{app_pub}/?verify_gradebook={urllib.parse.quote(f_upper)}" if app_pub else f"/?verify_gradebook={urllib.parse.quote(f_upper)}"
+
+    conn = get_pg_conn()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS gradebook_stamps (
+                            folio_boletin TEXT PRIMARY KEY,
+                            titular TEXT NOT NULL,
+                            matricula TEXT,
+                            topico_evaluado TEXT,
+                            promedio_general TEXT,
+                            firma_hmac TEXT NOT NULL,
+                            verify_url TEXT,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                        );
+                    """)
+                    cur.execute("""
+                        INSERT INTO gradebook_stamps (
+                            folio_boletin, titular, matricula, topico_evaluado, promedio_general, firma_hmac, verify_url
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (folio_boletin) DO UPDATE SET
+                            promedio_general = EXCLUDED.promedio_general,
+                            firma_hmac = EXCLUDED.firma_hmac,
+                            verify_url = EXCLUDED.verify_url;
+                    """, (f_upper, alumno.strip(), matricula.strip(), topico.strip(), promedio_str.strip(), sello_hmac.strip(), verify_url))
+        except Exception:
+            pass
+    return verify_url
+
+
 
 def load_certificates_pg() -> list[dict]:
     """Carga el historial de certificados emitidos desde Supabase PostgreSQL."""
@@ -3645,6 +3682,14 @@ if st.session_state.show_gradebook_panel:
                     gb_data,
                     topico_seleccionado_gb
                 )
+                register_gradebook_stamp_pg(
+                    timbre_info.get("folio_boletin", ""),
+                    alumno_objetivo_gb,
+                    str(gb_data.get("matricula", "SIN-MAT")),
+                    str(topico_seleccionado_gb),
+                    str(gb_data.get("promedio_final", gb_data.get("promedio", "N/A"))),
+                    timbre_info.get("sello_hmac", timbre_info.get("firma_hmac", ""))
+                )
                 st.download_button(
                     label=f"📥 Descargar Boletín Timbrado ({timbre_info['folio_boletin']})",
                     data=pdf_boletin_bytes,
@@ -3669,6 +3714,7 @@ if st.session_state.show_gradebook_panel:
                     f"• **Total a cubrir ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
                     f"Realiza tu pago mensual para desbloquear la descarga oficial."
                 )
+
 
 
 
