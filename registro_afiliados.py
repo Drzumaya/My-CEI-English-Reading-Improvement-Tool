@@ -12,7 +12,7 @@ import streamlit as st
 
 
 
-
+ 
 def _get_conn_afiliados():
     db_url = ""
     if "SUPABASE_DB_URL" in st.secrets:
