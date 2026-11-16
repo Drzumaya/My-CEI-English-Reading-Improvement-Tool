@@ -2789,7 +2789,7 @@ def generar_pdf_certificado(
     sello_hmac: str,
     direccion_inst: str
 ) -> bytes:
-    """Genera el Certificado Oficial en formato Carta horizontal (Letter Landscape) con timbre HMAC-SHA256 y QR."""
+    # Genera el Certificado Oficial en formato Carta horizontal (Letter Landscape) con timbre HMAC-SHA256 y QR.
     import qrcode
     from fpdf.enums import XPos, YPos
 
@@ -2912,7 +2912,7 @@ def generar_pdf_certificado(
 
 
 def render_interactive_study_viewer(study_payload: dict):
-    # Visor interactivo con renderizado HTML directo desde Python, voz US English y diccionario estilo Google Translate
+    # Visor interactivo con renderizado HTML directo desde Python, voz US English y diccionario estilo Google Translate.
     import html as html_lib
     import re
     import streamlit.components.v1 as components
@@ -2999,7 +2999,7 @@ def render_interactive_study_viewer(study_payload: dict):
 
     rendered_lesson_html = "\n".join(boxes_html)
     dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
-    html_part_1 = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    html_part_1 = <!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
     body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
     .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;
@@ -3039,7 +3039,8 @@ def render_interactive_study_viewer(study_payload: dict):
                 onclick="spd()" id="sb">1.0x</button>
       </div>
     </div>
-    <div id="lc">__LESSON_HTML__</div>
+    
+    <div id="lc">__LESSON_HTML__</div> 
     <div id="gt-panel" onclick="event.stopPropagation()">
       <div class="gt-head">
         <span>🌐 GOOGLE TRANSLATE &amp; ACADEMIC DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
@@ -3190,7 +3191,7 @@ def render_interactive_study_viewer(study_payload: dict):
     
 
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
-    # Prioriza modelos Flash reales de baja latencia (<3s) antes que modelos Pro pesados
+    # Prioriza modelos Flash reales de baja latencia (<3s) antes que modelos Pro pesados """
     modelos_potentes = [
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -3350,7 +3351,7 @@ with st.sidebar:
 
 
 def get_billing_global_settings_pg() -> bool:
-    # Consulta si el sistema de incentivo (-7%) y recargo moratorio (+5%) esta activo globalmente.
+    # Consulta si el sistema de incentivo (-7%) y recargo moratorio (+5%) esta activo globalmente. """
     conn = get_pg_conn()
     if not conn:
         return False
@@ -3372,7 +3373,7 @@ def get_billing_global_settings_pg() -> bool:
 
 
 def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool, str]:
-    # Activa o desactiva globalmente el esquema de incentivos y recargos (solo Propietario).
+    # Activa o desactiva globalmente el esquema de incentivos y recargos (solo Propietario). """
     conn = get_pg_conn()
     if not conn:
         return False, "Sin conexión activa a Supabase PostgreSQL."
@@ -3402,8 +3403,8 @@ def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool,
 
 
 def evaluar_estado_financiero_alumno(student_user: str) -> dict:
-    """
-    Regla mensual (ciclos de 4 semanas / 28 días, no acumulable):
+
+    # Regla mensual (ciclos de 4 semanas / 28 días, no acumulable):
     - Pago realizado dentro de la Semana 4 o antes (días 1-28 del mes): Incentivo -7% sobre base.
     - Si inicia la semana del mes siguiente (día 29+) sin pagar el ciclo vencido: Recargo +5% y bloqueo de boletín.
     - IVA (16%) se aplica sobre el subtotal con descuento o recargo ya aplicado.
@@ -3985,11 +3986,6 @@ if st.session_state.show_gradebook_panel:
 
 
 
-
-
-
-
-
         # Cálculo de métricas según vista elegida (General o Tópico específico)
         if topico_seleccionado_gb == "Vista General":
             prom_vista = gb_data["overall_avg"]
@@ -4095,7 +4091,6 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
         st.error(f"Error al buscar folio en Supabase: {e}")
 
 st.divider()
-
 
 
 # --- 14. CENTRO DE MANDO INSTITUCIONAL FIJO (SPA WORKSPACE SWITCHER) ---
@@ -4832,10 +4827,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
     st.stop()
 
 
-
-
-
-
 # --- 15. PROCESAMIENTO Y GENERACIÓN DE LECCIÓN CON GEMINI Y POSTGRESQL ---
 
 if generar_btn:
@@ -4989,7 +4980,7 @@ if generar_btn:
                         st.session_state.image_bytes = None
 
 
-                # 2. Síntesis de audio completo de la lección
+                # 2. Síntesis de audio completo de la lección.
                 try:
                     clean_tts = texto_gen.replace("*", "").replace("#", "")
                     tts = gTTS(text=clean_tts, lang="en", slow=False)
@@ -5504,7 +5495,7 @@ with col_tools_right:
             btnStop.disabled = true;
         }};
         </script>
-        """
+      
         st.iframe(video_recorder_html, height=320)
 
         st.write("")
