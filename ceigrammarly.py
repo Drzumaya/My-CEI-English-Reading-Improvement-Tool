@@ -3487,16 +3487,16 @@ default_shape = saved_cfg["Shape"] if (saved_cfg and saved_cfg.get("Shape")) els
 shape_options = ["Original", "Redondeado", "Circular"]
 default_shape_idx = shape_options.index(default_shape) if default_shape in shape_options else 2
 
-col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.9, 2, 1.5])
+col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.7, 1.9, 1.8])
 
 with col_logo:
     if is_owner and (not is_mobile):
         with st.popover("✏️ Editar Logo", width="stretch"):
             logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
-            logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5)
-            logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True)
-            
-            if st.button("💾 Guardar Logo Permanente", type="primary", width="stretch"):
+            logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5, key="logo_width_slider")
+            logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True, key="logo_shape_radio")
+
+            if st.button("💾 Guardar Logo Permanente", type="primary", width="stretch", key="btn_save_logo_perm"):
                 b64_to_save, mime_to_save = None, None
                 if logo_file is not None:
                     b64_to_save, mime_to_save = compress_logo_to_base64(logo_file)
@@ -3504,7 +3504,7 @@ with col_logo:
                     b64_to_save, mime_to_save = saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"]
                 else:
                     b64_to_save, mime_to_save = get_default_logo_b64()
-                    
+
                 if b64_to_save:
                     try:
                         with st.spinner("Guardando logo..."):
@@ -3533,22 +3533,24 @@ with col_logo:
         )
 
 with col_title:
+    cefr_badge = next(iter(str(cefr_level).split()), "B1") if cefr_level else "B1"
     st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
-    st.title(f"🎓 CEFR {next(iter(cefr_level.split()), 'B1')} ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
+    st.title(f"🎓 CEFR {cefr_badge} ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
     st.caption("Author: Jacob Zumaya Prianti | Applied Linguistics & Proficiency Assessment | APA Style")
 
 with col_qr:
     if is_owner and (not is_mobile):
-        btn_qr_txt = "🙈 Ocultar QR" if st.session_state.show_qr else "📱 Mostrar QR"
+        show_qr_now = bool(st.session_state.get("show_qr", False))
+        btn_qr_txt = "🙈 Ocultar QR" if show_qr_now else "📱 Mostrar QR"
         if st.button(btn_qr_txt, width="stretch", key="toggle_qr_btn"):
-            st.session_state.show_qr = not st.session_state.show_qr
+            st.session_state.show_qr = not show_qr_now
             st.rerun()
 
-        if st.session_state.show_qr:
-            app_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
-            if st.session_state.current_folio:
-                app_url = f"{app_url}/?folio={urllib.parse.quote(st.session_state.current_folio)}"
-            
+        if st.session_state.get("show_qr", False):
+            app_url = str(st.secrets.get("APP_BASE_URL") or st.secrets.get("APP_PUBLIC_URL") or "https://myceigrammarly.streamlit.app").strip().rstrip("/")
+            if st.session_state.get("current_folio"):
+                app_url = f"{app_url}/?folio={urllib.parse.quote(str(st.session_state.current_folio))}"
+
             qr = qrcode.QRCode(version=1, box_size=4, border=1)
             qr.add_data(app_url)
             qr.make(fit=True)
@@ -3556,18 +3558,30 @@ with col_qr:
             qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
             st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
 
-
 with col_exit:
-    if is_faculty_desktop:
-        btn_label = "✖️ Ocultar Panel" if st.session_state.show_teacher_registry else "🛡️ Admin y Certificados"
-        if st.button(btn_label, type="primary" if not st.session_state.show_teacher_registry else "secondary", width="stretch"):
-            st.session_state.show_teacher_registry = not st.session_state.show_teacher_registry
+    es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
+    if is_owner or is_faculty_desktop or es_socio_afiliado:
+        panel_abierto = bool(st.session_state.get("show_teacher_registry", False))
+        btn_label = (
+            "✖️ Ocultar Panel"
+            if panel_abierto
+            else ("🤝 Portal Afiliado" if es_socio_afiliado else "🛡️ Panel Institucional")
+        )
+        if st.button(
+            btn_label,
+            type="primary" if not panel_abierto else "secondary",
+            width="stretch",
+            key="btn_header_admin_panel"
+        ):
+            st.session_state.show_teacher_registry = not panel_abierto
             st.rerun()
 
-    if st.button("🚪 Salir", type="secondary", width="stretch"):
+    if st.button("🚪 Salir", type="secondary", width="stretch", key="btn_header_exit_app"):
         st.session_state.app_exited = True
         st.session_state.authenticated = False
         st.rerun()
+
+        
 # --- 13. BUSCADOR DE FOLIOS Y BOLETÍN DE CALIFICACIONES EN TIEMPO REAL ---
 if "show_gradebook_panel" not in st.session_state:
     st.session_state.show_gradebook_panel = False
@@ -3777,53 +3791,8 @@ st.divider()
 
 
 
-# --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
-if is_owner or is_faculty_desktop:
-    btn_txt_admin = (
-        "🔼 Cerrar Panel de Administración"
-        if st.session_state.get("show_teacher_registry", False)
-        else "🛡️ Abrir Panel de Administración, Certificados y Padrón"
-    )
-    if st.button(btn_txt_admin, type="secondary", width="stretch", key="btn_admin_panel_owner"):
-        st.session_state["show_teacher_registry"] = not st.session_state.get("show_teacher_registry", False)
-        st.rerun()
-
-if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_registry", False):
-    with st.container(border=True):
-        col_head_reg, col_close_reg = st.columns([4.5, 1])
-        with col_head_reg:
-            st.markdown("### 🛡️ PANEL DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ GLOBAL RBAC")
-        with col_close_reg:
-            if st.button("🔼 Cerrar Panel", width="stretch", key="btn_close_admin_inner"):
-                st.session_state["show_teacher_registry"] = False
-                st.rerun()
-
-        
-        
-        from contextlib import nullcontext
-
-        opciones_menu_inst = [
-            "💳 Cobranza Mensual e IVA",
-            "📊 Estados Financieros",
-            "🤝 Portal Socio Afiliado",
-            "👥 Inscripción y Padrón",
-            "🔐 Matriz Global de Permisos",
-            "🏅 Certificados (Timbre y QR)",
-            "🏛️ Datos del Instituto"
-        ]
-        default_idx_menu = 2 if curr_r_clean in ["socio afiliado", "afiliado", "affiliate"] else 0
-       # --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, CERTIFICADOS Y MATRIZ RBAC ---
+# --- 14. PANEL DESPLEGABLE DE ADMINISTRACIÓN, FINANZAS Y MATRIZ RBAC ---
 es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
-if is_owner or is_faculty_desktop or es_socio_afiliado:
-    btn_txt_admin = (
-        "🔼 Cerrar Panel Institucional"
-        if st.session_state.get("show_teacher_registry", False)
-        else ("🤝 Abrir Portal del Socio Afiliado" if es_socio_afiliado else "🛡️ Abrir Panel de Administración, Finanzas y Padrón")
-    )
-    if st.button(btn_txt_admin, type="secondary", width="stretch", key="btn_admin_panel_owner"):
-        st.session_state["show_teacher_registry"] = not st.session_state.get("show_teacher_registry", False)
-        st.rerun()
-
 if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("show_teacher_registry", False):
     with st.container(border=True):
         col_head_reg, col_close_reg = st.columns([4.5, 1])
@@ -3854,21 +3823,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             index=default_idx_menu,
             key="sel_menu_institucional_desplegable"
         )
-
-
-
-        class _ConditionalTab:
-            def __init__(self, active: bool):
-                self.active = active
-            def __enter__(self):
-                return self
-            def __exit__(self, *args):
-                return False
-
-        # Mantiene intactos tus bloques `with tab_...:` sin mover ni un espacio de sangría
-        tab_finanzas = nullcontext() if seccion_inst_sel == "💳 Cobranza Mensual e IVA" else None
-
-
 
 
 
