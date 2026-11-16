@@ -3854,12 +3854,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             index=default_idx_menu,
             key="sel_menu_institucional_desplegable"
         )
-(
-            "📂 Seleccionar Módulo Institucional:",
-            options=opciones_menu_inst,
-            index=default_idx_menu,
-            key="sel_menu_institucional_desplegable"
-        )
+
 
 
         class _ConditionalTab:
