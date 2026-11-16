@@ -3182,10 +3182,10 @@ def render_interactive_study_viewer(study_payload: dict):
         document.getElementById('be').innerText='⏳ Consultando...';
         const live=await enrichLiveDictionary(k||w);
         if(curW===w){
-          const finalEs=live.es||w;
+          const finalEs=live.es||w; 
 
     html_code = html_part_1.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
-    components.html(html_code, height=680, scrolling=True)
+    components.html(html_code, height=680, scrolling=True) """
 
 
 
