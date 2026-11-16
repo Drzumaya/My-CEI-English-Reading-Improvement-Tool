@@ -3154,23 +3154,13 @@ def render_interactive_study_viewer(study_payload: dict):
     
 
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
+    # Prioriza modelos Flash reales de baja latencia (<3s) antes que modelos Pro pesados
     modelos_potentes = [
-        "gemini-3.8-flash",
-        "gemini-3.5-pro",
-        "gemini-3.1-pro-preview",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash"
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.5-pro"
     ]
-    # Añade automáticamente cualquier otro modelo Gemini activo en tu cuenta como respaldo
-    try:
-        for m in client.models.list():
-            nombre = m.name.replace("models/", "")
-            if "gemini" in nombre and not any(x in nombre for x in ["embedding", "imagen", "aqa", "tts", "audio", "2.0"]):
-                if nombre not in modelos_potentes:
-                    modelos_potentes.append(nombre)
-    except Exception:
-        pass
-
     ultimo_error = None
     for modelo in modelos_potentes:
         try:
@@ -3179,6 +3169,8 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
                 cfg_kwargs["system_instruction"] = instruccion_sistema
             if as_json:
                 cfg_kwargs["response_mime_type"] = "application/json"
+            if "flash" in modelo:
+                cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
             config = types.GenerateContentConfig(**cfg_kwargs)
             respuesta = client.models.generate_content(
                 model=modelo,
@@ -3193,6 +3185,7 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     if ultimo_error:
         raise ultimo_error
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
+
 
 
 from media_generator import generar_imagen_garantizada
@@ -4036,7 +4029,12 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
                 st.session_state.quiz_score = None
                 st.session_state.quiz_user_answers = {}
                 st.session_state.image_bytes = None
+                st.session_state.current_lesson_image = None
+                st.session_state.current_motivational_quote = None
                 st.session_state.audio_bytes = None
+                st.session_state.quiz_audio_bytes = None
+                st.session_state.speaking_eval_result = None
+
 
                 raw_qz = str(row_f.get("quiz_json") or "").strip()
                 if raw_qz:
@@ -4910,6 +4908,8 @@ if generar_btn:
                    - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto_apa}", "{gramatica_b1}", and {academic_grade} education, sorted alphabetically by author surname.
                 """
 
+                from concurrent.futures import ThreadPoolExecutor
+
                 texto_gen, mod_usado = generar_con_maxima_potencia(client, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
                 st.session_state.study_mode_active = False
@@ -4919,12 +4919,42 @@ if generar_btn:
                 st.session_state.current_folio = nuevo_folio
                 st.session_state.current_pdf_link = pdf_url_directo
                 st.session_state.current_creation_date = fecha_creacion
+                st.session_state.current_topic = asunto_apa
                 st.session_state.quiz_data = None
                 st.session_state.quiz_graded = False
                 st.session_state.quiz_score = None
                 st.session_state.quiz_user_answers = {}
                 st.session_state.audio_bytes = None
                 st.session_state.image_bytes = None
+                st.session_state.current_lesson_image = None
+                st.session_state.current_motivational_quote = None
+
+                # Ejecución paralela simultánea: Quiz + Fotografía Temática / Frase Célebre
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    fut_quiz = pool.submit(
+                        generar_quiz_leccion,
+                        texto_gen,
+                        gramatica_b1,
+                        cefr_level,
+                        academic_grade
+                    )
+                    fut_img = pool.submit(
+                        generar_imagen_garantizada,
+                        client,
+                        asunto_apa,
+                        nuevo_folio,
+                        cefr_level,
+                        academic_grade
+                    )
+                    try:
+                        st.session_state.quiz_data = fut_quiz.result(timeout=15)
+                    except Exception:
+                        st.session_state.quiz_data = None
+                    try:
+                        st.session_state.image_bytes = fut_img.result(timeout=15)
+                    except Exception:
+                        st.session_state.image_bytes = None
+
 
                 # 2. Síntesis de audio completo de la lección
                 try:
@@ -5590,16 +5620,19 @@ with col_tools_right:
                                 st.session_state.quiz_graded = False
                                 st.session_state.quiz_score = None
                                 st.session_state.quiz_user_answers = {}
+                                st.session_state.image_bytes = None
+                                st.session_state.current_motivational_quote = None
                                 raw_qz = str(row.get("Quiz_JSON") or "").strip()
                                 if raw_qz:
                                     try:
                                         qz_obj = json.loads(raw_qz)
-                                        st.session_state.quiz_data = qz_obj.get("questions")
+                                        st.session_state.quiz_data = qz_obj if isinstance(qz_obj, list) else qz_obj.get("questions")
                                     except Exception:
                                         st.session_state.quiz_data = None
                                 else:
                                     st.session_state.quiz_data = None
                                 st.rerun()
+
 
                             st.divider()
             except Exception as e:
@@ -5612,6 +5645,9 @@ with col_tools_right:
         st.session_state.generated_text = ""
         st.session_state.study_mode_active = False
         st.session_state.image_bytes = None
+        st.session_state.current_lesson_image = None
+        st.session_state.current_motivational_quote = None
+        st.session_state.last_img_error = None
         st.session_state.audio_bytes = None
         st.session_state.quiz_audio_bytes = None
         st.session_state.speaking_eval_result = None
@@ -5627,6 +5663,7 @@ with col_tools_right:
         st.query_params.clear()
         st.session_state.sidebar_state = "expanded"
         st.rerun()
+
 
 
 # --- 18. PIE DE PÁGINA INSTITUCIONAL ---
