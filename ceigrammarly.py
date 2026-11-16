@@ -4910,39 +4910,6 @@ with col_main_center:
             else:
                 st.info("👈 Escribe los datos en Español o Inglés en la barra izquierda y presiona **Generate Lesson**, o busca un **Folio** arriba.")
 
-with col_tools_right:
-    st.subheader("🖼️ Visual Context & Quote")
-    if st.session_state.get("generated_text"):
-        if st.button("✨ Generar Imagen Temática y Frase Célebre", type="secondary", width="stretch", key="btn_gen_ctx_visual"):
-            with st.spinner("Generando imagen acorde al tópico y frase célebre..."):
-                escena_ctx = (
-                    st.session_state.get("current_topic")
-                    or st.session_state.get("asunto_input")
-                    or str(st.session_state.generated_text)[:120]
-                )
-                img_bytes_gen = generar_imagen_garantizada(
-                    init_gemini_client(),
-                    escena_ctx,
-                    st.session_state.get("current_folio") or "CEI-LESSON",
-                    st.session_state.get("selected_cefr", "B1"),
-                    st.session_state.get("selected_academic_grade", "Licenciatura / Universidad")
-                )
-                if img_bytes_gen:
-                    st.session_state.current_lesson_image = img_bytes_gen
-                st.rerun()
-
-        if st.session_state.get("current_lesson_image"):
-            st.image(st.session_state.current_lesson_image, caption="🎨 Contexto Visual de la Lección", width="stretch")
-
-        if st.session_state.get("current_motivational_quote"):
-            mq = st.session_state["current_motivational_quote"]
-            st.info(
-                f"✨ ***“{mq.get('quote_en', '')}”*** — **{mq.get('author', '')}**\n\n"
-                f"🇲🇽 *{mq.get('quote_es', '')}*\n\n"
-                f"🎯 **Reflection:** {mq.get('reflection', '')}"
-            )
-    else:
-        st.caption("Genera o carga una lección para activar su contexto visual y frase célebre motivacional.")
 
 
 
@@ -5103,9 +5070,9 @@ with col_tools_right:
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 
 with col_tools_right:
-    st.subheader(f"🖼️ Visual Context ({st.session_state.selected_academic_grade})")
+    st.subheader(f"🖼️ Visual Context & Quote ({st.session_state.selected_academic_grade})")
     if st.session_state.get("generated_text"):
-        col_vis_in, col_vis_btn = st.columns([2.8, 1.2])
+        col_vis_in, col_vis_btn = st.columns([2.6, 1.4])
         with col_vis_in:
             custom_img_prompt = st.text_input(
                 "🎨 Descripción personalizada de la escena (Opcional - Español/English):",
@@ -5114,8 +5081,8 @@ with col_tools_right:
                 label_visibility="collapsed"
             )
         with col_vis_btn:
-            if st.button("🔄 Generar Nueva Imagen", key="btn_regen_visual", width="stretch"):
-                with st.spinner("🎨 Dibujando ilustración con Nano Banana..."):
+            if st.button("✨ Imagen y Frase", key="btn_regen_visual", width="stretch"):
+                with st.spinner("🎨 Generando imagen temática y frase célebre..."):
                     try:
                         client_vis = init_gemini_client()
                         instruccion_usuario = (
@@ -5124,11 +5091,10 @@ with col_tools_right:
                             else "Create a fresh, different visual scene angle based on the lesson."
                         )
                         prompt_nueva_escena = f"""
-                        Read the English lesson below and write a vivid visual scene description (45-55 words) for an educational comic illustration:
+                        Read the English lesson below and write a vivid visual scene description (45-55 words) for an educational illustration:
                         {instruccion_usuario}
                         1. SETTING & FURNITURE: Describe the physical background, furniture, and atmosphere in warm detail.
                         2. CHARACTERS & ACTION: Describe the characters interacting naturally in that setting.
-                        3. SPEECH BUBBLES: Include two short, clear English dialogue lines from the lesson in double quotes.
                         
                         LESSON:
                         {st.session_state.generated_text[:2500]}
@@ -5142,7 +5108,7 @@ with col_tools_right:
                             st.session_state.selected_academic_grade
                         )
                         st.rerun()
-                    except Exception as e: 
+                    except Exception as e:
                         st.error(f"Error al generar imagen: {e}")
 
     bottom_container = st.container(height=280, border=True)
@@ -5158,9 +5124,19 @@ with col_tools_right:
                 None, st.session_state.generated_text[:120],
                 f"Folio {st.session_state.current_folio}", st.session_state.selected_cefr, st.session_state.selected_academic_grade
             )
+            st.session_state.image_bytes = fallback_img
             st.image(fallback_img, width="stretch")
         else:
             st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
+
+    if st.session_state.get("current_motivational_quote"):
+        mq = st.session_state["current_motivational_quote"]
+        st.info(
+            f"✨ ***“{mq.get('quote_en', '')}”*** — **{mq.get('author', '')}**\n\n"
+            f"🇲🇽 *{mq.get('quote_es', '')}*\n\n"
+            f"🎯 **Reflection:** {mq.get('reflection', '')}"
+        )
+
 
 
 
