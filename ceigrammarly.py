@@ -4845,6 +4845,52 @@ with col_main_center:
                 st.rerun()
 
     if st.session_state.get("generated_text") and st.session_state.study_mode_active:
+        # Reproductor Nativo US English (en-US) con selector forzado de voz estadounidense
+        texto_us_clean = (
+            str(st.session_state.generated_text)
+            .replace("`", "")
+            .replace("*", "")
+            .replace("#", "")
+            .replace('"', "'")
+            .replace("\n", " ")
+        )
+        html_us_tts = f"""
+        <div style="background:#F0F4F8; border:1px solid #CBD5E1; border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px; font-family:sans-serif;">
+            <button onclick="playUS()" style="background:#1E3A8A; color:white; border:none; border-radius:6px; padding:6px 14px; font-weight:bold; cursor:pointer;">
+                🔊 Escuchar Lección (US English)
+            </button>
+            <button onclick="window.speechSynthesis.cancel()" style="background:#64748B; color:white; border:none; border-radius:6px; padding:6px 10px; cursor:pointer;">
+                ⏹️ Detener
+            </button>
+            <span id="us_voice_tag" style="font-size:12px; color:#334155;">🇺🇸 Pronunciación Americana (en-US)</span>
+        </div>
+        <script>
+            const lessonText = {json.dumps(texto_us_clean)};
+            function getBestUSVoice() {{
+                const voices = window.speechSynthesis.getVoices();
+                return (
+                    voices.find(v => v.lang === 'en-US' && (v.name.includes('Google US English') || v.name.includes('Aria') || v.name.includes('Jenny') || v.name.includes('Guy') || v.name.includes('Samantha') || v.name.includes('Alex'))) ||
+                    voices.find(v => v.lang === 'en-US') ||
+                    voices.find(v => v.lang && v.lang.startsWith('en-'))
+                );
+            }}
+            window.speechSynthesis.onvoiceschanged = getBestUSVoice;
+            function playUS() {{
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(lessonText);
+                u.lang = 'en-US';
+                u.rate = 0.96;
+                const v = getBestUSVoice();
+                if (v) {{
+                    u.voice = v;
+                    document.getElementById('us_voice_tag').innerText = '🇺🇸 Voz activa: ' + v.name;
+                }}
+                window.speechSynthesis.speak(u);
+            }}
+        </script>
+        """
+        st.iframe(html_us_tts, height=56)
+
         with st.spinner("🧠 Preparando análisis sintáctico, pronunciación y diccionario contextual..."):
             estudio_data = analyze_lesson_for_study_mode(
                 st.session_state.generated_text,
@@ -4863,6 +4909,42 @@ with col_main_center:
                 st.markdown(st.session_state.generated_text)
             else:
                 st.info("👈 Escribe los datos en Español o Inglés en la barra izquierda y presiona **Generate Lesson**, o busca un **Folio** arriba.")
+
+with col_tools_right:
+    st.subheader("🖼️ Visual Context & Quote")
+    if st.session_state.get("generated_text"):
+        if st.button("✨ Generar Imagen Temática y Frase Célebre", type="secondary", width="stretch", key="btn_gen_ctx_visual"):
+            with st.spinner("Generando imagen acorde al tópico y frase célebre..."):
+                escena_ctx = (
+                    st.session_state.get("current_topic")
+                    or st.session_state.get("asunto_input")
+                    or str(st.session_state.generated_text)[:120]
+                )
+                img_bytes_gen = generar_imagen_garantizada(
+                    init_gemini_client(),
+                    escena_ctx,
+                    st.session_state.get("current_folio") or "CEI-LESSON",
+                    st.session_state.get("selected_cefr", "B1"),
+                    st.session_state.get("selected_academic_grade", "Licenciatura / Universidad")
+                )
+                if img_bytes_gen:
+                    st.session_state.current_lesson_image = img_bytes_gen
+                st.rerun()
+
+        if st.session_state.get("current_lesson_image"):
+            st.image(st.session_state.current_lesson_image, caption="🎨 Contexto Visual de la Lección", width="stretch")
+
+        if st.session_state.get("current_motivational_quote"):
+            mq = st.session_state["current_motivational_quote"]
+            st.info(
+                f"✨ ***“{mq.get('quote_en', '')}”*** — **{mq.get('author', '')}**\n\n"
+                f"🇲🇽 *{mq.get('quote_es', '')}*\n\n"
+                f"🎯 **Reflection:** {mq.get('reflection', '')}"
+            )
+    else:
+        st.caption("Genera o carga una lección para activar su contexto visual y frase célebre motivacional.")
+
+
 
     # QUIZ INTERACTIVO DE LA LECCIÓN (INTACTO EN AMBOS MODOS)
     if st.session_state.get("generated_text"):
