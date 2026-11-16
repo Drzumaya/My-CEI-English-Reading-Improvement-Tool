@@ -5409,7 +5409,7 @@ with col_tools_right:
             <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video</a>
         </div>
 
-        <script>
+         <script>
         let stream = null;
         let mediaRecorder = null;
         let recordedChunks = [];
@@ -5457,33 +5457,33 @@ with col_tools_right:
             activeMime = getSupportedVideoMimeType();
             const options = activeMime ? {{ mimeType: activeMime }} : {{}};
             mediaRecorder = new MediaRecorder(stream, options);
-            
+
             mediaRecorder.ondataavailable = (e) => {{
                 if (e.data.size > 0) recordedChunks.push(e.data);
             }};
-            
+
             mediaRecorder.onstop = () => {{
                 const finalMime = activeMime || 'video/webm';
                 const ext = finalMime.includes('mp4') ? 'mp4' : 'webm';
                 const blob = new Blob(recordedChunks, {{ type: finalMime }});
                 const url = URL.createObjectURL(blob);
-                
+
                 preview.srcObject = null;
                 preview.src = url;
                 preview.muted = false;
                 preview.controls = true;
-                
+
                 downloadLink.href = url;
                 downloadLink.download = "{safe_base_filename}." + ext;
                 downloadLink.innerText = "📥 Descargar Video (" + ext.toUpperCase() + ")";
                 downloadLink.style.display = 'inline-block';
                 statusTxt.innerText = "✅ Video grabado. Haz clic abajo para descargarlo.";
-                
+
                 stream.getTracks().forEach(track => track.stop());
                 btnStartCam.disabled = false;
                 btnStartCam.innerText = "🔄 Grabar Otro";
             }};
-            
+
             mediaRecorder.start();
             btnRec.disabled = true;
             btnStop.disabled = false;
@@ -5497,10 +5497,12 @@ with col_tools_right:
             btnStop.disabled = true;
         }};
         </script>
-      
-        st.iframe(video_recorder_html, height=320)
+        """
+        b64_vid = base64.b64encode(video_recorder_html.encode("utf-8")).decode("ascii")
+        st.iframe(f"data:text/html;base64,{b64_vid}", height=320)
 
         st.write("")
+
     if student_audio is not None:
         safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
         try:
@@ -5583,7 +5585,6 @@ with col_tools_right:
                 st.markdown("**💡 Recomendaciones de Mejora:**")
                 for t in tips:
                     st.markdown(f"- {t}")
-
 
     st.divider()
     if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
