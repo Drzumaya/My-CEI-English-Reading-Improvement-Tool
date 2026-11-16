@@ -2930,6 +2930,7 @@ def render_interactive_study_viewer(study_payload: dict):
                 "alt": str(v.get("alt_es", "")).strip(),
                 "def": str(v.get("def_es", "")).strip()
             }
+         
 
     s_json = json.dumps(clean_sentences, ensure_ascii=True).replace("</", "<\\/")
     d_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
@@ -3073,6 +3074,10 @@ def render_interactive_study_viewer(study_payload: dict):
     }
 
     const c=document.getElementById('lc');
+    if(!S || S.length===0){
+      c.innerHTML='<div class="sbox" style="color:#b45309;">⚠️ Regenerando análisis de oraciones... Haz clic en <b>Edición Impresión / PDF</b> y vuelve a entrar al <b>Modo Estudio</b> tras limpiar caché.</div>';
+    }
+
     S.forEach((s,i)=>{
       const box=document.createElement('div');box.className=i===0?'tbox':'sbox';
       const fs=s.map(t=>t.w).join(' ');
