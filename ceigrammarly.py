@@ -4469,8 +4469,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             if not (is_owner or puede_gestionar_afiliados):
                 st.warning("⛔ Tu perfil actual no tiene permisos habilitados para dar de alta Socios Afiliados.")
             else:
-                app_pub_aff = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip().rstrip("/")
-                url_qr_aff = app_pub_aff if app_pub_aff else "https://streamlit.app"
+                url_qr_aff = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip().rstrip("/")
 
                 col_aff_info, col_aff_qr = st.columns([2.4, 1.0])
                 with col_aff_info:
@@ -4480,24 +4479,28 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         "porcentaje de comisión base y expediente digital (INE anverso y reverso), "
                         "o comparte el **código QR** para que completen su auto-registro externo."
                     )
-                    st.caption(f"🔗 **Enlace Directo de Registro Externo:** `{url_qr_aff}`")
+                    if url_qr_aff:
+                        st.caption("🔒 Enlace de registro externo protegido en Secrets.")
+                    else:
+                        st.warning("⚠️ Configura `AFFILIATE_REG_URL` en los Secrets de Streamlit Cloud para generar el QR.")
 
                 with col_aff_qr:
-                    try:
-                        import qrcode
-                        buf_q = io.BytesIO()
-                        qrcode.make(url_qr_aff).save(buf_q, format="PNG")
-                        st.image(buf_q.getvalue(), caption="📲 QR Registro Afiliados", width=135)
-                        st.download_button(
-                            "⬇️ Descargar QR",
-                            data=buf_q.getvalue(),
-                            file_name="QR_Registro_Afiliados_CEI.png",
-                            mime="image/png",
-                            width="stretch",
-                            key="btn_dl_qraff_main"
-                        )
-                    except Exception:
-                        st.caption(f"🔗 `{url_qr_aff}`")
+                    if url_qr_aff:
+                        try:
+                            import qrcode
+                            buf_q = io.BytesIO()
+                            qrcode.make(url_qr_aff).save(buf_q, format="PNG")
+                            st.image(buf_q.getvalue(), caption="📲 QR Registro Afiliados", width=135)
+                            st.download_button(
+                                "⬇️ Descargar QR",
+                                data=buf_q.getvalue(),
+                                file_name="QR_Registro_Afiliados_CEI.png",
+                                mime="image/png",
+                                width="stretch",
+                                key="btn_dl_qraff_main"
+                            )
+                        except Exception as e_qr:
+                            st.error(f"Error al generar QR: {e_qr}")
 
                 st.divider()
                 from registro_afiliados import render_formulario_registro_afiliado
@@ -4506,24 +4509,48 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     key_prefix="panel_admin_aff_main"
                 )
 
-
-
         # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
             try:
                 from portal_afiliado import render_portal_socio_afiliado
                 if is_owner or puede_gestionar_afiliados:
+                    url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
                     padron_aff_view = load_padron_records()
                     lista_aff_view = [str(r.get("Usuario", "")).strip() for r in padron_aff_view if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
-                    if lista_aff_view:
-                        aff_sel_vista = st.selectbox("Portal del Socio Afiliado:", lista_aff_view, key="sel_prev_aff")
+
+                    col_p_sel, col_p_qr = st.columns([2.6, 1.0])
+                    with col_p_sel:
+                        if lista_aff_view:
+                            aff_sel_vista = st.selectbox("Portal del Socio Afiliado:", lista_aff_view, key="sel_prev_aff")
+                        else:
+                            aff_sel_vista = None
+                            st.info("Aún no hay Socios Afiliados registrados.")
+
+                    with col_p_qr:
+                        if url_portal_aff:
+                            try:
+                                import qrcode
+                                buf_qp = io.BytesIO()
+                                qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
+                                st.image(buf_qp.getvalue(), caption="📲 QR Portal Afiliados", width=120)
+                                st.download_button(
+                                    "⬇️ Descargar QR Portal",
+                                    data=buf_qp.getvalue(),
+                                    file_name="QR_Portal_Afiliados_CEI.png",
+                                    mime="image/png",
+                                    width="stretch",
+                                    key="btn_dl_qrportal_main"
+                                )
+                            except Exception:
+                                pass
+
+                    if aff_sel_vista:
                         render_portal_socio_afiliado(aff_sel_vista)
-                    else:
-                        st.info("Aún no hay Socios Afiliados registrados.")
                 else:
                     render_portal_socio_afiliado(st.session_state.current_user)
             except ModuleNotFoundError:
                 st.warning("⚠️ Crea el archivo `portal_afiliado.py` en la raíz del repositorio en GitHub para activar el portal completo.")
+
 
     st.stop()
 
