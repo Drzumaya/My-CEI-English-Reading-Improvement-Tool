@@ -3797,43 +3797,6 @@ st.divider()
 
 
 # --- 14. CENTRO DE MANDO INSTITUCIONAL FIJO (SPA WORKSPACE SWITCHER) ---
-es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
-if is_owner or is_faculty_desktop or es_socio_afiliado:
-    if "active_admin_workspace" not in st.session_state:
-        st.session_state["active_admin_workspace"] = None
-
-    opciones_menu_inst = (
-        ["🤝 Portal Socio Afiliado"]
-        if es_socio_afiliado
-        else [
-            "💳 Cobranza Mensual e IVA",
-            "📊 Estados Financieros",
-            "🤝 Portal Socio Afiliado",
-            "👥 Inscripción y Padrón",
-            "🔐 Matriz Global de Permisos",
-            "🏅 Certificados (Timbre y QR)",
-            "🏛️ Datos del Instituto"
-        ]
-    )
-
-    with st.container(border=True):
-        c_nav1, c_nav2, c_nav3 = st.columns([3.4, 1.0, 1.2])
-        with c_nav1:
-            mod_elegido = st.selectbox(
-                "🧭 Seleccionar Módulo Institucional:",
-                options=opciones_menu_inst,
-                label_visibility="collapsed",
-                key="sb_centro_mando_inst"
-            )
-        with c_nav2:
-            if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_workspace"):
-                st.session_state["active_admin_workspace"] = mod_elegido
-                st.rerun()
-        with c_nav3:
-            if st.session_state["active_admin_workspace"]:
-                if st.button("✖️ CERRAR", type="secondary", width="stretch", key="btn_close_workspace_top"):
-                    st.session_state["active_admin_workspace"] = None
-                    st.rerun()
 
 if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("active_admin_workspace"):
     seccion_inst_sel = st.session_state["active_admin_workspace"]
