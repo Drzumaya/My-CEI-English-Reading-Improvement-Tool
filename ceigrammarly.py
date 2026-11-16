@@ -4294,34 +4294,35 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
         st.divider()
 
-        # 14.5 PESTAÑA COBRANZA MENSUAL E IVA 
+        # 14.5 PESTAÑA COBRANZA MENSUAL E IVA
         if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
             puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
             puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
             puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
-        if not (is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
-            st.warning("⛔ Sin permisos financieros habilitados.")
-        else:
-            if is_owner:
-                st.markdown("##### 🎛️ Control Global de Incentivos (-7%) y Recargos (+5%)")
-                est_glob = get_billing_global_settings_pg()
-                c_sw1, c_sw2 = st.columns([2.4, 1.0])
-                nuevo_glob = c_sw1.toggle(
-                    "Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)",
-                    value=est_glob,
-                    key="tgl_glob_bill"
-                )
-                if c_sw2.button("💾 Guardar Cambio", type="primary", width="stretch", key="btn_glob_bill"):
-                    ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
-                    if ok_g:
-                        st.success(f"✅ {msg_g}")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {msg_g}")
-                st.caption(
-                    f"Estado guardado en base de datos: **{'🟢 ACTIVADO (Incentivo -7% / Recargo +5%)' if est_glob else '⚪ DESACTIVADO (Tarifa Base sin incentivos ni recargos)'}**"
-                )
+            if not (is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
+                st.warning("⛔ Sin permisos financieros habilitados.")
+            else:
+                if is_owner:
+                    st.markdown("##### 🎛️ Control Global de Incentivos (-7%) y Recargos (+5%)")
+                    est_glob = get_billing_global_settings_pg()
+                    c_sw1, c_sw2 = st.columns([2.4, 1.0])
+                    nuevo_glob = c_sw1.toggle(
+                        "Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)",
+                        value=est_glob,
+                        key="tgl_glob_bill"
+                    )
+                    if c_sw2.button("💾 Guardar Cambio", type="primary", width="stretch", key="btn_glob_bill"):
+                        ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
+                        if ok_g:
+                            st.success(f"✅ {msg_g}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_g}")
+                    st.caption(
+                        f"Estado guardado en base de datos: **{'🟢 ACTIVADO (Incentivo -7% / Recargo +5%)' if est_glob else '⚪ DESACTIVADO (Tarifa Base sin incentivos ni recargos)'}**"
+                    )
+
 
 
                 st.divider()
@@ -4504,7 +4505,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     registrado_por=st.session_state.current_user,
                     key_prefix="panel_admin_aff_main"
                 )
-
 
 
 
