@@ -293,7 +293,7 @@ def save_permanent_config(logo_b64: str, mime_type: str, width: int, shape: str,
 
 @st.cache_resource(show_spinner=False)
 def get_google_workbook():
-    """Conecta con Google Sheets forzando el endpoint oficial OAuth2."""
+    # Conecta con Google Sheets forzando el endpoint oficial OAuth2.
     from google.oauth2 import service_account
     creds_dict = dict(st.secrets["gcp_service_account"])
     creds_dict["token_uri"] = "https://googleapis.com"
@@ -313,6 +313,7 @@ def get_google_workbook():
         return gc.open_by_url(sheet_url)
     sheet_name = str(st.secrets.get("GOOGLE_SHEET_NAME", "CEI_Database")).strip()
     return gc.open(sheet_name)
+
 
 
 
@@ -3349,7 +3350,7 @@ with st.sidebar:
 
 
 def get_billing_global_settings_pg() -> bool:
-    # Consulta si el sistema de incentivo (-7%) y recargo moratorio (+5%) está activo globalmente.
+    # Consulta si el sistema de incentivo (-7%) y recargo moratorio (+5%) esta activo globalmente.
     conn = get_pg_conn()
     if not conn:
         return False
@@ -3358,8 +3359,10 @@ def get_billing_global_settings_pg() -> bool:
             with conn.cursor() as cur:
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS billing_global_settings (
-                        id INTEGER PRIMARY KEY,
-                        ...
+                        id INT PRIMARY KEY DEFAULT 1,
+                        activar_incentivo_recargo BOOLEAN DEFAULT FALSE,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                     );
                 """)
                 cur.execute("SELECT activar_incentivo_recargo FROM billing_global_settings WHERE id = 1;")
@@ -3396,6 +3399,7 @@ def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool,
         return True, f"Esquema {'ACTIVADO' if activo else 'DESACTIVADO'} correctamente."
     except Exception as e:
         return False, f"Error en base de datos: {e}"
+
 
 
 
