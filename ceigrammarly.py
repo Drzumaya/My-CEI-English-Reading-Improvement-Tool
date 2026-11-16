@@ -3844,7 +3844,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
-
+ 
         if seccion_inst_sel == "📊 Estados Financieros":
             # ... código exclusivo de Estados Financieros ...
 
