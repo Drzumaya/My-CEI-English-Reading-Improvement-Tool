@@ -1580,7 +1580,7 @@ CEFR_MAP = {
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v12_gt_ok") -> dict:
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v13_clean") -> dict:
     """Tokeniza la lección y garantiza traducciones EN->ES reales para TODAS las palabras desde Python."""
     import re
     import requests
@@ -1635,14 +1635,15 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
     dict_final = {}
     gm_client = init_gemini_client()
 
-    # 1. Traducción en lotes cortos (60 palabras) con Gemini 2.5 Flash para evitar truncamiento JSON
+
+       # 1. Traducción en lotes cortos (50 palabras) con Gemini 2.5 Flash
     if gm_client and palabras_clave:
-        for i_batch in range(0, min(len(palabras_clave), 300), 60):
-            lote_palabras = palabras_clave[i_batch:i_batch + 60]
+        for i_batch in range(0, min(len(palabras_clave), 300), 50):
+            lote_palabras = palabras_clave[i_batch:i_batch + 50]
             lista_str = ", ".join(lote_palabras)
             prompt_rapido = (
                 f"Translate EVERY English word in [{lista_str}] into Spanish (CEFR {cefr_level} context). "
-                "NEVER return the English word as translation. "
+                "NEVER leave any word untranslated in English. "
                 "Return ONLY a JSON object mapping each lowercase English word to: "
                 '{"es":"traducción exacta en español","alt":"acepción 2, acepción 3","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Determinante / Preposición","def":"definición breve en español"}.'
             )
@@ -1652,7 +1653,6 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                     contents=prompt_rapido,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
                         temperature=0.1
                     )
                 )
@@ -1673,7 +1673,8 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
             except Exception:
                 pass
 
-    # 2. Respaldo directo HTTP desde Python a Google Translate (con índices exactos)
+
+      # 2. Respaldo directo HTTP desde Python a Google Translate (con URL e índices exactos)
     faltantes = [w for w in palabras_clave[:300] if w not in dict_final or dict_final[w]["es"].lower() == w]
     if faltantes:
         try:
@@ -1705,6 +1706,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                         }
         except Exception:
             pass
+            
 
     for s_obj in oraciones_base:
         for tk in s_obj["tokens"]:
@@ -1713,6 +1715,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                 tk["pos"] = info_w["pos"]
 
     return {"sentences": oraciones_base, "dictionary": dict_final}
+
 
 
 
@@ -2915,30 +2918,18 @@ def render_interactive_study_viewer(study_payload: dict):
       document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
       document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
       document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
-      document.getElementById('bx').innerText='💬 Contexto en la lección: "'+fs+'"';
+
+      const cleanQ=encodeURIComponent(k||w);
+      document.getElementById('bx').innerHTML=
+        '💬 <b>Contexto en la lección:</b> "'+fs+'"<br>' +
+        '<div style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">' +
+        '<a href="https://wordreference.com+'" target="_blank" style="color:#1a73e8;font-weight:700;text-decoration:none;">📖 Abrir en WordReference ↗</a>' +
+        '<a href="https://google.com" target="_blank" style="color:#0f766e;font-weight:700;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
+        '</div>';
+
       document.getElementById('be').innerText=inf.es||w;
       pnl.scrollIntoView({{behavior:'smooth',block:'nearest'}});
     }}
-
-    const c=document.getElementById('lc');
-    S.forEach((s,i)=>{{
-      const box=document.createElement('div');box.className=i===0?'tbox':'sbox';
-      const fs=s.map(t=>t.w).join(' ');
-      s.forEach(t=>{{
-        if(/^[.,!?;:"'()—-]+$/.test(t.w.trim())){{box.appendChild(document.createTextNode(t.w+' '));return;}}
-        const spn=document.createElement('span');spn.className='wt '+(L[t.p]?t.p:'other');spn.textContent=t.w;
-        spn.onmouseenter=()=>{{if(document.getElementById('hov').checked&&lst!==t.w){{lst=t.w;spk(t.w);}}}};
-        spn.onmouseleave=()=>{{lst="";}};
-        spn.onclick=(e)=>op(e,spn,t.w,t.p,fs);
-        box.appendChild(spn);
-      }});
-      c.appendChild(box);
-    }});
-    document.body.onclick=cls;
-    </script></body></html>"""
-
-    altura = max(560, min(860, len(clean_sentences) * 115 + 240))
-    st.iframe(html_code, height=max(1, int(altura)))
 
     
 
