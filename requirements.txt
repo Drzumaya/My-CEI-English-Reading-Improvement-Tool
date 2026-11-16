@@ -17,6 +17,7 @@ pydub
 static-ffmpeg
 cairosvg
 pypdfium2
+deep-translator
 
 
 
