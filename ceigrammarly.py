@@ -2875,9 +2875,7 @@ def render_interactive_study_viewer(study_payload: dict):
     </script></body></html>"""
 
     altura = max(480, min(820, len(clean_sentences) * 115 + 160))
-    components.html(html_code, height=altura, scrolling=True)
-
-
+    st.iframe(html_code, height=max(1, int(altura)))
 
     
 
@@ -2939,7 +2937,7 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
 
     gm = client_gm or init_gemini_client()
 
-    # 1. Genera Frase Célebre Motivacional + Palabras Clave Temáticas con Gemini Flash (gratis y rápido)
+    # 1. Genera Frase Célebre Motivacional + Palabras Clave Temáticas con Gemini Flash
     kw_busqueda = escena_limpia[:60] or "education library"
     if gm:
         try:
@@ -3016,7 +3014,7 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
-
+    
 
 if st.session_state.get("current_motivational_quote"):
     mq = st.session_state["current_motivational_quote"]
