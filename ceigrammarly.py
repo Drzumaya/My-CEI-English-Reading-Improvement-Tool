@@ -2998,8 +2998,9 @@ def render_interactive_study_viewer(study_payload: dict):
             boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
 
     rendered_lesson_html = "\n".join(boxes_html)
-    dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
-    html_part_1 = <!DOCTYPE html><html><head><meta charset="utf-8"><style>
+        dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
+
+    html_part_1 = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
     body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
     .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;
