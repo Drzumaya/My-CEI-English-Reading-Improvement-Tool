@@ -2911,8 +2911,10 @@ def generar_pdf_certificado(
 
 
 def render_interactive_study_viewer(study_payload: dict):
-    # Visor interactivo client-side con voz US English y diccionario estilo Google Translate
-    raw_lesson = str(st.session_state.get("generated_text") or "").strip()
+    # Visor interactivo con renderizado HTML directo desde Python, voz US English y diccionario estilo Google Translate
+    import html as html_lib
+    import re
+    import streamlit.components.v1 as components
 
     raw_lesson = str(st.session_state.get("generated_text") or "").strip()
     for marcador in ["**Bibliography", "Bibliography ("]:
@@ -2943,9 +2945,59 @@ def render_interactive_study_viewer(study_payload: dict):
                 "def": str(v.get("def_es", "")).strip()
             }
 
-    lines_json = json.dumps(clean_lines, ensure_ascii=True).replace("</", "<\\/")
-    dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
+    conjunciones = {
+        "and", "but", "or", "so", "because", "although", "while", "if",
+        "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"
+    }
 
+    # Python construye directamente el HTML de cada oración y palabra (garantiza 100% de visibilidad)
+    boxes_html = []
+    if not clean_lines:
+        boxes_html.append('<div class="sbox">No hay texto cargado en la lección actual.</div>')
+    else:
+        for idx_l, line in enumerate(clean_lines):
+            cls_box = "tbox" if idx_l == 0 else "sbox"
+            line_esc = html_lib.escape(line, quote=True)
+            parts = re.split(r"(\s+)", line)
+            spans = []
+            for part in parts:
+                if not part or part.isspace():
+                    continue
+                m = re.match(r"^([^A-Za-z0-9'-]*)([A-Za-z0-9'-]+)([^A-Za-z0-9'-]*)$", part)
+                if not m:
+                    spans.append(html_lib.escape(part) + " ")
+                    continue
+                pre, tok, post = m.groups()
+                low = tok.lower()
+                info_d = clean_dict.get(low, {})
+                pos_raw = str(info_d.get("pos", "")).lower()
+                if "verb" in pos_raw:
+                    pos = "verb"
+                elif "sust" in pos_raw or "noun" in pos_raw:
+                    pos = "noun"
+                elif "adj" in pos_raw:
+                    pos = "adjective"
+                elif "conj" in pos_raw or low in conjunciones:
+                    pos = "conjunction"
+                elif low.endswith(("ing", "ed")) and len(low) > 4:
+                    pos = "verb"
+                elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
+                    pos = "adjective"
+                elif len(low) > 3 and low.isalpha():
+                    pos = "noun"
+                else:
+                    pos = "other"
+
+                tok_esc = html_lib.escape(tok, quote=True)
+                pre_esc = html_lib.escape(pre)
+                post_esc = html_lib.escape(post)
+                spans.append(
+                    f'{pre_esc}<span class="wt {pos}" data-w="{tok_esc}" data-p="{pos}" data-s="{line_esc}">{tok_esc}</span>{post_esc} '
+                )
+            boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
+
+    rendered_lesson_html = "\n".join(boxes_html)
+    dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
     html_part_1 = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
     body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
@@ -2982,7 +3034,7 @@ def render_interactive_study_viewer(study_payload: dict):
            <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
                    onclick="spd()" id="sb">1.0x</button></div>
     </div>
-    <div id="lc"></div>
+    <div id="lc">__LESSON_HTML__</div>
     <div id="gt-panel" onclick="event.stopPropagation()">
       <div class="gt-head">
         <span>🌐 GOOGLE TRANSLATE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
@@ -3007,10 +3059,9 @@ def render_interactive_study_viewer(study_payload: dict):
         </div>
       </div>
       <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
-    </div>"""
-    html_part_2 = """<script>
-    const LINES=__LINES_JSON__, D=__DICT_JSON__;
-    const CONJ=new Set(["and","but","or","so","because","although","while","if","when","since","unless","whereas","however","therefore","yet","nor"]);
+    </div>
+    <script>
+    const D=__DICT_JSON__;
     const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
     let curW="", lst="", sp=1, usVoiceCache=null;
 
@@ -3036,21 +3087,6 @@ def render_interactive_study_viewer(study_payload: dict):
     }
     function cls(){document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}
 
-    function detectPOS(low){
-      if(D[low] && D[low].pos){
-        const p=D[low].pos.toLowerCase();
-        if(p.includes('verb'))return 'verb';
-        if(p.includes('sust')||p.includes('noun'))return 'noun';
-        if(p.includes('adj'))return 'adjective';
-        if(p.includes('conj'))return 'conjunction';
-      }
-      if(CONJ.has(low))return 'conjunction';
-      if(/(ing|ed)$/.test(low) && low.length>4)return 'verb';
-      if(/(ous|ful|able|ible|al|ive|ic|ly)$/.test(low) && low.length>4)return 'adjective';
-      if(low.length>3 && /^[a-z]+$/.test(low))return 'noun';
-      return 'other';
-    }
-
     function lookupLocalDict(k){
       if(D[k])return D[k];
       const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
@@ -3058,20 +3094,13 @@ def render_interactive_study_viewer(study_payload: dict):
       return null;
     }
 
-    async function fetchLiveGT(word){
-      try{
-        const u= https://googleapis.com;
-        const r=await fetch(u);
-        const j=await r.json();
-        if(j && j[0] && j[0][0] && j[0][0][0])return j[0][0][0];
-      }catch(e){}
-      return word;
-    }
-
-    async function op(e,el,w,p,fs){
+    function openWordCard(e,el){
       e.stopPropagation();
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
+      const w=el.getAttribute('data-w')||'';
+      const p=el.getAttribute('data-p')||'other';
+      const fs=el.getAttribute('data-s')||'';
       curW=w;
       spk(w,1);
       const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
@@ -3079,13 +3108,12 @@ def render_interactive_study_viewer(study_payload: dict):
       const pnl=document.getElementById('gt-panel');
       pnl.style.display='block';
 
-
-
       document.getElementById('bw').innerText=w;
       document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
       document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
       document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
       document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
+      document.getElementById('be').innerText=inf.es||w;
 
       const cleanQ=encodeURIComponent(k||w);
       const bxEl=document.getElementById('bx');
@@ -3109,46 +3137,22 @@ def render_interactive_study_viewer(study_payload: dict):
       linksDiv.appendChild(aWR);
       linksDiv.appendChild(aGT);
       bxEl.appendChild(linksDiv);
-
-      if(inf.es && inf.es.toLowerCase()!==k){
-        document.getElementById('be').innerText=inf.es;
-      }else{
-        document.getElementById('be').innerText='⏳ Traduciendo...';
-        const tr=await fetchLiveGT(k||w);
-        if(curW===w){
-          document.getElementById('be').innerText=tr;
-          D[k]=Object.assign(inf,{es:tr});
-        }
-      }
       pnl.scrollIntoView({behavior:'smooth',block:'nearest'});
     }
 
-    const c=document.getElementById('lc');
-    LINES.forEach((line,i)=>{
-      const box=document.createElement('div');
-      box.className=i===0?'tbox':'sbox';
-      const tokens=line.match(/[A-Za-z0-9'-]+|[^\\w\\s]/g)||[];
-      tokens.forEach(tok=>{
-        if(/^[.,!?;:"'()—-]+$/.test(tok.trim())){box.appendChild(document.createTextNode(tok+' '));return;}
-        const low=tok.toLowerCase();
-        const pos=detectPOS(low);
-        const spn=document.createElement('span');
-        spn.className='wt '+pos;
-        spn.textContent=tok;
-        spn.onmouseenter=()=>{if(document.getElementById('hov').checked&&lst!==tok){lst=tok;spk(tok);}};
-        spn.onmouseleave=()=>{lst="";};
-        spn.onclick=(e)=>op(e,spn,tok,pos,line);
-        box.appendChild(spn);
+    document.querySelectorAll('.wt').forEach(spn=>{
+      spn.addEventListener('mouseenter',()=>{
+        const w=spn.getAttribute('data-w')||'';
+        if(document.getElementById('hov').checked && lst!==w){lst=w;spk(w);}
       });
-      c.appendChild(box);
+      spn.addEventListener('mouseleave',()=>{lst="";});
+      spn.addEventListener('click',(e)=>openWordCard(e,spn));
     });
     document.body.onclick=cls;
     </script></body></html>"""
 
-    import streamlit.components.v1 as components
-    html_code = (html_part_1 + html_part_2).replace("__LINES_JSON__", lines_json).replace("__DICT_JSON__", dict_json)
+    html_code = html_part_1.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
     components.html(html_code, height=680, scrolling=True)
-
 
 
 
