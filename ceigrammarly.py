@@ -4445,74 +4445,73 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
                                 st.error(res_p["msg"])
 
 
-    # 14.5b PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
-      if seccion_inst_sel == "📊 Estados Financieros":
-        if not (is_owner or can("Ver_Panel_Admin")):
-            st.warning("⛔ Tu perfil actual no tiene acceso a los Estados Financieros institucionales.")
-        else:
-            st.markdown("#### 📊 Estado Financiero Consolidado y Control de Cartera")
-            ef_data = generar_estado_financiero_global_pg()
-
-            # Fila 1: KPIs de Tesorería e Ingresos Netos
-            k1, k2, k3, k4 = st.columns(4)
-            k1.metric("💰 Ingreso Bruto Recaudado", f"${ef_data['ingresos_cobrados_hist']:,.2f} MXN")
-            k2.metric("🤝 Provisión Comisiones Afiliados", f"-${ef_data['comisiones_generadas_hist']:,.2f} MXN")
-            k3.metric("🏦 Ingreso Neto Operativo", f"${ef_data['ingreso_neto_post_comision']:,.2f} MXN")
-            k4.metric("📈 Eficiencia de Cobranza (Ciclo)", f"{ef_data['tasa_cobranza_pct']}%", delta=f"Morosidad: {ef_data['indice_morosidad_pct']}%", delta_color="inverse")
-
-            # Fila 2: Cuentas por Cobrar (Vigente vs. Cartera Vencida)
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("🎓 Matrícula Activa Evaluada", f"{ef_data['total_alumnos']} alumnos")
-            c2.metric("🟡 Por Cobrar en Tiempo (Sem. 1-4)", f"${ef_data['cartera_por_cobrar_vigente']:,.2f} MXN")
-            c3.metric("🔴 Cartera Vencida (Moratorios)", f"${ef_data['cartera_vencida_moratoria']:,.2f} MXN", delta=f"{ef_data['conteo_moratorios']} en mora", delta_color="inverse")
-            c4.metric("🟢 Al Corriente / Pagados", f"{ef_data['conteo_al_corriente']} alumnos")
-
-            st.divider()
-
-            # Buscador por ID / Nombre y Selector de Filtro (Todos / Moratorios / Pagos realizados)
-            col_f1, col_f2 = st.columns([1.4, 1.6])
-            busqueda_id = col_f1.text_input(
-                "🔍 Buscar por ID / Matrícula o Nombre:",
-                placeholder="Ej. CEI-2026-001 o Juan...",
-                key="inp_search_ef_id"
-            ).strip().lower()
-
-            filtro_tipo_ef = col_f2.radio(
-                "Filtrar Estado de Cuenta:",
-                options=["Todos", "Moratorios", "Pagos realizados", "Pendientes en tiempo"],
-                horizontal=True,
-                key="rad_filter_ef_status"
-            )
-
-            df_ef = pd.DataFrame(ef_data["rows"])
-            if not df_ef.empty:
-                if busqueda_id:
-                    mask_id = (
-                        df_ef["ID / Matrícula"].str.lower().str.contains(busqueda_id, na=False)
-                        | df_ef["Estudiante"].str.lower().str.contains(busqueda_id, na=False)
-                    )
-                    df_ef = df_ef[mask_id]
-
-                if filtro_tipo_ef == "Moratorios":
-                    df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Moratorio", na=False)]
-                elif filtro_tipo_ef == "Pagos realizados":
-                    df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pagado", na=False)]
-                elif filtro_tipo_ef == "Pendientes en tiempo":
-                    df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pendiente", na=False)]
-
-                st.dataframe(df_ef, width="stretch", hide_index=True)
-
-                csv_ef = df_ef.to_csv(index=False).encode("utf-8-sig")
-                st.download_button(
-                    label="📥 Exportar Reporte Financiero (CSV / Excel)",
-                    data=csv_ef,
-                    file_name=f"Estado_Financiero_CEI_{datetime.now(ZoneInfo('America/Hermosillo')).strftime('%Y%m%d')}.csv",
-                    mime="text/csv",
-                    key="btn_dl_ef_csv"
-                )
+        # 14.5b PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
+        if seccion_inst_sel == "📊 Estados Financieros":
+            if not (is_owner or can("Ver_Panel_Admin")):
+                st.warning("⛔ Tu perfil actual no tiene acceso a los Estados Financieros institucionales.")
             else:
-                st.info("No hay registros financieros de estudiantes para mostrar.")
+                st.markdown("#### 📊 Estado Financiero Consolidado y Control de Cartera")
+                ef_data = generar_estado_financiero_global_pg()
 
+                # Fila 1: KPIs de Tesorería e Ingresos Netos
+                k1, k2, k3, k4 = st.columns(4)
+                k1.metric("💰 Ingreso Bruto Recaudado", f"${ef_data['ingresos_cobrados_hist']:,.2f} MXN")
+                k2.metric("🤝 Provisión Comisiones Afiliados", f"-${ef_data['comisiones_generadas_hist']:,.2f} MXN")
+                k3.metric("🏦 Ingreso Neto Operativo", f"${ef_data['ingreso_neto_post_comision']:,.2f} MXN")
+                k4.metric("📈 Eficiencia de Cobranza (Ciclo)", f"{ef_data['tasa_cobranza_pct']}%", delta=f"Morosidad: {ef_data['indice_morosidad_pct']}%", delta_color="inverse")
+
+                # Fila 2: Cuentas por Cobrar (Vigente vs. Cartera Vencida)
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("🎓 Matrícula Activa Evaluada", f"{ef_data['total_alumnos']} alumnos")
+                c2.metric("🟡 Por Cobrar en Tiempo (Sem. 1-4)", f"${ef_data['cartera_por_cobrar_vigente']:,.2f} MXN")
+                c3.metric("🔴 Cartera Vencida (Moratorios)", f"${ef_data['cartera_vencida_moratoria']:,.2f} MXN", delta=f"{ef_data['conteo_moratorios']} en mora", delta_color="inverse")
+                c4.metric("🟢 Al Corriente / Pagados", f"{ef_data['conteo_al_corriente']} alumnos")
+
+                st.divider()
+
+                # Buscador por ID / Nombre y Selector de Filtro (Todos / Moratorios / Pagos realizados)
+                col_f1, col_f2 = st.columns([1.4, 1.6])
+                busqueda_id = col_f1.text_input(
+                    "🔍 Buscar por ID / Matrícula o Nombre:",
+                    placeholder="Ej. CEI-2026-001 o Juan...",
+                    key="inp_search_ef_id"
+                ).strip().lower()
+
+                filtro_tipo_ef = col_f2.radio(
+                    "Filtrar Estado de Cuenta:",
+                    options=["Todos", "Moratorios", "Pagos realizados", "Pendientes en tiempo"],
+                    horizontal=True,
+                    key="rad_filter_ef_status"
+                )
+
+                df_ef = pd.DataFrame(ef_data["rows"])
+                if not df_ef.empty:
+                    if busqueda_id:
+                        mask_id = (
+                            df_ef["ID / Matrícula"].str.lower().str.contains(busqueda_id, na=False)
+                            | df_ef["Estudiante"].str.lower().str.contains(busqueda_id, na=False)
+                        )
+                        df_ef = df_ef[mask_id]
+
+                    if filtro_tipo_ef == "Moratorios":
+                        df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Moratorio", na=False)]
+                    elif filtro_tipo_ef == "Pagos realizados":
+                        df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pagado", na=False)]
+                    elif filtro_tipo_ef == "Pendientes en tiempo":
+                        df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pendiente", na=False)]
+
+                    st.dataframe(df_ef, width="stretch", hide_index=True)
+
+                    csv_ef = df_ef.to_csv(index=False).encode("utf-8-sig")
+                    st.download_button(
+                        label="📥 Exportar Reporte Financiero (CSV / Excel)",
+                        data=csv_ef,
+                        file_name=f"Estado_Financiero_CEI_{datetime.now(ZoneInfo('America/Hermosillo')).strftime('%Y%m%d')}.csv",
+                        mime="text/csv",
+                        key="btn_dl_ef_csv"
+                    )
+                else:
+                    st.info("No hay registros financieros de estudiantes para mostrar.")
 
 
 
