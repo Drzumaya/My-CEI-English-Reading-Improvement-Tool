@@ -3844,29 +3844,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
- 
-        if seccion_inst_sel == "📊 Estados Financieros":
-            # ... código exclusivo de Estados Financieros ...
-
-        elif seccion_inst_sel == "🤝 Alta de Socios Afiliados":
-            # ... código exclusivo de Alta de Socios Afiliados ...
-
-        elif seccion_inst_sel == "🤝 Portal Socio Afiliado":
-            # ... código exclusivo de Portal Socio Afiliado ...
-
-        elif seccion_inst_sel == "👥 Inscripción y Padrón":
-            # ... código exclusivo de Inscripción y Padrón ...
-
-        elif seccion_inst_sel == "🔐 Matriz Global de Permisos":
-            # ... código exclusivo de Matriz Global de Permisos ...
-
-        elif seccion_inst_sel == "🏅 Certificados (Timbre y QR)":
-            # ... código exclusivo de Certificados ...
-
-        elif seccion_inst_sel == "🏛️ Datos del Instituto":
-            # ... código exclusivo de Datos del Instituto ...
-
-
 
 
      # 14.1 PESTAÑA CERTIFICADOS
