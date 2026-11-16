@@ -2974,6 +2974,26 @@ def render_interactive_study_viewer(study_payload: dict):
       pnl.scrollIntoView({{behavior:'smooth',block:'nearest'}});
     }}
 
+    const c=document.getElementById('lc');
+    S.forEach((s,i)=>{{
+      const box=document.createElement('div');box.className=i===0?'tbox':'sbox';
+      const fs=s.map(t=>t.w).join(' ');
+      s.forEach(t=>{{
+        if(/^[.,!?;:"'()—-]+$/.test(t.w.trim())){{box.appendChild(document.createTextNode(t.w+' '));return;}}
+        const spn=document.createElement('span');spn.className='wt '+(L[t.p]?t.p:'other');spn.textContent=t.w;
+        spn.onmouseenter=()=>{{if(document.getElementById('hov').checked&&lst!==t.w){{lst=t.w;spk(t.w);}}}};
+        spn.onmouseleave=()=>{{lst="";}};
+        spn.onclick=(e)=>op(e,spn,t.w,t.p,fs);
+        box.appendChild(spn);
+      }});
+      c.appendChild(box);
+    }});
+    document.body.onclick=cls;
+    </script></body></html>"""
+
+    altura = max(560, min(860, len(clean_sentences) * 115 + 240))
+    st.iframe(html_code, height=max(1, int(altura)))
+
     
 
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
