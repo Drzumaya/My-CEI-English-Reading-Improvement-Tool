@@ -2998,7 +2998,7 @@ def render_interactive_study_viewer(study_payload: dict):
             boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
 
     rendered_lesson_html = "\n".join(boxes_html)
-        dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
+    dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
 
     html_part_1 = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
