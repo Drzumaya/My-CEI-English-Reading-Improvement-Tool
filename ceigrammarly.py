@@ -3522,28 +3522,10 @@ with col_qr:
             st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
 
 with col_exit:
-    es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
-    if is_owner or is_faculty_desktop or es_socio_afiliado:
-        panel_abierto = bool(st.session_state.get("show_teacher_registry", False))
-        btn_label = (
-            "✖️ Ocultar Panel"
-            if panel_abierto
-            else ("🤝 Portal Afiliado" if es_socio_afiliado else "🛡️ Panel Institucional")
-        )
-        if st.button(
-            btn_label,
-            type="primary" if not panel_abierto else "secondary",
-            width="stretch",
-            key="btn_header_admin_panel"
-        ):
-            st.session_state.show_teacher_registry = not panel_abierto
-            st.rerun()
-
     if st.button("🚪 Salir", type="secondary", width="stretch", key="btn_header_exit_app"):
         st.session_state.app_exited = True
         st.session_state.authenticated = False
         st.rerun()
-
 
 # --- BARRA DE COMANDO INSTITUCIONAL FIJA (SPA WORKSPACE SWITCHER) ---
 es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
@@ -3566,7 +3548,6 @@ if is_owner or is_faculty_desktop or es_socio_afiliado:
         ]
     )
 
-
     with st.container(border=True):
         c_nav1, c_nav2, c_nav3 = st.columns([3.2, 1.0, 1.2])
         with c_nav1:
@@ -3585,7 +3566,6 @@ if is_owner or is_faculty_desktop or es_socio_afiliado:
                 if st.button("✖️ CERRAR", type="secondary", width="stretch", key="btn_close_workspace_top"):
                     st.session_state["active_admin_workspace"] = None
                     st.rerun()
-
 
 
         
