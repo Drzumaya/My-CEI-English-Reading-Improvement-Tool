@@ -3022,6 +3022,12 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
 from media_generator import generar_imagen_garantizada
 
 
+def generar_quiz_leccion(client, texto_leccion: str, nivel_cefr: str, grado_acad: str, tema_gramatical: str):
+    """Genera un cuestionario de 5 preguntas de opción múltiple calibrado al nivel CEFR y grado académico."""
+    prompt_quiz = f"""
+    Based on this CEFR Level {nivel_cefr} English lesson tailored for {grado_acad} students, create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr} and {grado_acad} cognitive level, evaluating comprehension and target grammar ({tema_gramatical}).
+
+
 
 
 def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
