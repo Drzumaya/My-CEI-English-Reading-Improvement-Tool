@@ -1989,7 +1989,7 @@ institute_address = (
 verify_folio = str(st.query_params.get("verify") or st.query_params.get("verify_cert") or "").strip().upper()
 if verify_folio:
     if st.session_state.get("portal_verificacion_cerrado", False):
-        st.iframe("<script>window.close();</script>", height=0)
+        st.iframe("<script>window.parent.close(); window.close();</script>", height=1)
         st.markdown("<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>", unsafe_allow_html=True)
         st.stop()
 
