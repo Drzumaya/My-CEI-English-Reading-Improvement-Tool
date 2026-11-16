@@ -2778,7 +2778,7 @@ def generar_pdf_certificado(
     return bytes(pdf.output())
 
 
-defdef render_interactive_study_viewer(study_payload: dict):
+def render_interactive_study_viewer(study_payload: dict):
     """Visor interactivo con voz US English y panel estilo Google Translate en vivo."""
     sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
