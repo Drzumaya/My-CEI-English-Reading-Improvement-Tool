@@ -1765,35 +1765,35 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
 
 
 
-def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
-    # Traduce al inglés y corrige ortografía/estilo académico de las entradas del usuario para la bibliografía APA.
+@st.cache_data(ttl=86400, show_spinner=False)
+def _fast_translate_to_en(txt: str) -> str:
+    # Traduce entradas cortas al ingles en milisegundos con cache persistente
+    clean_t = str(txt or "").strip()
+    if not clean_t:
+        return ""
     try:
-        prompt_norm = f"""
-        You are an academic copyeditor specializing in APA 7th Edition style.
-        Translate to natural, grammatically accurate English (if in Spanish or mixed) and fix any spelling, capitalization, or punctuation errors in these three user inputs:
-        1. Context/Setting: "{contexto_raw}"
-        2. Characters/Participants: "{personas_raw}"
-        3. Subject/Topic (format in proper English Title Case for an academic publication title): "{asunto_raw}"
-
-        Return ONLY a valid JSON object with exact keys:
-        {{
-            "context_en": "...",
-            "characters_en": "...",
-            "subject_apa_title": "..."
-        }}
-        """
-        raw_norm, _ = generar_con_maxima_potencia(client, prompt_norm, as_json=True)
-        cleaned = raw_norm.strip()
-        if cleaned.startswith("```"):
-            cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
-        data = json.loads(cleaned)
-        return (
-            str(data.get("context_en", contexto_raw)).strip() or contexto_raw,
-            str(data.get("characters_en", personas_raw)).strip() or personas_raw,
-            str(data.get("subject_apa_title", asunto_raw)).strip() or asunto_raw
-        )
+        from deep_translator import GoogleTranslator
+        tr = GoogleTranslator(source="auto", target="en").translate(clean_t)
+        return str(tr or clean_t).strip()
     except Exception:
-        return contexto_raw.strip(), personas_raw.strip(), asunto_raw.strip().title()
+        return clean_t
+
+
+def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
+    # Traduce al ingles y aplica formato APA 7a Ed. en milisegundos sin bloquear la API de Gemini
+    ctx_en = _fast_translate_to_en(contexto_raw) or str(contexto_raw or "").strip()
+    per_en = _fast_translate_to_en(personas_raw) or str(personas_raw or "").strip()
+    asu_en = _fast_translate_to_en(asunto_raw) or str(asunto_raw or "").strip()
+
+    # Formato Title Case estilo APA 7a Ed. (respeta conectores menores en minuscula)
+    palabras_menores = {"a", "an", "the", "and", "but", "or", "for", "nor", "on", "at", "to", "from", "by", "in", "of", "with"}
+    palabras = asu_en.split()
+    asu_apa = " ".join(
+        w.capitalize() if (i == 0 or i == len(palabras) - 1 or w.lower() not in palabras_menores) else w.lower()
+        for i, w in enumerate(palabras)
+    ) if palabras else "Academic English Discourse"
+
+    return ctx_en, per_en, asu_apa
 
 def migrar_sheets_a_supabase() -> dict:
     # Transfiere de forma segura los datos de Google Sheets a PostgreSQL (Supabase).
