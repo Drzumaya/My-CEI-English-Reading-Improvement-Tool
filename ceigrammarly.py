@@ -2911,7 +2911,7 @@ def generar_pdf_certificado(
 
 
 def render_interactive_study_viewer(study_payload: dict):
-    # Visor interactivo con voz US English y panel estilo Google Translate.
+    # Visor interactivo con voz US English y panel estilo Google Translate blindado contra errores de sintaxis JS
     sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
 
@@ -2934,27 +2934,27 @@ def render_interactive_study_viewer(study_payload: dict):
     s_json = json.dumps(clean_sentences, ensure_ascii=True).replace("</", "<\\/")
     d_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
 
-    html_code = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    *{{box-sizing:border-box}}
-    body{{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}}
-    .tb{{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:12px;font-size:12px;font-weight:600}}
-    .bg{{padding:3px 8px;border-radius:6px}}
-    .verb{{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}}
-    .noun{{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}}
-    .adjective{{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}}
-    .conjunction{{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}}
-    .other{{background:#f1f5f9;color:#334155}}
-    .tbox{{background:#1a2a44;color:#fff;padding:12px 16px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}}
-    .tbox .wt{{color:#1e293b;font-size:16px}}
-    .sbox{{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:10px;border-radius:8px;line-height:2.0;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
-    .wt{{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}}
-    .wt:hover,.act{{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}}
-    #gt-panel{{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.22);margin-top:14px;overflow:hidden;display:none}}
-    .gt-head{{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;color:#fff;padding:8px 14px;font-size:12px;font-weight:700}}
-    .gt-grid{{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}}
-    .gt-col{{padding:12px 14px}}
-    .gt-col:first-child{{border-right:1px solid #e2e8f0;background:#f8fafc}}
-    .gt-btn{{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}}
+    html_template = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    *{box-sizing:border-box}
+    body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
+    .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:12px;font-size:12px;font-weight:600}
+    .bg{padding:3px 8px;border-radius:6px}
+    .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
+    .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
+    .adjective{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}
+    .conjunction{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}
+    .other{background:#f1f5f9;color:#334155}
+    .tbox{background:#1a2a44;color:#fff;padding:12px 16px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}
+    .tbox .wt{color:#1e293b;font-size:16px}
+    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:10px;border-radius:8px;line-height:2.0;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}
+    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
+    #gt-panel{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.22);margin-top:14px;overflow:hidden;display:none}
+    .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
+    .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
+    .gt-col{padding:12px 14px}
+    .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
+    .gt-btn{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
     </style></head><body>
     <div class="tb">
       <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span> <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span> <span class="bg other">Otros</span></div>
@@ -2987,22 +2987,23 @@ def render_interactive_study_viewer(study_payload: dict):
       </div>
       <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
     </div>
+
     <script>
-    const S={s_json}, D={d_json};
-    const L={{verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"}};
+    const S=__S_JSON__, D=__D_JSON__;
+    const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
     let curW="", lst="", sp=1, usVoiceCache=null;
 
-    function pickUSVoice(){{
+    function pickUSVoice(){
       const vs=window.speechSynthesis.getVoices()||[];
       usVoiceCache=
         vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Guy')||v.name.includes('Samantha')||v.name.includes('Alex')))||
         vs.find(v=>v.lang==='en-US'||v.lang==='en_US')||
         vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
       return usVoiceCache;
-    }}
-    if('speechSynthesis'in window){{pickUSVoice();window.speechSynthesis.onvoiceschanged=pickUSVoice;}}
-    function spd(){{sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}}
-    function spk(w,r){{
+    }
+    if('speechSynthesis'in window){pickUSVoice();window.speechSynthesis.onvoiceschanged=pickUSVoice;}
+    function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
+    function spk(w,r){
       if(!('speechSynthesis'in window))return;
       speechSynthesis.cancel();
       const u=new SpeechSynthesisUtterance(w);
@@ -3011,19 +3012,19 @@ def render_interactive_study_viewer(study_payload: dict):
       if(v)u.voice=v;
       u.rate=r||sp;
       speechSynthesis.speak(u);
-    }}
-    function cls(){{document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}}
+    }
+    function cls(){document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}
 
-    function lookupLocalDict(k){{
+    function lookupLocalDict(k){
       if(D[k])return D[k];
       const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
-      for(const st of stems){{
+      for(const st of stems){
         if(st.length>2 && D[st])return D[st];
-      }}
+      }
       return null;
-    }}
+    }
 
-    async function op(e,el,w,p,fs){{
+    function op(e,el,w,p,fs){
       e.stopPropagation();
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
@@ -3031,7 +3032,7 @@ def render_interactive_study_viewer(study_payload: dict):
       spk(w,1);
 
       const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
-      const inf=lookupLocalDict(k)||{{}};
+      const inf=lookupLocalDict(k)||{};
       const pnl=document.getElementById('gt-panel');
       pnl.style.display='block';
 
@@ -3042,36 +3043,53 @@ def render_interactive_study_viewer(study_payload: dict):
       document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
 
       const cleanQ=encodeURIComponent(k||w);
-      document.getElementById('bx').innerHTML=
-        '💬 <b>Contexto en la lección:</b> "'+fs+'"<br>' +
-        '<div style="margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">' +
-        '<a href="https://wordreference.com+'" target="_blank" style="color:#1a73e8;font-weight:700;text-decoration:none;">📖 Abrir en WordReference ↗</a>' +
-        '<a href="https://google.com" target="_blank" style="color:#0f766e;font-weight:700;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
-        '</div>';
+      const bxEl=document.getElementById('bx');
+      bxEl.innerHTML='';
+      const ctxDiv=document.createElement('div');
+      ctxDiv.textContent='💬 Contexto en la lección: "'+fs+'"';
+      bxEl.appendChild(ctxDiv);
 
+      const linksDiv=document.createElement('div');
+      linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
 
+      const aWR=document.createElement('a');
+      aWR.href='https://wordreference.com;
+      aWR.target='_blank';
+      aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;';
+      aWR.textContent='📖 Abrir en WordReference ↗';
+
+      const aGT=document.createElement('a');
+      aGT.href='https://google.com';
+      aGT.target='_blank';
+      aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;';
+      aGT.textContent='🌐 Abrir en Google Translate ↗';
+
+      linksDiv.appendChild(aWR);
+      linksDiv.appendChild(aGT);
+      bxEl.appendChild(linksDiv);
 
       document.getElementById('be').innerText=inf.es||w;
-      pnl.scrollIntoView({{behavior:'smooth',block:'nearest'}});
-    }}
+      pnl.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
 
     const c=document.getElementById('lc');
-    S.forEach((s,i)=>{{
+    S.forEach((s,i)=>{
       const box=document.createElement('div');box.className=i===0?'tbox':'sbox';
       const fs=s.map(t=>t.w).join(' ');
-      s.forEach(t=>{{
-        if(/^[.,!?;:"'()—-]+$/.test(t.w.trim())){{box.appendChild(document.createTextNode(t.w+' '));return;}}
+      s.forEach(t=>{
+        if(/^[.,!?;:"'()—-]+$/.test(t.w.trim())){box.appendChild(document.createTextNode(t.w+' '));return;}
         const spn=document.createElement('span');spn.className='wt '+(L[t.p]?t.p:'other');spn.textContent=t.w;
-        spn.onmouseenter=()=>{{if(document.getElementById('hov').checked&&lst!==t.w){{lst=t.w;spk(t.w);}}}};
-        spn.onmouseleave=()=>{{lst="";}};
+        spn.onmouseenter=()=>{if(document.getElementById('hov').checked&&lst!==t.w){lst=t.w;spk(t.w);}};
+        spn.onmouseleave=()=>{lst="";};
         spn.onclick=(e)=>op(e,spn,t.w,t.p,fs);
         box.appendChild(spn);
-      }});
+      });
       c.appendChild(box);
-    }});
+    });
     document.body.onclick=cls;
     </script></body></html>"""
 
+    html_code = html_template.replace("__S_JSON__", s_json).replace("__D_JSON__", d_json)
     altura = max(560, min(860, len(clean_sentences) * 115 + 240))
     st.iframe(html_code, height=max(1, int(altura)))
 
