@@ -3845,10 +3845,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
-        # --- AQUÍ VAN TUS 7 BLOQUES EXISTENTES SIN CAMBIAR SU SANGRÍA (8 ESPACIOS) ---
-        if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
-            # ... código exclusivo de Cobranza Mensual e IVA ...
-
         elif seccion_inst_sel == "📊 Estados Financieros":
             # ... código exclusivo de Estados Financieros ...
 
