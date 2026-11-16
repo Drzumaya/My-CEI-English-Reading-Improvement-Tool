@@ -663,7 +663,7 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
 
         
 def fetch_certificate_public_pg(folio_cert: str) -> dict | None:
-    # Busca un certificado por su folio directamente en PostgreSQL para verificación QR sin login.
+    # Busca un certificado por su folio directamente en PostgreSQL para verificación QR sin .
     from psycopg.rows import dict_row
     conn = get_pg_conn()
     if not conn:
@@ -2038,7 +2038,7 @@ institute_address = (
     else DEFAULT_ADDRESS
 )
 
-# --- 7. PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN LOGIN) ---
+# --- 7. PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN ) ---
 verify_folio = str(st.query_params.get("verify") or st.query_params.get("verify_cert") or "").strip().upper()
 if verify_folio:
     if st.session_state.get("portal_verificacion_cerrado", False):
@@ -2610,7 +2610,25 @@ if st.session_state.get("pending_ls_token"):
             height=1
         )
 
-# --- AUTO-LOGIN DESDE COOKIE DEL NAVEGADOR SI EXISTE SESIÓN RECORDADA ---
+# --- SINCRONIZACIÓN DE COOKIE PERSISTENTE EN EL NAVEGADOR ---
+if st.session_state.get("pending_ls_token"):
+    tok_act = st.session_state.pop("pending_ls_token")
+    if tok_act == "REMOVE":
+        js_ck = (
+            "<script>try{window.parent.document.cookie='cei_session_token=; "
+            "max-age=0; path=/; SameSite=Lax; Secure';}catch(e){"
+            "document.cookie='cei_session_token=; max-age=0; path=/; SameSite=Lax; Secure';}</script>"
+        )
+    else:
+        tok_safe = urllib.parse.quote(str(tok_act))
+        js_ck = (
+            f"<script>try{{window.parent.document.cookie='cei_session_token={tok_safe}; "
+            "max-age=2592000; path=/; SameSite=Lax; Secure';}catch(e){"
+            f"document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';}}</script>"
+        )
+    st.iframe(js_ck, height=1)
+
+# --- AUTO-LOGIN DESDE COOKIE DEL NAVEGADOR ---
 if not st.session_state.authenticated and not st.session_state.get("just_logged_out"):
     ck_raw = urllib.parse.unquote(str(st.context.cookies.get("cei_session_token", "") or "")).strip()
     if ck_raw:
@@ -2657,6 +2675,7 @@ if not st.session_state.authenticated and not st.session_state.get("just_logged_
         except Exception:
             pass
 
+# --- PANTALLA DE LOGIN ---
 if not st.session_state.authenticated:
     col_l, col_c, col_r = st.columns([1, 1.5, 1])
     with col_c:
@@ -2670,18 +2689,18 @@ if not st.session_state.authenticated:
                 f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 115px; border-radius: 50%;"></div>',
                 unsafe_allow_html=True
             )
-        
+
         st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
         st.markdown("<h2 style='text-align: center;'>🎓 CEFR ACADEMIC GRAMMAR & DISCOURSE SYSTEM</h2>", unsafe_allow_html=True)
         st.divider()
-        
+
         with st.form("login_form"):
             st.subheader("🔐 Control de Acceso Académico")
             input_user = st.text_input("👤 Usuario registrado:", autocomplete="username")
             input_pass = st.text_input("🔑 Clave de Acceso:", type="password", autocomplete="current-password")
             remember_me = st.checkbox("💾 Recordar mi usuario y contraseña en este navegador", value=True)
             submit_login = st.form_submit_button("Ingresar a la Plataforma", type="primary", width="stretch")
-            
+
             if submit_login:
                 if not input_user.strip() or not input_pass.strip():
                     st.warning("⚠️ Por favor, ingresa tanto tu **Usuario** como tu **Clave de Acceso**.")
@@ -2691,15 +2710,14 @@ if not st.session_state.authenticated:
                             load_padron_records.clear()
                             registros = load_padron_records()
                             usuario_encontrado = None
-                            
+
                             for reg in registros:
                                 u_db = str(reg.get("Usuario", "")).strip()
                                 c_db = str(reg.get("Clave", "")).strip()
                                 if u_db.lower() == input_user.strip().lower() and c_db == input_pass.strip():
                                     usuario_encontrado = reg
                                     break
-                            
-                            # Respaldo de acceso maestro del Propietario desde Secrets
+
                             if usuario_encontrado is None:
                                 m_user = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
                                 m_key = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
@@ -2716,17 +2734,14 @@ if not st.session_state.authenticated:
 
                             if usuario_encontrado is None:
                                 st.toast("Acceso denegado: credenciales incorrectas.", icon="🚨")
-                                st.error(
-                                    "🚨 **Credenciales Incorrectas:** El **Usuario** o la **Clave de Acceso** no coinciden con nuestros registros.\n\n"
-                                    "Verifica que no tengas activado el bloqueo de mayúsculas o solicita asistencia a tu Teacher / Administrador."
-                                )
+                                st.error("🚨 **Credenciales Incorrectas:** Verifica tu **Usuario** o **Clave de Acceso**.")
                                 if st.session_state.get("db_auth_diag"):
-                                    st.caption(f"🔍 Diagnóstico de conexión: {st.session_state['db_auth_diag']}")
+                                    st.caption(f"🔍 Diagnóstico: {st.session_state['db_auth_diag']}")
                             else:
                                 e_db = str(usuario_encontrado.get("Estatus", "Activo")).strip().lower()
                                 if e_db != "activo":
                                     st.toast("Cuenta inactiva.", icon="⛔")
-                                    st.error("⛔ **Acceso Restringido:** Tu cuenta existe, pero se encuentra **Inactiva**. Contacta a la administración del instituto.")
+                                    st.error("⛔ **Acceso Restringido:** Tu cuenta se encuentra **Inactiva**.")
                                 else:
                                     u_db = str(usuario_encontrado.get("Usuario", "")).strip()
                                     c_db = str(usuario_encontrado.get("Clave", "")).strip()
@@ -2734,7 +2749,7 @@ if not st.session_state.authenticated:
                                     p_db = resolve_permission_profile(usuario_encontrado.get("Permisos", ""), r_db, PERMISSIONS_MATRIX)
                                     n_db = normalize_cefr(usuario_encontrado.get("Nivel", "B1"))
                                     g_db = str(usuario_encontrado.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
-                                    
+
                                     st.session_state.authenticated = True
                                     st.session_state.just_logged_out = False
                                     st.session_state.current_user = u_db
@@ -2744,18 +2759,19 @@ if not st.session_state.authenticated:
                                     st.session_state.selected_cefr = n_db
                                     st.session_state.user_academic_grade = g_db
                                     st.session_state.selected_academic_grade = g_db
-                                    
+
                                     if remember_me:
                                         st.session_state.pending_ls_token = _sign_session_token(u_db, c_db)
                                     else:
                                         st.session_state.pending_ls_token = "REMOVE"
                                     st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Error de conexión al verificar credenciales en la base de datos: {e}")
+                        st.error(f"❌ Error de conexión al verificar credenciales: {e}")
+
         st.markdown(
             f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>",
-    unsafe_allow_html=True
-    )
+            unsafe_allow_html=True
+        )
     st.stop()
 
 
