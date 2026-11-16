@@ -139,7 +139,7 @@ CEFR_GRAMMAR_TOPICS = {
 
 @st.cache_resource
 def init_gemini_client():
-    """Inicializa el cliente oficial de Google Gemini leyendo la clave desde cualquier nivel de Secrets."""
+    # Inicializa el cliente oficial de Google Gemini leyendo la clave desde cualquier nivel de Secrets.
     from google import genai
     api_key = str(
         st.secrets.get("GEMINI_API_KEY", "")
@@ -265,7 +265,7 @@ def load_permanent_logo():
     return None
 
 def save_permanent_config(logo_b64: str, mime_type: str, width: int, shape: str, direccion: str):
-    """Guarda el logotipo en Base64 (sin límite de 50k caracteres) y la dirección oficial en PostgreSQL."""
+    # Guarda el logotipo en Base64 (sin límite de 50k caracteres) y la dirección oficial en PostgreSQL.
     conn = get_pg_conn()
     if not conn:
         raise RuntimeError("Sin conexión activa a PostgreSQL.")
@@ -317,12 +317,12 @@ def get_google_workbook():
 
 
 def get_google_sheet():
-    """Devuelve la Hoja 1 (Folios y Lecciones) del libro de Google Sheets."""
+    # Devuelve la Hoja 1 (Folios y Lecciones) del libro de Google Sheets.
     return get_google_workbook().sheet1
 
 
 def get_pg_conn():
-    """Conecta a PostgreSQL (Supabase) buscando credenciales en cualquier nivel de Secrets."""
+    #Conecta a PostgreSQL (Supabase) buscando credenciales en cualquier nivel de Secrets.
     import psycopg
 
     def _find_secret(key_name: str) -> str:
@@ -520,7 +520,7 @@ def load_padron_records() -> list[dict]:
 
 
 def fetch_lesson_by_folio(folio_code: str) -> dict | None:
-    """Recupera una lección, su quiz y su mejor calificación desde PostgreSQL."""
+    # Recupera una lección, su quiz y su mejor calificación desde PostgreSQL.
     from psycopg.rows import dict_row
     folio_clean = str(folio_code or "").strip().upper()
     if not folio_clean:
@@ -573,7 +573,7 @@ def get_default_logo_b64():
         
 # --- 5. MOTOR DE TIMBRADO CRIPTOGRÁFICO (HMAC-SHA256) Y CERTIFICADO PDF ---
 def fetch_student_gradebook_pg(target_usuario: str) -> dict:
-    """Calcula en tiempo real el promedio general, desglose por Grammar Topic e historial de lecciones desde Supabase."""
+    #Calcula en tiempo real el promedio general, desglose por Grammar Topic e historial de lecciones desde Supabase.
     import re
     from psycopg.rows import dict_row
 
@@ -663,7 +663,7 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
 
         
 def fetch_certificate_public_pg(folio_cert: str) -> dict | None:
-    """Busca un certificado por su folio directamente en PostgreSQL para verificación QR sin login."""
+    # Busca un certificado por su folio directamente en PostgreSQL para verificación QR sin login.
     from psycopg.rows import dict_row
     conn = get_pg_conn()
     if not conn:
@@ -677,7 +677,7 @@ def fetch_certificate_public_pg(folio_cert: str) -> dict | None:
             return cur.fetchone()
 
 def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, user_ans: dict) -> tuple[bool, str, str]:
-    """Guarda el quiz y conserva la mejor calificación del folio directamente en Supabase PostgreSQL."""
+    #Guarda el quiz y conserva la mejor calificación del folio directamente en Supabase PostgreSQL.
     import re
     conn = get_pg_conn()
     if not conn:
@@ -713,7 +713,7 @@ def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, 
     return es_record, msg, mejor_final
 
 def save_best_speaking_pg(folio: str, score_pct: int):
-    """Guarda o actualiza la mejor calificación de pronunciación oral en Supabase PostgreSQL."""
+    #Guarda o actualiza la mejor calificación de pronunciación oral en Supabase PostgreSQL.
     conn = get_pg_conn()
     if not conn:
         return
@@ -727,7 +727,7 @@ def save_best_speaking_pg(folio: str, score_pct: int):
 
 
 def load_lessons_history_pg() -> list[dict]:
-    """Carga el historial de lecciones, folios y calificaciones desde Supabase PostgreSQL."""
+    # Carga el historial de lecciones, folios y calificaciones desde Supabase PostgreSQL.
     from psycopg.rows import dict_row
     conn = get_pg_conn()
     if not conn:
@@ -756,7 +756,7 @@ def load_lessons_history_pg() -> list[dict]:
 
 
 def clean_pdf_text(text: str) -> str:
-    """Normaliza comillas, guiones y caracteres especiales para compatibilidad segura con FPDF."""
+    # Normaliza comillas, guiones y caracteres especiales para compatibilidad segura con FPDF.
     if not text:
         return ""
     reemplazos = {
@@ -780,7 +780,7 @@ def _safe_latin1(text: str) -> str:
     return str(text).encode("latin-1", "replace").decode("latin-1")
 
 class AcademicPDF(FPDF):
-    """Plantilla editorial de Alta Escuela con encabezado institucional y numeración Page X of Y."""
+    # Plantilla editorial de Alta Escuela con encabezado institucional y numeración Page X of Y.
     def __init__(self, folio_doc: str, cefr_doc: str, grado_doc: str, address_str: str):
         super().__init__()
         self.folio_doc = folio_doc
@@ -832,7 +832,7 @@ class AcademicPDF(FPDF):
 
 
 def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, speaking_eval=None) -> bytes:
-    """Genera un documento académico de Alta Escuela con numeración de páginas, ilustración y examen."""
+    # Genera un documento académico de Alta Escuela con numeración de páginas, ilustración y examen.
     folio_doc = st.session_state.current_folio or "SIN-FOLIO"
     base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
     default_link = f"{base_url}/?folio={urllib.parse.quote(folio_doc)}" if base_url else f"/?folio={urllib.parse.quote(folio_doc)}"
@@ -1113,7 +1113,7 @@ def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, spe
     return bytes(pdf.output())
 
 def _extract_numeric_score(score_str: str) -> float:
-    """Extrae el porcentaje numérico de una cadena como '4/5 (80.0%)' para comparaciones."""
+    # xtrae el porcentaje numérico de una cadena como '4/5 (80.0%)' para comparaciones.
     import re
     if not score_str:
         return -1.0
@@ -1125,7 +1125,7 @@ def _extract_numeric_score(score_str: str) -> float:
 
 
 def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
-    """Consulta y valida un certificado oficial directamente desde PostgreSQL usando APP_PUBLIC_URL desde Secrets."""
+    # Consulta y valida un certificado oficial directamente desde PostgreSQL usando APP_PUBLIC_URL desde Secrets.
     from psycopg.rows import dict_row
     f_clean = str(folio_cert or "").strip().upper()
     if not f_clean:
@@ -1159,7 +1159,7 @@ def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
     return None
     
 def update_certificate_link_pg(folio_cert: str, new_url: str = "") -> bool:
-    """Guarda o actualiza directamente la URL de verificación del certificado en Supabase PostgreSQL."""
+    # Guarda o actualiza directamente la URL de verificación del certificado en Supabase PostgreSQL.
     f_clean = str(folio_cert or "").strip().upper()
     if not f_clean:
         return False
@@ -1185,7 +1185,7 @@ def update_certificate_link_pg(folio_cert: str, new_url: str = "") -> bool:
 
 
 def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
-    """Registra una nueva lección generada directamente en PostgreSQL (Supabase)."""
+    # Registra una nueva lección generada directamente en PostgreSQL (Supabase).
     conn = get_pg_conn()
     if not conn:
         return
@@ -1213,7 +1213,7 @@ def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str,
 
 
 def save_best_quiz_result_to_sheet(folio: str, new_score_str: str, quiz_items, user_ans_dict):
-    """Evalúa, compara atómicamente en PostgreSQL y conserva la calificación más alta del Folio."""
+    # Evalúa, compara atómicamente en PostgreSQL y conserva la calificación más alta del Folio.
     from psycopg.rows import dict_row
     if not folio:
         return False, "Folio no asignado.", new_score_str
@@ -1267,7 +1267,7 @@ def save_best_quiz_result_to_sheet(folio: str, new_score_str: str, quiz_items, u
 
 
 def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
-    """Guarda en PostgreSQL la calificación más alta de evaluación oral y su reporte."""
+    # Guarda en PostgreSQL la calificación más alta de evaluación oral y su reporte.
     if not folio:
         return
     try:
@@ -1334,7 +1334,7 @@ def upsert_user_padron_pg(
 
 
 def set_student_affiliate_pg(student_id: int, afiliador_id: int | None):
-    """Guarda el ID del socio afiliador directamente en la columna afiliador_id del estudiante."""
+    # Guarda el ID del socio afiliador directamente en la columna afiliador_id del estudiante.
     conn = get_pg_conn()
     if not conn:
         raise RuntimeError("Sin conexión activa a PostgreSQL.")
@@ -1348,7 +1348,7 @@ def set_student_affiliate_pg(student_id: int, afiliador_id: int | None):
 
         
 def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
-    """Guarda o actualiza un perfil de permisos RBAC directamente en Supabase PostgreSQL."""
+    # Guarda o actualiza un perfil de permisos RBAC directamente en Supabase PostgreSQL.
     conn = get_pg_conn()
     if not conn:
         raise RuntimeError("Sin conexión activa a PostgreSQL.")
@@ -1383,7 +1383,7 @@ def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
 
 
 def _build_cert_verify_url(folio_cert: str) -> str:
-    """Construye la URL directa de validación oficial del certificado usando APP_PUBLIC_URL desde Secrets."""
+    # Construye la URL directa de validación oficial del certificado usando APP_PUBLIC_URL desde Secrets.
     base_url = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
     f_clean = urllib.parse.quote(folio_cert.strip().upper())
     return f"{base_url}/?verify_cert={f_clean}" if base_url else f"/?verify_cert={f_clean}"
@@ -1391,7 +1391,7 @@ def _build_cert_verify_url(folio_cert: str) -> str:
 
     
 def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_sel: str, grado_sel: str, programa_c: str, calif_c: str, fecha_c: str, sello_h: str):
-    """Guarda un certificado oficial timbrado directamente en Supabase PostgreSQL."""
+    # Guarda un certificado oficial timbrado directamente en Supabase PostgreSQL.
     conn = get_pg_conn()
     if not conn:
         raise RuntimeError("Sin conexión activa a PostgreSQL.")
@@ -1427,7 +1427,7 @@ def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_s
             ))
 
 def register_gradebook_stamp_pg(folio_b: str, alumno: str, matricula: str, topico: str, promedio_str: str, sello_hmac: str) -> str:
-    """Registra el timbre digital del Boletín de Calificaciones en Supabase y devuelve su URL de validación."""
+    # Registra el timbre digital del Boletín de Calificaciones en Supabase y devuelve su URL de validación.
     app_pub = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
     f_upper = folio_b.strip().upper()
     verify_url = f"{app_pub}/?verify_gradebook={urllib.parse.quote(f_upper)}" if app_pub else f"/?verify_gradebook={urllib.parse.quote(f_upper)}"
@@ -1465,7 +1465,7 @@ def register_gradebook_stamp_pg(folio_b: str, alumno: str, matricula: str, topic
 
 
 def load_certificates_pg() -> list[dict]:
-    """Carga el historial de certificados emitidos desde Supabase PostgreSQL."""
+    # Carga el historial de certificados emitidos desde Supabase PostgreSQL.
     from psycopg.rows import dict_row
     conn = get_pg_conn()
     if not conn:
@@ -1492,7 +1492,7 @@ def load_certificates_pg() -> list[dict]:
 
 
 def update_certificate_status_pg(folio_cert: str, nuevo_estatus_ui: str):
-    """Actualiza el estatus (Vigente/Revocado) de un certificado en Supabase PostgreSQL."""
+    # Actualiza el estatus (Vigente/Revocado) de un certificado en Supabase PostgreSQL.
     conn = get_pg_conn()
     if not conn:
         raise RuntimeError("Sin conexión activa a PostgreSQL.")
@@ -1506,7 +1506,7 @@ def update_certificate_status_pg(folio_cert: str, nuevo_estatus_ui: str):
 
 
 def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
-    """Evalúa fonética, fluidez y gramática oral usando gemini-3.1-pro-preview con respaldo a gemini-2.5-flash."""
+    # Evalúa fonética, fluidez y gramática oral usando gemini-3.1-pro-preview con respaldo a gemini-2.5-flash.
     from google.genai import types
 
     gm_client = init_gemini_client()
@@ -1766,7 +1766,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
 
 
 def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
-    """Traduce al inglés y corrige ortografía/estilo académico de las entradas del usuario para la bibliografía APA."""
+    # Traduce al inglés y corrige ortografía/estilo académico de las entradas del usuario para la bibliografía APA.
     try:
         prompt_norm = f"""
         You are an academic copyeditor specializing in APA 7th Edition style.
@@ -1796,7 +1796,7 @@ def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto
         return contexto_raw.strip(), personas_raw.strip(), asunto_raw.strip().title()
 
 def migrar_sheets_a_supabase() -> dict:
-    """Transfiere de forma segura los datos de Google Sheets a PostgreSQL (Supabase)."""
+    # Transfiere de forma segura los datos de Google Sheets a PostgreSQL (Supabase).
     import psycopg
     db_url = str(st.secrets.get("DATABASE_URL", "")).strip()
     if not db_url:
@@ -1984,7 +1984,7 @@ def migrar_sheets_a_supabase() -> dict:
 
 
 def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
-    """Guarda en Google Sheets la calificación más alta de pronunciación obtenida en el Folio."""
+    # Guarda en Google Sheets la calificación más alta de pronunciación obtenida en el Folio.
     if not folio:
         return
     try:
@@ -2248,7 +2248,7 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
 
 
 def stamp_and_save_transcript_pg(student_name: str, gb_data: dict, topic_filter: str) -> dict:
-    """Timbra criptográficamente el Boletín Oficial con HMAC-SHA256, fecha exacta y lo guarda en Supabase."""
+    # Timbra criptográficamente el Boletín Oficial con HMAC-SHA256, fecha exacta y lo guarda en Supabase.
     import hashlib
     import hmac
 
@@ -2297,7 +2297,7 @@ def stamp_and_save_transcript_pg(student_name: str, gb_data: dict, topic_filter:
 
 
 def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter: str = "Vista General") -> tuple[bytes, dict]:
-    """Genera y timbra el Boletín Oficial de Calificaciones en formato APA 7a Ed. con logo dinámico, QR y sello HMAC-SHA256."""
+    # Genera y timbra el Boletín Oficial de Calificaciones en formato APA 7a Ed. con logo dinámico, QR y sello HMAC-SHA256.
     import tempfile
     import qrcode
     from fpdf import FPDF
@@ -2832,7 +2832,7 @@ def generar_pdf_certificado(
 
 
 def render_interactive_study_viewer(study_payload: dict):
-    """Visor interactivo con voz US English y panel estilo Google Translate."""
+    # Visor interactivo con voz US English y panel estilo Google Translate.
     sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
 
@@ -2908,7 +2908,6 @@ def render_interactive_study_viewer(study_payload: dict):
       </div>
       <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
     </div>
-
     <script>
     const S={s_json}, D={d_json};
     const L={{verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"}};
@@ -3154,7 +3153,7 @@ with st.sidebar:
 
 
 def get_billing_global_settings_pg() -> bool:
-    """Consulta si el sistema de incentivo (-7%) y recargo moratorio (+5%) está activo globalmente."""
+    # Consulta si el sistema de incentivo (-7%) y recargo moratorio (+5%) está activo globalmente.
     conn = get_pg_conn()
     if not conn:
         return False
@@ -3177,7 +3176,7 @@ def get_billing_global_settings_pg() -> bool:
 
 
 def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool, str]:
-    """Activa o desactiva globalmente el esquema de incentivos y recargos (solo Propietario)."""
+    # Activa o desactiva globalmente el esquema de incentivos y recargos (solo Propietario).
     conn = get_pg_conn()
     if not conn:
         return False, "Sin conexión activa a Supabase PostgreSQL."
@@ -3345,7 +3344,7 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
 
 
 def generar_estado_financiero_global_pg() -> dict:
-    """Consolida el Balance de Cobranza, Cartera Vencida (Aging) y KPIs Financieros Globales."""
+    # Consolida el Balance de Cobranza, Cartera Vencida (Aging) y KPIs Financieros Globales.
     from psycopg.rows import dict_row
 
     padron = load_padron_records()
@@ -3434,7 +3433,7 @@ def generar_estado_financiero_global_pg() -> dict:
 
 
 def registrar_pago_mensual_y_comision_pg(student_user: str, registrado_por: str) -> dict:
-    """Registra el pago mensual del ciclo actual (aplicando -7%, 0% o +5%) y calcula la comisión del socio afiliado."""
+    # Registra el pago mensual del ciclo actual (aplicando -7%, 0% o +5%) y calcula la comisión del socio afiliado.
     est = evaluar_estado_financiero_alumno(student_user)
     if est["ciclo_pagado"]:
         return {"ok": False, "msg": f"El Ciclo {est['ciclo_actual']} ya está pagado."}
@@ -3489,7 +3488,7 @@ def registrar_pago_mensual_y_comision_pg(student_user: str, registrado_por: str)
 
 
 def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, mensualidad_val: float, aplicar_iva_val: bool, afiliado_user: str, pct_comision: float) -> bool:
-    """Actualiza fecha de inicio, colegiatura base, IVA (16%) y comisión del socio afiliado."""
+    # Actualiza fecha de inicio, colegiatura base, IVA (16%) y comisión del socio afiliado.
     conn = get_pg_conn()
     if not conn:
         return False
@@ -3514,7 +3513,7 @@ def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, 
 
 
 def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
-    """Obtiene estudiantes referidos y comisiones calculadas para el portal del Socio Afiliado."""
+    # Obtiene estudiantes referidos y comisiones calculadas para el portal del Socio Afiliado.
     from psycopg.rows import dict_row
     res = {"students": [], "commissions": [], "total_ganado": 0.0, "total_pendiente": 0.0, "total_pagado": 0.0}
     conn = get_pg_conn()
