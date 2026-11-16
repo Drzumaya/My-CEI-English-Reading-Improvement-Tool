@@ -9,7 +9,8 @@ import urllib.parse
 import psycopg
 import qrcode
 import streamlit as st
-import streamlit.components.v1 as components
+
+
 
 
 def _get_conn_afiliados():
@@ -132,7 +133,9 @@ def _render_cuenta_regresiva_20min(segundos_restantes: int):
         setInterval(tick, 1000);
     </script>
     """
-    components.html(html_timer, height=82)
+    st.iframe(html_timer, height=82)
+
+
 
 
 def render_formulario_registro_afiliado(
