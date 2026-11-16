@@ -2754,9 +2754,9 @@ if not st.session_state.authenticated:
                         st.error(f"❌ Error de conexión al verificar credenciales en la base de datos: {e}")
         st.markdown(
             f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>",
-unsafe_allow_html=True
-)
-st.stop()
+    unsafe_allow_html=True
+    )
+    st.stop()
 
 
 
