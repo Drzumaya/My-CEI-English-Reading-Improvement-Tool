@@ -4069,7 +4069,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
-        if seccion_inst_sel == "👥 Inscripción y Padrón":
+        elif seccion_inst_sel == "👥 Inscripción y Padrón":
 
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
@@ -4270,7 +4270,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         st.error(f"Error al cargar padrón: {e}")
 
         # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
-        if seccion_inst_sel == "🔐 Matriz Global de Permisos":
+        elif seccion_inst_sel == "🔐 Matriz Global de Permisos":
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
                 {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
@@ -4310,7 +4310,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
-        if seccion_inst_sel == "🏛️ Datos del Instituto":
+        elif seccion_inst_sel == "🏛️ Datos del Instituto":
             if not can("Editar_Instituto_Logo"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
             else:
@@ -4358,7 +4358,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         st.divider()
 
         # 14.5 PESTAÑA COBRANZA MENSUAL E IVA
-        if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
+        elif seccion_inst_sel == "💳 Cobranza Mensual e IVA":
             puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
             puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
             puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
@@ -4459,7 +4459,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.5b PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
-        if seccion_inst_sel == "📊 Estados Financieros":
+        elif seccion_inst_sel == "📊 Estados Financieros":
             if not (is_owner or can("Ver_Panel_Admin")):
                 st.warning("⛔ Tu perfil actual no tiene acceso a los Estados Financieros institucionales.")
             else:
@@ -4528,7 +4528,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.5c PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS Y QR DE REGISTRO
-        if seccion_inst_sel == "🤝 Alta de Socios Afiliados":
+        elif seccion_inst_sel == "🤝 Alta de Socios Afiliados":
             if not (is_owner or puede_gestionar_afiliados):
                 st.warning("⛔ Tu perfil actual no tiene permisos habilitados para dar de alta Socios Afiliados.")
             else:
@@ -4541,7 +4541,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
-        if seccion_inst_sel == "🤝 Portal Socio Afiliado":
+        elif seccion_inst_sel == "🤝 Portal Socio Afiliado":
             try:
                 from portal_afiliado import render_portal_socio_afiliado
                 if is_owner or puede_gestionar_afiliados:
