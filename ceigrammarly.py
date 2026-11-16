@@ -3017,27 +3017,31 @@ def render_interactive_study_viewer(study_payload: dict):
     .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}
     .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
     #gt-panel{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;
-              border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.25);margin-top:14px;overflow:hidden;display:none}
+              border-radius:12px;box-shadow:0 10px 28px rgba(26,115,232,.28);margin-top:14px;overflow:hidden;display:none}
     .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;
              color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
     .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
     .gt-col{padding:12px 14px}
     .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
-    .gt-btn{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;
+    .gt-btn{border:none;background:rgba(255,255,255,.22);color:#fff;border-radius:6px;
             padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
     </style></head><body>
     <div class="tb">
       <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
            <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
            <span class="bg other">Otros</span></div>
-      <div><label style="cursor:pointer"><input type="checkbox" id="hov" checked> 🇺🇸 Voz US al pasar cursor</label>
-           <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
-                   onclick="spd()" id="sb">1.0x</button></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button style="border:1px solid #1a73e8;background:#e8f0fe;color:#1a73e8;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700"
+                onclick="spk('American English ready',1)" id="unlock-btn">🔊 Activar Voz US</button>
+        <label style="cursor:pointer"><input type="checkbox" id="hov" checked> 🇺🇸 Voz al pasar cursor</label>
+        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
+                onclick="spd()" id="sb">1.0x</button>
+      </div>
     </div>
     <div id="lc">__LESSON_HTML__</div>
     <div id="gt-panel" onclick="event.stopPropagation()">
       <div class="gt-head">
-        <span>🌐 GOOGLE TRANSLATE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
+        <span>🌐 GOOGLE TRANSLATE &amp; ACADEMIC DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
         <div>
           <button class="gt-btn" onclick="spk(curW,1)">🔊 Normal</button>
           <button class="gt-btn" onclick="spk(curW,0.65)">🐢 Lento</button>
@@ -3052,38 +3056,42 @@ def render_interactive_study_viewer(study_payload: dict):
           <div id="bp" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:4px"></div>
         </div>
         <div class="gt-col">
-          <div style="font-size:11px;color:#64748b;font-weight:700">ESPAÑOL (TRADUCCIÓN)</div>
+          <div style="font-size:11px;color:#64748b;font-weight:700">ESPAÑOL (TRADUCCIÓN Y ACEPCIONES)</div>
           <div id="be" style="font-size:22px;font-weight:700;color:#1a73e8;margin-top:2px"></div>
-          <div id="ba" style="font-size:12px;color:#475569;margin-top:4px"></div>
+          <div id="ba" style="font-size:12px;color:#0f766e;font-weight:600;margin-top:4px"></div>
           <div id="bd" style="font-size:12px;color:#334155;margin-top:4px"></div>
         </div>
       </div>
-      <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
+      <div id="bx" style="padding:9px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
     </div>
     <script>
     const D=__DICT_JSON__;
     const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
     let curW="", lst="", sp=1, usVoiceCache=null;
+    const synth=(window.parent && window.parent.speechSynthesis) ? window.parent.speechSynthesis : window.speechSynthesis;
 
     function pickUSVoice(){
-      const vs=window.speechSynthesis.getVoices()||[];
+      if(!synth)return null;
+      const vs=synth.getVoices()||[];
       usVoiceCache=
         vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Guy')||v.name.includes('Samantha')||v.name.includes('Alex')))||
         vs.find(v=>v.lang==='en-US'||v.lang==='en_US')||
         vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
       return usVoiceCache;
     }
-    if('speechSynthesis'in window){pickUSVoice();window.speechSynthesis.onvoiceschanged=pickUSVoice;}
+    if(synth){pickUSVoice();synth.onvoiceschanged=pickUSVoice;}
     function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
     function spk(w,r){
-      if(!('speechSynthesis'in window))return;
-      speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(w);
-      u.lang='en-US';
-      const v=usVoiceCache||pickUSVoice();
-      if(v)u.voice=v;
-      u.rate=r||sp;
-      speechSynthesis.speak(u);
+      if(!synth || !w)return;
+      try{
+        synth.cancel();
+        const u=new SpeechSynthesisUtterance(w);
+        u.lang='en-US';
+        const v=usVoiceCache||pickUSVoice();
+        if(v)u.voice=v;
+        u.rate=r||sp;
+        synth.speak(u);
+      }catch(e){}
     }
     function cls(){document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}
 
@@ -3094,7 +3102,36 @@ def render_interactive_study_viewer(study_payload: dict):
       return null;
     }
 
-    function openWordCard(e,el){
+    async function enrichLiveDictionary(word){
+      const resObj={es:'', alt:'', ipa:'', def:''};
+      try{
+        const uGT='https://googleapis.com;
+        const r1=await fetch(uGT);
+        const j1=await r1.json();
+        if(Array.isArray(j1) && Array.isArray(j1) && Array.isArray(j1) && j1){
+          resObj.es=String(j1);
+        }
+        if(Array.isArray(j1) && Array.isArray(j1) && Array.isArray(j1) && Array.isArray(j1)){
+          resObj.alt=j1.slice(0,5).join(', ');
+        }
+      }catch(e){}
+      try{
+        const r2=await fetch('https://dictionaryapi.dev);
+        if(r2.ok){
+          const j2=await r2.json();
+          const e0=Array.isArray(j2)?j2:null;
+          if(e0){
+            resObj.ipa=e0.phonetic || ((e0.phonetics||[]).find(x=>x.text)||{}).text || '';
+            const m0=(e0.meanings||[]);
+            const d0=m0 && Array.isArray(m0.definitions) ? m0.definitions : null;
+            if(d0 && d0.definition)resObj.def=String(d0.definition);
+          }
+        }
+      }catch(e){}
+      return resObj;
+    }
+
+    async function openWordCard(e,el){
       e.stopPropagation();
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
@@ -3110,46 +3147,39 @@ def render_interactive_study_viewer(study_payload: dict):
 
       document.getElementById('bw').innerText=w;
       document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
-      document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
-      document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
-      document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
-      document.getElementById('be').innerText=inf.es||w;
+      document.getElementById('bi').innerText=inf.ipa?('IPA: '+inf.ipa):'🇺🇸 US English';
+      document.getElementById('ba').innerText=inf.alt?('Acepciones: '+inf.alt):'';
+      document.getElementById('bd').innerText=inf.def?('📖 '+inf.def):'';
 
       const cleanQ=encodeURIComponent(k||w);
       const bxEl=document.getElementById('bx');
       bxEl.innerHTML='';
       const ctxDiv=document.createElement('div');
-      ctxDiv.textContent='💬 Contexto en la lección: "'+fs+'"';
+      ctxDiv.textContent='💬 Contexto: "'+fs+'"';
       bxEl.appendChild(ctxDiv);
 
       const linksDiv=document.createElement('div');
       linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
-      const aWR=document.createElement('a');
-      aWR.href='https://wordreference.com;
-      aWR.target='_blank';
-      aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;';
-      aWR.textContent='📖 Abrir en WordReference ↗';
-      const aGT=document.createElement('a');
-      aGT.href='https://google.com';
-      aGT.target='_blank';
-      aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;';
-      aGT.textContent='🌐 Abrir en Google Translate ↗';
-      linksDiv.appendChild(aWR);
-      linksDiv.appendChild(aGT);
-      bxEl.appendChild(linksDiv);
-      pnl.scrollIntoView({behavior:'smooth',block:'nearest'});
-    }
-
-    document.querySelectorAll('.wt').forEach(spn=>{
-      spn.addEventListener('mouseenter',()=>{
-        const w=spn.getAttribute('data-w')||'';
-        if(document.getElementById('hov').checked && lst!==w){lst=w;spk(w);}
+      const links=[
+        ['📖 WordReference ↗','https://wordreference.com'],
+        ['📘 Cambridge Dictionary ↗','https://cambridge.org'],
+        ['🌐 Google Translate ↗','https://google.com']
+      ];
+      links.forEach(item=>{
+        const a=document.createElement('a');
+        a.textContent=item; a.href=item; a.target='_blank';
+        a.style.cssText='color:'+item+';font-weight:700;text-decoration:none;';
+        linksDiv.appendChild(a);
       });
-      spn.addEventListener('mouseleave',()=>{lst="";});
-      spn.addEventListener('click',(e)=>openWordCard(e,spn));
-    });
-    document.body.onclick=cls;
-    </script></body></html>"""
+      bxEl.appendChild(linksDiv);
+
+      if(inf.es && inf.es.toLowerCase()!==k){
+        document.getElementById('be').innerText=inf.es;
+      }else{
+        document.getElementById('be').innerText='⏳ Consultando...';
+        const live=await enrichLiveDictionary(k||w);
+        if(curW===w){
+          const finalEs=live.es||w;
 
     html_code = html_part_1.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
     components.html(html_code, height=680, scrolling=True)
