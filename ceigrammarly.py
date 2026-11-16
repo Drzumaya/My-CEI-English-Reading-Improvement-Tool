@@ -2780,8 +2780,6 @@ def generar_pdf_certificado(
 
 def render_interactive_study_viewer(study_payload: dict):
     """Visor interactivo con voz US English y diccionario bilingüe EN->ES con claves explícitas."""
-    import streamlit.components.v1 as components
-
     sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
 
@@ -2837,9 +2835,27 @@ def render_interactive_study_viewer(study_payload: dict):
     <script>
     const S={s_json}, D={d_json};
     const L={{verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"}};
-    let curW="", lst="", sp=1;
+    let curW="", lst="", sp=1, usVoiceCache=null;
+    function pickUSVoice(){{
+      const vs=window.speechSynthesis.getVoices()||[];
+      usVoiceCache=
+        vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Guy')||v.name.includes('Samantha')||v.name.includes('Alex')||v.name.includes('Davis')))||
+        vs.find(v=>v.lang==='en-US'||v.lang==='en_US')||
+        vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
+      return usVoiceCache;
+    }}
+    if('speechSynthesis'in window){{pickUSVoice();window.speechSynthesis.onvoiceschanged=pickUSVoice;}}
     function spd(){{sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}}
-    function spk(w,r){{if(!('speechSynthesis'in window))return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';u.rate=r||sp;speechSynthesis.speak(u);}}
+    function spk(w,r){{
+      if(!('speechSynthesis'in window))return;
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(w);
+      u.lang='en-US';
+      const v=usVoiceCache||pickUSVoice();
+      if(v)u.voice=v;
+      u.rate=r||sp;
+      speechSynthesis.speak(u);
+    }}
     function cls(){{document.getElementById('bub').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}}
     function op(e,el,w,p,fs){{
       e.stopPropagation();cls();el.classList.add('act');curW=w;spk(w,1);
@@ -2876,6 +2892,7 @@ def render_interactive_study_viewer(study_payload: dict):
 
     altura = max(480, min(820, len(clean_sentences) * 115 + 160))
     st.iframe(html_code, height=max(1, int(altura)))
+
 
     
 
