@@ -1284,46 +1284,7 @@ def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
                 """, (float(new_score_pct), eval_json, str(folio).strip().upper()))
     except Exception:
         pass
-def upsert_user_padron_pg(usuario: str, clave: str, rol: str, grado: str, nivel: str, permisos: str, estatus: str) -> str:
-    """Inserta o actualiza un usuario en Supabase y genera/devuelve su Matrícula Oficial (CEI-AÑO-ID)."""
-    conn = get_pg_conn()
-    if not conn:
-        raise RuntimeError("Sin conexión activa a PostgreSQL.")
-    anio_actual = datetime.now(ZoneInfo("America/Hermosillo")).year
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (permisos.strip(),))
-            cur.execute("""
-                INSERT INTO users_padron (usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (usuario) DO UPDATE SET
-                    clave_hash = EXCLUDED.clave_hash,
-                    rol = EXCLUDED.rol,
-                    grado_academico = EXCLUDED.grado_academico,
-                    nivel_cefr = EXCLUDED.nivel_cefr,
-                    permisos = EXCLUDED.permisos,
-                    estatus = EXCLUDED.estatus
-                RETURNING id, matricula;
-            """, (
-                usuario.strip(),
-                clave.strip(),
-                rol.strip(),
-                grado.strip(),
-                normalize_cefr(nivel),
-                permisos.strip(),
-                "Activo" if estatus.strip().lower() == "activo" else "Inactivo"
-            ))
-            row_ret = cur.fetchone()
-            user_id_db = row_ret[0]
-            mat_actual = row_ret[1]
-
-            if not mat_actual:
-                mat_actual = f"CEI-{anio_actual}-{int(user_id_db):04d}"
-                cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_actual, user_id_db))
-
-    load_padron_records.clear()
-    return mat_actual
-
+        
 def upsert_user_padron_pg(
     usuario: str, clave: str, rol: str, grado: str, nivel: str, permisos: str, estatus: str,
     afiliador_id: int | None = None
@@ -1359,8 +1320,8 @@ def upsert_user_padron_pg(
                 afiliador_id
             ))
             row_ret = cur.fetchone()
-            user_id_db = row_ret
-            mat_actual = row_ret
+            user_id_db = row_ret[0]
+            mat_actual = row_ret[1]
 
             if not mat_actual:
                 mat_actual = f"CEI-{anio_actual}-{int(user_id_db):04d}"
@@ -1807,9 +1768,10 @@ def migrar_sheets_a_supabase() -> dict:
                     perm_val,
                     "Activo" if str(r.get("Estatus", "Activo")).strip().lower() == "activo" else "Inactivo"
                 ))
-                row_id = cur.fetchone()
+                row_id = next(iter(cur.fetchone()), None)
                 mapa_user_ids[u_name.lower()] = row_id
                 resumen["usuarios"] += 1
+
             # 3. Migrar Lecciones y Folios (Hoja1)
             ws_h1 = book.sheet1
             for r in ws_h1.get_all_records():
@@ -1825,7 +1787,7 @@ def migrar_sheets_a_supabase() -> dict:
                         ON CONFLICT (usuario) DO UPDATE SET usuario = EXCLUDED.usuario
                         RETURNING id;
                     """, (u_folio,))
-                    uid = cur.fetchone()
+                    uid = next(iter(cur.fetchone()), None)
                     mapa_user_ids[u_folio.lower()] = uid
 
                 raw_j = str(r.get("Contenido_JSON", "")).strip()
@@ -1864,6 +1826,7 @@ def migrar_sheets_a_supabase() -> dict:
                 ))
                 resumen["folios"] += 1
 
+                
             # 4. Migrar Certificados
             try:
                 ws_cert = book.worksheet("Certificados")
