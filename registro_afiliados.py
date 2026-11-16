@@ -9,6 +9,7 @@ import urllib.parse
 import psycopg
 import qrcode
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 def _get_conn_afiliados():
@@ -30,7 +31,7 @@ def _get_hmac_secret() -> bytes:
 
 
 def generar_token_qr_7min() -> tuple[str, int]:
-    """Token dinámico válido por ventanas de 7 minutos (420s)."""
+    """Token dinámico rotativo cada 7 minutos (420s) para generar el QR."""
     ventana = 420
     ahora = int(time.time())
     slot = ahora // ventana
@@ -40,8 +41,12 @@ def generar_token_qr_7min() -> tuple[str, int]:
 
 
 def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
-    """Valida vigencia de 7 min y verifica que el token no haya sido ya usado."""
-    if not token_str or "." not in token_str:
+    """Valida el token del QR (o autoriza sesión única de 20 min si entra directo) y verifica que no haya sido usado."""
+    if not token_str:
+        # Si entra por el enlace directo sin parámetro, genera un token de sesión única válido por 20 min
+        return True, "Sesión directa autorizada (20 min)"
+
+    if "." not in token_str:
         return False, "Enlace QR inválido o incompleto."
     try:
         slot_str, sig_in = token_str.strip().split(".", 1)
@@ -50,8 +55,8 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
         return False, "Formato de token QR incorrecto."
 
     slot_actual = int(time.time()) // 420
-    if slot_num not in (slot_actual, slot_actual - 1):
-        return False, "⏳ Este código QR ha expirado (vigencia de 7 minutos). Escanea el nuevo QR vigente."
+    if slot_num not in (slot_actual, slot_actual - 1, slot_actual - 2):
+        return False, "⏳ Este código QR ha expirado. Escanea el nuevo código QR vigente."
 
     sig_esperada = hmac.new(_get_hmac_secret(), f"CEI_AFF_SLOT_{slot_num}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
     if not hmac.compare_digest(sig_in, sig_esperada):
@@ -97,13 +102,47 @@ def _consumir_token_qr(token_str: str):
                 cur.execute("INSERT INTO affiliate_used_tokens (token_hash) VALUES (%s) ON CONFLICT DO NOTHING;", (t_hash,))
     except Exception:
         pass
+def _render_cuenta_regresiva_20min(segundos_restantes: int):
+    """Muestra la nota oficial y la cuenta regresiva en vivo de 20 minutos."""
+    html_timer = f"""
+    <div style="background:#FFF8E7; border:1px solid #F59E0B; border-radius:10px; padding:12px 16px; font-family:sans-serif; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <strong style="color:#92400E; font-size:15px;">⏳ Este formulario se inhabilitará en 20 min</strong><br>
+            <span style="color:#78350F; font-size:13px;">Completa tus datos antes de que termine el tiempo (también se cerrará al enviar).</span>
+        </div>
+        <div id="cei_timer_box" style="background:#B45309; color:#FFFFFF; font-weight:bold; font-size:20px; padding:8px 14px; border-radius:8px; min-width:85px; text-align:center;">
+            20:00
+        </div>
+    </div>
+    <script>
+        let totalSec = {int(segundos_restantes)};
+        const box = document.getElementById("cei_timer_box");
+        function tick() {{
+            if (totalSec <= 0) {{
+                box.innerText = "00:00";
+                box.style.background = "#DC2626";
+                return;
+            }}
+            const m = Math.floor(totalSec / 60);
+            const s = totalSec % 60;
+            box.innerText = String(m).padStart(2, '0') + ":" + String(s).padStart(2, '0');
+            totalSec -= 1;
+        }}
+        tick();
+        setInterval(tick, 1000);
+    </script>
+    """
+    components.html(html_timer, height=82)
+
+
 def render_formulario_registro_afiliado(
     registrado_por: str = "Sistema",
     key_prefix: str = "aff_reg",
     mostrar_qr_dinamico: bool = True,
-    token_sesion_externa: str = ""
+    token_sesion_externa: str = "",
+    tiempo_inicio_escaneo: float | None = None
 ):
-    """Formulario vertical responsivo con QR de 7 min y bloqueo al enviar."""
+    """Formulario vertical responsivo con QR rotativo, temporizador de 20 min y bloqueo al enviar."""
     st.markdown("#### 🤝 Registro Oficial de Socio Afiliado")
 
     state_submitted_key = f"{key_prefix}_submitted_done"
@@ -113,15 +152,22 @@ def render_formulario_registro_afiliado(
     if state_submitted_key not in st.session_state:
         st.session_state[state_submitted_key] = False
 
+    if tiempo_inicio_escaneo is not None and not st.session_state.get(state_submitted_key, False):
+        transcurrido = time.time() - float(tiempo_inicio_escaneo)
+        restante_20m = int(max(0, 1200 - transcurrido))
+        if restante_20m <= 0:
+            if token_sesion_externa:
+                _consumir_token_qr(token_sesion_externa)
+            st.error("🔒 **Tiempo Agotado (20 minutos) — Formulario Inhabilitado.** Escanea nuevamente el QR vigente.")
+            return
+        _render_cuenta_regresiva_20min(restante_20m)
+
     if mostrar_qr_dinamico:
         base_url_aff = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip().rstrip("/")
         token_actual, seg_restantes = generar_token_qr_7min()
         min_rest, sec_rest = divmod(seg_restantes, 60)
 
-        st.info(
-            f"📲 **QR de Auto-Registro (Rotación cada 7 min)** — Vigencia: `{min_rest}m {sec_rest:02d}s`.\n\n"
-            "El aspirante escanea este código, llena sus datos y el enlace **se inhabilita automáticamente al enviar**."
-        )
+        st.info(f"📲 **QR de Auto-Registro (Rotación cada 7 min | Ventana de llenado: 20 min)** — Próximo cambio en `{min_rest}m {sec_rest:02d}s`.")
         if base_url_aff:
             url_dinamica = f"{base_url_aff}/?reg_token={urllib.parse.quote(token_actual)}"
             buf_qr = io.BytesIO()
@@ -138,11 +184,8 @@ def render_formulario_registro_afiliado(
         nom_asignado = st.session_state.get(state_name_key, "Socio Afiliado")
         st.balloons()
         st.success(f"🎉 **¡Felicitaciones, {nom_asignado}! Tu Registro Oficial se completó con éxito.**")
-        st.info(
-            f"• **🆔 ID Oficial Asignado:** `{id_asignado}`\n"
-            f"• **🔒 Estado:** **Formulario cerrado e inhabilitado**."
-        )
-        if token_sesion_externa:
+        st.info(f"• **🆔 ID Oficial Asignado:** `{id_asignado}`\n• **🔒 Estado:** **Formulario cerrado e inhabilitado**.")
+        if tiempo_inicio_escaneo is not None:
             st.caption("✅ Ya puedes cerrar esta ventana.")
         elif st.button("➕ Habilitar Nuevo Registro", key=f"{key_prefix}_reset_admin"):
             st.session_state[state_submitted_key] = False
@@ -150,9 +193,10 @@ def render_formulario_registro_afiliado(
         return
 
     id_sugerido = f"AFIL-CEI-{date.today().year}-{random.randint(1000, 9999)}"
+    es_externo = tiempo_inicio_escaneo is not None
 
     with st.form(f"{key_prefix}_form", clear_on_submit=False):
-        affiliate_id = st.text_input("🆔 ID de Socio Afiliado *", value=id_sugerido, disabled=bool(token_sesion_externa))
+        affiliate_id = st.text_input("🆔 ID de Socio Afiliado *", value=id_sugerido, disabled=es_externo)
         usuario_login = st.text_input("👤 Usuario de Acceso *", placeholder="Ej. Carlos Mendoza")
         nombre = st.text_input("Nombre(s) *", placeholder="Ej. Carlos Alberto")
         ap_paterno = st.text_input("Apellido Paterno *", placeholder="Ej. Mendoza")
@@ -162,7 +206,7 @@ def render_formulario_registro_afiliado(
         clave_acceso = st.text_input("Contraseña Inicial *", type="password", placeholder="Mínimo 6 caracteres")
         domicilio = st.text_input("Domicilio Completo *", placeholder="Calle, Número, Colonia, Ciudad, Estado, C.P.")
 
-        if token_sesion_externa:
+        if es_externo:
             pct_default, fecha_ingreso, estatus, fecha_inact, fecha_baja = 10.0, date.today(), "Activo", None, None
         else:
             pct_default = st.number_input("Porcentaje Comisión Base (%)", min_value=0.0, max_value=100.0, value=10.0, step=1.0)
@@ -177,6 +221,9 @@ def render_formulario_registro_afiliado(
 
         submitted = st.form_submit_button("💾 Enviar Registro y Finalizar", type="primary", width="stretch")
         if submitted:
+            if es_externo and (time.time() - float(tiempo_inicio_escaneo)) > 1200:
+                st.error("🔒 El límite de 20 minutos expiró antes de enviar. Escanea el QR vigente nuevamente.")
+                return
             if not affiliate_id.strip() or not nombre.strip() or not ap_paterno.strip() or not usuario_login.strip() or not clave_acceso.strip():
                 st.error("⚠️ Completa ID, Nombre, Apellido Paterno, Usuario y Contraseña.")
                 return
@@ -257,6 +304,7 @@ if __name__ == "__main__":
     if "aff_ext_authorized" not in st.session_state:
         st.session_state["aff_ext_authorized"] = False
         st.session_state["aff_ext_token"] = ""
+        st.session_state["aff_ext_scan_ts"] = None
         st.session_state["aff_ext_err"] = ""
 
     if not st.session_state["aff_ext_authorized"]:
@@ -264,6 +312,7 @@ if __name__ == "__main__":
         if ok_tok:
             st.session_state["aff_ext_authorized"] = True
             st.session_state["aff_ext_token"] = q_token
+            st.session_state["aff_ext_scan_ts"] = time.time()
         else:
             st.session_state["aff_ext_err"] = msg_tok
 
@@ -272,12 +321,13 @@ if __name__ == "__main__":
             registrado_por="Auto-Registro QR Aspirante",
             key_prefix="ext_qr_aff",
             mostrar_qr_dinamico=False,
-            token_sesion_externa=st.session_state["aff_ext_token"]
+            token_sesion_externa=st.session_state["aff_ext_token"],
+            tiempo_inicio_escaneo=st.session_state["aff_ext_scan_ts"]
         )
     else:
         st.markdown("### 🤝 Career English Institute — Auto-Registro de Socios Afiliados")
         st.error(
             f"🔒 **Acceso Restringido al Formulario de Registro**\n\n"
             f"{st.session_state['aff_ext_err']}\n\n"
-            "Solicita el **Código QR vigente** (rotación cada 7 minutos) para iniciar tu registro."
+            "Solicita y escanea nuevamente el **Código QR vigente** para iniciar tu registro."
         )
