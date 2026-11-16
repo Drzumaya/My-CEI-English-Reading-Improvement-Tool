@@ -3050,6 +3050,7 @@ def render_interactive_study_viewer(study_payload: dict):
         '</div>';
 
 
+
       document.getElementById('be').innerText=inf.es||w;
       pnl.scrollIntoView({{behavior:'smooth',block:'nearest'}});
     }}
