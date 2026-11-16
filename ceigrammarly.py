@@ -834,8 +834,10 @@ class AcademicPDF(FPDF):
 def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, speaking_eval=None) -> bytes:
     """Genera un documento académico de Alta Escuela con numeración de páginas, ilustración y examen."""
     folio_doc = st.session_state.current_folio or "SIN-FOLIO"
-    base_url = st.secrets.get("APP_BASE_URL", "https://streamlit.app").rstrip("/")
-    link_doc = st.session_state.current_pdf_link or f"{base_url}/?folio={urllib.parse.quote(folio_doc)}"
+    base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+    default_link = f"{base_url}/?folio={urllib.parse.quote(folio_doc)}" if base_url else f"/?folio={urllib.parse.quote(folio_doc)}"
+    link_doc = st.session_state.current_pdf_link or default_link
+
     
     ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
     fecha_doc = st.session_state.current_creation_date or ahora_local.strftime("%Y-%m-%d %H:%M:%S")
@@ -1376,7 +1378,17 @@ def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
                 bool(caps_dict.get("Editar_Instituto_Logo", False)),
                 json.dumps(caps_dict)
             ))
+            
     load_permissions_matrix.clear()
+
+
+def _build_cert_verify_url(folio_cert: str) -> str:
+    """Construye la URL directa de validación oficial del certificado usando APP_PUBLIC_URL desde Secrets."""
+    base_url = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
+    f_clean = urllib.parse.quote(folio_cert.strip().upper())
+    return f"{base_url}/?verify_cert={f_clean}" if base_url else f"/?verify_cert={f_clean}"
+
+
     
 def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_sel: str, grado_sel: str, programa_c: str, calif_c: str, fecha_c: str, sello_h: str):
     """Guarda un certificado oficial timbrado directamente en Supabase PostgreSQL."""
@@ -2205,15 +2217,12 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     fecha_gen = timbre["fecha_generacion"]
     sello_hmac = timbre["sello_hmac"]
 
-    app_base_url = str(
-        st.secrets.get("APP_PUBLIC_URL")
-        or st.secrets.get("APP_BASE_URL")
-        or "https://streamlit.app"
-    ).rstrip("/")
-    verify_url = f"{app_base_url}/?verify_transcript={folio_bol}"
+    app_base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+    verify_url = f"{app_base_url}/?verify_transcript={urllib.parse.quote(folio_bol)}" if app_base_url else f"/?verify_transcript={urllib.parse.quote(folio_bol)}"
     qr_img = qrcode.make(verify_url)
     tmp_qr = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
     qr_img.save(tmp_qr.name)
+
 
     # Logotipo dinámico sincronizado con la pantalla principal (con respaldo LOGO CEI APP.png)
     logo_src = None
@@ -2688,8 +2697,8 @@ def generar_pdf_certificado(
     pdf.cell(0, 4, clean_pdf_text("Academic Director & Principal Author — Career English Institute"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     # Código QR de Verificación Pública (Esquina inferior izquierda)
-    base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
-    verify_link = f"{base_url}/?verify={urllib.parse.quote(folio_c)}"
+    base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+    verify_link = f"{base_url}/?verify={urllib.parse.quote(folio_c)}" if base_url else f"/?verify={urllib.parse.quote(folio_c)}"
     qr = qrcode.QRCode(version=1, box_size=4, border=1)
     qr.add_data(verify_link)
     qr.make(fit=True)
@@ -2698,6 +2707,7 @@ def generar_pdf_certificado(
     qr_img.save(qr_buf, format="PNG")
     qr_buf.seek(0)
     pdf.image(qr_buf, x=18, y=161, w=28)
+
 
     # Bloque de Timbre Digital Criptográfico HMAC-SHA256
     pdf.set_xy(49, 162)
@@ -4614,8 +4624,9 @@ if generar_btn:
                 nuevo_folio = f"CEI-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
                 fecha_creacion = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
 
-                base_url = str(st.secrets.get("APP_BASE_URL", "https://streamlit.app")).rstrip("/")
-                pdf_url_directo = f"{base_url}/?folio={urllib.parse.quote(nuevo_folio)}"
+                base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+                pdf_url_directo = f"{base_url}/?folio={urllib.parse.quote(nuevo_folio)}" if base_url else f"/?folio={urllib.parse.quote(nuevo_folio)}"
+
 
                 cefr_guidelines = {
                     "A1": "Use very basic everyday vocabulary, short simple sentences (5-8 words), present simple/continuous, and concrete familiar topics.",
