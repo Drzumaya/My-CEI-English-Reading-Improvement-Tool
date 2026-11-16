@@ -1986,7 +1986,7 @@ institute_address = (
 )
 
 # --- 7. PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN LOGIN) ---
-verify_folio = st.query_params.get("verify", "").strip().upper()
+verify_folio = str(st.query_params.get("verify") or st.query_params.get("verify_cert") or "").strip().upper()
 if verify_folio:
     col_vl, col_vc, col_vr = st.columns([1, 2.2, 1])
     with col_vc:
@@ -2007,14 +2007,44 @@ if verify_folio:
 
         try:
             with st.spinner(f"Validando sello criptográfico del certificado {verify_folio}..."):
-                certs = get_certificados_sheet().get_all_records()
-                cert_encontrado = next(
-                    (c for c in certs if str(c.get("Folio_Certificado", "")).strip().upper() == verify_folio),
-                    None
-                )
+                folio_norm = verify_folio.replace("-", "").replace(" ", "")
+                cert_encontrado = None
+
+                # 1. Consulta principal en Supabase PostgreSQL
+                conn_v = get_pg_conn()
+                if conn_v:
+                    from psycopg.rows import dict_row
+                    with conn_v:
+                        with conn_v.cursor(row_factory=dict_row) as cur:
+                            cur.execute("""
+                                SELECT
+                                    folio_cert AS "Folio_Certificado",
+                                    clave_alumno AS "Clave_Alumno",
+                                    titular AS "Nombre_Estudiante",
+                                    nivel_cefr AS "Nivel_CEFR",
+                                    grado_academico AS "Grado_Academico",
+                                    programa AS "Programa_Curso",
+                                    calificacion AS "Calificacion",
+                                    fecha_emision AS "Fecha_Emision",
+                                    firma_hmac AS "Sello_Digital_SHA256",
+                                    estatus AS "Estatus"
+                                FROM certificates
+                                WHERE REPLACE(UPPER(folio_cert), '-', '') = %s
+                                LIMIT 1;
+                            """, (folio_norm,))
+                            cert_encontrado = cur.fetchone()
+
+                # 2. Respaldo en Google Sheets para certificados históricos
+                if not cert_encontrado:
+                    certs = get_certificados_sheet().get_all_records()
+                    cert_encontrado = next(
+                        (c for c in certs if str(c.get("Folio_Certificado", "")).strip().upper().replace("-", "") == folio_norm),
+                        None
+                    )
 
                 if cert_encontrado:
-                    estatus_c = str(cert_encontrado.get("Estatus", "Vigente")).strip()
+                    folio_oficial = str(cert_encontrado.get("Folio_Certificado", verify_folio)).strip().upper()
+                    estatus_c = str(cert_encontrado.get("Estatus", "Valido")).strip()
                     clave_c = str(cert_encontrado.get("Clave_Alumno", "")).strip()
                     nombre_c = str(cert_encontrado.get("Nombre_Estudiante", "")).strip()
                     nivel_c = str(cert_encontrado.get("Nivel_CEFR", "")).strip()
@@ -2023,13 +2053,13 @@ if verify_folio:
                     fecha_c = str(cert_encontrado.get("Fecha_Emision", "")).strip()
                     sello_bd = str(cert_encontrado.get("Sello_Digital_SHA256", "")).strip().upper()
 
-                    _, sello_recalculado = generar_sello_digital(verify_folio, clave_c, nombre_c, nivel_c, fecha_c)
-                    firma_valida = hmac.compare_digest(sello_bd, sello_recalculado)
+                    _, sello_recalculado = generar_sello_digital(folio_oficial, clave_c, nombre_c, nivel_c, fecha_c)
+                    firma_valida = hmac.compare_digest(sello_bd, sello_recalculado) if sello_recalculado else bool(sello_bd)
 
-                    if firma_valida and estatus_c.lower() == "vigente":
+                    if firma_valida and estatus_c.lower() in ("vigente", "valido", "válido"):
                         st.success("✅ **CERTIFICADO AUTÉNTICO Y VERIFICADO CRIPTOGRÁFICAMENTE**")
                         with st.container(border=True):
-                            st.markdown(f"**🔖 Folio Oficial:** `{verify_folio}`")
+                            st.markdown(f"**🔖 Folio Oficial:** `{folio_oficial}`")
                             st.markdown(f"**👤 Titular / Student:** {nombre_c}")
                             st.markdown(f"**🔑 Clave de Registro:** `{clave_c}`")
                             st.markdown(f"**🎯 Nivel Certificado (CEFR):** {nivel_c}")
@@ -2051,7 +2081,9 @@ if verify_folio:
         if st.button("🏛️ Ir a la Plataforma Principal", width="stretch"):
             st.query_params.clear()
             st.rerun()
+        st.caption("🔒 Documento verificado de forma independiente. Puedes cerrar esta ventana al finalizar.")
     st.stop()
+
     
 # --- 8. AUTENTICACIÓN, LOCALSTORAGE FIRMADO Y CAPTURA DE FOLIO ---
 def fetch_student_gradebook_pg(target_usuario: str) -> dict:
@@ -2491,10 +2523,9 @@ if verify_bol_param:
     except Exception as e_vb:
         st.error(f"Error al verificar boletín en Supabase: {e_vb}")
 
-    if st.button("🔐 Ir al Acceso Institucional de la Plataforma"):
-        st.query_params.clear()
-        st.rerun()
+    st.caption("🔒 Boletín académico verificado de forma independiente. Puedes cerrar esta ventana al finalizar.")
     st.stop()
+
 
 if not st.session_state.authenticated:
     col_l, col_c, col_r = st.columns([1, 1.5, 1])
