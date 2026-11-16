@@ -3018,12 +3018,14 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
         raise ultimo_error
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
+
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
     """Genera ilustración educativa (IA o fotografía temática Wikimedia) y prepara una frase célebre motivacional acorde al tópico."""
     import re
     import urllib.request
     from google.genai import types
     from PIL import Image, ImageDraw, ImageFont
+
 
     st.session_state["last_img_error"] = None
     escena_limpia = re.sub(r'[^a-zA-Z0-9 ,.-]+', ' ', str(scene_prompt or "")).strip()
