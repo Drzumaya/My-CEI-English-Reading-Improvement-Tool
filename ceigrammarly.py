@@ -5060,7 +5060,7 @@ with col_tools_right:
                             st.session_state.selected_academic_grade
                         )
                         st.rerun()
-                    except Exception as e:
+                    except Exception as e: 
                         st.error(f"Error al generar imagen: {e}")
 
     bottom_container = st.container(height=280, border=True)
