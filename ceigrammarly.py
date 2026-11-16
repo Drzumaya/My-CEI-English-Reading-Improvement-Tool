@@ -3023,15 +3023,16 @@ from media_generator import generar_imagen_garantizada
 
 def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
     client = init_gemini_client()
-    evitar_txt = f"IMPORTANT: Create COMPLETELY DIFFERENT questions from: {evitar_preguntas}" if evitar_preguntas else ""
-    prompt_quiz = f"""
-    Based on this CEFR Level {nivel_cefr} English lesson tailored for {grado_acad} students, create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr} and {grado_acad} cognitive level, evaluating comprehension and target grammar ({tema_gramatical}).
-    {evitar_txt}
-    LESSON TEXT:
-    {texto_leccion}
-    RETURN ONLY A VALID JSON ARRAY WITH THIS EXACT SCHEMA:
-    [{{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}}]
-    """
+    evitar_txt = ("IMPORTANT: Create COMPLETELY DIFFERENT questions from: " + str(evitar_preguntas) + "\n") if evitar_preguntas else ""
+    prompt_quiz = (
+        "Based on this CEFR Level " + str(nivel_cefr) + " English lesson tailored for " + str(grado_acad) + " students, "
+        "create a 5-question multiple-choice quiz in English calibrated strictly to level " + str(nivel_cefr) + " and " + str(grado_acad) + " cognitive level, "
+        "evaluating comprehension and target grammar (" + str(tema_gramatical) + ").\n"
+        + evitar_txt +
+        "LESSON TEXT:\n" + str(texto_leccion) + "\n"
+        "RETURN ONLY A VALID JSON ARRAY WITH THIS EXACT SCHEMA:\n"
+        '[{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}]'
+    )
     raw_resp, _ = generar_con_maxima_potencia(
         client,
         prompt_quiz,
@@ -3043,16 +3044,6 @@ def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: s
         cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
     return json.loads(cleaned.strip())
 
-
-def _serialize_lesson_package(text_val: str, quiz_val, cefr_val: str, grade_val: str, created_val: str) -> str:
-    safe_text = text_val[:42000] if len(text_val) > 42000 else text_val
-    return json.dumps({
-        "text": safe_text,
-        "quiz": quiz_val,
-        "cefr": cefr_val,
-        "grade": grade_val,
-        "created_at": created_val
-    }, ensure_ascii=False)
 
     
     
