@@ -3146,7 +3146,9 @@ def render_interactive_study_viewer(study_payload: dict):
     </script></body></html>"""
 
     html_code = (html_part_1 + html_part_2).replace("__LINES_JSON__", lines_json).replace("__DICT_JSON__", dict_json)
-    components.html(html_code, height=680, scrolling=True)
+    st.iframe(html_code, height=680)
+
+
 
     
 
