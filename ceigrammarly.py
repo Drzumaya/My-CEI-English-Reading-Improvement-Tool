@@ -4901,11 +4901,17 @@ if "selected_academic_grade" not in st.session_state:
     st.session_state.selected_academic_grade = st.session_state.get("user_academic_grade", "Licenciatura / Universidad")
 if "study_mode_active" not in st.session_state:
     st.session_state.study_mode_active = False
+if "show_right_panel" not in st.session_state:
+    st.session_state.show_right_panel = True
 
-col_main_center, col_tools_right = st.columns([7, 3.5])
+if st.session_state.show_right_panel:
+    col_main_center, col_tools_right = st.columns([7, 3.5])
+else:
+    col_main_center = st.container()
+    col_tools_right = None
 
 with col_main_center:
-    col_sub_t, col_badge, col_mode_btn = st.columns([2.6, 1.1, 1.8])
+    col_sub_t, col_badge, col_mode_btn, col_panel_btn = st.columns([2.3, 1.0, 1.7, 1.3])
     with col_sub_t:
         st.subheader("📄 Generated Content (APA Format)")
     with col_badge:
@@ -4926,6 +4932,12 @@ with col_main_center:
             ):
                 st.session_state.study_mode_active = not st.session_state.study_mode_active
                 st.rerun()
+    with col_panel_btn:
+        btn_rp_label = "◧ Ocultar Panel" if st.session_state.show_right_panel else "◨ Ver Panel Visual"
+        if st.button(btn_rp_label, type="secondary", width="stretch", key="btn_toggle_right_panel"):
+            st.session_state.show_right_panel = not st.session_state.show_right_panel
+            st.rerun()
+
 
     if st.session_state.get("generated_text") and st.session_state.study_mode_active:
         # Reproductor Nativo US English (en-US) con selector forzado de voz estadounidense
