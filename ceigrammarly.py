@@ -3085,15 +3085,17 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     try:
         kw_enc = urllib.parse.quote(kw_busqueda)
         wiki_api = (
-            f"https://wikimedia.org"
-            f"&gsrsearch=filetype:bitmap+{kw_enc}&gsrnamespace=6&gsrlimit=6"
-            f"&prop=imageinfo&iiprop=url&iiurlwidth=900&format=json"
+            "https://wikimedia.org"
+            "&gsrsearch=filetype:bitmap+" + kw_enc + "&gsrnamespace=6&gsrlimit=6"
+            "&prop=imageinfo&iiprop=url&iiurlwidth=900&format=json"
         )
         req_w = urllib.request.Request(wiki_api, headers={"User-Agent": "CEI-Academic-App/1.0"})
         with urllib.request.urlopen(req_w, timeout=8) as rw:
             w_data = json.loads(rw.read().decode("utf-8"))
-        for p in list(w_data.get("query", {}).get("pages", {}).values()):
-            ii = p.get("imageinfo", [{}])
+        pages_dict = w_data.get("query", {}).get("pages", {})
+        for p in list(pages_dict.values()):
+            ii_list = p.get("imageinfo", [])
+            ii = ii_list[0] if ii_list else {}
             t_url = ii.get("thumburl") or ii.get("url")
             if t_url and any(t_url.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png")):
                 req_i = urllib.request.Request(t_url, headers={"User-Agent": "CEI-Academic-App/1.0"})
@@ -3103,6 +3105,7 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
                     return img_web
     except Exception:
         pass
+
 
     # 4. Respaldo visual institucional en Pillow (si no hay red)
     w, h = 800, 420
