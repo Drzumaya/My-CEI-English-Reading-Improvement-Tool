@@ -4306,17 +4306,19 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
                 st.divider()
+                
             if is_owner or puede_gestionar_afiliados:
                 if "show_reg_afiliado_panel" not in st.session_state:
                     st.session_state["show_reg_afiliado_panel"] = False
-                app_pub_aff = str(st.secrets.get("AFFILIATE_REG_URL") or st.secrets.get("APP_PUBLIC_URL") or "https://streamlit.app").strip().rstrip("/")
-                url_qr_aff = app_pub_aff if "AFFILIATE_REG_URL" in st.secrets else f"{app_pub_aff}/?registro_afiliado=1"
+                app_pub_aff = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip().rstrip("/")
+                url_qr_aff = app_pub_aff if app_pub_aff else "https://streamlit.app"
                 c_ab, c_aq = st.columns([2.2, 1.0])
                 with c_ab:
                     st.markdown("##### 🤝 Alta de Socios Afiliados")
                     if st.button("➕ Registrar Nuevo Socio Afiliador" if not st.session_state["show_reg_afiliado_panel"] else "🔼 Cerrar Formulario", key="btn_tgl_aff"):
                         st.session_state["show_reg_afiliado_panel"] = not st.session_state["show_reg_afiliado_panel"]
                         st.rerun()
+                    st.caption(f"🔗 Destino QR: `{url_qr_aff}`")
                 with c_aq:
                     try:
                         import qrcode
@@ -4330,6 +4332,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     with st.container(border=True):
                         from registro_afiliados import render_formulario_registro_afiliado
                         render_formulario_registro_afiliado(registrado_por=st.session_state.current_user, key_prefix="panel_admin_aff")
+
                 st.divider()
             padron_fin = load_padron_records()
             estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
