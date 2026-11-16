@@ -3358,10 +3358,8 @@ def get_billing_global_settings_pg() -> bool:
             with conn.cursor() as cur:
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS billing_global_settings (
-                        id INT PRIMARY KEY DEFAULT 1,
-                        activar_incentivo_recargo BOOLEAN DEFAULT FALSE,
-                        updated_by TEXT,
-                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                        id INTEGER PRIMARY KEY,
+                        ...
                     );
                 """)
                 cur.execute("SELECT activar_incentivo_recargo FROM billing_global_settings WHERE id = 1;")
