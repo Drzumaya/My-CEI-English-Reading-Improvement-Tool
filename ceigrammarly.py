@@ -2923,8 +2923,9 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Genera ilustración educativa usando Gemini Multimodal Image Generation (con respaldo Pillow)."""
+    """Genera ilustración educativa (IA o fotografía temática Wikimedia) y prepara una frase célebre motivacional acorde al tópico."""
     import re
+    import urllib.request
     from google.genai import types
     from PIL import Image, ImageDraw, ImageFont
 
@@ -2936,18 +2937,38 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
         f"bright natural lighting, expressive characters. Scene: {escena_limpia}"
     )[:400]
 
-    errores = []
     gm = client_gm or init_gemini_client()
 
+    # 1. Genera Frase Célebre Motivacional + Palabras Clave Temáticas con Gemini Flash (gratis y rápido)
+    kw_busqueda = escena_limpia[:60] or "education library"
+    if gm:
+        try:
+            prompt_q = (
+                f"Lesson scene/topic: '{escena_limpia}'. CEFR Level: {cefr_lvl}.\n"
+                "Respond ONLY in valid JSON with keys:\n"
+                '{"keywords": "2-3 simple English nouns for photo search", '
+                '"quote_en": "famous motivational quote in English related to topic", '
+                '"author": "real author", '
+                '"quote_es": "Spanish translation", '
+                '"reflection": "one brief English sentence connecting quote to learning English"}'
+            )
+            r_q = gm.models.generate_content(model="gemini-2.5-flash", contents=prompt_q)
+            raw_q = r_q.text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            q_data = json.loads(raw_q)
+            if q_data.get("keywords"):
+                kw_busqueda = str(q_data["keywords"]).strip()
+            st.session_state["current_motivational_quote"] = q_data
+        except Exception:
+            pass
+
+    # 2. Intento con Gemini Image Generation
     if gm:
         for modelo_mm in ["gemini-2.5-flash-image", "gemini-2.0-flash-exp-image-generation"]:
             try:
                 res = gm.models.generate_content(
                     model=modelo_mm,
                     contents=full_prompt,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"]
-                    )
+                    config=types.GenerateContentConfig(response_modalities=["IMAGE"])
                 )
                 for cand in getattr(res, "candidates", []) or []:
                     for part in getattr(cand.content, "parts", []) or []:
@@ -2957,16 +2978,34 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
                             if isinstance(img_b, str):
                                 img_b = base64.b64decode(img_b)
                             if img_b and len(img_b) > 2000:
-                                st.session_state["last_img_error"] = None
                                 return img_b
-            except Exception as e_mm:
-                errores.append(f"{modelo_mm}: {e_mm}")
-    else:
-        errores.append("GEMINI_API_KEY no inicializada")
+            except Exception:
+                pass
 
-    st.session_state["last_img_error"] = " | ".join(errores)
+    # 3. Opción B Gratuita e Ilimitada: Fotografía Educativa Real desde Wikimedia Commons acorde al tópico
+    try:
+        kw_enc = urllib.parse.quote(kw_busqueda)
+        wiki_api = (
+            f"https://wikimedia.org"
+            f"&gsrsearch=filetype:bitmap+{kw_enc}&gsrnamespace=6&gsrlimit=6"
+            f"&prop=imageinfo&iiprop=url&iiurlwidth=900&format=json"
+        )
+        req_w = urllib.request.Request(wiki_api, headers={"User-Agent": "CEI-Academic-App/1.0"})
+        with urllib.request.urlopen(req_w, timeout=8) as rw:
+            w_data = json.loads(rw.read().decode("utf-8"))
+        for p in list(w_data.get("query", {}).get("pages", {}).values()):
+            ii = p.get("imageinfo", [{}])
+            t_url = ii.get("thumburl") or ii.get("url")
+            if t_url and any(t_url.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png")):
+                req_i = urllib.request.Request(t_url, headers={"User-Agent": "CEI-Academic-App/1.0"})
+                with urllib.request.urlopen(req_i, timeout=8) as ri:
+                    img_web = ri.read()
+                if img_web and len(img_web) > 3000:
+                    return img_web
+    except Exception:
+        pass
 
-    # Respaldo visual institucional en Pillow
+    # 4. Respaldo visual institucional en Pillow (si no hay red)
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(18, 36, 66))
     draw = ImageDraw.Draw(img)
@@ -2974,29 +3013,18 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     draw.rectangle([28, 28, w - 28, 92], fill=(30, 56, 98))
     font_std = ImageFont.load_default()
     draw.text((46, 50), f"CAREER ENGLISH INSTITUTE  |  {folio_tag}  |  CEFR {cefr_lvl}", fill=(255, 223, 128), font=font_std)
-
-    words = escena_limpia.split()
-    lines, curr = [], ""
-    for wd in words:
-        if len(curr) + len(wd) + 1 <= 76:
-            curr = f"{curr} {wd}".strip()
-        else:
-            lines.append(curr)
-            curr = wd
-    if curr:
-        lines.append(curr)
-
-    y_cursor = 122
-    for ln in lines[:8]:
-        draw.text((46, y_cursor), ln, fill=(242, 246, 252), font=font_std)
-        y_cursor += 28
-
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
 
 
-
+if st.session_state.get("current_motivational_quote"):
+    mq = st.session_state["current_motivational_quote"]
+    st.info(
+        f"✨ ***“{mq.get('quote_en', '')}”*** — **{mq.get('author', '')}**\n\n"
+        f"🇲🇽 *{mq.get('quote_es', '')}*\n\n"
+        f"🎯 **Reflection:** {mq.get('reflection', '')}"
+    )
 
 
 
