@@ -3781,22 +3781,6 @@ st.divider()
 
 # --- 14. CENTRO DE MANDO INSTITUCIONAL FIJO (SPA WORKSPACE SWITCHER) ---
 
-    opciones_menu_inst = (
-        ["🤝 Portal Socio Afiliado"]
-        if es_socio_afiliado
-        else [
-            "💳 Cobranza Mensual e IVA",
-            "📊 Estados Financieros",
-            "🤝 Alta de Socios Afiliados",
-            "🤝 Portal Socio Afiliado",
-            "👥 Inscripción y Padrón",
-            "🔐 Matriz Global de Permisos",
-            "🏅 Certificados (Timbre y QR)",
-            "🏛️ Datos del Instituto"
-        ]
-    )
-
-
 if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("active_admin_workspace"):
     seccion_inst_sel = st.session_state["active_admin_workspace"]
 
