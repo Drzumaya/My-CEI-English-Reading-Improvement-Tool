@@ -1988,6 +1988,11 @@ institute_address = (
 # --- 7. PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN LOGIN) ---
 verify_folio = str(st.query_params.get("verify") or st.query_params.get("verify_cert") or "").strip().upper()
 if verify_folio:
+    if st.session_state.get("portal_verificacion_cerrado", False):
+        st.iframe("<script>window.close();</script>", height=0)
+        st.markdown("<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>", unsafe_allow_html=True)
+        st.stop()
+
     col_vl, col_vc, col_vr = st.columns([1, 2.2, 1])
     with col_vc:
         b64_l, mime_l = (
@@ -2078,9 +2083,10 @@ if verify_folio:
             st.error(f"Error al verificar certificado: {e}")
 
         st.write("")
-        if st.button("✖️ Cerrar Verificación", type="secondary", width="stretch", key="btn_close_verify_cert"):
+        if st.button("✖️ Cerrar Verificación", type="primary", width="stretch", key="btn_close_verify_cert"):
             st.session_state["portal_verificacion_cerrado"] = True
             st.rerun()
+
 
 
     
@@ -2479,6 +2485,12 @@ if isinstance(verify_bol_param, list):
 verify_bol_param = str(verify_bol_param).strip().upper()
 
 if verify_bol_param:
+    if st.session_state.get("portal_verificacion_cerrado", False):
+        st.iframe("<script>window.close();</script>", height=0)
+        st.markdown("<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>", unsafe_allow_html=True)
+        st.stop()
+
+
     st.markdown("### 🛡️ Verificación Oficial de Boletín Académico — Career English Institute")
     try:
         conn_vb = get_pg_conn()
@@ -2522,8 +2534,12 @@ if verify_bol_param:
     except Exception as e_vb:
         st.error(f"Error al verificar boletín en Supabase: {e_vb}")
 
-    st.caption("🔒 Boletín académico verificado de forma independiente. Puedes cerrar esta ventana al finalizar.")
+    st.write("")
+    if st.button("✖️ Cerrar Verificación", type="primary", width="stretch", key="btn_close_verify_bol"):
+        st.session_state["portal_verificacion_cerrado"] = True
+        st.rerun()
     st.stop()
+
 
 
 if not st.session_state.authenticated:
