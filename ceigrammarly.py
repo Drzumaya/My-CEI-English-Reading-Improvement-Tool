@@ -2970,6 +2970,7 @@ def render_interactive_study_viewer(study_payload: dict):
         '<a href="https://google.com" target="_blank" style="color:#0f766e;font-weight:700;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
         '</div>';
 
+
       document.getElementById('be').innerText=inf.es||w;
       pnl.scrollIntoView({{behavior:'smooth',block:'nearest'}});
     }}
