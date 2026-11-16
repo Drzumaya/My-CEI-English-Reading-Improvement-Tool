@@ -1580,11 +1580,11 @@ CEFR_MAP = {
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v13_clean") -> dict:
-    """Tokeniza la lección y garantiza traducciones EN->ES reales para TODAS las palabras desde Python."""
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v14_hybrid_lexicon") -> dict:
+    """Motor lexicográfico híbrido de 4 niveles: Supabase Cache -> deep-translator -> Free Dictionary API -> Gemini."""
     import re
     import requests
-    from google.genai import types
+    from deep_translator import GoogleTranslator
 
     texto_sin_bib = str(lesson_text or "")
     for marcador in ["**Bibliography", "Bibliography ("]:
@@ -1633,80 +1633,124 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
             oraciones_base.append({"sentence_es": "", "tokens": toks})
 
     dict_final = {}
-    gm_client = init_gemini_client()
+    conn_lex = get_pg_conn()
 
-
-       # 1. Traducción en lotes cortos (50 palabras) con Gemini 2.5 Flash
-    if gm_client and palabras_clave:
-        for i_batch in range(0, min(len(palabras_clave), 300), 50):
-            lote_palabras = palabras_clave[i_batch:i_batch + 50]
-            lista_str = ", ".join(lote_palabras)
-            prompt_rapido = (
-                f"Translate EVERY English word in [{lista_str}] into Spanish (CEFR {cefr_level} context). "
-                "NEVER leave any word untranslated in English. "
-                "Return ONLY a JSON object mapping each lowercase English word to: "
-                '{"es":"traducción exacta en español","alt":"acepción 2, acepción 3","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Determinante / Preposición","def":"definición breve en español"}.'
-            )
-            try:
-                res_d = gm_client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt_rapido,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        temperature=0.1
-                    )
-                )
-                raw_d = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(res_d.text or "").strip(), flags=re.MULTILINE).strip()
-                parsed_d = json.loads(raw_d)
-                if isinstance(parsed_d, dict):
-                    for k_w, v_info in parsed_d.items():
-                        if isinstance(v_info, dict) and v_info.get("es"):
-                            dict_final[k_w.lower().strip()] = {
-                                "es": str(v_info.get("es", k_w)),
-                                "alt_es": str(v_info.get("alt", "")),
-                                "ipa": str(v_info.get("ipa", "")),
-                                "pos": str(v_info.get("pos", "other")),
-                                "pos_es": str(v_info.get("pos_es", "Inglés (US)")),
-                                "def_es": str(v_info.get("def", "")),
-                                "examples": []
-                            }
-            except Exception:
-                pass
-
-
-      # 2. Respaldo directo HTTP desde Python a Google Translate (con URL e índices exactos)
-    faltantes = [w for w in palabras_clave[:300] if w not in dict_final or dict_final[w]["es"].lower() == w]
-    if faltantes:
+    # NIVEL 1: Consulta instantánea en Caché Persistente de Supabase PostgreSQL
+    if conn_lex and palabras_clave:
         try:
-            texto_lote = "\n".join(faltantes)
-            r_gt = requests.get(
-                "https://googleapis.com",
-                params={"client": "gtx", "sl": "en", "tl": "es", "dt": "t", "q": texto_lote},
-                headers={"User-Agent": "Mozilla/5.0"},
-                timeout=8
-            )
-            if r_gt.status_code == 200:
-                data_gt = r_gt.json()
-                bloque_segs = data_gt[0] if isinstance(data_gt, list) and len(data_gt) > 0 else []
-                traduccion_unida = "".join(
-                    str(seg[0]) for seg in bloque_segs
-                    if isinstance(seg, list) and len(seg) > 0 and seg[0] is not None
-                )
-                lineas_tr = [x.strip() for x in traduccion_unida.splitlines()]
-                for orig_w, tr_w in zip(faltantes, lineas_tr):
-                    if tr_w:
-                        dict_final[orig_w] = {
-                            "es": tr_w,
-                            "alt_es": "",
-                            "ipa": "",
-                            "pos": "other",
-                            "pos_es": "Inglés (US)",
-                            "def_es": "",
+            with conn_lex:
+                with conn_lex.cursor() as cur:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS cei_lexicon_cache (
+                            word_en TEXT PRIMARY KEY,
+                            es TEXT NOT NULL,
+                            alt_es TEXT DEFAULT '',
+                            ipa TEXT DEFAULT '',
+                            pos TEXT DEFAULT 'other',
+                            pos_es TEXT DEFAULT 'Inglés (US)',
+                            def_es TEXT DEFAULT ''
+                        );
+                    """)
+                    cur.execute(
+                        "SELECT word_en, es, alt_es, ipa, pos, pos_es, def_es FROM cei_lexicon_cache WHERE word_en = ANY(%s);",
+                        (palabras_clave[:300],)
+                    )
+                    for row in cur.fetchall():
+                        dict_final[row] = {
+                            "es": row,
+                            "alt_es": row or "",
+                            "ipa": row or "",
+                            "pos": row or "other",
+                            "pos_es": row or "Inglés (US)",
+                            "def_es": row or "",
                             "examples": []
                         }
         except Exception:
             pass
-            
+
+    # NIVEL 2: Traducción masiva gratuita con deep-translator (GoogleTranslator sin límites de tokens)
+    faltantes = [w for w in palabras_clave[:300] if w not in dict_final]
+    nuevas_para_guardar = []
+
+    if faltantes:
+        try:
+            traductor = GoogleTranslator(source="en", target="es")
+            # Traduce en bloque separado por saltos de línea (1 sola petición HTTP rápida)
+            bloque_en = "\n".join(faltantes)
+            bloque_es = traductor.translate(bloque_en)
+            lista_tr = [x.strip() for x in str(bloque_es or "").splitlines()]
+            if len(lista_tr) != len(faltantes):
+                lista_tr = traductor.translate_batch(faltantes)
+
+            for w_orig, w_es in zip(faltantes, lista_tr):
+                tr_limpia = str(w_es or w_orig).strip()
+                ipa_val = ""
+                def_val = ""
+                pos_code = "other"
+                pos_label = "Vocabulario Inglés (US)"
+
+                # NIVEL 3: Enriquecimiento fonético IPA y definición desde Free Dictionary API (gratuita)
+                if len(nuevas_para_guardar) < 35 and len(w_orig) > 3:
+                    try:
+                        r_fd = requests.get(f"https://dictionaryapi.dev{w_orig}", timeout=2.5)
+                        if r_fd.status_code == 200:
+                            jd = r_fd.json()
+                            ipa_val = str(jd.get("phonetic") or "").strip()
+                            if not ipa_val:
+                                for ph in jd.get("phonetics", []):
+                                    if ph.get("text"):
+                                        ipa_val = str(ph["text"]).strip()
+                                        break
+                            meanings = jd.get("meanings", [])
+                            if meanings:
+                                pos_en = str(meanings.get("partOfSpeech", "")).lower()
+                                mapa_pos = {
+                                    "verb": ("verb", "Verbo"),
+                                    "noun": ("noun", "Sustantivo"),
+                                    "adjective": ("adjective", "Adjetivo"),
+                                    "conjunction": ("conjunction", "Conjunción"),
+                                    "adverb": ("other", "Adverbio"),
+                                    "preposition": ("other", "Preposición")
+                                }
+                                pos_code, pos_label = mapa_pos.get(pos_en, ("other", pos_en.capitalize() or "Inglés (US)"))
+                                defs = meanings.get("definitions", [])
+                                if defs and defs.get("definition"):
+                                    def_val = traductor.translate(str(defs["definition"])[:160])
+                    except Exception:
+                        pass
+
+                entry = {
+                    "es": tr_limpia,
+                    "alt_es": "",
+                    "ipa": ipa_val,
+                    "pos": pos_code,
+                    "pos_es": pos_label,
+                    "def_es": def_val,
+                    "examples": []
+                }
+                dict_final[w_orig] = entry
+                nuevas_para_guardar.append((w_orig, tr_limpia, "", ipa_val, pos_code, pos_label, def_val))
+        except Exception:
+            pass
+
+    # Guarda las palabras nuevas en Supabase para acceso instantáneo en futuras lecciones
+    if conn_lex and nuevas_para_guardar:
+        try:
+            with conn_lex:
+                with conn_lex.cursor() as cur:
+                    for item in nuevas_para_guardar:
+                        cur.execute("""
+                            INSERT INTO cei_lexicon_cache (word_en, es, alt_es, ipa, pos, pos_es, def_es)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (word_en) DO UPDATE SET
+                                es = EXCLUDED.es,
+                                ipa = COALESCE(NULLIF(EXCLUDED.ipa, ''), cei_lexicon_cache.ipa),
+                                pos = EXCLUDED.pos,
+                                pos_es = EXCLUDED.pos_es,
+                                def_es = COALESCE(NULLIF(EXCLUDED.def_es, ''), cei_lexicon_cache.def_es);
+                        """, item)
+        except Exception:
+            pass
 
     for s_obj in oraciones_base:
         for tk in s_obj["tokens"]:
