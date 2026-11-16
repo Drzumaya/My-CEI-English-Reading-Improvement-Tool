@@ -5164,10 +5164,8 @@ with col_main_center:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 
-if col_tools_right is not None:
-    with col_tools_right:
-        st.subheader(f"🖼️ Visual Context & Quote ({st.session_state.selected_academic_grade})")
-        # ... (aquí sigue todo tu contenido actual de col_tools_right con 8 espacios de sangría) ...
+with col_tools_right:
+    st.subheader(f"🖼️ Visual Context & Quote ({st.session_state.selected_academic_grade})")
     if st.session_state.get("generated_text"):
         col_vis_in, col_vis_btn = st.columns([2.6, 1.4])
         with col_vis_in:
@@ -5177,6 +5175,7 @@ if col_tools_right is not None:
                 key="input_custom_visual_prompt",
                 label_visibility="collapsed"
             )
+
         with col_vis_btn:
             if st.button("✨ Imagen y Frase", key="btn_regen_visual", width="stretch"):
                 with st.spinner("🎨 Generando imagen temática y frase célebre..."):
