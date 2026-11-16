@@ -3145,9 +3145,10 @@ def render_interactive_study_viewer(study_payload: dict):
     document.body.onclick=cls;
     </script></body></html>"""
 
+    import streamlit.components.v1 as components
     html_code = (html_part_1 + html_part_2).replace("__LINES_JSON__", lines_json).replace("__DICT_JSON__", dict_json)
-    b64_study = base64.b64encode(html_code.encode("utf-8")).decode("ascii")
-    st.iframe(f"data:text/html;base64,{b64_study}", height=680)
+    components.html(html_code, height=680, scrolling=True)
+
 
 
 
