@@ -35,7 +35,7 @@ DEFAULT_ADDRESS = st.secrets.get(
     "Dirección no configurada | Tel. / Contacto: No disponible"
 )
 
- ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado", "Socio Afiliado"] 
+ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado", "Socio Afiliado"] 
 
 GRADOS_ACADEMICOS = [
     "Preescolar",
