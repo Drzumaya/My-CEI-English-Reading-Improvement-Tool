@@ -3557,6 +3557,7 @@ if is_owner or is_faculty_desktop or es_socio_afiliado:
         else [
             "💳 Cobranza Mensual e IVA",
             "📊 Estados Financieros",
+            "🤝 Alta de Socios Afiliados",
             "🤝 Portal Socio Afiliado",
             "👥 Inscripción y Padrón",
             "🔐 Matriz Global de Permisos",
@@ -3564,6 +3565,7 @@ if is_owner or is_faculty_desktop or es_socio_afiliado:
             "🏛️ Datos del Instituto"
         ]
     )
+
 
     with st.container(border=True):
         c_nav1, c_nav2, c_nav3 = st.columns([3.2, 1.0, 1.2])
