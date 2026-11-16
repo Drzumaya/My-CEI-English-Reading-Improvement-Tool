@@ -4469,45 +4469,13 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             if not (is_owner or puede_gestionar_afiliados):
                 st.warning("⛔ Tu perfil actual no tiene permisos habilitados para dar de alta Socios Afiliados.")
             else:
-                url_qr_aff = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip().rstrip("/")
-
-                col_aff_info, col_aff_qr = st.columns([2.4, 1.0])
-                with col_aff_info:
-                    st.markdown("#### 🤝 Alta Oficial y Expediente de Socios Afiliados")
-                    st.info(
-                        "Registra nuevos Socios Afiliados con su **ID único (`AFIL-CEI-AÑO-XXXX`)**, "
-                        "porcentaje de comisión base y expediente digital (INE anverso y reverso), "
-                        "o comparte el **código QR** para que completen su auto-registro externo."
-                    )
-                    if url_qr_aff:
-                        st.caption("🔒 Enlace de registro externo protegido en Secrets.")
-                    else:
-                        st.warning("⚠️ Configura `AFFILIATE_REG_URL` en los Secrets de Streamlit Cloud para generar el QR.")
-
-                with col_aff_qr:
-                    if url_qr_aff:
-                        try:
-                            import qrcode
-                            buf_q = io.BytesIO()
-                            qrcode.make(url_qr_aff).save(buf_q, format="PNG")
-                            st.image(buf_q.getvalue(), caption="📲 QR Registro Afiliados", width=135)
-                            st.download_button(
-                                "⬇️ Descargar QR",
-                                data=buf_q.getvalue(),
-                                file_name="QR_Registro_Afiliados_CEI.png",
-                                mime="image/png",
-                                width="stretch",
-                                key="btn_dl_qraff_main"
-                            )
-                        except Exception as e_qr:
-                            st.error(f"Error al generar QR: {e_qr}")
-
-                st.divider()
                 from registro_afiliados import render_formulario_registro_afiliado
                 render_formulario_registro_afiliado(
                     registrado_por=st.session_state.current_user,
-                    key_prefix="panel_admin_aff_main"
+                    key_prefix="panel_admin_aff_main",
+                    mostrar_qr_dinamico=True
                 )
+
 
         # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
