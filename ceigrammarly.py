@@ -4274,7 +4274,7 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
 
 
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
-      if seccion_inst_sel == "🏛️ Datos del Instituto":
+       if seccion_inst_sel == "🏛️ Datos del Instituto":
             if not can("Editar_Instituto_Logo"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
             else:
@@ -4322,11 +4322,12 @@ if (is_owner or is_faculty_desktop) and st.session_state.get("show_teacher_regis
     st.divider()
 
 
-    # 14.5 PESTAÑA COBRANZA MENSUAL, IVA Y SOCIOS AFILIADOS
-      if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
-        puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
-        puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
-        puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
+        # 14.5 PESTAÑA COBRANZA MENSUAL, IVA Y SOCIOS AFILIADOS
+        if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
+            puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
+            puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
+            puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
+
 
         if not (is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
             st.warning("⛔ Sin permisos financieros habilitados.")
