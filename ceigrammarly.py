@@ -1581,7 +1581,7 @@ CEFR_MAP = {
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v14_hybrid_lexicon") -> dict:
-    """Motor lexicográfico híbrido de 4 niveles: Supabase Cache -> deep-translator -> Free Dictionary API -> Gemini."""
+    # Motor lexicográfico híbrido de 4 niveles: Supabase Cache -> deep-translator -> Free Dictionary API -> Gemini.
     import re
     import requests
     from deep_translator import GoogleTranslator
