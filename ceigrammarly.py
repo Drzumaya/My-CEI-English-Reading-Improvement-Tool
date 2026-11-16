@@ -1580,8 +1580,8 @@ CEFR_MAP = {
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v9_gt_fixed") -> dict:
-    """Tokeniza la lección y garantiza traducciones EN->ES reales desde Python."""
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v10_gt_full") -> dict:
+    """Tokeniza la lección y garantiza traducciones EN->ES reales para TODAS las palabras desde Python."""
     import re
     import requests
     from google.genai import types
@@ -1635,43 +1635,46 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
     dict_final = {}
     gm_client = init_gemini_client()
 
-    # 1. Traducción en Python con Gemini 2.5 Flash
+    # 1. Traducción completa en lotes con Gemini 2.5 Flash (cubre TODAS las palabras de la lección)
     if gm_client and palabras_clave:
-        lista_str = ", ".join(palabras_clave[:100])
-        prompt_rapido = (
-            f"Translate every English word in [{lista_str}] into Spanish (CEFR {cefr_level} context). "
-            "Return ONLY a JSON object mapping each lowercase English word to: "
-            '{"es":"traducción principal exacta","alt":"sinónimo 1, sinónimo 2","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Determinante / Preposición","def":"definición corta en español"}.'
-        )
-        try:
-            res_d = gm_client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt_rapido,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    temperature=0.1
-                )
+        for i_batch in range(0, min(len(palabras_clave), 300), 120):
+            lote_palabras = palabras_clave[i_batch:i_batch + 120]
+            lista_str = ", ".join(lote_palabras)
+            prompt_rapido = (
+                f"Translate EVERY English word in [{lista_str}] into Spanish (CEFR {cefr_level} academic context). "
+                "NEVER leave any word untranslated in English. "
+                "Return ONLY a JSON object mapping each lowercase English word to: "
+                '{"es":"traducción principal exacta","alt":"sinónimo 1, sinónimo 2","ipa":"/US_IPA/","pos":"verb|noun|adjective|conjunction|other","pos_es":"Verbo|Sustantivo|Adjetivo|Conjunción|Determinante / Preposición","def":"definición corta en español"}.'
             )
-            raw_d = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(res_d.text or "").strip(), flags=re.MULTILINE).strip()
-            parsed_d = json.loads(raw_d)
-            if isinstance(parsed_d, dict):
-                for k_w, v_info in parsed_d.items():
-                    if isinstance(v_info, dict) and v_info.get("es"):
-                        dict_final[k_w.lower().strip()] = {
-                            "es": str(v_info.get("es", k_w)),
-                            "alt_es": str(v_info.get("alt", "")),
-                            "ipa": str(v_info.get("ipa", "")),
-                            "pos": str(v_info.get("pos", "other")),
-                            "pos_es": str(v_info.get("pos_es", "Inglés (US)")),
-                            "def_es": str(v_info.get("def", "")),
-                            "examples": []
-                        }
-        except Exception:
-            pass
+            try:
+                res_d = gm_client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_rapido,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        temperature=0.1
+                    )
+                )
+                raw_d = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(res_d.text or "").strip(), flags=re.MULTILINE).strip()
+                parsed_d = json.loads(raw_d)
+                if isinstance(parsed_d, dict):
+                    for k_w, v_info in parsed_d.items():
+                        if isinstance(v_info, dict) and v_info.get("es"):
+                            dict_final[k_w.lower().strip()] = {
+                                "es": str(v_info.get("es", k_w)),
+                                "alt_es": str(v_info.get("alt", "")),
+                                "ipa": str(v_info.get("ipa", "")),
+                                "pos": str(v_info.get("pos", "other")),
+                                "pos_es": str(v_info.get("pos_es", "Inglés (US)")),
+                                "def_es": str(v_info.get("def", "")),
+                                "examples": []
+                            }
+            except Exception:
+                pass
 
-    # 2. Respaldo directo HTTP desde Python a Google Translate (endpoint completo)
-    faltantes = [w for w in palabras_clave[:100] if w not in dict_final]
+    # 2. Respaldo directo HTTP desde Python a Google Translate (endpoint completo) para cualquier palabra faltante
+    faltantes = [w for w in palabras_clave[:300] if w not in dict_final or dict_final[w]["es"].lower() == w]
     if faltantes:
         try:
             texto_lote = "\n".join(faltantes)
@@ -2885,15 +2888,30 @@ def render_interactive_study_viewer(study_payload: dict):
     }}
     function cls(){{document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}}
 
-    async function fetchLiveTranslation(cleanWord){{
+        async function fetchLiveTranslation(cleanWord){{
       try{{
-        const res=await fetch('https://translated.net|es');
+        const u='https://googleapis.com;
+        const res=await fetch(u);
         const js=await res.json();
-        if(js&&js.responseData&&js.responseData.translatedText){{
-          return js.responseData.translatedText;
+        if(js&&js[0]&&js[0][0]&&js[0][0][0]){{
+          let mainTr=js[0][0][0];
+          let alts='';
+          if(js[1]&&js[1][0]&&js[1][0][1]){{
+            alts=js[1][0][1].slice(0,4).join(', ');
+          }}
+          return {{es:mainTr, alt:alts}};
         }}
       }}catch(e){{}}
-      return cleanWord;
+      return {{es:cleanWord, alt:''}};
+    }}
+
+    function lookupLocalDict(k){{
+      if(D[k])return D[k];
+      const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
+      for(const st of stems){{
+        if(st.length>2 && D[st])return D[st];
+      }}
+      return null;
     }}
 
     async function op(e,el,w,p,fs){{
@@ -2904,7 +2922,7 @@ def render_interactive_study_viewer(study_payload: dict):
       spk(w,1);
 
       const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
-      const inf=D[k]||{{}};
+      const inf=lookupLocalDict(k)||{{}};
       const pnl=document.getElementById('gt-panel');
       pnl.style.display='block';
 
@@ -2919,14 +2937,18 @@ def render_interactive_study_viewer(study_payload: dict):
         document.getElementById('be').innerText=inf.es;
       }}else{{
         document.getElementById('be').innerText='⏳ Traduciendo...';
-        const tr=await fetchLiveTranslation(k||w);
+        const trObj=await fetchLiveTranslation(k||w);
         if(curW===w){{
-          document.getElementById('be').innerText=tr;
-          D[k]=Object.assign(inf,{{es:tr}});
+          document.getElementById('be').innerText=trObj.es;
+          if(trObj.alt && !inf.alt){{
+            document.getElementById('ba').innerText='Sinónimos / Acepciones: '+trObj.alt;
+          }}
+          D[k]=Object.assign(inf,{{es:trObj.es, alt:trObj.alt||inf.alt}});
         }}
       }}
       pnl.scrollIntoView({{behavior:'smooth',block:'nearest'}});
     }}
+
 
     const c=document.getElementById('lc');
     S.forEach((s,i)=>{{
