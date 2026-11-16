@@ -2780,7 +2780,7 @@ def generar_pdf_certificado(
 
 
 def render_interactive_study_viewer(study_payload: dict):
-    """Visor interactivo con voz US English y panel estilo Google Translate en vivo."""
+    """Visor interactivo con voz US English y panel estilo Google Translate."""
     sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
 
@@ -2818,14 +2818,12 @@ def render_interactive_study_viewer(study_payload: dict):
     .sbox{{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:10px;border-radius:8px;line-height:2.0;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
     .wt{{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}}
     .wt:hover,.act{{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}}
-    /* Panel estilo Google Translate fijo y visible */
     #gt-panel{{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.22);margin-top:14px;overflow:hidden;display:none}}
     .gt-head{{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;color:#fff;padding:8px 14px;font-size:12px;font-weight:700}}
     .gt-grid{{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}}
     .gt-col{{padding:12px 14px}}
     .gt-col:first-child{{border-right:1px solid #e2e8f0;background:#f8fafc}}
     .gt-btn{{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}}
-    .gt-btn:hover{{background:rgba(255,255,255,.35)}}
     </style></head><body>
     <div class="tb">
       <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span> <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span> <span class="bg other">Otros</span></div>
@@ -2851,7 +2849,7 @@ def render_interactive_study_viewer(study_payload: dict):
         </div>
         <div class="gt-col">
           <div style="font-size:11px;color:#64748b;font-weight:700">ESPAÑOL (TRADUCCIÓN)</div>
-          <div id="be" style="font-size:22px;font-weight:700;color:#1a73e8;margin-top:2px">Traduciendo...</div>
+          <div id="be" style="font-size:22px;font-weight:700;color:#1a73e8;margin-top:2px"></div>
           <div id="ba" style="font-size:12px;color:#475569;margin-top:4px"></div>
           <div id="bd" style="font-size:12px;color:#334155;margin-top:4px"></div>
         </div>
@@ -2867,7 +2865,7 @@ def render_interactive_study_viewer(study_payload: dict):
     function pickUSVoice(){{
       const vs=window.speechSynthesis.getVoices()||[];
       usVoiceCache=
-        vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Guy')||v.name.includes('Samantha')||v.name.includes('Alex')||v.name.includes('Davis')))||
+        vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Guy')||v.name.includes('Samantha')||v.name.includes('Alex')))||
         vs.find(v=>v.lang==='en-US'||v.lang==='en_US')||
         vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
       return usVoiceCache;
@@ -2885,23 +2883,6 @@ def render_interactive_study_viewer(study_payload: dict):
       speechSynthesis.speak(u);
     }}
     function cls(){{document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}}
-
-        async function fetchLiveTranslation(cleanWord){{
-      try{{
-        const u='https://googleapis.com;
-        const res=await fetch(u);
-        const js=await res.json();
-        if(js&&js[0]&&js[0][0]&&js[0][0][0]){{
-          let mainTr=js[0][0][0];
-          let alts='';
-          if(js[1]&&js[1][0]&&js[1][0][1]){{
-            alts=js[1][0][1].slice(0,4).join(', ');
-          }}
-          return {{es:mainTr, alt:alts}};
-        }}
-      }}catch(e){{}}
-      return {{es:cleanWord, alt:''}};
-    }}
 
     function lookupLocalDict(k){{
       if(D[k])return D[k];
@@ -2930,23 +2911,9 @@ def render_interactive_study_viewer(study_payload: dict):
       document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
       document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
       document.getElementById('bx').innerText='💬 Contexto en la lección: "'+fs+'"';
-
-      if(inf.es && inf.es.toLowerCase()!==k){{
-        document.getElementById('be').innerText=inf.es;
-      }}else{{
-        document.getElementById('be').innerText='⏳ Traduciendo...';
-        const trObj=await fetchLiveTranslation(k||w);
-        if(curW===w){{
-          document.getElementById('be').innerText=trObj.es;
-          if(trObj.alt && !inf.alt){{
-            document.getElementById('ba').innerText='Sinónimos / Acepciones: '+trObj.alt;
-          }}
-          D[k]=Object.assign(inf,{{es:trObj.es, alt:trObj.alt||inf.alt}});
-        }}
-      }}
+      document.getElementById('be').innerText=inf.es||w;
       pnl.scrollIntoView({{behavior:'smooth',block:'nearest'}});
     }}
-
 
     const c=document.getElementById('lc');
     S.forEach((s,i)=>{{
@@ -2967,7 +2934,6 @@ def render_interactive_study_viewer(study_payload: dict):
 
     altura = max(560, min(860, len(clean_sentences) * 115 + 240))
     st.iframe(html_code, height=max(1, int(altura)))
-
 
     
 
