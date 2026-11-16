@@ -2911,15 +2911,27 @@ def generar_pdf_certificado(
 
 
 def render_interactive_study_viewer(study_payload: dict):
-    # Visor interactivo con voz US English y panel estilo Google Translate blindado contra errores de sintaxis JS
-    sentences_list = study_payload.get("sentences", []) if isinstance(study_payload, dict) else []
+    # Visor interactivo client-side con voz US English y diccionario estilo Google Translate
+    import streamlit.components.v1 as components
+
+    raw_lesson = str(st.session_state.get("generated_text") or "").strip()
+    for marcador in ["**Bibliography", "Bibliography ("]:
+        if marcador in raw_lesson:
+            raw_lesson = raw_lesson.split(marcador, 1)[0]
+
+    clean_lines = []
+    for ln in raw_lesson.splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        if s.lower().startswith((
+            "**folio:", "**creation date:", "**author:",
+            "**institution:", "**cefr level:", "**academic level:", "**campus"
+        )):
+            continue
+        clean_lines.append(s.replace("**", "").replace("#", "").strip())
+
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
-
-    clean_sentences = []
-    for s in sentences_list:
-        toks = [{"w": str(t.get("w", "")), "p": str(t.get("pos", "other"))} for t in s.get("tokens", [])]
-        clean_sentences.append(toks)
-
     clean_dict = {}
     for k, v in dict_map.items():
         if isinstance(v, dict):
@@ -2930,39 +2942,47 @@ def render_interactive_study_viewer(study_payload: dict):
                 "alt": str(v.get("alt_es", "")).strip(),
                 "def": str(v.get("def_es", "")).strip()
             }
-         
 
-    s_json = json.dumps(clean_sentences, ensure_ascii=True).replace("</", "<\\/")
-    d_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
+    lines_json = json.dumps(clean_lines, ensure_ascii=True).replace("</", "<\\/")
+    dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
 
-    html_template = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    html_part_1 = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
     body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
-    .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:12px;font-size:12px;font-weight:600}
+    .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;
+        background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;
+        margin-bottom:12px;font-size:12px;font-weight:600;position:sticky;top:0;z-index:50}
     .bg{padding:3px 8px;border-radius:6px}
     .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
     .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
     .adjective{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}
     .conjunction{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}
     .other{background:#f1f5f9;color:#334155}
-    .tbox{background:#1a2a44;color:#fff;padding:12px 16px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}
+    .tbox{background:#1a2a44;color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}
     .tbox .wt{color:#1e293b;font-size:16px}
-    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:10px;border-radius:8px;line-height:2.0;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;
+          border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
     .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}
     .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
-    #gt-panel{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.22);margin-top:14px;overflow:hidden;display:none}
-    .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
+    #gt-panel{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;
+              border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.25);margin-top:14px;overflow:hidden;display:none}
+    .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;
+             color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
     .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
     .gt-col{padding:12px 14px}
     .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
-    .gt-btn{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
+    .gt-btn{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;
+            padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
     </style></head><body>
     <div class="tb">
-      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span> <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span> <span class="bg other">Otros</span></div>
-      <div><label style="cursor:pointer"><input type="checkbox" id="hov" checked> 🇺🇸 Voz US al pasar cursor</label> <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600" onclick="spd()" id="sb">1.0x</button></div>
+      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
+           <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
+           <span class="bg other">Otros</span></div>
+      <div><label style="cursor:pointer"><input type="checkbox" id="hov" checked> 🇺🇸 Voz US al pasar cursor</label>
+           <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
+                   onclick="spd()" id="sb">1.0x</button></div>
     </div>
     <div id="lc"></div>
-
     <div id="gt-panel" onclick="event.stopPropagation()">
       <div class="gt-head">
         <span>🌐 GOOGLE TRANSLATE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
@@ -2987,10 +3007,10 @@ def render_interactive_study_viewer(study_payload: dict):
         </div>
       </div>
       <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
-    </div>
-
-    <script>
-    const S=__S_JSON__, D=__D_JSON__;
+    </div>"""
+    html_part_2 = """<script>
+    const LINES=__LINES_JSON__, D=__DICT_JSON__;
+    const CONJ=new Set(["and","but","or","so","because","although","while","if","when","since","unless","whereas","however","therefore","yet","nor"]);
     const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
     let curW="", lst="", sp=1, usVoiceCache=null;
 
@@ -3016,22 +3036,44 @@ def render_interactive_study_viewer(study_payload: dict):
     }
     function cls(){document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}
 
+    function detectPOS(low){
+      if(D[low] && D[low].pos){
+        const p=D[low].pos.toLowerCase();
+        if(p.includes('verb'))return 'verb';
+        if(p.includes('sust')||p.includes('noun'))return 'noun';
+        if(p.includes('adj'))return 'adjective';
+        if(p.includes('conj'))return 'conjunction';
+      }
+      if(CONJ.has(low))return 'conjunction';
+      if(/(ing|ed)$/.test(low) && low.length>4)return 'verb';
+      if(/(ous|ful|able|ible|al|ive|ic|ly)$/.test(low) && low.length>4)return 'adjective';
+      if(low.length>3 && /^[a-z]+$/.test(low))return 'noun';
+      return 'other';
+    }
+
     function lookupLocalDict(k){
       if(D[k])return D[k];
       const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
-      for(const st of stems){
-        if(st.length>2 && D[st])return D[st];
-      }
+      for(const st of stems){if(st.length>2 && D[st])return D[st];}
       return null;
     }
 
-    function op(e,el,w,p,fs){
+    async function fetchLiveGT(word){
+      try{
+        const u='https://googleapis.com;
+        const r=await fetch(u);
+        const j=await r.json();
+        if(j && j[0] && j[0][0] && j[0][0][0])return j[0][0][0];
+      }catch(e){}
+      return word;
+    }
+
+    async function op(e,el,w,p,fs){
       e.stopPropagation();
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
       curW=w;
       spk(w,1);
-
       const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
       const inf=lookupLocalDict(k)||{};
       const pnl=document.getElementById('gt-panel');
@@ -3052,41 +3094,48 @@ def render_interactive_study_viewer(study_payload: dict):
 
       const linksDiv=document.createElement('div');
       linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
-
       const aWR=document.createElement('a');
       aWR.href='https://wordreference.com;
       aWR.target='_blank';
       aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;';
       aWR.textContent='📖 Abrir en WordReference ↗';
-
       const aGT=document.createElement('a');
       aGT.href='https://google.com';
       aGT.target='_blank';
       aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;';
       aGT.textContent='🌐 Abrir en Google Translate ↗';
-
       linksDiv.appendChild(aWR);
       linksDiv.appendChild(aGT);
       bxEl.appendChild(linksDiv);
 
-      document.getElementById('be').innerText=inf.es||w;
+      if(inf.es && inf.es.toLowerCase()!==k){
+        document.getElementById('be').innerText=inf.es;
+      }else{
+        document.getElementById('be').innerText='⏳ Traduciendo...';
+        const tr=await fetchLiveGT(k||w);
+        if(curW===w){
+          document.getElementById('be').innerText=tr;
+          D[k]=Object.assign(inf,{es:tr});
+        }
+      }
       pnl.scrollIntoView({behavior:'smooth',block:'nearest'});
     }
 
     const c=document.getElementById('lc');
-    if(!S || S.length===0){
-      c.innerHTML='<div class="sbox" style="color:#b45309;">⚠️ Regenerando análisis de oraciones... Haz clic en <b>Edición Impresión / PDF</b> y vuelve a entrar al <b>Modo Estudio</b> tras limpiar caché.</div>';
-    }
-
-    S.forEach((s,i)=>{
-      const box=document.createElement('div');box.className=i===0?'tbox':'sbox';
-      const fs=s.map(t=>t.w).join(' ');
-      s.forEach(t=>{
-        if(/^[.,!?;:"'()—-]+$/.test(t.w.trim())){box.appendChild(document.createTextNode(t.w+' '));return;}
-        const spn=document.createElement('span');spn.className='wt '+(L[t.p]?t.p:'other');spn.textContent=t.w;
-        spn.onmouseenter=()=>{if(document.getElementById('hov').checked&&lst!==t.w){lst=t.w;spk(t.w);}};
+    LINES.forEach((line,i)=>{
+      const box=document.createElement('div');
+      box.className=i===0?'tbox':'sbox';
+      const tokens=line.match(/[A-Za-z0-9'-]+|[^\\w\\s]/g)||[];
+      tokens.forEach(tok=>{
+        if(/^[.,!?;:"'()—-]+$/.test(tok.trim())){box.appendChild(document.createTextNode(tok+' '));return;}
+        const low=tok.toLowerCase();
+        const pos=detectPOS(low);
+        const spn=document.createElement('span');
+        spn.className='wt '+pos;
+        spn.textContent=tok;
+        spn.onmouseenter=()=>{if(document.getElementById('hov').checked&&lst!==tok){lst=tok;spk(tok);}};
         spn.onmouseleave=()=>{lst="";};
-        spn.onclick=(e)=>op(e,spn,t.w,t.p,fs);
+        spn.onclick=(e)=>op(e,spn,tok,pos,line);
         box.appendChild(spn);
       });
       c.appendChild(box);
@@ -3094,9 +3143,8 @@ def render_interactive_study_viewer(study_payload: dict):
     document.body.onclick=cls;
     </script></body></html>"""
 
-    html_code = html_template.replace("__S_JSON__", s_json).replace("__D_JSON__", d_json)
-    altura = max(560, min(860, len(clean_sentences) * 115 + 240))
-    st.iframe(html_code, height=max(1, int(altura)))
+    html_code = (html_part_1 + html_part_2).replace("__LINES_JSON__", lines_json).replace("__DICT_JSON__", dict_json)
+    components.html(html_code, height=680, scrolling=True)
 
     
 
