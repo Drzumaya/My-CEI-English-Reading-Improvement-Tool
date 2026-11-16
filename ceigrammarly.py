@@ -3146,7 +3146,8 @@ def render_interactive_study_viewer(study_payload: dict):
     </script></body></html>"""
 
     html_code = (html_part_1 + html_part_2).replace("__LINES_JSON__", lines_json).replace("__DICT_JSON__", dict_json)
-    st.iframe(html_code, height=680)
+    b64_study = base64.b64encode(html_code.encode("utf-8")).decode("ascii")
+    st.iframe(f"data:text/html;base64,{b64_study}", height=680)
 
 
 
