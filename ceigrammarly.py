@@ -3845,7 +3845,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
-        elif seccion_inst_sel == "📊 Estados Financieros":
+        if seccion_inst_sel == "📊 Estados Financieros":
             # ... código exclusivo de Estados Financieros ...
 
         elif seccion_inst_sel == "🤝 Alta de Socios Afiliados":
@@ -4266,7 +4266,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         st.error(f"Error al cargar padrón: {e}")
 
         # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
-        elif seccion_inst_sel == "🔐 Matriz Global de Permisos":
+        if seccion_inst_sel == "🔐 Matriz Global de Permisos":
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
             df_mat = pd.DataFrame([
                 {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
@@ -4306,7 +4306,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
-        elif seccion_inst_sel == "🏛️ Datos del Instituto":
+        if seccion_inst_sel == "🏛️ Datos del Instituto":
             if not can("Editar_Instituto_Logo"):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
             else:
@@ -4354,7 +4354,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         st.divider()
 
         # 14.5 PESTAÑA COBRANZA MENSUAL E IVA
-        elif seccion_inst_sel == "💳 Cobranza Mensual e IVA":
+        if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
             puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
             puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
             puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
@@ -4455,7 +4455,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.5b PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
-        elif seccion_inst_sel == "📊 Estados Financieros":
+        if seccion_inst_sel == "📊 Estados Financieros":
             if not (is_owner or can("Ver_Panel_Admin")):
                 st.warning("⛔ Tu perfil actual no tiene acceso a los Estados Financieros institucionales.")
             else:
@@ -4504,7 +4504,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
                     if filtro_tipo_ef == "Moratorios":
                         df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Moratorio", na=False)]
-                    elif filtro_tipo_ef == "Pagos realizados":
+                    if filtro_tipo_ef == "Pagos realizados":
                         df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pagado", na=False)]
                     elif filtro_tipo_ef == "Pendientes en tiempo":
                         df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pendiente", na=False)]
@@ -4524,7 +4524,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.5c PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS Y QR DE REGISTRO
-        elif seccion_inst_sel == "🤝 Alta de Socios Afiliados":
+        if seccion_inst_sel == "🤝 Alta de Socios Afiliados":
             if not (is_owner or puede_gestionar_afiliados):
                 st.warning("⛔ Tu perfil actual no tiene permisos habilitados para dar de alta Socios Afiliados.")
             else:
@@ -4537,7 +4537,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
         # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
-        elif seccion_inst_sel == "🤝 Portal Socio Afiliado":
+        if seccion_inst_sel == "🤝 Portal Socio Afiliado":
             try:
                 from portal_afiliado import render_portal_socio_afiliado
                 if is_owner or puede_gestionar_afiliados:
