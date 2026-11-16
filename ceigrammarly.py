@@ -4908,7 +4908,8 @@ if st.session_state.show_right_panel:
     col_main_center, col_tools_right = st.columns([7, 3.5])
 else:
     col_main_center = st.container()
-    col_tools_right = None
+    col_tools_right = st.expander("🛠️ Herramientas Visuales, Audio, Video, PDF e Historial (Panel Oculto)", expanded=False)
+
 
 with col_main_center:
     col_sub_t, col_badge, col_mode_btn, col_panel_btn = st.columns([2.3, 1.0, 1.7, 1.3])
