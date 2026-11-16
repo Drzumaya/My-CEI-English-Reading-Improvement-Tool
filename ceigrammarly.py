@@ -3798,6 +3798,22 @@ st.divider()
 
 # --- 14. CENTRO DE MANDO INSTITUCIONAL FIJO (SPA WORKSPACE SWITCHER) ---
 
+    opciones_menu_inst = (
+        ["🤝 Portal Socio Afiliado"]
+        if es_socio_afiliado
+        else [
+            "💳 Cobranza Mensual e IVA",
+            "📊 Estados Financieros",
+            "🤝 Alta de Socios Afiliados",
+            "🤝 Portal Socio Afiliado",
+            "👥 Inscripción y Padrón",
+            "🔐 Matriz Global de Permisos",
+            "🏅 Certificados (Timbre y QR)",
+            "🏛️ Datos del Instituto"
+        ]
+    )
+
+
 if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("active_admin_workspace"):
     seccion_inst_sel = st.session_state["active_admin_workspace"]
 
@@ -4311,7 +4327,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
         st.divider()
 
-        # 14.5 PESTAÑA COBRANZA MENSUAL, IVA Y SOCIOS AFILIADOS
+        # 14.5 PESTAÑA COBRANZA MENSUAL E IVA 
         if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
             puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
             puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
@@ -4343,33 +4359,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
                 st.divider()
                 
-            if is_owner or puede_gestionar_afiliados:
-                if "show_reg_afiliado_panel" not in st.session_state:
-                    st.session_state["show_reg_afiliado_panel"] = False
-                app_pub_aff = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip().rstrip("/")
-                url_qr_aff = app_pub_aff if app_pub_aff else "https://streamlit.app"
-                c_ab, c_aq = st.columns([2.2, 1.0])
-                with c_ab:
-                    st.markdown("##### 🤝 Alta de Socios Afiliados")
-                    if st.button("➕ Registrar Nuevo Socio Afiliador" if not st.session_state["show_reg_afiliado_panel"] else "🔼 Cerrar Formulario", key="btn_tgl_aff"):
-                        st.session_state["show_reg_afiliado_panel"] = not st.session_state["show_reg_afiliado_panel"]
-                        st.rerun()
-                    st.caption(f"🔗 Destino QR: `{url_qr_aff}`")
-                with c_aq:
-                    try:
-                        import qrcode
-                        buf_q = io.BytesIO()
-                        qrcode.make(url_qr_aff).save(buf_q, format="PNG")
-                        st.image(buf_q.getvalue(), caption="📲 QR Registro Afiliados", width=125)
-                        st.download_button("⬇️ Descargar QR", data=buf_q.getvalue(), file_name="QR_Afiliados_CEI.png", mime="image/png", key="btn_dl_qraff")
-                    except Exception:
-                        st.caption(f"🔗 `{url_qr_aff}`")
-                if st.session_state["show_reg_afiliado_panel"]:
-                    with st.container(border=True):
-                        from registro_afiliados import render_formulario_registro_afiliado
-                        render_formulario_registro_afiliado(registrado_por=st.session_state.current_user, key_prefix="panel_admin_aff")
-
-                st.divider()
             padron_fin = load_padron_records()
             estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
             afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
@@ -4505,6 +4494,50 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     )
                 else:
                     st.info("No hay registros financieros de estudiantes para mostrar.")
+
+
+        # 14.5c PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS Y QR DE REGISTRO
+        if seccion_inst_sel == "🤝 Alta de Socios Afiliados":
+            if not (is_owner or puede_gestionar_afiliados):
+                st.warning("⛔ Tu perfil actual no tiene permisos habilitados para dar de alta Socios Afiliados.")
+            else:
+                app_pub_aff = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip().rstrip("/")
+                url_qr_aff = app_pub_aff if app_pub_aff else "https://streamlit.app"
+
+                col_aff_info, col_aff_qr = st.columns([2.4, 1.0])
+                with col_aff_info:
+                    st.markdown("#### 🤝 Alta Oficial y Expediente de Socios Afiliados")
+                    st.info(
+                        "Registra nuevos Socios Afiliados con su **ID único (`AFIL-CEI-AÑO-XXXX`)**, "
+                        "porcentaje de comisión base y expediente digital (INE anverso y reverso), "
+                        "o comparte el **código QR** para que completen su auto-registro externo."
+                    )
+                    st.caption(f"🔗 **Enlace Directo de Registro Externo:** `{url_qr_aff}`")
+
+                with col_aff_qr:
+                    try:
+                        import qrcode
+                        buf_q = io.BytesIO()
+                        qrcode.make(url_qr_aff).save(buf_q, format="PNG")
+                        st.image(buf_q.getvalue(), caption="📲 QR Registro Afiliados", width=135)
+                        st.download_button(
+                            "⬇️ Descargar QR",
+                            data=buf_q.getvalue(),
+                            file_name="QR_Registro_Afiliados_CEI.png",
+                            mime="image/png",
+                            width="stretch",
+                            key="btn_dl_qraff_main"
+                        )
+                    except Exception:
+                        st.caption(f"🔗 `{url_qr_aff}`")
+
+                st.divider()
+                from registro_afiliados import render_formulario_registro_afiliado
+                render_formulario_registro_afiliado(
+                    registrado_por=st.session_state.current_user,
+                    key_prefix="panel_admin_aff_main"
+                )
+
 
 
 
