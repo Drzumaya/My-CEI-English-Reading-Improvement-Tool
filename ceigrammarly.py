@@ -1580,7 +1580,7 @@ CEFR_MAP = {
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v10_gt_full") -> dict:
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v11_gt_safe") -> dict:
     """Tokeniza la lección y garantiza traducciones EN->ES reales para TODAS las palabras desde Python."""
     import re
     import requests
@@ -1635,7 +1635,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
     dict_final = {}
     gm_client = init_gemini_client()
 
-    # 1. Traducción completa en lotes con Gemini 2.5 Flash (cubre TODAS las palabras de la lección)
+    # 1. Traducción completa en lotes con Gemini 2.5 Flash
     if gm_client and palabras_clave:
         for i_batch in range(0, min(len(palabras_clave), 300), 120):
             lote_palabras = palabras_clave[i_batch:i_batch + 120]
@@ -1673,7 +1673,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
             except Exception:
                 pass
 
-    # 2. Respaldo directo HTTP desde Python a Google Translate (endpoint completo) para cualquier palabra faltante
+    # 2. Respaldo directo HTTP desde Python a Google Translate
     faltantes = [w for w in palabras_clave[:300] if w not in dict_final or dict_final[w]["es"].lower() == w]
     if faltantes:
         try:
@@ -1686,7 +1686,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
             )
             if r_gt.status_code == 200:
                 data_gt = r_gt.json()
-                traduccion_unida = "".join(seg[0] for seg in data_gt[0] if isinstance(seg, list) and seg and seg[0])
+                traduccion_unida = "".join(str(seg[0]) for seg in data_gt[0] if isinstance(seg, list) and len(seg) > 0 and seg[0])
                 lineas_tr = [x.strip() for x in traduccion_unida.splitlines()]
                 for orig_w, tr_w in zip(faltantes, lineas_tr):
                     if tr_w:
@@ -1702,7 +1702,6 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
         except Exception:
             pass
 
-    # Actualiza etiquetas gramaticales en los tokens
     for s_obj in oraciones_base:
         for tk in s_obj["tokens"]:
             info_w = dict_final.get(tk["w"].lower())
@@ -1710,7 +1709,6 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
                 tk["pos"] = info_w["pos"]
 
     return {"sentences": oraciones_base, "dictionary": dict_final}
-
 
 
 
