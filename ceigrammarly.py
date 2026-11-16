@@ -3406,6 +3406,7 @@ def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool,
 def evaluar_estado_financiero_alumno(student_user: str) -> dict:
 
     # Regla mensual (ciclos de 4 semanas / 28 días, no acumulable):
+    """
     - Pago realizado dentro de la Semana 4 o antes (días 1-28 del mes): Incentivo -7% sobre base.
     - Si inicia la semana del mes siguiente (día 29+) sin pagar el ciclo vencido: Recargo +5% y bloqueo de boletín.
     - IVA (16%) se aplica sobre el subtotal con descuento o recargo ya aplicado.
