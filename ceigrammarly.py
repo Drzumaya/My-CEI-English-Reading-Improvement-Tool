@@ -5694,11 +5694,11 @@ with col_tools_right:
 
 # --- 18. PIE DE PÁGINA INSTITUCIONAL ---
 st.divider()
-st.markdown(f"""
-    <div style='text-align: center; color: #777; font-size: 13px; margin-top: 20px;'>
-        📍 <b>{institute_address}</b><br>
-        © 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti
-    </div>
-""", unsafe_allow_html=True)
-
+footer_html = (
+    "<div style='text-align: center; color: #777; font-size: 13px; margin-top: 20px;'>"
+    "📍 <b>" + str(institute_address) + "</b><br>"
+    "© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti"
+    "</div>"
 )
+st.markdown(footer_html, unsafe_allow_html=True)
+
