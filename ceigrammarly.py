@@ -3120,14 +3120,6 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
     return buf.getvalue()
 
 
-if st.session_state.get("current_motivational_quote"):
-    mq = st.session_state["current_motivational_quote"]
-    st.info(
-        f"✨ ***“{mq.get('quote_en', '')}”*** — **{mq.get('author', '')}**\n\n"
-        f"🇲🇽 *{mq.get('quote_es', '')}*\n\n"
-        f"🎯 **Reflection:** {mq.get('reflection', '')}"
-    )
-
 
 
 
