@@ -2912,7 +2912,7 @@ def generar_pdf_certificado(
 
 def render_interactive_study_viewer(study_payload: dict):
     # Visor interactivo client-side con voz US English y diccionario estilo Google Translate
-    st.iframe(html_code, height=680)
+    raw_lesson = str(st.session_state.get("generated_text") or "").strip()
 
     raw_lesson = str(st.session_state.get("generated_text") or "").strip()
     for marcador in ["**Bibliography", "Bibliography ("]:
