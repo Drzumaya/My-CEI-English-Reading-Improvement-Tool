@@ -5085,7 +5085,6 @@ with col_main_center:
             st.session_state.show_right_panel = not st.session_state.show_right_panel
             st.rerun()
 
-
     if st.session_state.get("generated_text") and st.session_state.study_mode_active:
         # Reproductor Nativo US English (en-US) con selector forzado de voz estadounidense
         texto_us_clean = (
@@ -5096,7 +5095,7 @@ with col_main_center:
             .replace('"', "'")
             .replace("\n", " ")
         )
-        html_us_tts = f"""
+        html_us_tts = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;">
         <div style="background:#F0F4F8; border:1px solid #CBD5E1; border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px; font-family:sans-serif;">
             <button onclick="playUS()" style="background:#1E3A8A; color:white; border:none; border-radius:6px; padding:6px 14px; font-weight:bold; cursor:pointer;">
                 🔊 Escuchar Lección (US English)
@@ -5109,7 +5108,7 @@ with col_main_center:
         <script>
             const lessonText = {json.dumps(texto_us_clean)};
             function getBestUSVoice() {{
-                const voices = window.speechSynthesis.getVoices();
+                const voices = window.speechSynthesis.getVoices() || [];
                 return (
                     voices.find(v => v.lang === 'en-US' && (v.name.includes('Google US English') || v.name.includes('Aria') || v.name.includes('Jenny') || v.name.includes('Guy') || v.name.includes('Samantha') || v.name.includes('Alex'))) ||
                     voices.find(v => v.lang === 'en-US') ||
@@ -5129,21 +5128,22 @@ with col_main_center:
                 }}
                 window.speechSynthesis.speak(u);
             }}
-        </script>
-        """
-        st.iframe(html_us_tts, height=56)
+        </script></body></html>"""
+        b64_tts = base64.b64encode(html_us_tts.encode("utf-8")).decode("ascii")
+        st.iframe(f"data:text/html;base64,{b64_tts}", height=56)
 
-        with st.spinner("🧠 Preparando análisis sintáctico, pronunciación y diccionario contextual..."):
-            estudio_data = analyze_lesson_for_study_mode(
-                st.session_state.generated_text,
-                st.session_state.get("selected_cefr", "B1")
-            )
-        if estudio_data:
-            render_interactive_study_viewer(estudio_data)
-        else:
-            st.warning("⚠️ No se pudo generar el análisis interactivo. Mostrando edición de impresión.")
-            with st.container(height=420, border=True):
-                st.markdown(st.session_state.generated_text)
+        estudio_data = {}
+        try:
+            with st.spinner("🧠 Cargando diccionario contextual y pronunciación US..."):
+                estudio_data = analyze_lesson_for_study_mode(
+                    st.session_state.generated_text,
+                    st.session_state.get("selected_cefr", "B1")
+                ) or {}
+        except Exception:
+            estudio_data = {}
+
+        # Siempre abre el visor interactivo (usa estudio_data como acelerador y fallback en vivo)
+        render_interactive_study_viewer(estudio_data)
     else:
         top_container = st.container(height=420, border=True)
         with top_container:
@@ -5151,7 +5151,6 @@ with col_main_center:
                 st.markdown(st.session_state.generated_text)
             else:
                 st.info("👈 Escribe los datos en Español o Inglés en la barra izquierda y presiona **Generate Lesson**, o busca un **Folio** arriba.")
-
 
 
 
