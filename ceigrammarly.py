@@ -2911,15 +2911,37 @@ def generar_pdf_certificado(
     return bytes(pdf.output())
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def _prebuild_lesson_dictionary(text_block: str, existing_dict: dict) -> dict:
+    # Enriquece el diccionario local antes de renderizar para que el clic sea instantaneo (0 ms de latencia)
+    import re
+    merged = dict(existing_dict or {})
+    words = set(re.findall(r"\b[a-zA-Z]{3,}\b", str(text_block or "").lower()))
+    faltantes = [w for w in sorted(words) if w not in merged][:45]
+    if faltantes:
+        try:
+            from deep_translator import GoogleTranslator
+            tr_batch = GoogleTranslator(source="en", target="es").translate("\n".join(faltantes))
+            tr_lines = [x.strip() for x in str(tr_batch or "").splitlines()]
+            if len(tr_lines) == len(faltantes):
+                for w_en, w_es in zip(faltantes, tr_lines):
+                    if w_es and w_es.lower() != w_en:
+                        merged[w_en] = {"es": w_es, "pos": "", "ipa": "", "alt": "", "def": ""}
+        except Exception:
+            pass
+    return merged
+
+
 def render_interactive_study_viewer(study_payload: dict):
-    # Visor interactivo de alta disponibilidad: HTML pre-renderizado + voz US hover + diccionario estilo Google Translate
+    # Visor Interactivo CEI Standard: AudioContext Unlock + Voz US Neural/System + Diccionario Contextual
     import html as html_lib
     import re
+    import streamlit.components.v1 as components
 
     raw_lesson = str(st.session_state.get("generated_text") or "").strip()
     for marcador in ["**Bibliography", "Bibliography ("]:
         if marcador in raw_lesson:
-            raw_lesson = raw_lesson.split(marcador, 1)[0]
+            raw_lesson = raw_lesson.split(marcador, 1)
 
     clean_lines = []
     for ln in raw_lesson.splitlines():
@@ -2934,10 +2956,10 @@ def render_interactive_study_viewer(study_payload: dict):
         clean_lines.append(s.replace("**", "").replace("#", "").strip())
 
     dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
-    clean_dict = {}
+    base_dict = {}
     for k, v in dict_map.items():
         if isinstance(v, dict):
-            clean_dict[str(k).lower().strip()] = {
+            base_dict[str(k).lower().strip()] = {
                 "es": str(v.get("es", "")).strip(),
                 "pos": str(v.get("pos_es", "")).strip(),
                 "ipa": str(v.get("ipa", "")).strip(),
@@ -2945,56 +2967,56 @@ def render_interactive_study_viewer(study_payload: dict):
                 "def": str(v.get("def_es", "")).strip()
             }
 
+    clean_dict = _prebuild_lesson_dictionary("\n".join(clean_lines), base_dict)
     conjunciones = {
         "and", "but", "or", "so", "because", "although", "while", "if",
         "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"
     }
 
     boxes_html = []
-    if not clean_lines:
-        boxes_html.append('<div class="sbox">No hay texto cargado en la lección actual.</div>')
-    else:
-        for idx_l, line in enumerate(clean_lines):
-            cls_box = "tbox" if idx_l == 0 else "sbox"
-            line_esc = html_lib.escape(line, quote=True)
-            spans = []
-            for part in re.split(r"(\s+)", line):
-                if not part or part.isspace():
-                    continue
-                m = re.match(r"^([^A-Za-z0-9'-]*)([A-Za-z0-9'-]+)([^A-Za-z0-9'-]*)$", part)
-                if not m:
-                    spans.append(html_lib.escape(part) + " ")
-                    continue
-                pre, tok, post = m.groups()
-                low = tok.lower()
-                info_d = clean_dict.get(low, {})
-                pos_raw = str(info_d.get("pos", "")).lower()
-                if "verb" in pos_raw:
-                    pos = "verb"
-                elif "sust" in pos_raw or "noun" in pos_raw:
-                    pos = "noun"
-                elif "adj" in pos_raw:
-                    pos = "adjective"
-                elif "conj" in pos_raw or low in conjunciones:
-                    pos = "conjunction"
-                elif low.endswith(("ing", "ed")) and len(low) > 4:
-                    pos = "verb"
-                elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
-                    pos = "adjective"
-                elif len(low) > 3 and low.isalpha():
-                    pos = "noun"
-                else:
-                    pos = "other"
+    for idx_l, line in enumerate(clean_lines):
+        cls_box = "tbox" if idx_l == 0 else "sbox"
+        line_esc = html_lib.escape(line, quote=True)
+        spans = []
+        for part in re.split(r"(\s+)", line):
+            if not part or part.isspace():
+                continue
+            m = re.match(r"^([^A-Za-z0-9'-]*)([A-Za-z0-9'-]+)([^A-Za-z0-9'-]*)$", part)
+            if not m:
+                spans.append(html_lib.escape(part) + " ")
+                continue
+            pre, tok, post = m.groups()
+            low = tok.lower()
+            info_d = clean_dict.get(low, {})
+            pos_raw = str(info_d.get("pos", "")).lower()
+            if "verb" in pos_raw:
+                pos = "verb"
+            elif "sust" in pos_raw or "noun" in pos_raw:
+                pos = "noun"
+            elif "adj" in pos_raw:
+                pos = "adjective"
+            elif "conj" in pos_raw or low in conjunciones:
+                pos = "conjunction"
+            elif low.endswith(("ing", "ed")) and len(low) > 4:
+                pos = "verb"
+            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
+                pos = "adjective"
+            elif len(low) > 3 and low.isalpha():
+                pos = "noun"
+            else:
+                pos = "other"
 
-                tok_esc = html_lib.escape(tok, quote=True)
-                spans.append(
-                    f'{html_lib.escape(pre)}<span class="wt {pos}" data-w="{tok_esc}" '
-                    f'data-p="{pos}" data-s="{line_esc}">{tok_esc}</span>{html_lib.escape(post)} '
-                )
-            boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
+            tok_esc = html_lib.escape(tok, quote=True)
+            spans.append(
+                f'{html_lib.escape(pre)}<span class="wt {pos}" data-w="{tok_esc}" '
+                f'data-p="{pos}" data-s="{line_esc}">{tok_esc}</span>{html_lib.escape(post)} '
+            )
+        boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
 
-    rendered_lesson_html = "\n".join(boxes_html)
+    rendered_lesson_html = "\n".join(boxes_html) or '<div class="sbox">Sin texto cargado.</div>'
     dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
+
+
     html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
     body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
@@ -3014,7 +3036,7 @@ def render_interactive_study_viewer(study_payload: dict):
     .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}
     .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
     #gt-panel{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;
-              border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.25);margin-top:14px;overflow:hidden;display:none}
+              border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.28);margin-top:14px;overflow:hidden;display:none}
     .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;
              color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
     .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
@@ -3022,14 +3044,19 @@ def render_interactive_study_viewer(study_payload: dict):
     .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
     .gt-btn{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;
             padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
+    .unlock-btn{background:#16a34a;color:#fff;border:none;border-radius:6px;padding:5px 10px;
+                font-size:12px;font-weight:700;cursor:pointer}
     </style></head><body>
     <div class="tb">
       <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
            <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
            <span class="bg other">Otros</span></div>
-      <div><label style="cursor:pointer"><input type="checkbox" id="hov" checked> 🇺🇸 Voz US al pasar cursor</label>
-           <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
-                   onclick="spd()" id="sb">1.0x</button></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="btnUnlock" class="unlock-btn" onclick="unlockAudio()">🔊 Activar Voz Hover (US)</button>
+        <label style="cursor:pointer"><input type="checkbox" id="hov" checked> Auto-Voz</label>
+        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
+                onclick="spd()" id="sb">1.0x</button>
+      </div>
     </div>
     <div id="lc">__LESSON_HTML__</div>
     <div id="gt-panel" onclick="event.stopPropagation()">
@@ -3060,9 +3087,10 @@ def render_interactive_study_viewer(study_payload: dict):
     <script>
     const D=__DICT_JSON__;
     const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
-    let curW="", lst="", sp=1, usVoiceCache=null;
+    let curW="", lst="", sp=1, usVoiceCache=null, audioUnlocked=false;
 
     function pickUSVoice(){
+      if(!('speechSynthesis'in window))return null;
       const vs=window.speechSynthesis.getVoices()||[];
       usVoiceCache=
         vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Guy')||v.name.includes('Samantha')||v.name.includes('Alex')))||
@@ -3071,16 +3099,26 @@ def render_interactive_study_viewer(study_payload: dict):
       return usVoiceCache;
     }
     if('speechSynthesis'in window){pickUSVoice();window.speechSynthesis.onvoiceschanged=pickUSVoice;}
+
+    function unlockAudio(){
+      audioUnlocked=true;
+      const b=document.getElementById('btnUnlock');
+      if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}
+      spk('Ready',1);
+    }
+
     function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
     function spk(w,r){
-      if(!('speechSynthesis'in window))return;
-      speechSynthesis.cancel();
-      const u=new SpeechSynthesisUtterance(w);
-      u.lang='en-US';
-      const v=usVoiceCache||pickUSVoice();
-      if(v)u.voice=v;
-      u.rate=r||sp;
-      speechSynthesis.speak(u);
+      if(!('speechSynthesis'in window)||!w)return;
+      try{
+        window.speechSynthesis.cancel();
+        const u=new SpeechSynthesisUtterance(w);
+        u.lang='en-US';
+        const v=usVoiceCache||pickUSVoice();
+        if(v)u.voice=v;
+        u.rate=r||sp;
+        window.speechSynthesis.speak(u);
+      }catch(e){}
     }
     function cls(){document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}
 
@@ -3091,20 +3129,13 @@ def render_interactive_study_viewer(study_payload: dict):
       return null;
     }
 
-    async function fetchLiveGT(word){
-      try{
-        const u='https://googleapis.com;
-        const r=await fetch(u);
-        const j=await r.json();
-        if(Array.isArray(j) && Array.isArray(j[0]) && Array.isArray(j[0][0]) && j[0][0][0]){
-          return String(j[0][0][0]);
-        }
-      }catch(e){}
-      return word;
-    }
-
-    async function openWordCard(e,el){
+    function openWordCard(e,el){
       e.stopPropagation();
+      if(!audioUnlocked){
+        audioUnlocked=true;
+        const b=document.getElementById('btnUnlock');
+        if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}
+      }
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
       const w=el.getAttribute('data-w')||'';
@@ -3112,6 +3143,7 @@ def render_interactive_study_viewer(study_payload: dict):
       const fs=el.getAttribute('data-s')||'';
       curW=w;
       spk(w,1);
+
       const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
       const inf=lookupLocalDict(k)||{};
       const pnl=document.getElementById('gt-panel');
@@ -3122,6 +3154,7 @@ def render_interactive_study_viewer(study_payload: dict):
       document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
       document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
       document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
+      document.getElementById('be').innerText=inf.es||w;
 
       const cleanQ=encodeURIComponent(k||w);
       const bxEl=document.getElementById('bx');
@@ -3145,17 +3178,6 @@ def render_interactive_study_viewer(study_payload: dict):
       linksDiv.appendChild(aWR);
       linksDiv.appendChild(aGT);
       bxEl.appendChild(linksDiv);
-
-      if(inf.es && inf.es.toLowerCase()!==k){
-        document.getElementById('be').innerText=inf.es;
-      }else{
-        document.getElementById('be').innerText='⏳ Traduciendo...';
-        const tr=await fetchLiveGT(k||w);
-        if(curW===w){
-          document.getElementById('be').innerText=tr;
-          D[k]=Object.assign(inf,{es:tr});
-        }
-      }
       pnl.scrollIntoView({behavior:'smooth',block:'nearest'});
     }
 
@@ -3171,7 +3193,8 @@ def render_interactive_study_viewer(study_payload: dict):
     </script></body></html>"""
 
     html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
-    st.html(html_code, unsafe_allow_javascript=True)
+    components.html(html_code, height=700, scrolling=True)
+
 
     
 
