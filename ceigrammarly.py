@@ -3192,12 +3192,12 @@ def render_interactive_study_viewer(study_payload: dict):
     
 
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
-    # Prioriza modelos Flash reales de baja latencia (<3s) antes que modelos Pro pesados """
+    # Modelos activos de Google AI Studio (noviembre 2026): alta velocidad + respaldo 3.1-pro-preview
     modelos_potentes = [
         "gemini-2.5-flash",
+        "gemini-3.1-pro-preview",
         "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.5-pro"
+        "gemini-3-flash-preview"
     ]
     ultimo_error = None
     for modelo in modelos_potentes:
@@ -3223,6 +3223,7 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
     if ultimo_error:
         raise ultimo_error
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
+
 
 
 
