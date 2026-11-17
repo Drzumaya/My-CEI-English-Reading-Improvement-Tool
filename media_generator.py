@@ -10,8 +10,8 @@ import streamlit as st
 
 
 def _fetch_real_topic_photo(keywords: str) -> bytes | None:
-    """Obtiene una fotografia educativa real y gratuita desde Wikipedia / Wikimedia Commons."""
-    clean_kw = re.sub(r'[^a-zA-Z0-9 ]+', ' ', str(keywords or "")).strip()
+    """Obtiene una fotografía educativa real y gratuita desde Wikipedia / Wikimedia Commons."""
+    clean_kw = re.sub(r"[^a-zA-Z0-9 ]+", " ", str(keywords or "")).strip()
     words = [w for w in clean_kw.split() if len(w) > 2][:3]
     queries = []
     if words:
@@ -19,9 +19,9 @@ def _fetch_real_topic_photo(keywords: str) -> bytes | None:
         queries.append(words[0])
     queries.append("education study books")
 
-    headers = {"User-Agent": "CEI-Academic-Portal/1.0 (https://careerenglish.edu)"}
+    headers = {"User-Agent": "CEI-Academic-Portal/1.0 (https://careerenglish.edu; contact@careerenglish.edu)"}
 
-    # 1. Wikipedia PageImages API (altisima tasa de acierto en temas academicos y culturales)
+    # 1. Wikipedia PageImages API (alta precisión en temas académicos y culturales)
     for q in queries:
         try:
             q_enc = urllib.parse.quote(q)
@@ -74,16 +74,15 @@ def _fetch_real_topic_photo(keywords: str) -> bytes | None:
 
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    # Genera fotografia tematica real acorde al topico y frase celebre motivacional bilingue
+    """Genera ilustración educativa con IA o fotografía temática real más frase célebre bilingüe."""
     st.session_state["last_img_error"] = None
-    escena_limpia = re.sub(r'[^a-zA-Z0-9 ,.-]+', ' ', str(scene_prompt or "")).strip()
-    escena_limpia = re.sub(r'\s+', ' ', escena_limpia)
+    escena_limpia = re.sub(r"[^a-zA-Z0-9 ,.-]+", " ", str(scene_prompt or "")).strip()
+    escena_limpia = re.sub(r"\s+", " ", escena_limpia)
 
-    # Extrae palabras clave del topico actual si existen en session_state
     topico_activo = str(st.session_state.get("current_topic") or escena_limpia[:60] or "education").strip()
     kw_busqueda = topico_activo
 
-    # 1. Genera Frase Celebre Motivacional + Palabras Clave Visuales con Gemini Flash
+    # 1. Genera Frase Célebre Motivacional + Palabras Clave Visuales con Gemini Flash
     if client_gm:
         try:
             prompt_q = (
@@ -95,8 +94,12 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
                 '"quote_es": "Spanish translation", '
                 '"reflection": "one brief English sentence connecting quote to learning English"}'
             )
-            r_q = client_gm.models.generate_content(model="gemini-2.5-flash", contents=prompt_q)
-            raw_q = r_q.text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            r_q = client_gm.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt_q,
+                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.5)
+            )
+            raw_q = str(r_q.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
             q_data = json.loads(raw_q)
             if isinstance(q_data, dict):
                 if q_data.get("keywords"):
@@ -105,7 +108,8 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
         except Exception:
             pass
 
-    # 2. Intento con Gemini Image Generation (si hay facturacion activa)
+    # 2. Intento con Gemini Image Generation
+    errores_img = []
     if client_gm:
         full_prompt = (
             "Create a clean, modern educational textbook illustration (no text or letters inside the image). Scene: " + escena_limpia
@@ -126,15 +130,18 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
                                 img_b = base64.b64decode(img_b)
                             if img_b and len(img_b) > 2000:
                                 return img_b
-            except Exception:
-                pass
+            except Exception as e_mm:
+                errores_img.append(f"{modelo_mm}: {str(e_mm)[:120]}")
 
-    # 3. Fotografia Educativa Real desde Wikipedia / Wikimedia Commons (100% gratuita e ilimitada)
+    if errores_img:
+        st.session_state["last_img_error"] = " | ".join(errores_img)
+
+    # 3. Fotografía Educativa Real desde Wikipedia / Wikimedia Commons
     foto_real = _fetch_real_topic_photo(kw_busqueda)
     if foto_real:
         return foto_real
 
-    # 4. Respaldo visual institucional en Pillow (solo si no hay conexion externa)
+    # 4. Respaldo visual institucional en Pillow
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(18, 36, 66))
     draw = ImageDraw.Draw(img)
