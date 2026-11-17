@@ -2135,7 +2135,7 @@ def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | No
 
 
 def render_interactive_study_viewer(study_payload: dict):
-    """Visor interactivo 100% nativo de Streamlit: cero iframes, voz MP3 real y diccionario instantáneo."""
+    """Visor interactivo 100% nativo de Streamlit: botones en primer plano, voz MP3 y diccionario."""
     if not study_payload or not study_payload.get("sentences"):
         st.warning("No se pudo estructurar el modo estudio para este texto.")
         return
@@ -2143,22 +2143,116 @@ def render_interactive_study_viewer(study_payload: dict):
     sentences = study_payload.get("sentences", [])
     dictionary = study_payload.get("dictionary", {})
 
-    # 1. Leyenda de colores gramaticales
+    # 1. Leyenda de colores gramaticales (solo referencia visual)
     st.markdown(
         """
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:10px;font-size:12px;font-weight:700;">
+            <span style="color:#475569;">🎨 Código Gramatical:</span>
             <span style="background:#fee2e2;color:#991b1b;padding:3px 8px;border-radius:6px;border-bottom:2px solid #ef4444;">Verbos</span>
             <span style="background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:6px;border-bottom:2px solid #3b82f6;">Sustantivos</span>
             <span style="background:#dcfce7;color:#166534;padding:3px 8px;border-radius:6px;border-bottom:2px solid #22c55e;">Adjetivos</span>
             <span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:6px;border-bottom:2px solid #f59e0b;">Conjunciones</span>
             <span style="background:#f1f5f9;color:#334155;padding:3px 8px;border-radius:6px;">Otros</span>
-            <span style="margin-left:auto;color:#0f766e;">👆 Toca cualquier palabra abajo para 🔊 Escuchar y 📖 Ver Diccionario</span>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # 2. Texto completo coloreado gramaticalmente (vista rápida de lectura)
+    # 2. Panel Interactivo Principal (Botones reales de palabras + Audio + Diccionario)
+    opciones_oraciones = {
+        f"Oración {i + 1}: {str(s.get('full_sentence', ''))[:75]}": i
+        for i, s in enumerate(sentences)
+        if str(s.get("full_sentence", "")).strip()
+    }
+
+    if opciones_oraciones:
+        with st.container(border=True):
+            col_s1, col_s2 = st.columns([2.6, 1.0])
+            with col_s1:
+                oracion_label = st.selectbox(
+                    "1️⃣ Elige la oración a estudiar:",
+                    list(opciones_oraciones.keys()),
+                    key="study_native_sentence_sel"
+                )
+            with col_s2:
+                st.write("")
+                velocidad_lenta = st.toggle("🐢 Voz Lenta", value=False, key="study_native_slow_tgl")
+
+            idx_oracion = opciones_oraciones[oracion_label]
+            oracion_actual = sentences[idx_oracion]
+            tokens_oracion = oracion_actual.get("tokens", [])
+
+            palabras_botones = []
+            mapa_tokens = {}
+            for tok in tokens_oracion:
+                w_raw = str(tok.get("w", "")).strip()
+                w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw)
+                if w_clean:
+                    etiqueta = f"{w_raw} ·" if w_raw in mapa_tokens else w_raw
+                    palabras_botones.append(etiqueta)
+                    mapa_tokens[etiqueta] = (w_clean, str(tok.get("pos", "other")).lower())
+
+            if palabras_botones:
+                palabra_elegida = st.pills(
+                    "2️⃣ Haz clic en cualquier botón de palabra para escuchar (US) y abrir su diccionario:",
+                    options=palabras_botones,
+                    selection_mode="single",
+                    key=f"study_pills_sent_{idx_oracion}"
+                )
+
+                if palabra_elegida and palabra_elegida in mapa_tokens:
+                    w_clean, pos_tag = mapa_tokens[palabra_elegida]
+                    k_low = w_clean.lower()
+
+                    info_dic = dictionary.get(k_low)
+                    if not info_dic:
+                        for stem in (
+                            re.sub(r"ed$", "", k_low),
+                            re.sub(r"ed$", "e", k_low),
+                            re.sub(r"ing$", "", k_low),
+                            re.sub(r"ing$", "e", k_low),
+                            re.sub(r"ies$", "y", k_low),
+                            re.sub(r"s$", "", k_low),
+                        ):
+                            if len(stem) > 2 and stem in dictionary:
+                                info_dic = dictionary[stem]
+                                break
+                    info_dic = info_dic or {}
+
+                    pos_es_map = {
+                        "verb": "Verbo (Verb)",
+                        "noun": "Sustantivo (Noun)",
+                        "adjective": "Adjetivo (Adjective)",
+                        "conjunction": "Conjunción (Conjunction)",
+                        "other": "Preposición / Adverbio / Otro"
+                    }
+
+                    st.divider()
+                    c_d1, c_d2 = st.columns([1.2, 1.3])
+                    with c_d1:
+                        st.markdown(f"### 🇺🇸 {w_clean}")
+                        st.caption(f"**Categoría:** {info_dic.get('pos') or pos_es_map.get(pos_tag, 'Vocabulario')}")
+                        if info_dic.get("ipa"):
+                            st.markdown(f"**Fonética (IPA):** `{info_dic['ipa']}`")
+
+                        mp3_word = _synthesize_word_mp3(w_clean, slow_mode=velocidad_lenta)
+                        if mp3_word:
+                            st.audio(mp3_word, format="audio/mp3", autoplay=True)
+
+                    with c_d2:
+                        st.markdown(f"### 🇪🇸 {info_dic.get('es') or w_clean}")
+                        if info_dic.get("alt"):
+                            st.markdown(f"**Sinónimos / Acepciones:** {info_dic['alt']}")
+                        if info_dic.get("def"):
+                            st.info(f"📖 **Definición:** {info_dic['def']}")
+
+                        q_url = urllib.parse.quote(k_low)
+                        st.markdown(
+                            f"🔗 [Abrir en WordReference ↗](https://wordreference.com{q_url})  |  "
+                            f"[Abrir en Google Translate ↗](https://google.com{q_url}&op=translate)"
+                        )
+
+    # 3. Texto completo coloreado gramaticalmente (vista general de lectura)
     pos_styles = {
         "verb": "background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444;",
         "noun": "background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6;",
@@ -2167,8 +2261,8 @@ def render_interactive_study_viewer(study_payload: dict):
         "other": "background:#f1f5f9;color:#334155;"
     }
 
-    with st.container(height=250, border=True):
-        for s_idx, sent in enumerate(sentences):
+    with st.container(height=270, border=True):
+        for sent in sentences:
             tokens = sent.get("tokens", [])
             spans_html = []
             for tok in tokens:
@@ -2189,100 +2283,6 @@ def render_interactive_study_viewer(study_payload: dict):
                     unsafe_allow_html=True
                 )
 
-    # 3. Explorador Interactivo Nativo por Oración y Palabra
-    st.markdown("#### 🔍 Explorador Fonético y Diccionario Interactivo")
-    opciones_oraciones = {
-        f"Oración {i + 1}: {str(s.get('full_sentence', ''))[:75]}...": i
-        for i, s in enumerate(sentences)
-        if str(s.get("full_sentence", "")).strip()
-    }
-
-    if not opciones_oraciones:
-        return
-
-    col_s1, col_s2 = st.columns([2.6, 1.0])
-    with col_s1:
-        oracion_label = st.selectbox(
-            "Selecciona la oración que estás estudiando:",
-            list(opciones_oraciones.keys()),
-            key="study_native_sentence_sel"
-        )
-    with col_s2:
-        velocidad_lenta = st.toggle("🐢 Voz Lenta", value=False, key="study_native_slow_tgl")
-
-    idx_oracion = opciones_oraciones[oracion_label]
-    oracion_actual = sentences[idx_oracion]
-    tokens_oracion = oracion_actual.get("tokens", [])
-
-    palabras_botones = []
-    mapa_tokens = {}
-    for t_i, tok in enumerate(tokens_oracion):
-        w_raw = str(tok.get("w", "")).strip()
-        w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw)
-        if w_clean:
-            etiqueta = f"{w_raw} ·" if w_raw in mapa_tokens else w_raw
-            palabras_botones.append(etiqueta)
-            mapa_tokens[etiqueta] = (w_clean, str(tok.get("pos", "other")).lower())
-
-    if palabras_botones:
-        palabra_elegida = st.pills(
-            "👆 Toca una palabra para escuchar su pronunciación (US) y ver su significado:",
-            options=palabras_botones,
-            selection_mode="single",
-            key=f"study_pills_sent_{idx_oracion}"
-        )
-
-        if palabra_elegida and palabra_elegida in mapa_tokens:
-            w_clean, pos_tag = mapa_tokens[palabra_elegida]
-            k_low = w_clean.lower()
-
-            info_dic = dictionary.get(k_low)
-            if not info_dic:
-                for stem in (
-                    re.sub(r"ed$", "", k_low),
-                    re.sub(r"ed$", "e", k_low),
-                    re.sub(r"ing$", "", k_low),
-                    re.sub(r"ing$", "e", k_low),
-                    re.sub(r"ies$", "y", k_low),
-                    re.sub(r"s$", "", k_low),
-                ):
-                    if len(stem) > 2 and stem in dictionary:
-                        info_dic = dictionary[stem]
-                        break
-            info_dic = info_dic or {}
-
-            pos_es_map = {
-                "verb": "Verbo (Verb)",
-                "noun": "Sustantivo (Noun)",
-                "adjective": "Adjetivo (Adjective)",
-                "conjunction": "Conjunción (Conjunction)",
-                "other": "Preposición / Adverbio / Otro"
-            }
-
-            with st.container(border=True):
-                c_d1, c_d2 = st.columns([1.2, 1.3])
-                with c_d1:
-                    st.markdown(f"### 🇺🇸 {w_clean}")
-                    st.caption(f"**Categoría:** {info_dic.get('pos') or pos_es_map.get(pos_tag, 'Vocabulario')}")
-                    if info_dic.get("ipa"):
-                        st.markdown(f"**Fonética (IPA):** `{info_dic['ipa']}`")
-
-                    mp3_word = _synthesize_word_mp3(w_clean, slow_mode=velocidad_lenta)
-                    if mp3_word:
-                        st.audio(mp3_word, format="audio/mp3", autoplay=True)
-
-                with c_d2:
-                    st.markdown(f"### 🇪🇸 {info_dic.get('es') or w_clean}")
-                    if info_dic.get("alt"):
-                        st.markdown(f"**Sinónimos / Acepciones:** {info_dic['alt']}")
-                    if info_dic.get("def"):
-                        st.info(f"📖 **Definición:** {info_dic['def']}")
-
-                    q_url = urllib.parse.quote(k_low)
-                    st.markdown(
-                        f"🔗 [Abrir en WordReference ↗](https://wordreference.com{q_url})  |  "
-                        f"[Abrir en Google Translate ↗](https://google.com{q_url}&op=translate)"
-                    )
 
 # ==============================================================================
 # PARTE 9A: MIGRACIÓN SHEETS -> SUPABASE (PERMISOS, PADRÓN Y FOLIOS)
