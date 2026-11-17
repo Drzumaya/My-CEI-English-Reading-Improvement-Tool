@@ -2227,14 +2227,14 @@ def render_interactive_study_viewer(study_payload: dict):
     rendered_lesson_html = "".join(boxes_html)
     dict_json = json.dumps(clean_dict, ensure_ascii=False).replace("</", "<\\/")
 # ==============================================================================
-# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO (PLANTILLA HTML/JS Y AUDIO US)
+# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO (ESTILOS CSS Y ESTRUCTURA HTML)
 # ==============================================================================
     html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
-    body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
+    body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
     .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;
         background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;
-        margin-bottom:12px;font-size:12px;font-weight:600;position:sticky;top:0;z-index:50}
+        margin-bottom:10px;font-size:12px;font-weight:600;position:sticky;top:0;z-index:100}
     .bg{padding:3px 8px;border-radius:6px}
     .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
     .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
@@ -2247,14 +2247,14 @@ def render_interactive_study_viewer(study_payload: dict):
           border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
     .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}
     .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
-    #gt-panel{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;
-              border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.28);margin-top:14px;overflow:hidden;display:none}
+    #gt-panel{position:sticky;top:52px;z-index:999;background:#fff;border:2px solid #1a73e8;
+              border-radius:12px;box-shadow:0 10px 28px rgba(26,115,232,.32);margin-bottom:12px;overflow:hidden;display:none}
     .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;
              color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
     .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
-    .gt-col{padding:12px 14px}
+    .gt-col{padding:10px 14px}
     .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
-    .gt-btn{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;
+    .gt-btn{border:none;background:rgba(255,255,255,.22);color:#fff;border-radius:6px;
             padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
     .unlock-btn{background:#16a34a;color:#fff;border:none;border-radius:6px;padding:5px 10px;
                 font-size:12px;font-weight:700;cursor:pointer}
@@ -2270,7 +2270,7 @@ def render_interactive_study_viewer(study_payload: dict):
                 onclick="spd()" id="sb">1.0x</button>
       </div>
     </div>
-    <div id="lc">__LESSON_HTML__</div>
+
     <div id="gt-panel" onclick="event.stopPropagation()">
       <div class="gt-head">
         <span>🌐 GOOGLE TRANSLATE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
@@ -2283,52 +2283,100 @@ def render_interactive_study_viewer(study_payload: dict):
       <div class="gt-grid">
         <div class="gt-col">
           <div style="font-size:11px;color:#64748b;font-weight:700">ENGLISH (UNITED STATES)</div>
-          <div id="bw" style="font-size:22px;font-weight:700;color:#0f172a;margin-top:2px"></div>
+          <div id="bw" style="font-size:21px;font-weight:700;color:#0f172a;margin-top:2px"></div>
           <div id="bi" style="font-size:13px;color:#475569;margin-top:2px"></div>
           <div id="bp" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:4px"></div>
         </div>
         <div class="gt-col">
           <div style="font-size:11px;color:#64748b;font-weight:700">ESPAÑOL (TRADUCCIÓN)</div>
-          <div id="be" style="font-size:22px;font-weight:700;color:#1a73e8;margin-top:2px"></div>
+          <div id="be" style="font-size:21px;font-weight:700;color:#1a73e8;margin-top:2px"></div>
           <div id="ba" style="font-size:12px;color:#475569;margin-top:4px"></div>
           <div id="bd" style="font-size:12px;color:#334155;margin-top:4px"></div>
         </div>
       </div>
       <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
     </div>
+
+    <div id="lc">__LESSON_HTML__</div>
+# ==============================================================================
+# PARTE 8B3: MOTOR JS DE VOZ US (MACBOOK PRO + MÓVIL) Y RENDERIZADO DEL VISOR
+# ==============================================================================
     <script>
     const D=__DICT_JSON__;
     const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
-    let curW="", lst="", sp=1, usVoiceCache=null, audioUnlocked=false;
+    let curW="", lst="", sp=1, usVoiceCache=null, audioUnlocked=false, spkTimer=null;
+
     function pickUSVoice(){
       if(!('speechSynthesis'in window))return null;
       const vs=window.speechSynthesis.getVoices()||[];
-      usVoiceCache=vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Samantha')||v.name.includes('Alex')))||vs.find(v=>v.lang==='en-US'||v.lang==='en_US')||vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
+      if(!vs.length)return null;
+      usVoiceCache=vs.find(v=>v.lang==='en-US'&&(v.name.includes('Samantha')||v.name.includes('Alex')||v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')))
+        ||vs.find(v=>v.lang==='en-US'||v.lang==='en_US')
+        ||vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
       return usVoiceCache;
     }
-    if('speechSynthesis'in window){pickUSVoice();window.speechSynthesis.onvoiceschanged=pickUSVoice;}
-    function unlockAudio(){audioUnlocked=true;const b=document.getElementById('btnUnlock');if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}spk('Ready',1);}
-    function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
-    function spk(w,r){
-      if(!('speechSynthesis'in window)||!w)return;
-      try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';const v=usVoiceCache||pickUSVoice();if(v)u.voice=v;u.rate=r||sp;window.speechSynthesis.speak(u);}catch(e){}
+    if('speechSynthesis'in window){
+      pickUSVoice();
+      window.speechSynthesis.onvoiceschanged=pickUSVoice;
     }
-    function cls(){document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}
+
+    function unlockAudio(){
+      audioUnlocked=true;
+      const b=document.getElementById('btnUnlock');
+      if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}
+      spk('Ready',1);
+    }
+
+    function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
+
+    function spk(w,r){
+      if(!w)return;
+      if(spkTimer)clearTimeout(spkTimer);
+      spkTimer=setTimeout(()=>{
+        try{
+          if('speechSynthesis'in window){
+            window.speechSynthesis.resume();
+            window.speechSynthesis.cancel();
+            setTimeout(()=>{
+              const u=new SpeechSynthesisUtterance(String(w));
+              u.lang='en-US';
+              u.rate=r||sp;
+              u.volume=1.0;
+              const v=usVoiceCache||pickUSVoice();
+              if(v)u.voice=v;
+              window.speechSynthesis.speak(u);
+            }, 20);
+          }
+        }catch(e){}
+      }, 15);
+    }
+
+    function cls(){
+      document.getElementById('gt-panel').style.display='none';
+      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+    }
+
     function lookupLocalDict(k){
       if(D[k])return D[k];
       const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
       for(const st of stems){if(st.length>2 && D[st])return D[st];}
       return null;
     }
+
     function openWordCard(e,el){
       e.stopPropagation();
-      if(!audioUnlocked){audioUnlocked=true;const b=document.getElementById('btnUnlock');if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}}
+      if(!audioUnlocked){
+        audioUnlocked=true;
+        const b=document.getElementById('btnUnlock');
+        if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}
+      }
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
       const w=el.getAttribute('data-w')||'';
       const p=el.getAttribute('data-p')||'other';
       const fs=el.getAttribute('data-s')||'';
-      curW=w; spk(w,1);
+      curW=w;
+      spk(w,1);
       const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
       const inf=lookupLocalDict(k)||{};
       const pnl=document.getElementById('gt-panel');
@@ -2348,10 +2396,13 @@ def render_interactive_study_viewer(study_payload: dict):
       const aGT=document.createElement('a'); aGT.href='https://google.com'; aGT.target='_blank';
       aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;'; aGT.textContent='🌐 Abrir en Google Translate ↗';
       linksDiv.appendChild(aWR); linksDiv.appendChild(aGT); bxEl.appendChild(linksDiv);
-      pnl.scrollIntoView({behavior:'smooth',block:'nearest'});
     }
+
     document.querySelectorAll('.wt').forEach(spn=>{
-      spn.addEventListener('mouseenter',()=>{const w=spn.getAttribute('data-w')||'';if(document.getElementById('hov').checked && lst!==w){lst=w;spk(w);}});
+      spn.addEventListener('mouseenter',()=>{
+        const w=spn.getAttribute('data-w')||'';
+        if(document.getElementById('hov').checked && lst!==w){lst=w;spk(w);}
+      });
       spn.addEventListener('mouseleave',()=>{lst="";});
       spn.addEventListener('click',(e)=>openWordCard(e,spn));
     });
@@ -2359,7 +2410,8 @@ def render_interactive_study_viewer(study_payload: dict):
     </script></body></html>"""
 
     html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
-    components.html(html_code, height=620, scrolling=True)
+    components.html(html_code, height=640, scrolling=True)
+
 # ==============================================================================
 # PARTE 9A: MIGRACIÓN SHEETS -> SUPABASE (PERMISOS, PADRÓN Y FOLIOS)
 # ==============================================================================
