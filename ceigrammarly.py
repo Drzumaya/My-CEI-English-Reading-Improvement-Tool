@@ -2227,7 +2227,7 @@ def render_interactive_study_viewer(study_payload: dict):
     rendered_lesson_html = "".join(boxes_html)
     dict_json = json.dumps(clean_dict, ensure_ascii=False).replace("</", "<\\/")
 # ==============================================================================
-# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO (ESTILOS CSS Y ESTRUCTURA HTML)
+# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO (ESTILOS Y ESTRUCTURA HTML)
 # ==============================================================================
     html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
@@ -2256,17 +2256,16 @@ def render_interactive_study_viewer(study_payload: dict):
     .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
     .gt-btn{border:none;background:rgba(255,255,255,.22);color:#fff;border-radius:6px;
             padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
-    .unlock-btn{background:#16a34a;color:#fff;border:none;border-radius:6px;padding:5px 10px;
-                font-size:12px;font-weight:700;cursor:pointer}
+    .hover-btn{background:#475569;color:#fff;border:none;border-radius:6px;padding:6px 11px;
+               font-size:12px;font-weight:700;cursor:pointer;transition:background .15s}
     </style></head><body>
     <div class="tb">
       <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
            <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
            <span class="bg other">Otros</span></div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <button id="btnUnlock" class="unlock-btn" onclick="unlockAudio()">🔊 Activar Voz Hover (US)</button>
-        <label style="cursor:pointer"><input type="checkbox" id="hov" checked> Auto-Voz</label>
-        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
+        <button id="btnHoverToggle" class="hover-btn" onclick="toggleHoverAudio()">🔇 Activar Voz Hover (US)</button>
+        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:600"
                 onclick="spd()" id="sb">1.0x</button>
       </div>
     </div>
@@ -2298,6 +2297,120 @@ def render_interactive_study_viewer(study_payload: dict):
     </div>
 
     <div id="lc">__LESSON_HTML__</div>
+    <script>
+    const D=__DICT_JSON__;
+    const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
+    let curW="", lst="", sp=1, usVoiceCache=null, hoverEnabled=false, spkTimer=null;
+
+    function pickUSVoice(){
+      if(!('speechSynthesis'in window))return null;
+      const vs=window.speechSynthesis.getVoices()||[];
+      if(!vs.length)return null;
+      usVoiceCache=vs.find(v=>v.lang==='en-US'&&(v.name.includes('Samantha')||v.name.includes('Alex')||v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')))
+        ||vs.find(v=>v.lang==='en-US'||v.lang==='en_US')
+        ||vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
+      return usVoiceCache;
+    }
+    if('speechSynthesis'in window){
+      pickUSVoice();
+      window.speechSynthesis.onvoiceschanged=pickUSVoice;
+    }
+
+    function toggleHoverAudio(){
+      hoverEnabled=!hoverEnabled;
+      const b=document.getElementById('btnHoverToggle');
+      if(b){
+        if(hoverEnabled){
+          b.innerText='🔊 Voz Hover (US) Activa';
+          b.style.background='#0f766e';
+          spk('Hover voice enabled',1);
+        }else{
+          b.innerText='🔇 Activar Voz Hover (US)';
+          b.style.background='#475569';
+          if('speechSynthesis'in window)window.speechSynthesis.cancel();
+        }
+      }
+    }
+
+    function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
+
+    function spk(w,r){
+      if(!w)return;
+      if(spkTimer)clearTimeout(spkTimer);
+      spkTimer=setTimeout(()=>{
+        try{
+          if('speechSynthesis'in window){
+            window.speechSynthesis.resume();
+            window.speechSynthesis.cancel();
+            setTimeout(()=>{
+              const u=new SpeechSynthesisUtterance(String(w));
+              u.lang='en-US';
+              u.rate=r||sp;
+              u.volume=1.0;
+              const v=usVoiceCache||pickUSVoice();
+              if(v)u.voice=v;
+              window.speechSynthesis.speak(u);
+            }, 25);
+          }
+        }catch(e){}
+      }, 15);
+    }
+
+    function cls(){
+      document.getElementById('gt-panel').style.display='none';
+      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+    }
+
+    function lookupLocalDict(k){
+      if(D[k])return D[k];
+      const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
+      for(const st of stems){if(st.length>2 && D[st])return D[st];}
+      return null;
+    }
+
+    function openWordCard(e,el){
+      e.stopPropagation();
+      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+      el.classList.add('act');
+      const w=el.getAttribute('data-w')||'';
+      const p=el.getAttribute('data-p')||'other';
+      const fs=el.getAttribute('data-s')||'';
+      curW=w;
+      spk(w,1);
+      const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
+      const inf=lookupLocalDict(k)||{};
+      const pnl=document.getElementById('gt-panel');
+      pnl.style.display='block';
+      document.getElementById('bw').innerText=w;
+      document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
+      document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
+      document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
+      document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
+      document.getElementById('be').innerText=inf.es||w;
+      const cleanQ=encodeURIComponent(k||w);
+      const bxEl=document.getElementById('bx'); bxEl.innerHTML='';
+      const ctxDiv=document.createElement('div'); ctxDiv.textContent='💬 Contexto en la lección: "'+fs+'"'; bxEl.appendChild(ctxDiv);
+      const linksDiv=document.createElement('div'); linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
+      const aWR=document.createElement('a'); aWR.href='https://wordreference.com; aWR.target='_blank';
+      aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;'; aWR.textContent='📖 Abrir en WordReference ↗';
+      const aGT=document.createElement('a'); aGT.href='https://google.com'; aGT.target='_blank';
+      aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;'; aGT.textContent='🌐 Abrir en Google Translate ↗';
+      linksDiv.appendChild(aWR); linksDiv.appendChild(aGT); bxEl.appendChild(linksDiv);
+    }
+
+    document.querySelectorAll('.wt').forEach(spn=>{
+      spn.addEventListener('mouseenter',()=>{
+        const w=spn.getAttribute('data-w')||'';
+        if(hoverEnabled && lst!==w){lst=w;spk(w);}
+      });
+      spn.addEventListener('mouseleave',()=>{lst="";});
+      spn.addEventListener('click',(e)=>openWordCard(e,spn));
+    });
+    document.body.onclick=cls;
+    </script></body></html>"""
+
+    html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
+    components.html(html_code, height=640, scrolling=True)
 # ==============================================================================
 # PARTE 8B3: MOTOR JS DE VOZ US (MACBOOK PRO + MÓVIL) Y RENDERIZADO DEL VISOR
 # ==============================================================================
