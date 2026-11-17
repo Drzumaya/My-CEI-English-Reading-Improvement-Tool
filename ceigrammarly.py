@@ -37,6 +37,15 @@ import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_js_eval import streamlit_js_eval
 
+try:
+    from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
+except ImportError:
+    try:
+        from streamlit.runtime.scriptrunner_utils.script_run_context import add_script_run_ctx, get_script_run_ctx
+    except ImportError:
+        add_script_run_ctx = None
+        get_script_run_ctx = None
+
 if hasattr(st, "iframe"):
     components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
         html_str, height=height or 150, width=width or "stretch"
@@ -4605,8 +4614,16 @@ if generar_btn:
 
                 escena_visual = f"Setting: {contexto_en}. Characters: {personas_en}. Topic: {asunto_apa}."
 
+                ctx_st = get_script_run_ctx() if callable(get_script_run_ctx) else None
+
+                def _run_with_ctx(fn, *args):
+                    if ctx_st and callable(add_script_run_ctx):
+                        add_script_run_ctx(ctx=ctx_st)
+                    return fn(*args)
+
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     fut_quiz = pool.submit(
+                        _run_with_ctx,
                         generar_quiz_leccion,
                         texto_gen,
                         gramatica_b1,
@@ -4616,6 +4633,7 @@ if generar_btn:
                         gm_active
                     )
                     fut_img = pool.submit(
+                        _run_with_ctx,
                         generar_imagen_garantizada,
                         gm_active,
                         escena_visual,
@@ -4661,6 +4679,7 @@ if generar_btn:
                 st.rerun()
             except Exception as e:
                 st.error(f"⚠️ Error al generar lección: {e}")
+
 # ==============================================================================
 # PARTE 16: ÁREA DE LECTURA / MODO ESTUDIO INTERACTIVO Y QUIZ (PARTE 1)
 # ==============================================================================
