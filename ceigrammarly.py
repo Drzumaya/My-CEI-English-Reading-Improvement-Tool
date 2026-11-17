@@ -2227,7 +2227,7 @@ def render_interactive_study_viewer(study_payload: dict):
     rendered_lesson_html = "".join(boxes_html)
     dict_json = json.dumps(clean_dict, ensure_ascii=False).replace("</", "<\\/")
 # ==============================================================================
-# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO (ESTILOS Y ESTRUCTURA HTML)
+# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO (CLIC = VOZ US | DOBLE CLIC = DICCIONARIO)
 # ==============================================================================
     html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box}
@@ -2245,7 +2245,7 @@ def render_interactive_study_viewer(study_payload: dict):
     .tbox .wt{color:#1e293b;font-size:16px}
     .sbox{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;
           border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}
+    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;user-select:none;transition:all .12s}
     .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
     #gt-panel{position:sticky;top:52px;z-index:999;background:#fff;border:2px solid #1a73e8;
               border-radius:12px;box-shadow:0 10px 28px rgba(26,115,232,.32);margin-bottom:12px;overflow:hidden;display:none}
@@ -2256,16 +2256,14 @@ def render_interactive_study_viewer(study_payload: dict):
     .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
     .gt-btn{border:none;background:rgba(255,255,255,.22);color:#fff;border-radius:6px;
             padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
-    .hover-btn{background:#475569;color:#fff;border:none;border-radius:6px;padding:6px 11px;
-               font-size:12px;font-weight:700;cursor:pointer;transition:background .15s}
     </style></head><body>
     <div class="tb">
       <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
            <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
            <span class="bg other">Otros</span></div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <button id="btnHoverToggle" class="hover-btn" onclick="toggleHoverAudio()">🔇 Activar Voz Hover (US)</button>
-        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:5px 9px;cursor:pointer;font-weight:600"
+        <span style="color:#475569;font-size:11px;">🖱️ 1 Clic: 🔊 Voz | 2 Clics: 📖 Diccionario</span>
+        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700"
                 onclick="spd()" id="sb">1.0x</button>
       </div>
     </div>
@@ -2300,7 +2298,7 @@ def render_interactive_study_viewer(study_payload: dict):
     <script>
     const D=__DICT_JSON__;
     const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
-    let curW="", lst="", sp=1, usVoiceCache=null, hoverEnabled=false, spkTimer=null;
+    let curW="", sp=1, usVoiceCache=null, fallbackAudio=null, lastTapTs=0, lastTapEl=null;
 
     function pickUSVoice(){
       if(!('speechSynthesis'in window))return null;
@@ -2316,44 +2314,40 @@ def render_interactive_study_viewer(study_payload: dict):
       window.speechSynthesis.onvoiceschanged=pickUSVoice;
     }
 
-    function toggleHoverAudio(){
-      hoverEnabled=!hoverEnabled;
-      const b=document.getElementById('btnHoverToggle');
-      if(b){
-        if(hoverEnabled){
-          b.innerText='🔊 Voz Hover (US) Activa';
-          b.style.background='#0f766e';
-          spk('Hover voice enabled',1);
-        }else{
-          b.innerText='🔇 Activar Voz Hover (US)';
-          b.style.background='#475569';
-          if('speechSynthesis'in window)window.speechSynthesis.cancel();
-        }
-      }
-    }
-
     function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
+
+    function playFallbackTTS(word, rate){
+      try{
+        if(fallbackAudio){fallbackAudio.pause();}
+        const q=encodeURIComponent(String(word).trim());
+        const spdParam=(rate&&rate<0.9)?'0.4':'1';
+        fallbackAudio=new Audio('https://google.com);
+        fallbackAudio.play().catch(()=>{});
+      }catch(e){}
+    }
 
     function spk(w,r){
       if(!w)return;
-      if(spkTimer)clearTimeout(spkTimer);
-      spkTimer=setTimeout(()=>{
-        try{
-          if('speechSynthesis'in window){
-            window.speechSynthesis.resume();
-            window.speechSynthesis.cancel();
-            setTimeout(()=>{
-              const u=new SpeechSynthesisUtterance(String(w));
-              u.lang='en-US';
-              u.rate=r||sp;
-              u.volume=1.0;
-              const v=usVoiceCache||pickUSVoice();
-              if(v)u.voice=v;
-              window.speechSynthesis.speak(u);
-            }, 25);
-          }
-        }catch(e){}
-      }, 15);
+      const rateVal=r||sp;
+      let started=false;
+      try{
+        if('speechSynthesis'in window){
+          window.speechSynthesis.resume();
+          window.speechSynthesis.cancel();
+          const u=new SpeechSynthesisUtterance(String(w));
+          u.lang='en-US';
+          u.rate=rateVal;
+          u.volume=1.0;
+          const v=usVoiceCache||pickUSVoice();
+          if(v)u.voice=v;
+          u.onstart=()=>{started=true;};
+          u.onerror=()=>{if(!started)playFallbackTTS(w,rateVal);};
+          window.speechSynthesis.speak(u);
+          setTimeout(()=>{if(!started && !window.speechSynthesis.speaking)playFallbackTTS(w,rateVal);}, 280);
+          return;
+        }
+      }catch(e){}
+      playFallbackTTS(w,rateVal);
     }
 
     function cls(){
@@ -2368,15 +2362,13 @@ def render_interactive_study_viewer(study_payload: dict):
       return null;
     }
 
-    function openWordCard(e,el){
-      e.stopPropagation();
+    function openWordCard(el){
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
       const w=el.getAttribute('data-w')||'';
       const p=el.getAttribute('data-p')||'other';
       const fs=el.getAttribute('data-s')||'';
       curW=w;
-      spk(w,1);
       const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
       const inf=lookupLocalDict(k)||{};
       const pnl=document.getElementById('gt-panel');
@@ -2399,12 +2391,22 @@ def render_interactive_study_viewer(study_payload: dict):
     }
 
     document.querySelectorAll('.wt').forEach(spn=>{
-      spn.addEventListener('mouseenter',()=>{
+      spn.addEventListener('click',(e)=>{
+        e.stopPropagation();
         const w=spn.getAttribute('data-w')||'';
-        if(hoverEnabled && lst!==w){lst=w;spk(w);}
+        const now=Date.now();
+        const isDouble=(lastTapEl===spn && (now-lastTapTs)<380);
+        lastTapTs=now;
+        lastTapEl=spn;
+        document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+        spn.classList.add('act');
+        spk(w);
+        if(isDouble){openWordCard(spn);}
       });
-      spn.addEventListener('mouseleave',()=>{lst="";});
-      spn.addEventListener('click',(e)=>openWordCard(e,spn));
+      spn.addEventListener('dblclick',(e)=>{
+        e.stopPropagation();
+        openWordCard(spn);
+      });
     });
     document.body.onclick=cls;
     </script></body></html>"""
