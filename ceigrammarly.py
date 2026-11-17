@@ -1,26 +1,42 @@
-import streamlit as st 
-from google import genai
-from google.genai import types
-from gtts import gTTS
-import qrcode
-from PIL import Image, ImageDraw
-from fpdf import FPDF
-import io
-import os
-import json
-import random
+# ==============================================================================
+# PARTE 1 DE 15: IMPORTACIONES, CONFIGURACIÓN DE PÁGINA Y AUTO-ACTUALIZADOR
+# ==============================================================================
 import base64
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from datetime import datetime, timedelta
 import hashlib
 import hmac
-import urllib.parse 
-from datetime import datetime 
+import html as html_lib
+from importlib.metadata import PackageNotFoundError, version as pkg_version
+import io
+import json
+import os
+import random
+import re
+import subprocess
+import sys
+import urllib.parse
 from zoneinfo import ZoneInfo
+
+from deep_translator import GoogleTranslator
+from fpdf import FPDF
+from fpdf.enums import XPos, YPos
+from google import genai
+from google.genai import types
+from google.oauth2 import service_account
 import gspread
+from gtts import gTTS
 import pandas as pd
+from PIL import Image
+import psycopg
+from psycopg.rows import dict_row
+import qrcode
+import requests
+import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_js_eval import streamlit_js_eval
-from google.oauth2.service_account import Credentials
- 
- 
+
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
     page_title="CEFR Academic Grammar & Discourse System - Career English Institute",
@@ -29,13 +45,90 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. CONFIGURACIÓN SEGURA DESDE SECRETS --- 
+# --- 1B. MOTOR DE AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO) ---
+MANAGED_PACKAGES = [
+    "streamlit",
+    "google-genai",
+    "gtts",
+    "qrcode",
+    "pillow",
+    "fpdf2",
+    "gspread",
+    "google-auth",
+    "pandas",
+    "streamlit-js-eval",
+    "psycopg[binary]",
+    "deep-translator",
+    "requests",
+    "pypdfium2",
+    "pydub",
+    "static-ffmpeg"
+]
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def check_libraries_updates() -> list[dict]:
+    """Compara las versiones instaladas localmente contra las últimas disponibles en PyPI."""
+    resultados = []
+    for pkg in MANAGED_PACKAGES:
+        pkg_clean = pkg.split("[")[0].strip()
+        try:
+            ver_local = pkg_version(pkg_clean)
+        except PackageNotFoundError:
+            ver_local = "No instalada"
+
+        ver_pypi = "Desconocida"
+        estado = "⚠️ Sin verificar"
+        try:
+            resp = requests.get(f"https://pypi.org{pkg_clean}/json", timeout=3.0)
+            if resp.status_code == 200:
+                ver_pypi = str(resp.json().get("info", {}).get("version", "Desconocida")).strip()
+                if ver_local == "No instalada":
+                    estado = "📥 Pendiente de instalar"
+                elif ver_local == ver_pypi:
+                    estado = "✅ Actualizada"
+                else:
+                    estado = "🔄 Nueva versión disponible"
+        except Exception:
+            estado = "⚠️ Error de red PyPI"
+
+        resultados.append({
+            "Paquete": pkg_clean,
+            "Instalada": ver_local,
+            "Última PyPI": ver_pypi,
+            "Estado": estado,
+            "pip_spec": pkg
+        })
+    return resultados
+
+def upgrade_managed_libraries(paquetes: list[str] | None = None) -> tuple[bool, str]:
+    """Ejecuta pip install --upgrade sobre las librerías integradas sin modificar código."""
+    objetivos = paquetes or MANAGED_PACKAGES
+    cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "--quiet", *objetivos]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
+        check_libraries_updates.clear()
+        if proc.returncode == 0:
+            return True, "✅ Todas las librerías seleccionadas se actualizaron correctamente. Reiniciando entorno..."
+        err_msg = (proc.stderr or proc.stdout or "Error desconocido en pip").strip()[-600:]
+        return False, f"⚠️ Algunas librerías reportaron advertencias:\n{err_msg}"
+    except Exception as e:
+        return False, f"❌ No se pudo ejecutar la actualización automática: {e}"
+# ==============================================================================
+# PARTE 2 DE 15: CONFIGURACIÓN SEGURA, CATÁLOGOS CEFR Y CLIENTES EN CACHÉ
+# ==============================================================================
 DEFAULT_ADDRESS = st.secrets.get(
     "INSTITUTE_ADDRESS",
     "Dirección no configurada | Tel. / Contacto: No disponible"
 )
 
-ROLES_LISTA = ["Estudiante", "Teacher", "Propietario", "Administrador", "Empleado", "Socio Afiliado"] 
+ROLES_LISTA = [
+    "Estudiante",
+    "Teacher",
+    "Propietario",
+    "Administrador",
+    "Empleado",
+    "Socio Afiliado"
+]
 
 GRADOS_ACADEMICOS = [
     "Preescolar",
@@ -50,6 +143,7 @@ GRADOS_ACADEMICOS = [
 CAPABILITY_COLS = [
     "Ver_Panel_Admin",
     "Registrar_Usuarios",
+    "Gestionar_Usuarios",
     "Editar_Permisos",
     "Emitir_Certificados",
     "Revocar_Certificados",
@@ -57,18 +151,70 @@ CAPABILITY_COLS = [
     "Previsualizar_A1_C2",
     "Reuso_Ilimitado_Folios",
     "Editar_Fecha_Inicio_Curso",
-    "Gestionar_Comisiones_Afiliados"
+    "Gestionar_Comisiones_Afiliados",
+    "Gestionar_IVA_Mensualidad"
 ]
 
-DEFAULT_PERMISSIONS_MATRIX = [
-    ["Total",        "SI", "SI", "SI", "SI", "SI", "SI", "SI", "SI", "SI", "SI"],
-    ["Academico",    "SI", "SI", "NO", "SI", "NO", "NO", "SI", "SI", "NO", "NO"],
-    ["Certificador", "SI", "NO", "NO", "SI", "SI", "NO", "NO", "SI", "NO", "NO"],
-    ["Auditoria",    "SI", "NO", "NO", "NO", "NO", "NO", "SI", "SI", "NO", "NO"],
-    ["Basico",       "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO", "NO"]
-]
+DEFAULT_PERMISSIONS_MATRIX = {
+    "Total": {c: True for c in CAPABILITY_COLS},
+    "Academico": {
+        "Ver_Panel_Admin": True,
+        "Registrar_Usuarios": True,
+        "Gestionar_Usuarios": True,
+        "Editar_Permisos": False,
+        "Emitir_Certificados": True,
+        "Revocar_Certificados": False,
+        "Editar_Instituto_Logo": False,
+        "Previsualizar_A1_C2": True,
+        "Reuso_Ilimitado_Folios": True,
+        "Editar_Fecha_Inicio_Curso": False,
+        "Gestionar_Comisiones_Afiliados": False,
+        "Gestionar_IVA_Mensualidad": False
+    },
+    "Certificador": {
+        "Ver_Panel_Admin": True,
+        "Registrar_Usuarios": False,
+        "Gestionar_Usuarios": False,
+        "Editar_Permisos": False,
+        "Emitir_Certificados": True,
+        "Revocar_Certificados": True,
+        "Editar_Instituto_Logo": False,
+        "Previsualizar_A1_C2": False,
+        "Reuso_Ilimitado_Folios": True,
+        "Editar_Fecha_Inicio_Curso": False,
+        "Gestionar_Comisiones_Afiliados": False,
+        "Gestionar_IVA_Mensualidad": False
+    },
+    "Auditoria": {
+        "Ver_Panel_Admin": True,
+        "Registrar_Usuarios": False,
+        "Gestionar_Usuarios": False,
+        "Editar_Permisos": False,
+        "Emitir_Certificados": False,
+        "Revocar_Certificados": False,
+        "Editar_Instituto_Logo": False,
+        "Previsualizar_A1_C2": True,
+        "Reuso_Ilimitado_Folios": True,
+        "Editar_Fecha_Inicio_Curso": False,
+        "Gestionar_Comisiones_Afiliados": False,
+        "Gestionar_IVA_Mensualidad": False
+    },
+    "Basico": {c: False for c in CAPABILITY_COLS}
+}
 
-# --- 3. CLIENTES EN CACHÉ (GEMINI Y GOOGLE SHEETS) --- 
+CEFR_MAP = {
+    "A1": "A1 (Beginner)",
+    "A2": "A2 (Elementary)",
+    "B1": "B1 (Intermediate)",
+    "B2": "B2 (Upper-Intermediate)",
+    "C1": "C1 (Advanced)",
+    "C2": "C2 (Proficiency)"
+}
+
+def normalize_cefr(raw_val) -> str:
+    code = str(raw_val or "").strip().upper()[:2]
+    return CEFR_MAP.get(code, "B1 (Intermediate)")
+
 CEFR_GRAMMAR_TOPICS = {
     "A1": [
         "Verb To Be & Personal Pronouns",
@@ -139,8 +285,6 @@ CEFR_GRAMMAR_TOPICS = {
 
 @st.cache_resource
 def init_gemini_client():
-    # Inicializa el cliente oficial de Google Gemini leyendo la clave desde cualquier nivel de Secrets.
-    from google import genai
     api_key = str(
         st.secrets.get("GEMINI_API_KEY", "")
         or next((sec["GEMINI_API_KEY"] for sec in st.secrets.values() if isinstance(sec, dict) and "GEMINI_API_KEY" in sec), "")
@@ -152,29 +296,37 @@ def init_gemini_client():
 
 client = init_gemini_client()
 
-
-
-@st.cache_resource
-def get_gspread_client():
+@st.cache_resource(show_spinner=False)
+def get_google_workbook():
     if "gcp_service_account" not in st.secrets:
-        st.error("Falta configurar [gcp_service_account] en los Secrets de Streamlit.")
-        st.stop()
+        raise RuntimeError("Falta configurar [gcp_service_account] en Secrets.")
     creds_dict = dict(st.secrets["gcp_service_account"])
-    return gspread.service_account_from_dict(creds_dict)
+    creds_dict["token_uri"] = "https://googleapis.com"
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = str(creds_dict["private_key"]).replace("\\n", "\n")
 
-@st.cache_resource
-def get_spreadsheet():
-    return get_gspread_client().open_by_key(st.secrets["spreadsheet_key"])
+    creds = service_account.Credentials.from_service_account_info(
+        creds_dict,
+        scopes=[
+            "https://googleapis.com",
+            "https://googleapis.com"
+        ]
+    )
+    gc = gspread.authorize(creds)
+    sheet_key = str(st.secrets.get("spreadsheet_key", "")).strip()
+    if sheet_key:
+        return gc.open_by_key(sheet_key)
+    sheet_url = str(st.secrets.get("GOOGLE_SHEET_URL", "")).strip()
+    if sheet_url:
+        return gc.open_by_url(sheet_url)
+    sheet_name = str(st.secrets.get("GOOGLE_SHEET_NAME", "CEI_Database")).strip()
+    return gc.open(sheet_name)
 
 def get_google_sheet():
-    return get_spreadsheet().sheet1
-
-def get_padron_sheet():
-    return get_spreadsheet().worksheet("Padron_Estudiantes")
-
+    return get_google_workbook().sheet1
 
 def get_certificados_sheet():
-    ss = get_spreadsheet()
+    ss = get_google_workbook()
     try:
         return ss.worksheet("Certificados")
     except gspread.WorksheetNotFound:
@@ -185,38 +337,58 @@ def get_certificados_sheet():
         ])
         return ws
 
-def get_permisos_sheet():
-    ss = get_spreadsheet()
+def get_pg_conn():
+    def _find_secret(key_name: str) -> str:
+        if key_name in st.secrets:
+            return str(st.secrets[key_name]).strip()
+        for sec in st.secrets.values():
+            if isinstance(sec, dict) and key_name in sec:
+                return str(sec[key_name]).strip()
+        return ""
+
+    pg_host = _find_secret("PG_HOST")
+    pg_user = _find_secret("PG_USER")
+    pg_pass = _find_secret("PG_PASSWORD")
+    pg_port = int(_find_secret("PG_PORT") or 6543)
+    pg_db = _find_secret("PG_DBNAME") or "postgres"
+
+    if pg_host and pg_user and pg_pass:
+        return psycopg.connect(
+            host=pg_host,
+            port=pg_port,
+            dbname=pg_db,
+            user=pg_user,
+            password=pg_pass,
+            sslmode="require",
+            prepare_threshold=None
+        )
+
+    db_url = _find_secret("DATABASE_URL")
+    if db_url.startswith("postgres") and "@" in db_url:
+        return psycopg.connect(db_url, sslmode="require", prepare_threshold=None)
+
+    raise ValueError(
+        f"No se encontraron credenciales de Supabase en Secrets "
+        f"(PG_HOST={'OK' if pg_host else 'VACIO'}, PG_USER={'OK' if pg_user else 'VACIO'}, PG_PASSWORD={'OK' if pg_pass else 'VACIO'})."
+    )
+
+@contextmanager
+def pg_session(dict_rows: bool = False):
+    """Abre una conexión a PostgreSQL, confirma la transacción y la cierra siempre al salir."""
+    conn = get_pg_conn()
     try:
-        return ss.worksheet("Matriz_Permisos")
-    except gspread.WorksheetNotFound:
-        ws = ss.add_worksheet(title="Matriz_Permisos", rows=50, cols=9)
-        ws.append_row(["Perfil_Permiso"] + CAPABILITY_COLS)
-        for fila in DEFAULT_PERMISSIONS_MATRIX:
-            fila_sheets = [fila[0]] + ["SI" if val is True or str(val).upper() == "SI" else "NO" for val in fila[1:]]
-            ws.append_row(fila_sheets)
-        return ws
-
-
-def resolve_permission_profile(raw_perm, raw_role, matrix_dict):
-    if not matrix_dict or not isinstance(matrix_dict, dict):
-        return "Total" if str(raw_role or "").strip().lower() in ["propietario", "administrador", "admin"] else "Basico"
-    p = str(raw_perm or "").strip()
-    for k in matrix_dict.keys():
-        if k.lower() == p.lower():
-            return k
-    r = str(raw_role or "").strip().lower()
-    if r in ["propietario", "administrador", "admin"] and "Total" in matrix_dict:
-        return "Total"
-    if r in ["teacher", "docente"]:
-        if "Academico" in matrix_dict:
-            return "Academico"
-        if "Docente" in matrix_dict:
-            return "Docente"
-    return "Basico" if "Basico" in matrix_dict else next(iter(matrix_dict.keys()), "Basico")
-
-
-# --- 4. COMPRESIÓN Y GESTIÓN DE IMÁGENES ---
+        with conn:
+            cur_kwargs = {"row_factory": dict_row} if dict_rows else {}
+            with conn.cursor(**cur_kwargs) as cur:
+                yield cur
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+# ==============================================================================
+# PARTE 3A: GESTIÓN DE IMÁGENES, LOGOTIPO INSTITUCIONAL Y MATRIZ RBAC
+# ==============================================================================
 def compress_bytes_image(raw_bytes, max_size=(640, 400), quality=75):
     try:
         img = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
@@ -253,214 +425,130 @@ def compress_logo_to_base64(uploaded_file):
         quality -= 10
     return b64_str, "image/jpeg"
 
-@st.cache_data(ttl=300)
+def get_default_logo_b64():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    logo_path = os.path.join(base_dir, "LOGO CEI APP.png")
+    try:
+        with open(logo_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8"), "image/png"
+    except Exception:
+        return None, None
+
+@st.cache_data(ttl=60, show_spinner=False)
 def load_permanent_logo():
     try:
-        sheet_logo = get_spreadsheet().worksheet("Config_Logo")
-        records = sheet_logo.get_all_records()
-        if records:
-            return records[-1]
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("SELECT * FROM institute_config WHERE id = 1;")
+            row = cur.fetchone()
+            if row:
+                return {
+                    "Logo_Base64": row.get("logo_base64") or "",
+                    "Mime_Type": row.get("mime_type") or "image/png",
+                    "Width": row.get("logo_width") or 115,
+                    "Shape": row.get("logo_shape") or "Circular",
+                    "Direccion": row.get("direccion") or DEFAULT_ADDRESS
+                }
     except Exception:
         pass
     return None
 
 def save_permanent_config(logo_b64: str, mime_type: str, width: int, shape: str, direccion: str):
-    # Guarda el logotipo en Base64 (sin límite de 50k caracteres) y la dirección oficial en PostgreSQL.
-    conn = get_pg_conn()
-    if not conn:
-        raise RuntimeError("Sin conexión activa a PostgreSQL.")
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO institute_config (id, logo_base64, mime_type, logo_width, logo_shape, direccion, updated_at)
-                VALUES (1, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (id) DO UPDATE SET
-                    logo_base64 = EXCLUDED.logo_base64,
-                    mime_type = EXCLUDED.mime_type,
-                    logo_width = EXCLUDED.logo_width,
-                    logo_shape = EXCLUDED.logo_shape,
-                    direccion = EXCLUDED.direccion,
-                    updated_at = NOW();
-            """, (
-                str(logo_b64 or ""),
-                str(mime_type or "image/png"),
-                int(width or 115),
-                str(shape or "Circular"),
-                str(direccion or DEFAULT_INSTITUTE_ADDRESS)
-            ))
+    with pg_session() as cur:
+        cur.execute("""
+            INSERT INTO institute_config (id, logo_base64, mime_type, logo_width, logo_shape, direccion, updated_at)
+            VALUES (1, %s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                logo_base64 = EXCLUDED.logo_base64,
+                mime_type = EXCLUDED.mime_type,
+                logo_width = EXCLUDED.logo_width,
+                logo_shape = EXCLUDED.logo_shape,
+                direccion = EXCLUDED.direccion,
+                updated_at = NOW();
+        """, (
+            str(logo_b64 or ""),
+            str(mime_type or "image/png"),
+            int(width or 115),
+            str(shape or "Circular"),
+            str(direccion or DEFAULT_ADDRESS)
+        ))
     load_permanent_logo.clear()
-
-
-@st.cache_resource(show_spinner=False)
-def get_google_workbook():
-    # Conecta con Google Sheets forzando el endpoint oficial OAuth2.
-    from google.oauth2 import service_account
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    creds_dict["token_uri"] = "https://googleapis.com"
-    if "private_key" in creds_dict:
-        creds_dict["private_key"] = str(creds_dict["private_key"]).replace("\\n", "\n")
-
-    creds = service_account.Credentials.from_service_account_info(
-        creds_dict,
-        scopes=[
-            "https://googleapis.com",
-            "https://googleapis.com"
-        ]
-    )
-    gc = gspread.authorize(creds)
-    sheet_url = str(st.secrets.get("GOOGLE_SHEET_URL", "")).strip()
-    if sheet_url:
-        return gc.open_by_url(sheet_url)
-    sheet_name = str(st.secrets.get("GOOGLE_SHEET_NAME", "CEI_Database")).strip()
-    return gc.open(sheet_name)
-
-
-
-
-def get_google_sheet():
-    # Devuelve la Hoja 1 (Folios y Lecciones) del libro de Google Sheets.
-    return get_google_workbook().sheet1
-
-
-def get_pg_conn():
-    #Conecta a PostgreSQL (Supabase) buscando credenciales en cualquier nivel de Secrets.
-    import psycopg
-
-    def _find_secret(key_name: str) -> str:
-        if key_name in st.secrets:
-            return str(st.secrets[key_name]).strip()
-        for sec in st.secrets.values():
-            if isinstance(sec, dict) and key_name in sec:
-                return str(sec[key_name]).strip()
-        return ""
-
-    pg_host = _find_secret("PG_HOST")
-    pg_user = _find_secret("PG_USER")
-    pg_pass = _find_secret("PG_PASSWORD")
-    pg_port = int(_find_secret("PG_PORT") or 6543)
-    pg_db = _find_secret("PG_DBNAME") or "postgres"
-
-    if pg_host and pg_user and pg_pass:
-        return psycopg.connect(
-            host=pg_host,
-            port=pg_port,
-            dbname=pg_db,
-            user=pg_user,
-            password=pg_pass,
-            sslmode="require",
-            prepare_threshold=None
-        )
-
-    db_url = _find_secret("DATABASE_URL")
-    if db_url.startswith("postgres") and "@" in db_url and "://supabase.com" in db_url:
-        return psycopg.connect(db_url, sslmode="require", prepare_threshold=None)
-
-    raise ValueError(
-        f"No se encontraron las credenciales de Supabase en Secrets "
-        f"(PG_HOST={'OK' if pg_host else 'VACIO'}, PG_USER={'OK' if pg_user else 'VACIO'}, PG_PASSWORD={'OK' if pg_pass else 'VACIO'})."
-    )
-
-
-
-@st.cache_data(ttl=60, show_spinner=False)
-def load_permanent_logo():
-    """Carga la configuración institucional desde PostgreSQL."""
-    from psycopg.rows import dict_row
-    try:
-        conn = get_pg_conn()
-        if conn:
-            with conn:
-                with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute("SELECT * FROM institute_config WHERE id = 1;")
-                    row = cur.fetchone()
-                    if row:
-                        return {
-                            "Logo_Base64": row.get("logo_base64") or "",
-                            "Mime_Type": row.get("mime_type") or "image/png",
-                            "Width": row.get("logo_width") or 115,
-                            "Shape": row.get("logo_shape") or "Circular",
-                            "Direccion": row.get("direccion") or DEFAULT_INSTITUTE_ADDRESS
-                        }
-    except Exception:
-        pass
-    return None
-
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_permissions_matrix() -> dict:
-    """Carga la matriz RBAC desde PostgreSQL (Supabase) con respaldo seguro."""
-    from psycopg.rows import dict_row
-    fallback_matrix = {
-        "Total": {c: True for c in CAPABILITY_COLS},
-        "Docente": {
-            "Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True,
-            "Emitir_Certificados": True, "Revocar_Certificados": True,
-            "Registrar_Usuarios": True, "Gestionar_Usuarios": True,
-            "Ver_Panel_Admin": True, "Editar_Permisos": False, "Editar_Instituto_Logo": False
-        },
-        "Basico": {
-            "Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True,
-            "Emitir_Certificados": False, "Revocar_Certificados": False,
-            "Registrar_Usuarios": False, "Gestionar_Usuarios": False,
-            "Ver_Panel_Admin": False, "Editar_Permisos": False, "Editar_Instituto_Logo": False
-        }
-    }
     try:
-        conn = get_pg_conn()
-        if conn:
-            with conn:
-                with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute("SELECT * FROM roles_permissions;")
-                    rows = cur.fetchall()
-                    if rows:
-                        matrix = {}
-                        for r in rows:
-                            prof = str(r.get("profile_name", "")).strip()
-                            if not prof:
-                                continue
-                            caps_j = r.get("capabilities_json")
-                            if isinstance(caps_j, str):
-                                caps_j = json.loads(caps_j)
-                            if isinstance(caps_j, dict) and caps_j:
-                                matrix[prof] = {k: bool(v) for k, v in caps_j.items()}
-                            else:
-                                matrix[prof] = {
-                                    "Generar_Leccion": bool(r.get("generar_leccion", True)),
-                                    "Resolver_Quiz": bool(r.get("resolver_quiz", True)),
-                                    "Grabar_Audio": bool(r.get("grabar_audio", True)),
-                                    "Emitir_Certificados": bool(r.get("emitir_certificados", False)),
-                                    "Revocar_Certificados": bool(r.get("emitir_certificados", False)),
-                                    "Registrar_Usuarios": bool(r.get("gestionar_usuarios", False)),
-                                    "Gestionar_Usuarios": bool(r.get("gestionar_usuarios", False)),
-                                    "Ver_Panel_Admin": bool(r.get("gestionar_usuarios", False)),
-                                    "Editar_Permisos": bool(r.get("editar_instituto_logo", False)),
-                                    "Editar_Instituto_Logo": bool(r.get("editar_instituto_logo", False))
-                                }
-                        if matrix:
-                            return matrix
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("SELECT * FROM roles_permissions;")
+            rows = cur.fetchall()
+            if rows:
+                matrix = {}
+                for r in rows:
+                    prof = str(r.get("profile_name", "")).strip()
+                    if not prof:
+                        continue
+                    caps_j = r.get("capabilities_json")
+                    if isinstance(caps_j, str):
+                        caps_j = json.loads(caps_j)
+                    if isinstance(caps_j, dict) and caps_j:
+                        matrix[prof] = {c: bool(caps_j.get(c, False)) for c in CAPABILITY_COLS}
+                    else:
+                        base_prof = DEFAULT_PERMISSIONS_MATRIX.get(prof, DEFAULT_PERMISSIONS_MATRIX["Basico"]).copy()
+                        base_prof["Emitir_Certificados"] = bool(r.get("emitir_certificados", base_prof["Emitir_Certificados"]))
+                        base_prof["Registrar_Usuarios"] = bool(r.get("gestionar_usuarios", base_prof["Registrar_Usuarios"]))
+                        base_prof["Gestionar_Usuarios"] = bool(r.get("gestionar_usuarios", base_prof["Gestionar_Usuarios"]))
+                        base_prof["Ver_Panel_Admin"] = bool(r.get("gestionar_usuarios", base_prof["Ver_Panel_Admin"]))
+                        base_prof["Editar_Instituto_Logo"] = bool(r.get("editar_instituto_logo", base_prof["Editar_Instituto_Logo"]))
+                        matrix[prof] = base_prof
+                if matrix:
+                    return matrix
     except Exception:
         pass
-    return fallback_matrix
+    return {k: v.copy() for k, v in DEFAULT_PERMISSIONS_MATRIX.items()}
+# ==============================================================================
+# PARTE 3B: RESOLUCIÓN RBAC, PADRÓN DE USUARIOS Y ASIGNACIÓN DE AFILIADOS
+# ==============================================================================
+def resolve_permission_profile(raw_perm, raw_role, matrix_dict):
+    if not matrix_dict or not isinstance(matrix_dict, dict):
+        return "Total" if str(raw_role or "").strip().lower() in ["propietario", "administrador", "admin"] else "Basico"
+    p = str(raw_perm or "").strip()
+    for k in matrix_dict.keys():
+        if k.lower() == p.lower():
+            return k
+    r = str(raw_role or "").strip().lower()
+    if r in ["propietario", "administrador", "admin"] and "Total" in matrix_dict:
+        return "Total"
+    if r in ["teacher", "docente"]:
+        if "Academico" in matrix_dict:
+            return "Academico"
+        if "Docente" in matrix_dict:
+            return "Docente"
+    return "Basico" if "Basico" in matrix_dict else next(iter(matrix_dict.keys()), "Basico")
 
-
-    if isinstance(DEFAULT_PERMISSIONS_MATRIX, dict):
-        return DEFAULT_PERMISSIONS_MATRIX.copy()
-    return {
-        "Total": {"Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True, "Emitir_Certificados": True, "Gestionar_Usuarios": True, "Editar_Instituto_Logo": True},
-        "Docente": {"Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True, "Emitir_Certificados": True, "Gestionar_Usuarios": True, "Editar_Instituto_Logo": False},
-        "Basico": {"Generar_Leccion": True, "Resolver_Quiz": True, "Grabar_Audio": True, "Emitir_Certificados": False, "Gestionar_Usuarios": False, "Editar_Instituto_Logo": False},
-        "Solo_Lectura": {"Generar_Leccion": False, "Resolver_Quiz": True, "Grabar_Audio": False, "Emitir_Certificados": False, "Gestionar_Usuarios": False, "Editar_Instituto_Logo": False}
-    }
-
+def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
+    with pg_session() as cur:
+        cur.execute("""
+            INSERT INTO roles_permissions (
+                profile_name, generar_leccion, resolver_quiz, grabar_audio,
+                emitir_certificados, gestionar_usuarios, editar_instituto_logo, capabilities_json
+            ) VALUES (%s, TRUE, TRUE, TRUE, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (profile_name) DO UPDATE SET
+                emitir_certificados = EXCLUDED.emitir_certificados,
+                gestionar_usuarios = EXCLUDED.gestionar_usuarios,
+                editar_instituto_logo = EXCLUDED.editar_instituto_logo,
+                capabilities_json = EXCLUDED.capabilities_json,
+                updated_at = NOW();
+        """, (
+            perfil_name.strip(),
+            bool(caps_dict.get("Emitir_Certificados", False)),
+            bool(caps_dict.get("Registrar_Usuarios", caps_dict.get("Gestionar_Usuarios", False))),
+            bool(caps_dict.get("Editar_Instituto_Logo", False)),
+            json.dumps({c: bool(caps_dict.get(c, False)) for c in CAPABILITY_COLS})
+        ))
+    load_permissions_matrix.clear()
 
 @st.cache_data(ttl=60)
 def load_padron_records() -> list[dict]:
-    from psycopg.rows import dict_row
-    conn = get_pg_conn()
-    if not conn:
-        return []
-    with conn:
-        with conn.cursor(row_factory=dict_row) as cur:
+    try:
+        with pg_session(dict_rows=True) as cur:
             cur.execute("""
                 SELECT
                     u.id,
@@ -473,7 +561,7 @@ def load_padron_records() -> list[dict]:
                     u.permisos,
                     u.estatus,
                     u.afiliador_id,
-                    COALESCE(aff.matricula || ' — ' || aff.usuario, 'Directo / Sin afiliador') AS afiliador_nombre
+                    COALESCE(aff.matricula || ' — ' || aff.usuario, NULLIF(TRIM(u.afiliado_usuario), ''), 'Directo / Sin afiliador') AS afiliador_nombre
                 FROM users_padron u
                 LEFT JOIN users_padron aff ON u.afiliador_id = aff.id
                 ORDER BY u.id ASC;
@@ -495,627 +583,78 @@ def load_padron_records() -> list[dict]:
                 }
                 for r in rows
             ]
-
-
-
-    # 2. Intentar Google Sheets (Respaldo)
-    try:
-        ws_pad = get_google_workbook().worksheet("Padron")
-        recs = ws_pad.get_all_records()
-        if recs:
-            return recs
-        st.session_state["db_auth_diag"] += "Google Sheets: pestaña Padron vacía."
-    except Exception as e_gs:
-        st.session_state["db_auth_diag"] += f"Google Sheets Error: {e_gs}"
-
-    return []
-
-
-
-    # Respaldo automático en Google Sheets mientras se completa la migración a Supabase
-    try:
-        ws_pad = get_google_workbook().worksheet("Padron")
-        return ws_pad.get_all_records()
-    except Exception:
-        return []
-
-
-def fetch_lesson_by_folio(folio_code: str) -> dict | None:
-    # Recupera una lección, su quiz y su mejor calificación desde PostgreSQL.
-    from psycopg.rows import dict_row
-    folio_clean = str(folio_code or "").strip().upper()
-    if not folio_clean:
-        return None
-    try:
-        conn = get_pg_conn()
-        if conn:
-            with conn:
-                with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute("""
-                        SELECT f.*, u.usuario
-                        FROM lessons_folios f
-                        JOIN users_padron u ON f.user_id = u.id
-                        WHERE UPPER(f.folio) = %s;
-                    """, (folio_clean,))
-                    r = cur.fetchone()
-                    if r:
-                        q_raw = r.get("quiz_data")
-                        ans_raw = r.get("best_quiz_answers")
-                        spk_raw = r.get("speaking_eval_json")
-                        c_at = r.get("created_at")
-                        return {
-                            "Folio": r.get("folio"),
-                            "Usuario": r.get("usuario"),
-                            "Tema": r.get("tema"),
-                            "CEFR": r.get("cefr_level"),
-                            "Grade": r.get("academic_grade"),
-                            "Text": r.get("lesson_text"),
-                            "Quiz": q_raw if isinstance(q_raw, list) else (json.loads(q_raw) if q_raw else None),
-                            "Best_Score": r.get("best_quiz_score") or "",
-                            "Best_Answers": ans_raw if isinstance(ans_raw, dict) else (json.loads(ans_raw) if ans_raw else {}),
-                            "Speaking_Score": float(r.get("best_speaking_score")) if r.get("best_speaking_score") is not None else -1.0,
-                            "Speaking_Eval": spk_raw if isinstance(spk_raw, dict) else (json.loads(spk_raw) if spk_raw else None),
-                            "PDF_Link": r.get("pdf_link") or "",
-                            "Created_At": c_at.strftime("%Y-%m-%d %H:%M:%S") if c_at else ""
-                        }
-    except Exception:
-        pass
-    return None
-
-
-def get_default_logo_b64():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    logo_path = os.path.join(base_dir, "LOGO CEI APP.png")
-    try:
-        with open(logo_path, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8"), "image/png"
-    except Exception:
-        return None, None
-        
-# --- 5. MOTOR DE TIMBRADO CRIPTOGRÁFICO (HMAC-SHA256) Y CERTIFICADO PDF ---
-def fetch_student_gradebook_pg(target_usuario: str) -> dict:
-    #Calcula en tiempo real el promedio general, desglose por Grammar Topic e historial de lecciones desde Supabase.
-    import re
-    from psycopg.rows import dict_row
-
-    conn = get_pg_conn()
-    if not conn:
-        return {"records": [], "topic_summary": [], "overall_avg": 0.0, "quiz_avg": 0.0, "oral_avg": 0.0}
-
-    with conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""
-                SELECT
-                    l.folio,
-                    l.tema,
-                    COALESCE(NULLIF(TRIM(l.grammar_topic), ''), 'General Applied Grammar') AS grammar_topic,
-                    l.nivel_cefr,
-                    l.best_score,
-                    COALESCE(l.speaking_score, 0) AS speaking_score,
-                    TO_CHAR(l.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha
-                FROM lessons_archive l
-                JOIN users_padron u ON l.user_id = u.id
-                WHERE LOWER(TRIM(u.usuario)) = LOWER(TRIM(%s))
-                ORDER BY l.created_at DESC;
-            """, (target_usuario.strip(),))
-            rows = cur.fetchall()
-
-    def _parse_quiz_pct(score_str: str) -> float | None:
-        m = re.search(r"\((\d+(?:\.\d+)?)%\)", str(score_str or ""))
-        return float(m.group(1)) if m else None
-
-    registros_procesados = []
-    por_tema = {}
-    todas_quiz = []
-    todas_oral = []
-    todas_combinadas = []
-
-    for r in rows:
-        q_pct = _parse_quiz_pct(r.get("best_score"))
-        o_raw = float(r.get("speaking_score") or 0)
-        o_pct = o_raw if o_raw > 0 else None
-
-        notas_item = [x for x in [q_pct, o_pct] if x is not None]
-        prom_leccion = round(sum(notas_item) / len(notas_item), 1) if notas_item else None
-
-        if q_pct is not None:
-            todas_quiz.append(q_pct)
-        if o_pct is not None:
-            todas_oral.append(o_pct)
-        if prom_leccion is not None:
-            todas_combinadas.append(prom_leccion)
-
-        g_topic = str(r.get("grammar_topic") or "General Applied Grammar").strip()
-        if g_topic not in por_tema:
-            por_tema[g_topic] = {"scores": [], "lecciones": 0}
-        por_tema[g_topic]["lecciones"] += 1
-        if prom_leccion is not None:
-            por_tema[g_topic]["scores"].append(prom_leccion)
-
-        registros_procesados.append({
-            "Folio": r.get("folio", ""),
-            "Fecha": r.get("fecha", ""),
-            "Nivel": r.get("nivel_cefr", ""),
-            "Grammar_Topic": g_topic,
-            "Tema_Leccion": r.get("tema", ""),
-            "Quiz_Pct": f"{q_pct}%" if q_pct is not None else "Pendiente",
-            "Oral_Pct": f"{o_pct}%" if o_pct is not None else "Pendiente",
-            "Promedio_Leccion": f"{prom_leccion}%" if prom_leccion is not None else "Sin evaluar"
-        })
-
-    resumen_temas = []
-    for topic_name, info in por_tema.items():
-        avg_t = round(sum(info["scores"]) / len(info["scores"]), 1) if info["scores"] else 0.0
-        resumen_temas.append({
-            "Grammar Topic": topic_name,
-            "Dominio (%)": avg_t,
-            "Lecciones": info["lecciones"]
-        })
-
-    resumen_temas.sort(key=lambda x: x["Dominio (%)"], reverse=True)
-
-    return {
-        "records": registros_procesados,
-        "topic_summary": resumen_temas,
-        "overall_avg": round(sum(todas_combinadas) / len(todas_combinadas), 1) if todas_combinadas else 0.0,
-        "quiz_avg": round(sum(todas_quiz) / len(todas_quiz), 1) if todas_quiz else 0.0,
-        "oral_avg": round(sum(todas_oral) / len(todas_oral), 1) if todas_oral else 0.0
-    }
-
-        
-def fetch_certificate_public_pg(folio_cert: str) -> dict | None:
-    # Busca un certificado por su folio directamente en PostgreSQL para verificación QR sin .
-    from psycopg.rows import dict_row
-    conn = get_pg_conn()
-    if not conn:
-        return None
-    with conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                "SELECT * FROM certificates WHERE UPPER(folio_cert) = %s LIMIT 1;",
-                (str(folio_cert).strip().upper(),)
-            )
-            return cur.fetchone()
-
-def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, user_ans: dict) -> tuple[bool, str, str]:
-    #Guarda el quiz y conserva la mejor calificación del folio directamente en Supabase PostgreSQL.
-    import re
-    conn = get_pg_conn()
-    if not conn:
-        return False, "Sin conexión activa a PostgreSQL.", nota_actual
-
-    def _extract_pct(txt: str) -> float:
-        m = re.search(r"\((\d+(?:\.\d+)?)%\)", str(txt or ""))
-        return float(m.group(1)) if m else -1.0
-
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT quiz_json, best_score FROM lessons_archive WHERE folio = %s LIMIT 1;", (folio.strip(),))
-            row = cur.fetchone()
-            nota_previa = str(row[1] or "").strip() if row else ""
-
-            pct_nuevo = _extract_pct(nota_actual)
-            pct_previo = _extract_pct(nota_previa)
-
-            if pct_nuevo >= pct_previo:
-                mejor_final = nota_actual
-                es_record = True
-                msg = f"🏆 ¡Nueva mejor calificación guardada en Supabase para el folio `{folio}`: **{mejor_final}**!"
-            else:
-                mejor_final = nota_previa
-                es_record = False
-                msg = f"ℹ️ Se conserva tu calificación más alta previa en Supabase: **{mejor_final}** (intento actual: {nota_actual})."
-
-            payload_quiz = json.dumps({"questions": quiz_items, "user_answers": user_ans}, ensure_ascii=False)
-            cur.execute(
-                "UPDATE lessons_archive SET quiz_json = %s, best_score = %s WHERE folio = %s;",
-                (payload_quiz, mejor_final, folio.strip())
-            )
-    return es_record, msg, mejor_final
-
-def save_best_speaking_pg(folio: str, score_pct: int):
-    #Guarda o actualiza la mejor calificación de pronunciación oral en Supabase PostgreSQL.
-    conn = get_pg_conn()
-    if not conn:
-        return
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE lessons_archive
-                SET speaking_score = GREATEST(COALESCE(speaking_score, 0), %s)
-                WHERE folio = %s;
-            """, (int(score_pct), folio.strip()))
-
-
-def load_lessons_history_pg() -> list[dict]:
-    # Carga el historial de lecciones, folios y calificaciones desde Supabase PostgreSQL.
-    from psycopg.rows import dict_row
-    conn = get_pg_conn()
-    if not conn:
-        return []
-    with conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""
-                SELECT
-                    l.folio AS "Folio",
-                    COALESCE(u.usuario, 'Usuario') AS "Usuario",
-                    l.tema AS "Tema",
-                    l.nivel_cefr AS "Nivel_CEFR",
-                    l.grado_academico AS "Grado_Academico",
-                    l.lesson_text AS "Texto",
-                    l.quiz_json AS "Quiz_JSON",
-                    l.best_score AS "Mejor_Calificacion_PDF",
-                    l.speaking_score AS "Speaking_Score",
-                    l.pdf_link AS "PDF_Link",
-                    TO_CHAR(l.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS "Fecha_de_subida"
-                FROM lessons_archive l
-                LEFT JOIN users_padron u ON l.user_id = u.id
-                ORDER BY l.created_at DESC
-                LIMIT 100;
-            """)
-            return cur.fetchall()
-
-
-def clean_pdf_text(text: str) -> str:
-    # Normaliza comillas, guiones y caracteres especiales para compatibilidad segura con FPDF.
-    if not text:
-        return ""
-    reemplazos = {
-        "\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'",
-        "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u2022": "*"
-    }
-    res = str(text)
-    for orig, dest in reemplazos.items():
-        res = res.replace(orig, dest)
-    return res.encode("latin-1", "replace").decode("latin-1")
-
-def generar_sello_digital(folio_cert: str, clave_est: str, nombre_est: str, nivel_cefr: str, fecha_emision: str):
-    llave_secreta = str(
-        st.secrets.get("HMAC_SECRET_KEY", st.secrets.get("spreadsheet_key", "CEI-2026-MASTER-SEAL"))
-    ).encode("utf-8")
-    cadena_original = f"||CEI|{folio_cert}|{clave_est}|{nombre_est}|{nivel_cefr}|{fecha_emision}|JACOB-ZUMAYA-PRIANTI||"
-    sello_hex = hmac.new(llave_secreta, cadena_original.encode("utf-8"), hashlib.sha256).hexdigest().upper()
-    return cadena_original, sello_hex
-
-def _safe_latin1(text: str) -> str:
-    return str(text).encode("latin-1", "replace").decode("latin-1")
-
-class AcademicPDF(FPDF):
-    # Plantilla editorial de Alta Escuela con encabezado institucional y numeración Page X of Y.
-    def __init__(self, folio_doc: str, cefr_doc: str, grado_doc: str, address_str: str):
-        super().__init__()
-        self.folio_doc = folio_doc
-        self.cefr_doc = cefr_doc
-        self.grado_doc = grado_doc
-        self.address_str = address_str
-
-    def header(self):
-        # Línea superior institucional en todas las páginas
-        self.set_y(10)
-        self.set_font("Times", "B", 8.5)
-        self.set_text_color(11, 37, 69)
-        self.cell(self.epw * 0.65, 5, text=_safe_latin1("CAREER ENGLISH INSTITUTE  |  APPLIED LINGUISTICS & DISCOURSE"), align="L")
-        self.set_font("Times", "I", 8.5)
-        self.set_text_color(100, 100, 100)
-        cefr_short = next(iter(self.cefr_doc.split()), "CEFR") if self.cefr_doc else "CEFR"
-        self.cell(self.epw * 0.35, 5, text=_safe_latin1(f"Folio: {self.folio_doc}  |  CEFR {cefr_short}"), new_x="LMARGIN", new_y="NEXT", align="R")
-        
-        # Doble filete editorial (azul marino + dorado)
-        y_line = self.get_y() + 1
-        self.set_draw_color(11, 37, 69)
-        self.set_line_width(0.6)
-        self.line(self.l_margin, y_line, self.w - self.r_margin, y_line)
-        self.set_draw_color(184, 134, 11)
-        self.set_line_width(0.25)
-        self.line(self.l_margin, y_line + 1.2, self.w - self.r_margin, y_line + 1.2)
-        self.set_y(y_line + 5)
-
-    def footer(self):
-        # Pie de página institucional con numeración Page X of Y
-        self.set_y(-16)
-        y_f = self.get_y()
-        self.set_draw_color(184, 134, 11)
-        self.set_line_width(0.3)
-        self.line(self.l_margin, y_f, self.w - self.r_margin, y_f)
-        self.ln(2)
-        
-        self.set_font("Times", "I", 8)
-        self.set_text_color(90, 90, 90)
-        self.cell(self.epw * 0.75, 4, text=_safe_latin1("© 2026 CAREER ENGLISH INSTITUTE  |  Author: Jacob Zumaya Prianti  |  APA 7th Ed. Standard"), align="L")
-        self.set_font("Times", "B", 8.5)
-        self.set_text_color(11, 37, 69)
-        self.cell(self.epw * 0.25, 4, text=f"Page {self.page_no()} of {{nb}}", new_x="LMARGIN", new_y="NEXT", align="R")
-        
-        self.set_x(self.l_margin)
-        self.set_font("Times", "", 7.5)
-        self.set_text_color(110, 110, 110)
-        self.cell(self.epw, 4, text=_safe_latin1(self.address_str), align="C")
-
-
-def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, speaking_eval=None) -> bytes:
-    # Genera un documento académico de Alta Escuela con numeración de páginas, ilustración y examen.
-    folio_doc = st.session_state.current_folio or "SIN-FOLIO"
-    base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
-    default_link = f"{base_url}/?folio={urllib.parse.quote(folio_doc)}" if base_url else f"/?folio={urllib.parse.quote(folio_doc)}"
-    link_doc = st.session_state.current_pdf_link or default_link
-
-    
-    ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
-    fecha_doc = st.session_state.current_creation_date or ahora_local.strftime("%Y-%m-%d %H:%M:%S")
-    grado_doc = st.session_state.selected_academic_grade
-    usuario_doc = st.session_state.current_user
-    rol_doc = st.session_state.user_role
-    cefr_doc = st.session_state.selected_cefr
-    
-    pdf = AcademicPDF(folio_doc, cefr_doc, grado_doc, institute_address)
-    pdf.alias_nb_pages()  # Activa el conteo total de páginas {nb}
-    pdf.set_margins(left=18, top=22, right=18)
-    pdf.set_auto_page_break(auto=True, margin=22)
-    pdf.set_author("Jacob Zumaya Prianti")
-    pdf.set_creator("Career English Institute - Academic Press")
-    pdf.add_page()
-    
-    # --- PORTADA / MEMBRETE DE ALTA ESCUELA EN PÁGINA 1 ---
-    y_box_start = pdf.get_y()
-    pdf.set_fill_color(244, 247, 251)
-    pdf.set_draw_color(11, 37, 69)
-    pdf.set_line_width(0.4)
-    pdf.rect(pdf.l_margin, y_box_start, pdf.epw, 42, style="FD")
-    
-    # Barra lateral dorada decorativa en la ficha técnica
-    pdf.set_fill_color(184, 134, 11)
-    pdf.rect(pdf.l_margin, y_box_start, 2.5, 42, style="F")
-
-    # Logotipo institucional dentro de la ficha si está disponible
-    logo_src = None
-    perm_logo = load_permanent_logo()
-    if perm_logo and perm_logo.get("Logo_Base64"):
+    except Exception as e_pg:
+        st.session_state["db_auth_diag"] = f"PostgreSQL Error: {e_pg}"
         try:
-            logo_src = io.BytesIO(base64.b64decode(perm_logo["Logo_Base64"]))
+            ws_pad = get_google_workbook().worksheet("Padron")
+            return ws_pad.get_all_records()
         except Exception:
-            logo_src = None
-    if logo_src is None:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
-        if os.path.exists(local_logo):
-            logo_src = local_logo
-    if logo_src:
-        try:
-            pdf.image(logo_src, x=pdf.l_margin + 6, y=y_box_start + 6, w=26)
-        except Exception:
-            pass
+            return []
 
-    x_meta = pdf.l_margin + 36
-    w_meta = pdf.epw - 40
-    pdf.set_xy(x_meta, y_box_start + 4)
-    pdf.set_font("Times", "B", 13)
-    pdf.set_text_color(11, 37, 69)
-    pdf.cell(w_meta, 6, text="CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="L")
-    
-    pdf.set_x(x_meta)
-    pdf.set_font("Times", "B", 9.5)
-    pdf.set_text_color(184, 134, 11)
-    pdf.cell(w_meta, 5, text=_safe_latin1(f"CEFR {cefr_doc}  |  {grado_doc.upper()}  |  ACADEMIC MONOGRAPH"), new_x="LMARGIN", new_y="NEXT", align="L")
-    
-    pdf.set_x(x_meta)
-    pdf.set_font("Times", "", 9)
-    pdf.set_text_color(40, 40, 40)
-    pdf.cell(w_meta, 5, text=_safe_latin1("Author & Senior Applied Linguist: Jacob Zumaya Prianti"), new_x="LMARGIN", new_y="NEXT", align="L")
-    
-    pdf.set_x(x_meta)
-    pdf.cell(w_meta, 5, text=_safe_latin1(f"Student / Candidate: {usuario_doc} ({rol_doc})  |  Date: {fecha_doc}"), new_x="LMARGIN", new_y="NEXT", align="L")
-    
-    pdf.set_x(x_meta)
-    pdf.set_font("Times", "U", 8)
-    pdf.set_text_color(11, 37, 69)
-    pdf.cell(w_meta, 5, text=_safe_latin1(f"Digital Verification & Recovery: {link_doc}"), new_x="LMARGIN", new_y="NEXT", align="L", link=link_doc)
+def upsert_user_padron_pg(
+    usuario: str, clave: str, rol: str, grado: str, nivel: str, permisos: str, estatus: str,
+    afiliador_id: int | None = None
+) -> str:
+    anio_actual = datetime.now(ZoneInfo("America/Hermosillo")).year
+    with pg_session() as cur:
+        cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (permisos.strip(),))
+        aff_user_name = None
+        if afiliador_id is not None:
+            cur.execute("SELECT usuario FROM users_padron WHERE id = %s LIMIT 1;", (int(afiliador_id),))
+            r_aff = cur.fetchone()
+            aff_user_name = r_aff[0] if r_aff else None
 
-    pdf.set_y(y_box_start + 48)
+        cur.execute("""
+            INSERT INTO users_padron (usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus, afiliador_id, afiliado_usuario)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (usuario) DO UPDATE SET
+                clave_hash = EXCLUDED.clave_hash,
+                rol = EXCLUDED.rol,
+                grado_academico = EXCLUDED.grado_academico,
+                nivel_cefr = EXCLUDED.nivel_cefr,
+                permisos = EXCLUDED.permisos,
+                estatus = EXCLUDED.estatus,
+                afiliador_id = COALESCE(EXCLUDED.afiliador_id, users_padron.afiliador_id),
+                afiliado_usuario = COALESCE(EXCLUDED.afiliado_usuario, users_padron.afiliado_usuario)
+            RETURNING id, matricula;
+        """, (
+            usuario.strip(),
+            clave.strip(),
+            rol.strip(),
+            grado.strip(),
+            normalize_cefr(nivel),
+            permisos.strip(),
+            "Activo" if estatus.strip().lower() == "activo" else "Inactivo",
+            afiliador_id,
+            aff_user_name
+        ))
+        row_ret = cur.fetchone()
+        user_id_db = row_ret[0]
+        mat_actual = row_ret[1]
 
-    pdf.set_y(y_box_start + 48)
+        if not mat_actual:
+            mat_actual = f"CEI-{anio_actual}-{int(user_id_db):04d}"
+            cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_actual, user_id_db))
 
-    # --- CUADRO DE CALIFICACIÓN DE LA LECCIÓN, TÓPICO Y PROMEDIO GENERAL ---
-    try:
-        topico_lec_pdf = (
-            st.session_state.get("selected_grammar_topic")
-            or (gramatica_b1 if "gramatica_b1" in globals() else "Applied Grammar")
+    load_padron_records.clear()
+    return mat_actual
+
+def set_student_affiliate_pg(student_id: int, afiliador_id: int | None):
+    with pg_session() as cur:
+        aff_nom = ""
+        if afiliador_id is not None:
+            cur.execute("SELECT usuario FROM users_padron WHERE id = %s LIMIT 1;", (int(afiliador_id),))
+            r_a = cur.fetchone()
+            aff_nom = str(r_a[0] or "").strip() if r_a else ""
+        cur.execute(
+            "UPDATE users_padron SET afiliador_id = %s, afiliado_usuario = %s WHERE id = %s;",
+            (afiliador_id, aff_nom, int(student_id))
         )
-        gb_lec_actual = fetch_student_gradebook_pg(usuario_doc) if usuario_doc else {}
-        t_match = next(
-            (t for t in gb_lec_actual.get("topic_summary", []) if t["Grammar Topic"] == topico_lec_pdf),
-            {}
-        )
-        nota_leccion_str = str(score or "Pendiente")
-        nota_topico_str = f"{t_match.get('Dominio (%)', 0.0)}%"
-        nota_general_str = f"{gb_lec_actual.get('overall_avg', 0.0)}%"
-
-        y_perf = pdf.get_y()
-        pdf.set_fill_color(244, 247, 251)
-        pdf.set_draw_color(11, 37, 69)
-        pdf.set_line_width(0.35)
-        pdf.rect(pdf.l_margin, y_perf, pdf.epw, 13, style="FD")
-
-        # Acento dorado izquierdo a juego con el membrete
-        pdf.set_fill_color(184, 134, 11)
-        pdf.rect(pdf.l_margin, y_perf, 2.5, 13, style="F")
-
-        pdf.set_xy(pdf.l_margin + 5, y_perf + 3)
-        pdf.set_font("Times", "B", 9.2)
-        pdf.set_text_color(11, 37, 69)
-        resumen_notas_txt = (
-            f"Lesson Score: {nota_leccion_str}   |   "
-            f"Topic Avg ({topico_lec_pdf[:26]}): {nota_topico_str}   |   "
-            f"Overall Student Avg: {nota_general_str}"
-        )
-        pdf.cell(pdf.epw - 8, 7, text=_safe_latin1(resumen_notas_txt), new_x="LMARGIN", new_y="NEXT", align="C")
-        pdf.set_y(y_perf + 17)
-    except Exception:
-        pass
-
-
-    # --- ILUSTRACIÓN ESCÉNICA CON MARCO EDITORIAL ---
-    img_to_embed = st.session_state.get("image_bytes")
-    if img_to_embed:
-        try:
-            img_buf = io.BytesIO(img_to_embed)
-            img_w = 136
-            img_h = 76.5
-            x_img = pdf.l_margin + (pdf.epw - img_w) / 2
-            y_img = pdf.get_y()
-            if y_img + img_h + 10 > pdf.h - 22:
-                pdf.add_page()
-                y_img = pdf.get_y()
-            pdf.image(img_buf, x=x_img, y=y_img, w=img_w)
-            pdf.set_draw_color(11, 37, 69)
-            pdf.set_line_width(0.5)
-            pdf.rect(x_img, y_img, img_w, img_h)
-            pdf.set_y(y_img + img_h + 2)
-            pdf.set_x(pdf.l_margin)
-            pdf.set_font("Times", "I", 8.5)
-            pdf.set_text_color(90, 90, 90)
-            pdf.cell(pdf.epw, 4, text=_safe_latin1(f"Figure 1. Visual Discourse Context & Situational Dialogue — Folio {folio_doc}."), new_x="LMARGIN", new_y="NEXT", align="C")
-            pdf.ln(4)
-        except Exception:
-            pdf.ln(3)
-
-    # --- CUERPO ACADÉMICO DE LA LECCIÓN ---
-    pdf.set_text_color(25, 25, 25)
-    for parrafo in text.split("\n"):
-        p_clean = parrafo.strip()
-        if not p_clean:
-            pdf.ln(3)
-            continue
-        pdf.set_x(pdf.l_margin)
-        if p_clean.startswith("#") or p_clean.startswith("Bibliography"):
-            titulo_limpio = p_clean.lstrip("#").strip()
-            pdf.ln(2)
-            pdf.set_font("Times", "B", 12)
-            pdf.set_text_color(11, 37, 69)
-            pdf.multi_cell(pdf.epw, 6.5, text=_safe_latin1(titulo_limpio), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
-            pdf.set_text_color(25, 25, 25)
-        else:
-            pdf.set_font("Times", size=11)
-            pdf.multi_cell(pdf.epw, 6.2, text=_safe_latin1(p_clean), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
-
-    # --- SECCIÓN DE EVALUACIÓN Y CALIFICACIÓN ---
-    if quiz_items:
-        pdf.ln(6)
-        if pdf.get_y() > pdf.h - 55:
-            pdf.add_page()
-            
-        y_q_head = pdf.get_y()
-        pdf.set_fill_color(11, 37, 69)
-        pdf.rect(pdf.l_margin, y_q_head, pdf.epw, 9, style="F")
-        pdf.set_xy(pdf.l_margin + 3, y_q_head + 1.5)
-        pdf.set_font("Times", "B", 11)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(pdf.epw - 6, 6, text=_safe_latin1(f"OFFICIAL ASSESSMENT & GRAMMAR EVALUATION  |  FOLIO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(3)
-
-        if score:
-            y_sc = pdf.get_y()
-            pdf.set_fill_color(253, 248, 232)
-            pdf.set_draw_color(184, 134, 11)
-            pdf.rect(pdf.l_margin, y_sc, pdf.epw, 8, style="FD")
-            pdf.set_xy(pdf.l_margin + 3, y_sc + 1.5)
-            pdf.set_font("Times", "B", 10.5)
-            pdf.set_text_color(11, 37, 69)
-            pdf.cell(pdf.epw - 6, 5, text=_safe_latin1(f"FINAL EVALUATION SCORE / CALIFICACION OBTENIDA: {score}"), new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(4)
-
-        pdf.set_text_color(25, 25, 25)
-        for i, q in enumerate(quiz_items):
-            if pdf.get_y() > pdf.h - 45:
-                pdf.add_page()
-            pdf.set_x(pdf.l_margin)
-            pdf.set_font("Times", "B", 10.5)
-            pdf.multi_cell(pdf.epw, 6, text=_safe_latin1(f"{i+1}. {q.get('question', '')}"), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
-            
-            pdf.set_font("Times", size=10)
-            for opt in q.get("options", []):
-                pdf.set_x(pdf.l_margin + 6)
-                pdf.multi_cell(pdf.epw - 6, 5.2, text=_safe_latin1(str(opt)), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
-                
-            u_choice = user_ans.get(i) if user_ans else "None"
-            ans_line = f"Candidate Response: {u_choice or 'None'}   |   Verified Key: {q.get('answer', '')}"
-            pdf.set_x(pdf.l_margin + 6)
-            pdf.set_font("Times", "I", 9.5)
-            pdf.set_text_color(11, 37, 69)
-            pdf.multi_cell(pdf.epw - 6, 5.5, text=_safe_latin1(ans_line), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
-            pdf.set_text_color(25, 25, 25)
-            pdf.ln(3)
-    # --- SECCIÓN DE EVALUACIÓN ORAL Y ANÁLISIS FONÉTICO (SI EXISTE) ---
-    if speaking_eval and isinstance(speaking_eval, dict):
-        pdf.ln(6)
-        if pdf.get_y() > pdf.h - 65:
-            pdf.add_page()
-
-        y_sp_head = pdf.get_y()
-        pdf.set_fill_color(11, 37, 69)
-        pdf.rect(pdf.l_margin, y_sp_head, pdf.epw, 9, style="F")
-        pdf.set_xy(pdf.l_margin + 3, y_sp_head + 1.5)
-        pdf.set_font("Times", "B", 11)
-        pdf.set_text_color(255, 255, 255)
-        pdf.cell(pdf.epw - 6, 6, text=_safe_latin1(f"ORAL PROFICIENCY & PHONETIC ASSESSMENT REPORT  |  FOLIO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(3)
-
-        # Recuadro con calificación oral y nivel CEFR alcanzado
-        y_sp_sc = pdf.get_y()
-        pdf.set_fill_color(253, 248, 232)
-        pdf.set_draw_color(184, 134, 11)
-        pdf.rect(pdf.l_margin, y_sp_sc, pdf.epw, 8, style="FD")
-        pdf.set_xy(pdf.l_margin + 3, y_sp_sc + 1.5)
-        pdf.set_font("Times", "B", 10.5)
-        pdf.set_text_color(11, 37, 69)
-        spk_pct = speaking_eval.get("score_percent", 0)
-        spk_perf = speaking_eval.get("cefr_performance", "")
-        pdf.cell(pdf.epw - 6, 5, text=_safe_latin1(f"SPEAKING SCORE: {spk_pct}%  |  CEFR BENCHMARK: {spk_perf}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(4)
-
-        pdf.set_text_color(25, 25, 25)
-        campos_orales = [
-            ("Detected Speech Transcription:", f"\"{speaking_eval.get('transcription', '')}\""),
-            ("Phonetics & Articulation Feedback:", speaking_eval.get("phonetic_feedback", "")),
-            ("Fluency & Prosody:", speaking_eval.get("fluency_prosody", "")),
-            ("Oral Grammar Accuracy:", speaking_eval.get("grammar_accuracy", ""))
-        ]
-
-        for etiqueta, contenido in campos_orales:
-            if not contenido.strip():
-                continue
-            if pdf.get_y() > pdf.h - 30:
-                pdf.add_page()
-            pdf.set_x(pdf.l_margin)
-            pdf.set_font("Times", "B", 10)
-            pdf.set_text_color(11, 37, 69)
-            pdf.cell(pdf.epw, 5.5, text=_safe_latin1(etiqueta), new_x="LMARGIN", new_y="NEXT")
-
-            pdf.set_x(pdf.l_margin + 4)
-            pdf.set_font("Times", "I" if "Transcription" in etiqueta else "", 10)
-            pdf.set_text_color(30, 30, 30)
-            pdf.multi_cell(pdf.epw - 4, 5.5, text=_safe_latin1(contenido), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
-            pdf.ln(2)
-
-        tips_orales = speaking_eval.get("actionable_tips", [])
-        if tips_orales:
-            if pdf.get_y() > pdf.h - 30:
-                pdf.add_page()
-            pdf.set_x(pdf.l_margin)
-            pdf.set_font("Times", "B", 10)
-            pdf.set_text_color(11, 37, 69)
-            pdf.cell(pdf.epw, 5.5, text="Pedagogical Actionable Recommendations:", new_x="LMARGIN", new_y="NEXT")
-            pdf.set_font("Times", size=9.8)
-            pdf.set_text_color(30, 30, 30)
-            for tip in tips_orales:
-                pdf.set_x(pdf.l_margin + 6)
-                pdf.multi_cell(pdf.epw - 6, 5.2, text=_safe_latin1(f"- {tip}"), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
-            pdf.ln(3)
-
-    return bytes(pdf.output())
-
+    load_padron_records.clear()
+# ==============================================================================
+# PARTE 4A: PERSISTENCIA UNIFICADA DE LECCIONES, QUIZZES Y ORAL (lessons_folios)
+# ==============================================================================
 def _extract_numeric_score(score_str: str) -> float:
-    # xtrae el porcentaje numérico de una cadena como '4/5 (80.0%)' para comparaciones.
-    import re
     if not score_str:
         return -1.0
     m = re.search(r"\((\d+(?:\.\d+)?)%\)", str(score_str))
@@ -1124,1040 +663,182 @@ def _extract_numeric_score(score_str: str) -> float:
     m2 = re.search(r"(\d+(?:\.\d+)?)", str(score_str))
     return float(m2.group(1)) if m2 else -1.0
 
+def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
+    with pg_session() as cur:
+        cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (usuario_name.strip(),))
+        u_row = cur.fetchone()
+        uid = u_row if u_row else None
+        if uid is None:
+            cur.execute("""
+                INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
+                VALUES (%s, 'AUTO_SESSION', 'Estudiante', 'Basico', 'Activo')
+                RETURNING id;
+            """, (usuario_name.strip(),))
+            uid = cur.fetchone()
 
-def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
-    # Consulta y valida un certificado oficial directamente desde PostgreSQL usando APP_PUBLIC_URL desde Secrets.
-    from psycopg.rows import dict_row
-    f_clean = str(folio_cert or "").strip().upper()
+        cur.execute("""
+            INSERT INTO lessons_folios (folio, user_id, tema, cefr_level, academic_grade, lesson_text, pdf_link)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (folio) DO UPDATE SET
+                lesson_text = EXCLUDED.lesson_text,
+                pdf_link = EXCLUDED.pdf_link,
+                updated_at = NOW();
+        """, (folio.strip().upper(), uid, tema, cefr, grado, texto, pdf_link))
+
+def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, user_ans: dict) -> tuple[bool, str, str]:
+    f_clean = str(folio or "").strip().upper()
     if not f_clean:
+        return False, "Folio no asignado.", nota_actual
+
+    new_num = _extract_numeric_score(nota_actual)
+    serializable_ans = {str(k): v for k, v in (user_ans or {}).items()}
+
+    with pg_session(dict_rows=True) as cur:
+        cur.execute("""
+            SELECT best_quiz_score, best_quiz_numeric
+            FROM lessons_folios WHERE UPPER(TRIM(folio)) = %s LIMIT 1;
+        """, (f_clean,))
+        row = cur.fetchone()
+        if not row:
+            return False, "Folio no encontrado en Supabase.", nota_actual
+
+        prev_best_str = str(row.get("best_quiz_score") or "").strip()
+        prev_num = float(row["best_quiz_numeric"]) if row.get("best_quiz_numeric") is not None else _extract_numeric_score(prev_best_str)
+
+        if new_num < 0:
+            cur.execute("""
+                UPDATE lessons_folios
+                SET quiz_data = %s::jsonb, updated_at = NOW()
+                WHERE UPPER(TRIM(folio)) = %s;
+            """, (json.dumps(quiz_items, ensure_ascii=False), f_clean))
+            return False, "", prev_best_str
+
+        if prev_num < 0 or new_num >= prev_num:
+            cur.execute("""
+                UPDATE lessons_folios
+                SET quiz_data = %s::jsonb,
+                    best_quiz_score = %s,
+                    best_quiz_numeric = %s,
+                    best_quiz_answers = %s::jsonb,
+                    updated_at = NOW()
+                WHERE UPPER(TRIM(folio)) = %s;
+            """, (
+                json.dumps(quiz_items, ensure_ascii=False),
+                nota_actual,
+                new_num,
+                json.dumps(serializable_ans, ensure_ascii=False),
+                f_clean
+            ))
+            msg = f"🏆 ¡Nueva mejor calificación guardada en Supabase para `{f_clean}`: **{nota_actual}**!"
+            return True, msg, nota_actual
+        else:
+            msg = f"ℹ️ Se conserva tu calificación más alta previa en Supabase: **{prev_best_str}** (intento actual: {nota_actual})."
+            return False, msg, prev_best_str
+
+def save_best_speaking_pg(folio: str, score_pct: int):
+    f_clean = str(folio or "").strip().upper()
+    if not f_clean:
+        return
+    try:
+        eval_obj = st.session_state.get("speaking_eval_result")
+        eval_json = json.dumps(eval_obj, ensure_ascii=False) if isinstance(eval_obj, dict) else None
+        with pg_session() as cur:
+            cur.execute("""
+                UPDATE lessons_folios
+                SET best_speaking_score = GREATEST(COALESCE(best_speaking_score, -1), %s),
+                    speaking_eval_json = COALESCE(%s::jsonb, speaking_eval_json),
+                    updated_at = NOW()
+                WHERE UPPER(TRIM(folio)) = %s;
+            """, (float(score_pct), eval_json, f_clean))
+    except Exception:
+        pass
+# ==============================================================================
+# PARTE 4B: CONSULTA DE FOLIOS, HISTORIAL Y LIBRETA POR GRAMMAR TOPIC (PG)
+# ==============================================================================
+def fetch_lesson_by_folio(folio_code: str) -> dict | None:
+    folio_clean = str(folio_code or "").strip().upper()
+    if not folio_clean:
         return None
     try:
-        conn = get_pg_conn()
-        if conn:
-            with conn:
-                with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute("SELECT * FROM certificates WHERE UPPER(folio_cert) = %s;", (f_clean,))
-                    row = cur.fetchone()
-                    if row:
-                        app_pub = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
-                        url_db = f"{app_pub}/?verify_cert={row['folio_cert']}" if app_pub else str(row.get("verify_url") or "")
-
-                        return {
-                            "Folio_Certificado": row["folio_cert"],
-                            "Clave_Alumno": row["clave_alumno"],
-                            "Titular": row["titular"],
-                            "Nivel_CEFR": row["nivel_cefr"],
-                            "Grado_Academico": row["grado_academico"],
-                            "Programa": row["programa"],
-                            "Calificacion": row["calificacion"],
-                            "Fecha_Emision": row["fecha_emision"],
-                            "Firma_HMAC": row["firma_hmac"],
-                            "Estatus": row["estatus"],
-                            "URL_Verificacion": url_db
-                        }
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                SELECT
+                    f.*,
+                    COALESCE(u.usuario, 'Usuario') AS usuario,
+                    TO_CHAR(f.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI:SS') AS fecha_fmt
+                FROM lessons_folios f
+                LEFT JOIN users_padron u ON f.user_id = u.id
+                WHERE UPPER(TRIM(f.folio)) = %s
+                LIMIT 1;
+            """, (folio_clean,))
+            r = cur.fetchone()
+            if r:
+                q_raw = r.get("quiz_data")
+                ans_raw = r.get("best_quiz_answers")
+                spk_raw = r.get("speaking_eval_json")
+                spk_val = r.get("best_speaking_score")
+                return {
+                    "Folio": r.get("folio"),
+                    "Usuario": r.get("usuario"),
+                    "Tema": r.get("tema"),
+                    "CEFR": r.get("cefr_level"),
+                    "Grade": r.get("academic_grade"),
+                    "Text": r.get("lesson_text"),
+                    "Quiz": q_raw if isinstance(q_raw, (list, dict)) else (json.loads(q_raw) if q_raw else None),
+                    "Best_Score": r.get("best_quiz_score") or "",
+                    "Best_Answers": ans_raw if isinstance(ans_raw, dict) else (json.loads(ans_raw) if ans_raw else {}),
+                    "Speaking_Score": float(spk_val) if spk_val is not None else -1.0,
+                    "Speaking_Eval": spk_raw if isinstance(spk_raw, dict) else (json.loads(spk_raw) if spk_raw else None),
+                    "PDF_Link": r.get("pdf_link") or "",
+                    "Created_At": r.get("fecha_fmt") or ""
+                }
     except Exception:
         pass
     return None
-    
-def update_certificate_link_pg(folio_cert: str, new_url: str = "") -> bool:
-    # Guarda o actualiza directamente la URL de verificación del certificado en Supabase PostgreSQL.
-    f_clean = str(folio_cert or "").strip().upper()
-    if not f_clean:
-        return False
 
-    app_pub = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
-    url_final = str(new_url or "").strip() or (f"{app_pub}/?verify_cert={f_clean}" if app_pub else "")
-
-    conn = get_pg_conn()
-    if not conn:
-        return False
-
+def load_lessons_history_pg() -> list[dict]:
     try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE certificates
-                    SET verify_url = %s
-                    WHERE UPPER(TRIM(folio_cert)) = %s;
-                """, (url_final, f_clean))
-        return True
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                SELECT
+                    f.folio AS "Folio",
+                    COALESCE(u.usuario, 'Usuario') AS "Usuario",
+                    f.tema AS "Tema",
+                    f.cefr_level AS "Nivel_CEFR",
+                    f.academic_grade AS "Grado_Academico",
+                    f.lesson_text AS "Texto",
+                    f.quiz_data AS "Quiz_JSON",
+                    f.best_quiz_score AS "Mejor_Calificacion_PDF",
+                    f.best_speaking_score AS "Speaking_Score",
+                    f.speaking_eval_json AS "Speaking_Eval",
+                    f.pdf_link AS "PDF_Link",
+                    TO_CHAR(f.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS "Fecha_de_subida"
+                FROM lessons_folios f
+                LEFT JOIN users_padron u ON f.user_id = u.id
+                ORDER BY f.created_at DESC
+                LIMIT 120;
+            """)
+            return cur.fetchall()
     except Exception:
-        return False
-
-
-def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
-    # Registra una nueva lección generada directamente en PostgreSQL (Supabase).
-    conn = get_pg_conn()
-    if not conn:
-        return
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT id FROM users_padron WHERE LOWER(usuario) = LOWER(%s) LIMIT 1;", (usuario_name.strip(),))
-            u_row = cur.fetchone()
-            uid = next(iter(u_row), None) if u_row else None
-            if uid is None:
-                cur.execute("""
-                    INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
-                    VALUES (%s, 'AUTO_SESSION', 'Estudiante', 'Basico', 'Activo')
-                    RETURNING id;
-                """, (usuario_name.strip(),))
-                uid = next(iter(cur.fetchone()), 1)
-
-            cur.execute("""
-                INSERT INTO lessons_folios (folio, user_id, tema, cefr_level, academic_grade, lesson_text, pdf_link)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (folio) DO UPDATE SET
-                    lesson_text = EXCLUDED.lesson_text,
-                    pdf_link = EXCLUDED.pdf_link,
-                    updated_at = NOW();
-            """, (folio.strip().upper(), uid, tema, cefr, grado, texto, pdf_link))
-
-
-def save_best_quiz_result_to_sheet(folio: str, new_score_str: str, quiz_items, user_ans_dict):
-    # Evalúa, compara atómicamente en PostgreSQL y conserva la calificación más alta del Folio.
-    from psycopg.rows import dict_row
-    if not folio:
-        return False, "Folio no asignado.", new_score_str
-
-    conn = get_pg_conn()
-    if not conn:
-        return False, "Sin conexión a PostgreSQL.", new_score_str
-
-    f_clean = str(folio).strip().upper()
-    new_num = _extract_numeric_score(new_score_str)
-
-    with conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""
-                SELECT best_quiz_score, best_quiz_numeric
-                FROM lessons_folios WHERE UPPER(folio) = %s;
-            """, (f_clean,))
-            row = cur.fetchone()
-            if not row:
-                return False, "Folio no encontrado en PostgreSQL.", new_score_str
-
-            prev_best_str = str(row["best_quiz_score"] or "").strip()
-            prev_num = float(row["best_quiz_numeric"] if row["best_quiz_numeric"] is not None else -1.0)
-
-            if prev_num < 0 or new_num > prev_num:
-                serializable_ans = {str(k): v for k, v in (user_ans_dict or {}).items()}
-                cur.execute("""
-                    UPDATE lessons_folios
-                    SET quiz_data = %s::jsonb,
-                        best_quiz_score = %s,
-                        best_quiz_numeric = %s,
-                        best_quiz_answers = %s::jsonb,
-                        updated_at = NOW()
-                    WHERE UPPER(folio) = %s;
-                """, (
-                    json.dumps(quiz_items),
-                    new_score_str,
-                    new_num,
-                    json.dumps(serializable_ans),
-                    f_clean
-                ))
-                msg = (
-                    f"🏆 ¡Nueva mejor calificación registrada en PostgreSQL: **{new_score_str}**! (Superaste tu intento anterior de {prev_best_str})."
-                    if prev_num >= 0
-                    else f"✅ Calificación inicial registrada en PostgreSQL: **{new_score_str}**."
-                )
-                return True, msg, new_score_str
-            else:
-                msg = f"ℹ️ Obtuviste **{new_score_str}**, pero conservamos tu nota más alta (**{prev_best_str}**) en PostgreSQL y en tu PDF."
-                return False, msg, prev_best_str
-
-
-def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
-    # Guarda en PostgreSQL la calificación más alta de evaluación oral y su reporte.
-    if not folio:
-        return
-    try:
-        conn = get_pg_conn()
-        if not conn:
-            return
-        eval_json = json.dumps(st.session_state.get("speaking_eval_result")) if st.session_state.get("speaking_eval_result") else None
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE lessons_folios
-                    SET best_speaking_score = GREATEST(COALESCE(best_speaking_score, -1), %s),
-                        speaking_eval_json = COALESCE(%s::jsonb, speaking_eval_json),
-                        updated_at = NOW()
-                    WHERE UPPER(folio) = %s;
-                """, (float(new_score_pct), eval_json, str(folio).strip().upper()))
-    except Exception:
-        pass
-        
-def upsert_user_padron_pg(
-    usuario: str, clave: str, rol: str, grado: str, nivel: str, permisos: str, estatus: str,
-    afiliador_id: int | None = None
-) -> str:
-    """Inserta o actualiza un usuario en Supabase, asigna su Matrícula Oficial y vincula su Socio Afiliado."""
-    conn = get_pg_conn()
-    if not conn:
-        raise RuntimeError("Sin conexión activa a PostgreSQL.")
-    anio_actual = datetime.now(ZoneInfo("America/Hermosillo")).year
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (permisos.strip(),))
-            cur.execute("""
-                INSERT INTO users_padron (usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus, afiliador_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (usuario) DO UPDATE SET
-                    clave_hash = EXCLUDED.clave_hash,
-                    rol = EXCLUDED.rol,
-                    grado_academico = EXCLUDED.grado_academico,
-                    nivel_cefr = EXCLUDED.nivel_cefr,
-                    permisos = EXCLUDED.permisos,
-                    estatus = EXCLUDED.estatus,
-                    afiliador_id = COALESCE(EXCLUDED.afiliador_id, users_padron.afiliador_id)
-                RETURNING id, matricula;
-            """, (
-                usuario.strip(),
-                clave.strip(),
-                rol.strip(),
-                grado.strip(),
-                normalize_cefr(nivel),
-                permisos.strip(),
-                "Activo" if estatus.strip().lower() == "activo" else "Inactivo",
-                afiliador_id
-            ))
-            row_ret = cur.fetchone()
-            user_id_db = row_ret[0]
-            mat_actual = row_ret[1]
-
-            if not mat_actual:
-                mat_actual = f"CEI-{anio_actual}-{int(user_id_db):04d}"
-                cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_actual, user_id_db))
-
-    load_padron_records.clear()
-    return mat_actual
-
-
-def set_student_affiliate_pg(student_id: int, afiliador_id: int | None):
-    # Guarda el ID del socio afiliador directamente en la columna afiliador_id del estudiante.
-    conn = get_pg_conn()
-    if not conn:
-        raise RuntimeError("Sin conexión activa a PostgreSQL.")
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE users_padron SET afiliador_id = %s WHERE id = %s;",
-                (afiliador_id, int(student_id))
-            )
-    load_padron_records.clear()
-
-        
-def upsert_permission_profile_pg(perfil_name: str, caps_dict: dict):
-    # Guarda o actualiza un perfil de permisos RBAC directamente en Supabase PostgreSQL.
-    conn = get_pg_conn()
-    if not conn:
-        raise RuntimeError("Sin conexión activa a PostgreSQL.")
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO roles_permissions (
-                    profile_name, generar_leccion, resolver_quiz, grabar_audio,
-                    emitir_certificados, gestionar_usuarios, editar_instituto_logo, capabilities_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb)
-                ON CONFLICT (profile_name) DO UPDATE SET
-                    generar_leccion = EXCLUDED.generar_leccion,
-                    resolver_quiz = EXCLUDED.resolver_quiz,
-                    grabar_audio = EXCLUDED.grabar_audio,
-                    emitir_certificados = EXCLUDED.emitir_certificados,
-                    gestionar_usuarios = EXCLUDED.gestionar_usuarios,
-                    editar_instituto_logo = EXCLUDED.editar_instituto_logo,
-                    capabilities_json = EXCLUDED.capabilities_json,
-                    updated_at = NOW();
-            """, (
-                perfil_name.strip(),
-                bool(caps_dict.get("Generar_Leccion", True)),
-                bool(caps_dict.get("Resolver_Quiz", True)),
-                bool(caps_dict.get("Grabar_Audio", True)),
-                bool(caps_dict.get("Emitir_Certificados", False)),
-                bool(caps_dict.get("Registrar_Usuarios", caps_dict.get("Gestionar_Usuarios", False))),
-                bool(caps_dict.get("Editar_Instituto_Logo", False)),
-                json.dumps(caps_dict)
-            ))
-            
-    load_permissions_matrix.clear()
-
-
-def _build_cert_verify_url(folio_cert: str) -> str:
-    # Construye la URL directa de validación oficial del certificado usando APP_PUBLIC_URL desde Secrets.
-    base_url = str(st.secrets.get("APP_PUBLIC_URL", "")).strip().rstrip("/")
-    f_clean = urllib.parse.quote(folio_cert.strip().upper())
-    return f"{base_url}/?verify_cert={f_clean}" if base_url else f"/?verify_cert={f_clean}"
-
-
-    
-def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_sel: str, grado_sel: str, programa_c: str, calif_c: str, fecha_c: str, sello_h: str):
-    # Guarda un certificado oficial timbrado directamente en Supabase PostgreSQL.
-    conn = get_pg_conn()
-    if not conn:
-        raise RuntimeError("Sin conexión activa a PostgreSQL.")
-
-    app_pub_cert = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
-    f_upper = folio_c.strip().upper()
-    verify_url = f"{app_pub_cert}/?verify_cert={urllib.parse.quote(f_upper)}" if app_pub_cert else f"/?verify_cert={urllib.parse.quote(f_upper)}"
-
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT id FROM users_padron WHERE LOWER(usuario) = LOWER(%s) LIMIT 1;", (nombre_sel.strip(),))
-            u_row = cur.fetchone()
-            uid = next(iter(u_row), None) if u_row else None
-            if uid is None:
-                cur.execute("""
-                    INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
-                    VALUES (%s, %s, 'Estudiante', 'Basico', 'Activo')
-                    RETURNING id;
-                """, (nombre_sel.strip(), clave_sel.strip()))
-                uid = next(iter(cur.fetchone()), 1)
-
-            cur.execute("""
-                INSERT INTO certificates (
-                    folio_cert, user_id, clave_alumno, titular, nivel_cefr,
-                    grado_academico, programa, calificacion, fecha_emision,
-                    firma_hmac, estatus, verify_url
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Valido', %s)
-                ON CONFLICT (folio_cert) DO NOTHING;
-            """, (
-                f_upper, uid, clave_sel.strip(), nombre_sel.strip(),
-                nivel_sel.strip(), grado_sel.strip(), programa_c.strip(),
-                calif_c.strip(), fecha_c.strip(), sello_h.strip(), verify_url
-            ))
-
-def register_gradebook_stamp_pg(folio_b: str, alumno: str, matricula: str, topico: str, promedio_str: str, sello_hmac: str) -> str:
-    # Registra el timbre digital del Boletín de Calificaciones en Supabase y devuelve su URL de validación.
-    app_pub = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
-    f_upper = folio_b.strip().upper()
-    verify_url = f"{app_pub}/?verify_gradebook={urllib.parse.quote(f_upper)}" if app_pub else f"/?verify_gradebook={urllib.parse.quote(f_upper)}"
-
-    conn = get_pg_conn()
-    if conn:
-        try:
-            with conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS gradebook_stamps (
-                            folio_boletin TEXT PRIMARY KEY,
-                            titular TEXT NOT NULL,
-                            matricula TEXT,
-                            topico_evaluado TEXT,
-                            promedio_general TEXT,
-                            firma_hmac TEXT NOT NULL,
-                            verify_url TEXT,
-                            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                        );
-                    """)
-                    cur.execute("""
-                        INSERT INTO gradebook_stamps (
-                            folio_boletin, titular, matricula, topico_evaluado, promedio_general, firma_hmac, verify_url
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (folio_boletin) DO UPDATE SET
-                            promedio_general = EXCLUDED.promedio_general,
-                            firma_hmac = EXCLUDED.firma_hmac,
-                            verify_url = EXCLUDED.verify_url;
-                    """, (f_upper, alumno.strip(), matricula.strip(), topico.strip(), promedio_str.strip(), sello_hmac.strip(), verify_url))
-        except Exception:
-            pass
-    return verify_url
-
-
-
-def load_certificates_pg() -> list[dict]:
-    # Carga el historial de certificados emitidos desde Supabase PostgreSQL.
-    from psycopg.rows import dict_row
-    conn = get_pg_conn()
-    if not conn:
         return []
-    with conn:
-        with conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("SELECT * FROM certificates ORDER BY created_at DESC;")
-            rows = cur.fetchall()
-            return [
-                {
-                    "Folio_Certificado": r.get("folio_cert", ""),
-                    "Clave_Alumno": r.get("clave_alumno", ""),
-                    "Nombre_Estudiante": r.get("titular", ""),
-                    "Nivel_CEFR": r.get("nivel_cefr", ""),
-                    "Grado_Academico": r.get("grado_academico", ""),
-                    "Programa": r.get("programa", ""),
-                    "Calificacion": r.get("calificacion", ""),
-                    "Fecha_Emision": r.get("fecha_emision", ""),
-                    "Firma_HMAC": r.get("firma_hmac", ""),
-                    "Estatus": "Vigente" if str(r.get("estatus", "")).lower() == "valido" else "Revocado"
-                }
-                for r in rows
-            ]
 
-
-def update_certificate_status_pg(folio_cert: str, nuevo_estatus_ui: str):
-    # Actualiza el estatus (Vigente/Revocado) de un certificado en Supabase PostgreSQL.
-    conn = get_pg_conn()
-    if not conn:
-        raise RuntimeError("Sin conexión activa a PostgreSQL.")
-    db_status = "Valido" if str(nuevo_estatus_ui).strip().lower() in ["vigente", "valido"] else "Revocado"
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE certificates SET estatus = %s WHERE UPPER(folio_cert) = %s;",
-                (db_status, str(folio_cert).strip().upper())
-            )
-
-
-def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
-    # Evalúa fonética, fluidez y gramática oral usando gemini-3.1-pro-preview con respaldo a gemini-2.5-flash.
-    from google.genai import types
-
-    gm_client = init_gemini_client()
-    if not gm_client:
-        raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
-
-    prompt_eval = f"""
-    Listen carefully to the student's audio reading the target lesson below (CEFR {nivel_cefr}, Academic Level: {grado_acad}, Target Grammar: {gramatica_obj}).
-
-    Target text:
-    {texto_objetivo[:2500]}
-
-    Evaluate pronunciation, articulation, fluency, prosody, and grammatical accuracy.
-    Respond in Spanish for the feedback fields, keeping the detected transcription in English.
-    Return ONLY a valid JSON object with these exact keys:
-    {{
-      "score_percent": 88,
-      "cefr_performance": "B1 Solid / Proficient",
-      "transcription": "Exact English words spoken by the student",
-      "phonetic_feedback": "Análisis claro en español sobre pronunciación de vocales, consonantes y acentuación.",
-      "fluency_prosody": "Evaluación en español de ritmo, pausas y entonación natural.",
-      "grammar_accuracy": "Evaluación en español sobre la correcta pronunciación y uso de las estructuras objetivo.",
-      "actionable_tips": [
-        "Consejo práctico 1 con ejemplos de palabras del texto",
-        "Consejo práctico 2"
-      ]
-    }}
-    """
-
-    ultimo_error = ""
-    for modelo_oral in ["gemini-3.1-pro-preview", "gemini-2.5-flash"]:
-        try:
-            response = gm_client.models.generate_content(
-                model=modelo_oral,
-                contents=[
-                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                    prompt_eval
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.2
-                )
-            )
-            raw_json = str(response.text or "").strip()
-            raw_json = raw_json.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-            return json.loads(raw_json)
-        except Exception as e_mod:
-            ultimo_error = f"{modelo_oral}: {e_mod}"
-
-    raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
-
-
-# --- 6. DETECCIÓN DE DISPOSITIVO Y ESTADOS ---
-try:
-    user_agent = st.context.headers.get("User-Agent", "").lower()
-except Exception:
-    user_agent = ""
-is_mobile = any(device in user_agent for device in ["iphone", "android", "ipad", "mobile"])
-
-CEFR_MAP = {
-    "A1": "A1 (Beginner)",
-    "A2": "A2 (Elementary)",
-    "B1": "B1 (Intermediate)",
-    "B2": "B2 (Upper-Intermediate)",
-    "C1": "C1 (Advanced)",
-    "C2": "C2 (Proficiency)"
-}
-
-
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v15_force_sentences") -> dict:
-
-    # Motor lexicográfico híbrido de 4 niveles: Supabase Cache -> deep-translator -> Free Dictionary API -> Gemini.
-    import re
-    import requests
-    from deep_translator import GoogleTranslator
-
-    texto_sin_bib = str(lesson_text or "")
-    for marcador in ["**Bibliography", "Bibliography ("]:
-        if marcador in raw_lesson:
-            raw_lesson = next(iter(raw_lesson.split(marcador, 1)), raw_lesson)
-
-    lineas_limpias = []
-    for linea in texto_sin_bib.splitlines():
-        l_strip = linea.strip()
-        if not l_strip:
-            continue
-        if re.match(r"^\*\*(Folio|Creation Date|Author|Institution|CEFR Level|Academic Level|Campus & Contact):", l_strip, flags=re.IGNORECASE):
-            continue
-        lineas_limpias.append(l_strip)
-
-    conjunciones = {"and", "but", "or", "so", "because", "although", "while", "if", "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"}
-    oraciones_base = []
-    palabras_clave = []
-    vistas = set()
-
-    for idx_linea, bloque in enumerate(lineas_limpias):
-        sub_oraciones = [bloque] if idx_linea == 0 else re.split(r"(?<=[.!?])\s+", bloque)
-        for orac in sub_oraciones:
-            orac_limpia = orac.replace("**", "").replace("#", "").strip()
-            if not orac_limpia:
-                continue
-            tokens_raw = re.findall(r"[A-Za-z0-9'-]+|[^\w\s]", orac_limpia)
-            toks = []
-            for tk in tokens_raw:
-                low = tk.lower()
-                if low in conjunciones:
-                    pos = "conjunction"
-                elif low.endswith(("ing", "ed")) and len(low) > 4:
-                    pos = "verb"
-                elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
-                    pos = "adjective"
-                elif len(low) > 3 and low.isalpha():
-                    pos = "noun"
-                else:
-                    pos = "other"
-                toks.append({"w": tk, "pos": pos})
-
-                if low.isalpha() and len(low) >= 2 and low not in vistas:
-                    vistas.add(low)
-                    palabras_clave.append(low)
-            oraciones_base.append({"sentence_es": "", "tokens": toks})
-
-    dict_final = {}
-    conn_lex = get_pg_conn()
-
-    # NIVEL 1: Consulta instantánea en Caché Persistente de Supabase PostgreSQL
-    if conn_lex and palabras_clave:
-        try:
-            with conn_lex:
-                with conn_lex.cursor() as cur:
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS cei_lexicon_cache (
-                            word_en TEXT PRIMARY KEY,
-                            es TEXT NOT NULL,
-                            alt_es TEXT DEFAULT '',
-                            ipa TEXT DEFAULT '',
-                            pos TEXT DEFAULT 'other',
-                            pos_es TEXT DEFAULT 'Inglés (US)',
-                            def_es TEXT DEFAULT ''
-                        );
-                    """)
-                    cur.execute(
-                        "SELECT word_en, es, alt_es, ipa, pos, pos_es, def_es FROM cei_lexicon_cache WHERE word_en = ANY(%s);",
-                        (palabras_clave[:300],)
-                    )
-                    for row in cur.fetchall():
-                        dict_final[row] = {
-                            "es": row,
-                            "alt_es": row or "",
-                            "ipa": row or "",
-                            "pos": row or "other",
-                            "pos_es": row or "Inglés (US)",
-                            "def_es": row or "",
-                            "examples": []
-                        }
-        except Exception:
-            pass
-
-    # NIVEL 2: Traducción masiva gratuita con deep-translator (GoogleTranslator sin límites de tokens)
-    faltantes = [w for w in palabras_clave[:300] if w not in dict_final]
-    nuevas_para_guardar = []
-
-    if faltantes:
-        try:
-            traductor = GoogleTranslator(source="en", target="es")
-            # Traduce en bloque separado por saltos de línea (1 sola petición HTTP rápida)
-            bloque_en = "\n".join(faltantes)
-            bloque_es = traductor.translate(bloque_en)
-            lista_tr = [x.strip() for x in str(bloque_es or "").splitlines()]
-            if len(lista_tr) != len(faltantes):
-                lista_tr = traductor.translate_batch(faltantes)
-
-            for w_orig, w_es in zip(faltantes, lista_tr):
-                tr_limpia = str(w_es or w_orig).strip()
-                ipa_val = ""
-                def_val = ""
-                pos_code = "other"
-                pos_label = "Vocabulario Inglés (US)"
-
-                # NIVEL 3: Enriquecimiento fonético IPA y definición desde Free Dictionary API (gratuita)
-                if len(nuevas_para_guardar) < 35 and len(w_orig) > 3:
-                    try:
-                        r_fd = requests.get(f"https://dictionaryapi.dev{w_orig}", timeout=2.5)
-                        if r_fd.status_code == 200:
-                            jd = r_fd.json()
-                            ipa_val = str(jd.get("phonetic") or "").strip()
-                            if not ipa_val:
-                                for ph in jd.get("phonetics", []):
-                                    if ph.get("text"):
-                                        ipa_val = str(ph["text"]).strip()
-                                        break
-                            meanings = jd.get("meanings", [])
-                            if meanings:
-                                pos_en = str(meanings.get("partOfSpeech", "")).lower()
-                                mapa_pos = {
-                                    "verb": ("verb", "Verbo"),
-                                    "noun": ("noun", "Sustantivo"),
-                                    "adjective": ("adjective", "Adjetivo"),
-                                    "conjunction": ("conjunction", "Conjunción"),
-                                    "adverb": ("other", "Adverbio"),
-                                    "preposition": ("other", "Preposición")
-                                }
-                                pos_code, pos_label = mapa_pos.get(pos_en, ("other", pos_en.capitalize() or "Inglés (US)"))
-                                defs = meanings.get("definitions", [])
-                                if defs and defs.get("definition"):
-                                    def_val = traductor.translate(str(defs["definition"])[:160])
-                    except Exception:
-                        pass
-
-                entry = {
-                    "es": tr_limpia,
-                    "alt_es": "",
-                    "ipa": ipa_val,
-                    "pos": pos_code,
-                    "pos_es": pos_label,
-                    "def_es": def_val,
-                    "examples": []
-                }
-                dict_final[w_orig] = entry
-                nuevas_para_guardar.append((w_orig, tr_limpia, "", ipa_val, pos_code, pos_label, def_val))
-        except Exception:
-            pass
-
-    # Guarda las palabras nuevas en Supabase para acceso instantáneo en futuras lecciones
-    if conn_lex and nuevas_para_guardar:
-        try:
-            with conn_lex:
-                with conn_lex.cursor() as cur:
-                    for item in nuevas_para_guardar:
-                        cur.execute("""
-                            INSERT INTO cei_lexicon_cache (word_en, es, alt_es, ipa, pos, pos_es, def_es)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (word_en) DO UPDATE SET
-                                es = EXCLUDED.es,
-                                ipa = COALESCE(NULLIF(EXCLUDED.ipa, ''), cei_lexicon_cache.ipa),
-                                pos = EXCLUDED.pos,
-                                pos_es = EXCLUDED.pos_es,
-                                def_es = COALESCE(NULLIF(EXCLUDED.def_es, ''), cei_lexicon_cache.def_es);
-                        """, item)
-        except Exception:
-            pass
-
-    for s_obj in oraciones_base:
-        for tk in s_obj["tokens"]:
-            info_w = dict_final.get(tk["w"].lower())
-            if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
-                tk["pos"] = info_w["pos"]
-
-    return {"sentences": oraciones_base, "dictionary": dict_final}
-
-
-
-
-
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def _fast_translate_to_en(txt: str) -> str:
-    # Traduce entradas cortas al ingles en milisegundos con cache persistente
-    clean_t = str(txt or "").strip()
-    if not clean_t:
-        return ""
-    try:
-        from deep_translator import GoogleTranslator
-        tr = GoogleTranslator(source="auto", target="en").translate(clean_t)
-        return str(tr or clean_t).strip()
-    except Exception:
-        return clean_t
-
-
-def normalizar_entradas_apa(client, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
-    # Traduce al ingles y aplica formato APA 7a Ed. en milisegundos sin bloquear la API de Gemini
-    ctx_en = _fast_translate_to_en(contexto_raw) or str(contexto_raw or "").strip()
-    per_en = _fast_translate_to_en(personas_raw) or str(personas_raw or "").strip()
-    asu_en = _fast_translate_to_en(asunto_raw) or str(asunto_raw or "").strip()
-
-    # Formato Title Case estilo APA 7a Ed. (respeta conectores menores en minuscula)
-    palabras_menores = {"a", "an", "the", "and", "but", "or", "for", "nor", "on", "at", "to", "from", "by", "in", "of", "with"}
-    palabras = asu_en.split()
-    asu_apa = " ".join(
-        w.capitalize() if (i == 0 or i == len(palabras) - 1 or w.lower() not in palabras_menores) else w.lower()
-        for i, w in enumerate(palabras)
-    ) if palabras else "Academic English Discourse"
-
-    return ctx_en, per_en, asu_apa
-
-def migrar_sheets_a_supabase() -> dict:
-    # Transfiere de forma segura los datos de Google Sheets a PostgreSQL (Supabase).
-    import psycopg
-    db_url = str(st.secrets.get("DATABASE_URL", "")).strip()
-    if not db_url:
-        raise ValueError("No se encontró DATABASE_URL en los Secrets de Streamlit.")
-
-    resumen = {"permisos": 0, "usuarios": 0, "folios": 0, "certificados": 0, "config": 0}
-    book = get_google_workbook()
-
-    with psycopg.connect(db_url, prepare_threshold=None) as conn:
-        with conn.cursor() as cur:
-            # 1. Migrar Matriz de Permisos
-            try:
-                ws_perm = book.worksheet("Matriz_Permisos")
-                for r in ws_perm.get_all_records():
-                    prof = str(r.get("Perfil", "")).strip()
-                    if not prof:
-                        continue
-                    cur.execute("""
-                        INSERT INTO roles_permissions (
-                            profile_name, generar_leccion, resolver_quiz, grabar_audio,
-                            emitir_certificados, gestionar_usuarios, editar_instituto_logo
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (profile_name) DO UPDATE SET
-                            generar_leccion = EXCLUDED.generar_leccion,
-                            resolver_quiz = EXCLUDED.resolver_quiz,
-                            grabar_audio = EXCLUDED.grabar_audio,
-                            emitir_certificados = EXCLUDED.emitir_certificados,
-                            gestionar_usuarios = EXCLUDED.gestionar_usuarios,
-                            editar_instituto_logo = EXCLUDED.editar_instituto_logo,
-                            updated_at = NOW();
-                    """, (
-                        prof,
-                        str(r.get("Generar_Leccion", "SI")).upper() == "SI",
-                        str(r.get("Resolver_Quiz", "SI")).upper() == "SI",
-                        str(r.get("Grabar_Audio", "SI")).upper() == "SI",
-                        str(r.get("Emitir_Certificados", "NO")).upper() == "SI",
-                        str(r.get("Gestionar_Usuarios", "NO")).upper() == "SI",
-                        str(r.get("Editar_Instituto_Logo", "NO")).upper() == "SI",
-                    ))
-                    resumen["permisos"] += 1
-            except Exception:
-                pass
-
-            # 2. Migrar Padrón de Usuarios
-            mapa_user_ids = {}
-            ws_pad = book.worksheet("Padron")
-            for r in ws_pad.get_all_records():
-                u_name = str(r.get("Usuario", "")).strip()
-                c_pass = str(r.get("Clave", "")).strip()
-                if not u_name or not c_pass:
-                    continue
-                perm_val = str(r.get("Permisos", "Basico")).strip() or "Basico"
-                cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (perm_val,))
-                cur.execute("""
-                    INSERT INTO users_padron (usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (usuario) DO UPDATE SET
-                        clave_hash = EXCLUDED.clave_hash,
-                        rol = EXCLUDED.rol,
-                        grado_academico = EXCLUDED.grado_academico,
-                        nivel_cefr = EXCLUDED.nivel_cefr,
-                        permisos = EXCLUDED.permisos,
-                        estatus = EXCLUDED.estatus
-                    RETURNING id;
-                """, (
-                    u_name,
-                    c_pass,
-                    str(r.get("Rol", "Estudiante")).strip() or "Estudiante",
-                    str(r.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad",
-                    normalize_cefr(r.get("Nivel", "B1")),
-                    perm_val,
-                    "Activo" if str(r.get("Estatus", "Activo")).strip().lower() == "activo" else "Inactivo"
-                ))
-                row_id = next(iter(cur.fetchone()), None)
-                mapa_user_ids[u_name.lower()] = row_id
-                resumen["usuarios"] += 1
-
-            # 3. Migrar Lecciones y Folios (Hoja1)
-            ws_h1 = book.sheet1
-            for r in ws_h1.get_all_records():
-                folio_val = str(r.get("Folio", "")).strip().upper()
-                u_folio = str(r.get("Usuario", "")).strip()
-                if not folio_val or not u_folio:
-                    continue
-                uid = mapa_user_ids.get(u_folio.lower())
-                if not uid:
-                    cur.execute("""
-                        INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
-                        VALUES (%s, 'MIGRATED_LEGACY', 'Estudiante', 'Basico', 'Inactivo')
-                        ON CONFLICT (usuario) DO UPDATE SET usuario = EXCLUDED.usuario
-                        RETURNING id;
-                    """, (u_folio,))
-                    uid = next(iter(cur.fetchone()), None)
-                    mapa_user_ids[u_folio.lower()] = uid
-
-                raw_j = str(r.get("Contenido_JSON", "")).strip()
-                paq = {}
-                if raw_j:
-                    try:
-                        paq = json.loads(raw_j)
-                    except Exception:
-                        paq = {}
-
-                texto_lec = paq.get("text", str(r.get("Tema", "")))
-                cefr_lec = paq.get("cefr", "B1")
-                grado_lec = paq.get("grade", "Licenciatura / Universidad")
-                mejor_str = str(r.get("Mejor_Calificacion_PDF", "") or paq.get("best_score", "")).strip()
-                mejor_num = _extract_numeric_score(mejor_str)
-                spk_str = str(r.get("Mejor_Speaking_Nota", "")).strip()
-                spk_num = _extract_numeric_score(spk_str)
-
-                cur.execute("""
-                    INSERT INTO lessons_folios (
-                        folio, user_id, tema, cefr_level, academic_grade, lesson_text,
-                        quiz_data, best_quiz_score, best_quiz_numeric, best_quiz_answers,
-                        best_speaking_score, pdf_link
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s::jsonb, %s, %s)
-                    ON CONFLICT (folio) DO UPDATE SET
-                        best_quiz_score = EXCLUDED.best_quiz_score,
-                        best_quiz_numeric = GREATEST(lessons_folios.best_quiz_numeric, EXCLUDED.best_quiz_numeric),
-                        best_speaking_score = GREATEST(lessons_folios.best_speaking_score, EXCLUDED.best_speaking_score),
-                        updated_at = NOW();
-                """, (
-                    folio_val, uid, str(r.get("Tema", "")), cefr_lec, grado_lec, texto_lec,
-                    json.dumps(paq.get("quiz")) if paq.get("quiz") else None,
-                    mejor_str or None, mejor_num,
-                    json.dumps(paq.get("best_answers")) if paq.get("best_answers") else None,
-                    spk_num, str(r.get("PDF_Link", ""))
-                ))
-                resumen["folios"] += 1
-
-                
-            # 4. Migrar Certificados
-            try:
-                ws_cert = book.worksheet("Certificados")
-                for r in ws_cert.get_all_records():
-                    f_cert = str(r.get("Folio_Certificado", "")).strip().upper()
-                    titular_c = str(r.get("Titular", "")).strip()
-                    if not f_cert or not titular_c:
-                        continue
-                    uid_c = mapa_user_ids.get(titular_c.lower()) or next(iter(mapa_user_ids.values()), 1)
-                    cur.execute("""
-                        INSERT INTO certificates (
-                            folio_cert, user_id, clave_alumno, titular, nivel_cefr,
-                            grado_academico, programa, calificacion, fecha_emision,
-                            firma_hmac, estatus, verify_url
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (folio_cert) DO NOTHING;
-                    """, (
-                        f_cert, uid_c, str(r.get("Clave_Alumno", "")), titular_c,
-                        str(r.get("Nivel_CEFR", "B1")), str(r.get("Grado_Academico", "")),
-                        str(r.get("Programa", "")), str(r.get("Calificacion", "")),
-                        str(r.get("Fecha_Emision", "")), str(r.get("Firma_HMAC", "")),
-                        "Valido" if str(r.get("Estatus", "Valido")).strip().lower() == "valido" else "Revocado",
-                        str(r.get("URL_Verificacion", ""))
-                    ))
-                    resumen["certificados"] += 1
-            except Exception:
-                pass
-            # 5. Migrar Configuración Institucional
-            cfg_actual = load_permanent_logo()
-            if cfg_actual:
-                cur.execute("""
-                    INSERT INTO institute_config (id, logo_base64, mime_type, logo_width, logo_shape, direccion)
-                    VALUES (1, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE SET
-                        logo_base64 = EXCLUDED.logo_base64,
-                        mime_type = EXCLUDED.mime_type,
-                        logo_width = EXCLUDED.logo_width,
-                        logo_shape = EXCLUDED.logo_shape,
-                        direccion = EXCLUDED.direccion,
-                        updated_at = NOW();
-                """, (
-                    cfg_actual.get("Logo_Base64", ""),
-                    cfg_actual.get("Mime_Type", "image/png"),
-                    int(cfg_actual.get("Ancho", 120) or 120),
-                    cfg_actual.get("Forma", "Circular"),
-                    cfg_actual.get("Direccion", institute_address)
-                ))
-                resumen["config"] = 1
-
-        conn.commit()
-    return resumen
-
-
-
-def save_best_speaking_to_sheet(folio: str, new_score_pct: int):
-    # Guarda en Google Sheets la calificación más alta de pronunciación obtenida en el Folio.
-    if not folio:
-        return
-    try:
-        s1 = get_google_sheet()
-        celda_f = s1.find(str(folio).strip().upper(), in_column=1)
-        if not celda_f:
-            return
-        headers = s1.row_values(1)
-        if "Mejor_Speaking_Nota" not in headers:
-            col_spk = len(headers) + 1
-            s1.update_cell(1, col_spk, "Mejor_Speaking_Nota")
-        else:
-            col_spk = headers.index("Mejor_Speaking_Nota") + 1
-
-        prev_val = str(s1.cell(celda_f.row, col_spk).value or "").strip()
-        prev_num = _extract_numeric_score(prev_val)
-        if prev_num < 0 or float(new_score_pct) > prev_num:
-            s1.update_cell(celda_f.row, col_spk, f"{new_score_pct}%")
-    except Exception:
-        pass
-
-
-def normalize_cefr(raw_val):
-    code = str(raw_val).strip().upper()[:2]
-    return CEFR_MAP.get(code, "B1 (Intermediate)")
-
-DEFAULT_SESSION_STATES = [
-    ("authenticated", False), ("current_user", ""), ("user_role", "Estudiante"),
-    ("user_permissions", "Basico"), ("user_assigned_level", "B1 (Intermediate)"),
-    ("user_academic_grade", "Licenciatura / Universidad"),
-    ("selected_academic_grade", "Licenciatura / Universidad"),
-    ("generated_text", ""), ("image_bytes", None), ("audio_bytes", None),
-    ("app_exited", False), ("show_saved_audios", False), ("quiz_data", None),
-    ("quiz_graded", False), ("quiz_score", None), ("quiz_user_answers", {}),
-    ("pending_ls_token", None), ("selected_cefr", "B1 (Intermediate)"),
-    ("show_teacher_registry", False), ("current_folio", ""),
-    ("current_pdf_link", ""), ("current_creation_date", ""),
-    ("show_qr", True), ("url_folio_checked", False),
-    ("quiz_audio_bytes", None)
- 
-]
-
-for key, default in DEFAULT_SESSION_STATES:
-    if key not in st.session_state:
-        st.session_state[key] = default
-
-saved_cfg = load_permanent_logo()
-institute_address = (
-    str(saved_cfg.get("Direccion", "")).strip()
-    if (saved_cfg and saved_cfg.get("Direccion"))
-    else DEFAULT_ADDRESS
-)
-
-# --- 7. PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN ) ---
-verify_folio = str(st.query_params.get("verify") or st.query_params.get("verify_cert") or "").strip().upper()
-if verify_folio:
-    if st.session_state.get("portal_verificacion_cerrado", False):
-        st.iframe("<script>window.parent.close(); window.close();</script>", height=1)
-        st.markdown("<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>", unsafe_allow_html=True)
-        st.stop()
-
-    col_vl, col_vc, col_vr = st.columns([1, 2.2, 1])
-    with col_vc:
-        b64_l, mime_l = (
-            (saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"])
-            if (saved_cfg and saved_cfg.get("Logo_Base64"))
-            else get_default_logo_b64()
-        )
-        if b64_l:
-            st.markdown(
-                f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 110px; border-radius: 50%;"></div>',
-                unsafe_allow_html=True
-            )
-        st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
-        st.markdown(f"<p style='text-align: center; color: #555; font-size: 12px;'>📍 {institute_address}</p>", unsafe_allow_html=True)
-        st.markdown("<h2 style='text-align: center;'>🛡️ DIGITAL CREDENTIAL VERIFICATION PORTAL</h2>", unsafe_allow_html=True)
-        st.divider()
-
-        try:
-            with st.spinner(f"Validando sello criptográfico del certificado {verify_folio}..."):
-                folio_norm = verify_folio.replace("-", "").replace(" ", "")
-                cert_encontrado = None
-
-                # 1. Consulta principal en Supabase PostgreSQL
-                conn_v = get_pg_conn()
-                if conn_v:
-                    from psycopg.rows import dict_row
-                    with conn_v:
-                        with conn_v.cursor(row_factory=dict_row) as cur:
-                            cur.execute("""
-                                SELECT
-                                    folio_cert AS "Folio_Certificado",
-                                    clave_alumno AS "Clave_Alumno",
-                                    titular AS "Nombre_Estudiante",
-                                    nivel_cefr AS "Nivel_CEFR",
-                                    grado_academico AS "Grado_Academico",
-                                    programa AS "Programa_Curso",
-                                    calificacion AS "Calificacion",
-                                    fecha_emision AS "Fecha_Emision",
-                                    firma_hmac AS "Sello_Digital_SHA256",
-                                    estatus AS "Estatus"
-                                FROM certificates
-                                WHERE REPLACE(UPPER(folio_cert), '-', '') = %s
-                                LIMIT 1;
-                            """, (folio_norm,))
-                            cert_encontrado = cur.fetchone()
-
-                # 2. Respaldo en Google Sheets para certificados históricos
-                if not cert_encontrado:
-                    certs = get_certificados_sheet().get_all_records()
-                    cert_encontrado = next(
-                        (c for c in certs if str(c.get("Folio_Certificado", "")).strip().upper().replace("-", "") == folio_norm),
-                        None
-                    )
-
-                if cert_encontrado:
-                    folio_oficial = str(cert_encontrado.get("Folio_Certificado", verify_folio)).strip().upper()
-                    estatus_c = str(cert_encontrado.get("Estatus", "Valido")).strip()
-                    clave_c = str(cert_encontrado.get("Clave_Alumno", "")).strip()
-                    nombre_c = str(cert_encontrado.get("Nombre_Estudiante", "")).strip()
-                    nivel_c = str(cert_encontrado.get("Nivel_CEFR", "")).strip()
-                    prog_c = str(cert_encontrado.get("Programa_Curso", "")).strip()
-                    calif_c = str(cert_encontrado.get("Calificacion", "")).strip()
-                    fecha_c = str(cert_encontrado.get("Fecha_Emision", "")).strip()
-                    sello_bd = str(cert_encontrado.get("Sello_Digital_SHA256", "")).strip().upper()
-
-                    _, sello_recalculado = generar_sello_digital(folio_oficial, clave_c, nombre_c, nivel_c, fecha_c)
-                    firma_valida = hmac.compare_digest(sello_bd, sello_recalculado) if sello_recalculado else bool(sello_bd)
-
-                    if firma_valida and estatus_c.lower() in ("vigente", "valido", "válido"):
-                        st.success("✅ **CERTIFICADO AUTÉNTICO Y VERIFICADO CRIPTOGRÁFICAMENTE**")
-                        with st.container(border=True):
-                            st.markdown(f"**🔖 Folio Oficial:** `{folio_oficial}`")
-                            st.markdown(f"**👤 Titular / Student:** {nombre_c}")
-                            st.markdown(f"**🔑 Clave de Registro:** `{clave_c}`")
-                            st.markdown(f"**🎯 Nivel Certificado (CEFR):** {nivel_c}")
-                            st.markdown(f"**📚 Programa / Módulo:** {prog_c}")
-                            st.markdown(f"**🏆 Calificación Final:** {calif_c}")
-                            st.markdown(f"**📅 Fecha de Timbrado:** {fecha_c}")
-                            st.markdown("**✍️ Autoridad Emisora:** Jacob Zumaya Prianti (Career English Institute)")
-                            st.divider()
-                            st.caption("**Sello Digital HMAC-SHA256 Verificado:**")
-                            st.code(sello_bd, language="text")
-                    else:
-                        st.error("⛔ **ALERTA DE SEGURIDAD:** El sello digital no coincide o el certificado fue revocado.")
-                else:
-                    st.error(f"❌ No existe ningún certificado registrado con el Folio `{verify_folio}`.")
-        except Exception as e:
-            st.error(f"Error al verificar certificado: {e}")
-
-        st.write("")
-        if st.button("✖️ Cerrar Verificación", type="primary", width="stretch", key="btn_close_verify_cert"):
-            st.session_state["portal_verificacion_cerrado"] = True
-            st.rerun()
-
-
-
-    
-# --- 8. AUTENTICACIÓN, LOCALSTORAGE FIRMADO Y CAPTURA DE FOLIO ---
 def fetch_student_gradebook_pg(target_usuario: str) -> dict:
-    """Calcula promedios en tiempo real y desglose completo por todos los Grammar Topics del nivel CEFR del alumno."""
-    import re
-    from psycopg.rows import dict_row
-
-    conn = get_pg_conn()
-    if not conn:
-        return {"records": [], "topic_summary": [], "overall_avg": 0.0, "quiz_avg": 0.0, "oral_avg": 0.0, "matricula": "N/A", "nivel_cefr": "B1", "grado": ""}
-
-    with conn:
-        with conn.cursor(row_factory=dict_row) as cur:
+    """Calcula promedios y desglose por Grammar Topic del nivel CEFR desde lessons_folios."""
+    default_res = {
+        "matricula": "CEI-2026-0000",
+        "nivel_cefr": "B1 (Intermediate)",
+        "grado": "",
+        "records": [],
+        "topic_summary": [],
+        "overall_avg": 0.0,
+        "quiz_avg": 0.0,
+        "oral_avg": 0.0
+    }
+    try:
+        with pg_session(dict_rows=True) as cur:
             cur.execute("""
-                SELECT id, COALESCE(matricula, 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
+                SELECT id,
+                       COALESCE(matricula, 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
                        COALESCE(nivel_cefr, 'B1') AS nivel_cefr,
                        COALESCE(grado_academico, 'Licenciatura / Universidad') AS grado_academico
                 FROM users_padron
@@ -2168,33 +849,46 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
 
             cur.execute("""
                 SELECT
-                    l.folio,
-                    l.tema,
-                    COALESCE(NULLIF(TRIM(l.grammar_topic), ''), 'General Applied Grammar') AS grammar_topic,
-                    l.nivel_cefr,
-                    l.best_score,
-                    COALESCE(l.speaking_score, 0) AS speaking_score,
-                    TO_CHAR(l.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha
-                FROM lessons_archive l
-                JOIN users_padron u ON l.user_id = u.id
+                    f.folio,
+                    f.tema,
+                    f.cefr_level,
+                    f.best_quiz_score,
+                    COALESCE(f.best_speaking_score, -1) AS speaking_score,
+                    TO_CHAR(f.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha
+                FROM lessons_folios f
+                JOIN users_padron u ON f.user_id = u.id
                 WHERE LOWER(TRIM(u.usuario)) = LOWER(TRIM(%s))
-                ORDER BY l.created_at DESC;
+                ORDER BY f.created_at DESC;
             """, (target_usuario.strip(),))
             rows = cur.fetchall()
+    except Exception:
+        return default_res
+
     def _parse_quiz_pct(score_str: str) -> float | None:
         m = re.search(r"\((\d+(?:\.\d+)?)%\)", str(score_str or ""))
-        return float(m.group(1)) if m else None
+        if m:
+            return float(m.group(1))
+        m2 = re.search(r"(\d+(?:\.\d+)?)%", str(score_str or ""))
+        return float(m2.group(1)) if m2 else None
+
+    def _extract_grammar_from_tema(tema_raw: str) -> str:
+        t_str = str(tema_raw or "").strip()
+        m_par = re.search(r"\(([^()]+)\)\s*$", t_str)
+        if m_par:
+            return m_par.group(1).strip()
+        return t_str or "General Applied Grammar"
 
     nivel_alumno = normalize_cefr(u_row.get("nivel_cefr", "B1"))
-    catalogo_nivel = CEFR_GRAMMAR_TOPICS.get(nivel_alumno, CEFR_GRAMMAR_TOPICS["B1"])
+    cefr_short_key = nivel_alumno[:2]
+    catalogo_nivel = CEFR_GRAMMAR_TOPICS.get(cefr_short_key, CEFR_GRAMMAR_TOPICS["B1"])
 
     por_tema = {t: {"scores": [], "lecciones": 0} for t in catalogo_nivel}
     registros_procesados = []
     todas_quiz, todas_oral, todas_combinadas = [], [], []
 
     for r in rows:
-        q_pct = _parse_quiz_pct(r.get("best_score"))
-        o_raw = float(r.get("speaking_score") or 0)
+        q_pct = _parse_quiz_pct(r.get("best_quiz_score"))
+        o_raw = float(r.get("speaking_score") if r.get("speaking_score") is not None else -1)
         o_pct = o_raw if o_raw > 0 else None
 
         notas_item = [x for x in [q_pct, o_pct] if x is not None]
@@ -2207,7 +901,7 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
         if prom_leccion is not None:
             todas_combinadas.append(prom_leccion)
 
-        g_topic = str(r.get("grammar_topic") or "General Applied Grammar").strip()
+        g_topic = _extract_grammar_from_tema(r.get("tema"))
         if g_topic not in por_tema:
             por_tema[g_topic] = {"scores": [], "lecciones": 0}
         por_tema[g_topic]["lecciones"] += 1
@@ -2217,7 +911,7 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
         registros_procesados.append({
             "Folio": r.get("folio", ""),
             "Fecha": r.get("fecha", ""),
-            "Nivel": r.get("nivel_cefr", ""),
+            "Nivel": r.get("cefr_level", ""),
             "Grammar_Topic": g_topic,
             "Tema_Leccion": r.get("tema", ""),
             "Quiz_Pct": f"{q_pct}%" if q_pct is not None else "Pendiente",
@@ -2246,13 +940,145 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
         "quiz_avg": round(sum(todas_quiz) / len(todas_quiz), 1) if todas_quiz else 0.0,
         "oral_avg": round(sum(todas_oral) / len(todas_oral), 1) if todas_oral else 0.0
     }
+# ==============================================================================
+# PARTE 5: MOTOR CRIPTOGRÁFICO (HMAC-SHA256), CERTIFICADOS Y BOLETINES (PG)
+# ==============================================================================
+def clean_pdf_text(text: str) -> str:
+    if not text:
+        return ""
+    reemplazos = {
+        "\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'",
+        "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u2022": "*"
+    }
+    res = str(text)
+    for orig, dest in reemplazos.items():
+        res = res.replace(orig, dest)
+    return res.encode("latin-1", "replace").decode("latin-1")
 
+def _get_hmac_secret_bytes() -> bytes:
+    key_val = (
+        st.secrets.get("HMAC_SECRET_KEY")
+        or st.secrets.get("CERT_HMAC_SECRET")
+        or st.secrets.get("spreadsheet_key")
+        or "CEI-2026-MASTER-SEAL"
+    )
+    return str(key_val).strip().encode("utf-8")
+
+def generar_sello_digital(folio_cert: str, clave_est: str, nombre_est: str, nivel_cefr: str, fecha_emision: str):
+    llave_secreta = _get_hmac_secret_bytes()
+    cadena_original = f"||CEI|{folio_cert}|{clave_est}|{nombre_est}|{nivel_cefr}|{fecha_emision}|JACOB-ZUMAYA-PRIANTI||"
+    sello_hex = hmac.new(llave_secreta, cadena_original.encode("utf-8"), hashlib.sha256).hexdigest().upper()
+    return cadena_original, sello_hex
+
+def _build_cert_verify_url(folio_cert: str) -> str:
+    base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+    f_clean = urllib.parse.quote(str(folio_cert).strip().upper())
+    return f"{base_url}/?verify_cert={f_clean}" if base_url else f"/?verify_cert={f_clean}"
+
+def insert_certificate_pg(folio_c: str, clave_sel: str, nombre_sel: str, nivel_sel: str, grado_sel: str, programa_c: str, calif_c: str, fecha_c: str, sello_h: str):
+    f_upper = folio_c.strip().upper()
+    verify_url = _build_cert_verify_url(f_upper)
+
+    with pg_session() as cur:
+        cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (nombre_sel.strip(),))
+        u_row = cur.fetchone()
+        uid = u_row if u_row else None
+        if uid is None:
+            cur.execute("""
+                INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
+                VALUES (%s, %s, 'Estudiante', 'Basico', 'Activo')
+                RETURNING id;
+            """, (nombre_sel.strip(), clave_sel.strip()))
+            uid = cur.fetchone()
+
+        cur.execute("""
+            INSERT INTO certificates (
+                folio_cert, user_id, clave_alumno, titular, nivel_cefr,
+                grado_academico, programa, calificacion, fecha_emision,
+                firma_hmac, estatus, verify_url
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Valido', %s)
+            ON CONFLICT (folio_cert) DO NOTHING;
+        """, (
+            f_upper, uid, clave_sel.strip(), nombre_sel.strip(),
+            nivel_sel.strip(), grado_sel.strip(), programa_c.strip(),
+            calif_c.strip(), fecha_c.strip(), sello_h.strip(), verify_url
+        ))
+
+def verify_certificate_by_folio_pg(folio_cert: str) -> dict | None:
+    folio_norm = str(folio_cert or "").strip().upper().replace("-", "").replace(" ", "")
+    if not folio_norm:
+        return None
+    try:
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                SELECT
+                    folio_cert AS "Folio_Certificado",
+                    clave_alumno AS "Clave_Alumno",
+                    titular AS "Nombre_Estudiante",
+                    nivel_cefr AS "Nivel_CEFR",
+                    grado_academico AS "Grado_Academico",
+                    programa AS "Programa_Curso",
+                    calificacion AS "Calificacion",
+                    fecha_emision AS "Fecha_Emision",
+                    firma_hmac AS "Sello_Digital_SHA256",
+                    estatus AS "Estatus",
+                    verify_url AS "URL_Verificacion"
+                FROM certificates
+                WHERE REPLACE(UPPER(TRIM(folio_cert)), '-', '') = %s
+                LIMIT 1;
+            """, (folio_norm,))
+            return cur.fetchone()
+    except Exception:
+        return None
+
+def update_certificate_link_pg(folio_cert: str, new_url: str = "") -> bool:
+    f_clean = str(folio_cert or "").strip().upper()
+    if not f_clean:
+        return False
+    url_final = str(new_url or "").strip() or _build_cert_verify_url(f_clean)
+    try:
+        with pg_session() as cur:
+            cur.execute("""
+                UPDATE certificates
+                SET verify_url = %s
+                WHERE UPPER(TRIM(folio_cert)) = %s;
+            """, (url_final, f_clean))
+        return True
+    except Exception:
+        return False
+
+def load_certificates_pg() -> list[dict]:
+    try:
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("SELECT * FROM certificates ORDER BY created_at DESC;")
+            rows = cur.fetchall()
+            return [
+                {
+                    "Folio_Certificado": r.get("folio_cert", ""),
+                    "Clave_Alumno": r.get("clave_alumno", ""),
+                    "Nombre_Estudiante": r.get("titular", ""),
+                    "Nivel_CEFR": r.get("nivel_cefr", ""),
+                    "Grado_Academico": r.get("grado_academico", ""),
+                    "Programa": r.get("programa", ""),
+                    "Calificacion": r.get("calificacion", ""),
+                    "Fecha_Emision": r.get("fecha_emision", ""),
+                    "Firma_HMAC": r.get("firma_hmac", ""),
+                    "Estatus": "Vigente" if str(r.get("estatus", "")).lower() == "valido" else "Revocado"
+                }
+                for r in rows
+            ]
+    except Exception:
+        return []
+
+def update_certificate_status_pg(folio_cert: str, nuevo_estatus_ui: str):
+    db_status = "Valido" if str(nuevo_estatus_ui).strip().lower() in ["vigente", "valido"] else "Revocado"
+    with pg_session() as cur:
+        cur.execute(
+            "UPDATE certificates SET estatus = %s WHERE UPPER(TRIM(folio_cert)) = %s;",
+            (db_status, str(folio_cert).strip().upper())
+        )
 
 def stamp_and_save_transcript_pg(student_name: str, gb_data: dict, topic_filter: str) -> dict:
-    # Timbra criptográficamente el Boletín Oficial con HMAC-SHA256, fecha exacta y lo guarda en Supabase.
-    import hashlib
-    import hmac
-
     ahora_sonora = datetime.now(ZoneInfo("America/Hermosillo"))
     fecha_str = ahora_sonora.strftime("%Y-%m-%d %H:%M:%S MST")
     folio_bol = f"BOL-{ahora_sonora.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
@@ -2263,31 +1089,41 @@ def stamp_and_save_transcript_pg(student_name: str, gb_data: dict, topic_filter:
     or_avg = float(gb_data.get("oral_avg") or 0.0)
     tot_lec = len(gb_data.get("records") or [])
 
-    # Llave secreta institucional para firma HMAC-SHA256
-    secret_hmac = str(st.secrets.get("CERT_HMAC_SECRET", "CEI_AGUA_PRIETA_2026_OFFICIAL_SEAL")).encode("utf-8")
+    secret_hmac = _get_hmac_secret_bytes()
     cadena_original = (
         f"{folio_bol}|{matricula}|{student_name.strip().upper()}|{nivel_c}|"
         f"{topic_filter}|{ov_avg:.2f}|{qz_avg:.2f}|{or_avg:.2f}|{tot_lec}|{fecha_str}"
     )
     sello_hmac = hmac.new(secret_hmac, cadena_original.encode("utf-8"), hashlib.sha256).hexdigest().upper()
 
-    conn = get_pg_conn()
-    if conn:
-        try:
-            with conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO transcripts_archive (
-                            folio_boletin, matricula, student_name, nivel_cefr, topic_filter,
-                            overall_avg, quiz_avg, oral_avg, total_lessons, hmac_seal, issued_at
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-                    """, (
-                        folio_bol, matricula, student_name.strip(), nivel_c, topic_filter,
-                        ov_avg, qz_avg, or_avg, tot_lec, sello_hmac, ahora_sonora
-                    ))
-        except Exception:
-            pass
+    try:
+        with pg_session() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS transcripts_archive (
+                    folio_boletin TEXT PRIMARY KEY,
+                    matricula TEXT,
+                    student_name TEXT NOT NULL,
+                    nivel_cefr TEXT,
+                    topic_filter TEXT,
+                    overall_avg NUMERIC(5,2),
+                    quiz_avg NUMERIC(5,2),
+                    oral_avg NUMERIC(5,2),
+                    total_lessons INT,
+                    hmac_seal TEXT NOT NULL,
+                    issued_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                INSERT INTO transcripts_archive (
+                    folio_boletin, matricula, student_name, nivel_cefr, topic_filter,
+                    overall_avg, quiz_avg, oral_avg, total_lessons, hmac_seal, issued_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            """, (
+                folio_bol, matricula, student_name.strip(), nivel_c, topic_filter,
+                ov_avg, qz_avg, or_avg, tot_lec, sello_hmac, ahora_sonora
+            ))
+    except Exception:
+        pass
 
     return {
         "folio_boletin": folio_bol,
@@ -2295,29 +1131,91 @@ def stamp_and_save_transcript_pg(student_name: str, gb_data: dict, topic_filter:
         "sello_hmac": sello_hmac,
         "cadena_original": cadena_original
     }
+# ==============================================================================
+# PARTE 6A: GENERADOR DE MONOGRAFÍA ACADÉMICA EN PDF (create_lesson_pdf)
+# ==============================================================================
+class AcademicPDF(FPDF):
+    def __init__(self, folio_doc: str, cefr_doc: str, grado_doc: str, address_str: str):
+        super().__init__()
+        self.folio_doc = folio_doc
+        self.cefr_doc = cefr_doc
+        self.grado_doc = grado_doc
+        self.address_str = address_str
+
+    def header(self):
+        self.set_y(10)
+        self.set_font("Times", "B", 8.5)
+        self.set_text_color(11, 37, 69)
+        self.cell(self.epw * 0.65, 5, text=clean_pdf_text("CAREER ENGLISH INSTITUTE  |  APPLIED LINGUISTICS & DISCOURSE"), align="L")
+        self.set_font("Times", "I", 8.5)
+        self.set_text_color(100, 100, 100)
+        cefr_short = next(iter(self.cefr_doc.split()), "CEFR") if self.cefr_doc else "CEFR"
+        self.cell(self.epw * 0.35, 5, text=clean_pdf_text(f"Folio: {self.folio_doc}  |  CEFR {cefr_short}"), new_x="LMARGIN", new_y="NEXT", align="R")
+
+        y_line = self.get_y() + 1
+        self.set_draw_color(11, 37, 69)
+        self.set_line_width(0.6)
+        self.line(self.l_margin, y_line, self.w - self.r_margin, y_line)
+        self.set_draw_color(184, 134, 11)
+        self.set_line_width(0.25)
+        self.line(self.l_margin, y_line + 1.2, self.w - self.r_margin, y_line + 1.2)
+        self.set_y(y_line + 5)
+
+    def footer(self):
+        self.set_y(-16)
+        y_f = self.get_y()
+        self.set_draw_color(184, 134, 11)
+        self.set_line_width(0.3)
+        self.line(self.l_margin, y_f, self.w - self.r_margin, y_f)
+        self.ln(2)
+
+        self.set_font("Times", "I", 8)
+        self.set_text_color(90, 90, 90)
+        self.cell(self.epw * 0.75, 4, text=clean_pdf_text("© 2026 CAREER ENGLISH INSTITUTE  |  Author: Jacob Zumaya Prianti  |  APA 7th Ed. Standard"), align="L")
+        self.set_font("Times", "B", 8.5)
+        self.set_text_color(11, 37, 69)
+        self.cell(self.epw * 0.25, 4, text=f"Page {self.page_no()} of {{nb}}", new_x="LMARGIN", new_y="NEXT", align="R")
+
+        self.set_x(self.l_margin)
+        self.set_font("Times", "", 7.5)
+        self.set_text_color(110, 110, 110)
+        self.cell(self.epw, 4, text=clean_pdf_text(self.address_str), align="C")
 
 
-def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter: str = "Vista General") -> tuple[bytes, dict]:
-    # Genera y timbra el Boletín Oficial de Calificaciones en formato APA 7a Ed. con logo dinámico, QR y sello HMAC-SHA256.
-    import tempfile
-    import qrcode
-    from fpdf import FPDF
+def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, speaking_eval=None) -> bytes:
+    folio_doc = st.session_state.get("current_folio") or "SIN-FOLIO"
+    base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+    default_link = f"{base_url}/?folio={urllib.parse.quote(folio_doc)}" if base_url else f"/?folio={urllib.parse.quote(folio_doc)}"
+    link_doc = st.session_state.get("current_pdf_link") or default_link
 
-    timbre = stamp_and_save_transcript_pg(student_name, gb_data, topic_filter)
-    folio_bol = timbre["folio_boletin"]
-    fecha_gen = timbre["fecha_generacion"]
-    sello_hmac = timbre["sello_hmac"]
+    ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
+    fecha_doc = st.session_state.get("current_creation_date") or ahora_local.strftime("%Y-%m-%d %H:%M:%S")
+    grado_doc = st.session_state.get("selected_academic_grade") or "Licenciatura / Universidad"
+    usuario_doc = st.session_state.get("current_user") or "Estudiante"
+    rol_doc = st.session_state.get("user_role") or "Estudiante"
+    cefr_doc = st.session_state.get("selected_cefr") or "B1 (Intermediate)"
+    addr_doc = st.session_state.get("institute_address") or DEFAULT_ADDRESS
 
-    app_base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
-    verify_url = f"{app_base_url}/?verify_transcript={urllib.parse.quote(folio_bol)}" if app_base_url else f"/?verify_transcript={urllib.parse.quote(folio_bol)}"
-    qr_img = qrcode.make(verify_url)
-    tmp_qr = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-    qr_img.save(tmp_qr.name)
+    pdf = AcademicPDF(folio_doc, cefr_doc, grado_doc, addr_doc)
+    pdf.alias_nb_pages()
+    pdf.set_margins(left=18, top=22, right=18)
+    pdf.set_auto_page_break(auto=True, margin=22)
+    pdf.set_author("Jacob Zumaya Prianti")
+    pdf.set_creator("Career English Institute - Academic Press")
+    pdf.add_page()
 
+    # Portada / Membrete
+    y_box_start = pdf.get_y()
+    pdf.set_fill_color(244, 247, 251)
+    pdf.set_draw_color(11, 37, 69)
+    pdf.set_line_width(0.4)
+    pdf.rect(pdf.l_margin, y_box_start, pdf.epw, 42, style="FD")
 
-    # Logotipo dinámico sincronizado con la pantalla principal (con respaldo LOGO CEI APP.png)
+    pdf.set_fill_color(184, 134, 11)
+    pdf.rect(pdf.l_margin, y_box_start, 2.5, 42, style="F")
+
     logo_src = None
-    perm_logo = load_permanent_logo() if "load_permanent_logo" in globals() else None
+    perm_logo = load_permanent_logo()
     if perm_logo and perm_logo.get("Logo_Base64"):
         try:
             logo_src = io.BytesIO(base64.b64decode(perm_logo["Logo_Base64"]))
@@ -2328,6 +1226,260 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
         local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
         if os.path.exists(local_logo):
             logo_src = local_logo
+    if logo_src:
+        try:
+            pdf.image(logo_src, x=pdf.l_margin + 6, y=y_box_start + 6, w=26)
+        except Exception:
+            pass
+
+    x_meta = pdf.l_margin + 36
+    w_meta = pdf.epw - 40
+    pdf.set_xy(x_meta, y_box_start + 4)
+    pdf.set_font("Times", "B", 13)
+    pdf.set_text_color(11, 37, 69)
+    pdf.cell(w_meta, 6, text="CAREER ENGLISH INSTITUTE", new_x="LMARGIN", new_y="NEXT", align="L")
+
+    pdf.set_x(x_meta)
+    pdf.set_font("Times", "B", 9.5)
+    pdf.set_text_color(184, 134, 11)
+    pdf.cell(w_meta, 5, text=clean_pdf_text(f"CEFR {cefr_doc}  |  {grado_doc.upper()}  |  ACADEMIC MONOGRAPH"), new_x="LMARGIN", new_y="NEXT", align="L")
+
+    pdf.set_x(x_meta)
+    pdf.set_font("Times", "", 9)
+    pdf.set_text_color(40, 40, 40)
+    pdf.cell(w_meta, 5, text=clean_pdf_text("Author & Senior Applied Linguist: Jacob Zumaya Prianti"), new_x="LMARGIN", new_y="NEXT", align="L")
+
+    pdf.set_x(x_meta)
+    pdf.cell(w_meta, 5, text=clean_pdf_text(f"Student / Candidate: {usuario_doc} ({rol_doc})  |  Date: {fecha_doc}"), new_x="LMARGIN", new_y="NEXT", align="L")
+
+    pdf.set_x(x_meta)
+    pdf.set_font("Times", "U", 8)
+    pdf.set_text_color(11, 37, 69)
+    pdf.cell(w_meta, 5, text=clean_pdf_text(f"Digital Verification & Recovery: {link_doc}"), new_x="LMARGIN", new_y="NEXT", align="L", link=link_doc)
+
+    pdf.set_y(y_box_start + 48)
+
+    # Cuadro de desempeño
+    try:
+        topico_lec_pdf = st.session_state.get("selected_grammar_topic") or "Applied Grammar"
+        gb_lec_actual = fetch_student_gradebook_pg(usuario_doc) if usuario_doc else {}
+        t_match = next(
+            (t for t in gb_lec_actual.get("topic_summary", []) if t["Grammar Topic"] == topico_lec_pdf),
+            {}
+        )
+        nota_leccion_str = str(score or "Pendiente")
+        nota_topico_str = f"{t_match.get('Dominio (%)', 0.0)}%"
+        nota_general_str = f"{gb_lec_actual.get('overall_avg', 0.0)}%"
+
+        y_perf = pdf.get_y()
+        pdf.set_fill_color(244, 247, 251)
+        pdf.set_draw_color(11, 37, 69)
+        pdf.set_line_width(0.35)
+        pdf.rect(pdf.l_margin, y_perf, pdf.epw, 13, style="FD")
+
+        pdf.set_fill_color(184, 134, 11)
+        pdf.rect(pdf.l_margin, y_perf, 2.5, 13, style="F")
+
+        pdf.set_xy(pdf.l_margin + 5, y_perf + 3)
+        pdf.set_font("Times", "B", 9.2)
+        pdf.set_text_color(11, 37, 69)
+        resumen_notas_txt = (
+            f"Lesson Score: {nota_leccion_str}   |   "
+            f"Topic Avg ({topico_lec_pdf[:26]}): {nota_topico_str}   |   "
+            f"Overall Student Avg: {nota_general_str}"
+        )
+        pdf.cell(pdf.epw - 8, 7, text=clean_pdf_text(resumen_notas_txt), new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.set_y(y_perf + 17)
+    except Exception:
+        pass
+# ==============================================================================
+# PARTE 6B: CUERPO, ILUSTRACIÓN, EXAMEN Y REPORTE ORAL EN PDF (create_lesson_pdf)
+# ==============================================================================
+    img_to_embed = st.session_state.get("image_bytes")
+    if img_to_embed:
+        try:
+            img_buf = io.BytesIO(img_to_embed)
+            img_w = 136
+            img_h = 76.5
+            x_img = pdf.l_margin + (pdf.epw - img_w) / 2
+            y_img = pdf.get_y()
+            if y_img + img_h + 10 > pdf.h - 22:
+                pdf.add_page()
+                y_img = pdf.get_y()
+            pdf.image(img_buf, x=x_img, y=y_img, w=img_w, h=img_h)
+            pdf.set_draw_color(11, 37, 69)
+            pdf.set_line_width(0.5)
+            pdf.rect(x_img, y_img, img_w, img_h)
+            pdf.set_y(y_img + img_h + 2)
+            pdf.set_x(pdf.l_margin)
+            pdf.set_font("Times", "I", 8.5)
+            pdf.set_text_color(90, 90, 90)
+            pdf.cell(pdf.epw, 4, text=clean_pdf_text(f"Figure 1. Visual Discourse Context & Situational Dialogue - Folio {folio_doc}."), new_x="LMARGIN", new_y="NEXT", align="C")
+            pdf.ln(4)
+        except Exception:
+            pdf.ln(3)
+
+    pdf.set_text_color(25, 25, 25)
+    for parrafo in str(text or "").split("\n"):
+        p_clean = parrafo.strip()
+        if not p_clean:
+            pdf.ln(3)
+            continue
+        pdf.set_x(pdf.l_margin)
+        if p_clean.startswith("#") or p_clean.startswith("Bibliography"):
+            titulo_limpio = p_clean.lstrip("#").strip()
+            pdf.ln(2)
+            pdf.set_font("Times", "B", 12)
+            pdf.set_text_color(11, 37, 69)
+            pdf.multi_cell(pdf.epw, 6.5, text=clean_pdf_text(titulo_limpio), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+            pdf.set_text_color(25, 25, 25)
+        else:
+            pdf.set_font("Times", size=11)
+            pdf.multi_cell(pdf.epw, 6.2, text=clean_pdf_text(p_clean), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
+
+    if quiz_items:
+        pdf.ln(6)
+        if pdf.get_y() > pdf.h - 55:
+            pdf.add_page()
+
+        y_q_head = pdf.get_y()
+        pdf.set_fill_color(11, 37, 69)
+        pdf.rect(pdf.l_margin, y_q_head, pdf.epw, 9, style="F")
+        pdf.set_xy(pdf.l_margin + 3, y_q_head + 1.5)
+        pdf.set_font("Times", "B", 11)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(pdf.epw - 6, 6, text=clean_pdf_text(f"OFFICIAL ASSESSMENT & GRAMMAR EVALUATION  |  FOLIO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        if score:
+            y_sc = pdf.get_y()
+            pdf.set_fill_color(253, 248, 232)
+            pdf.set_draw_color(184, 134, 11)
+            pdf.rect(pdf.l_margin, y_sc, pdf.epw, 8, style="FD")
+            pdf.set_xy(pdf.l_margin + 3, y_sc + 1.5)
+            pdf.set_font("Times", "B", 10.5)
+            pdf.set_text_color(11, 37, 69)
+            pdf.cell(pdf.epw - 6, 5, text=clean_pdf_text(f"FINAL EVALUATION SCORE / CALIFICACION OBTENIDA: {score}"), new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(4)
+
+        pdf.set_text_color(25, 25, 25)
+        for i, q in enumerate(quiz_items):
+            if pdf.get_y() > pdf.h - 45:
+                pdf.add_page()
+            pdf.set_x(pdf.l_margin)
+            pdf.set_font("Times", "B", 10.5)
+            pdf.multi_cell(pdf.epw, 6, text=clean_pdf_text(f"{i+1}. {q.get('question', '')}"), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+
+            pdf.set_font("Times", size=10)
+            for opt in q.get("options", []):
+                pdf.set_x(pdf.l_margin + 6)
+                pdf.multi_cell(pdf.epw - 6, 5.2, text=clean_pdf_text(str(opt)), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+
+            u_choice = (user_ans.get(i) or user_ans.get(str(i))) if isinstance(user_ans, dict) else "None"
+            ans_line = f"Candidate Response: {u_choice or 'None'}   |   Verified Key: {q.get('answer', '')}"
+            pdf.set_x(pdf.l_margin + 6)
+            pdf.set_font("Times", "I", 9.5)
+            pdf.set_text_color(11, 37, 69)
+            pdf.multi_cell(pdf.epw - 6, 5.5, text=clean_pdf_text(ans_line), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+            pdf.set_text_color(25, 25, 25)
+            pdf.ln(3)
+
+    if speaking_eval and isinstance(speaking_eval, dict):
+        pdf.ln(6)
+        if pdf.get_y() > pdf.h - 65:
+            pdf.add_page()
+
+        y_sp_head = pdf.get_y()
+        pdf.set_fill_color(11, 37, 69)
+        pdf.rect(pdf.l_margin, y_sp_head, pdf.epw, 9, style="F")
+        pdf.set_xy(pdf.l_margin + 3, y_sp_head + 1.5)
+        pdf.set_font("Times", "B", 11)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(pdf.epw - 6, 6, text=clean_pdf_text(f"ORAL PROFICIENCY & PHONETIC ASSESSMENT REPORT  |  FOLIO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        y_sp_sc = pdf.get_y()
+        pdf.set_fill_color(253, 248, 232)
+        pdf.set_draw_color(184, 134, 11)
+        pdf.rect(pdf.l_margin, y_sp_sc, pdf.epw, 8, style="FD")
+        pdf.set_xy(pdf.l_margin + 3, y_sp_sc + 1.5)
+        pdf.set_font("Times", "B", 10.5)
+        pdf.set_text_color(11, 37, 69)
+        spk_pct = speaking_eval.get("score_percent", 0)
+        spk_perf = speaking_eval.get("cefr_performance", "")
+        pdf.cell(pdf.epw - 6, 5, text=clean_pdf_text(f"SPEAKING SCORE: {spk_pct}%  |  CEFR BENCHMARK: {spk_perf}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(4)
+
+        pdf.set_text_color(25, 25, 25)
+        campos_orales = [
+            ("Detected Speech Transcription:", f"\"{speaking_eval.get('transcription', '')}\""),
+            ("Phonetics & Articulation Feedback:", speaking_eval.get("phonetic_feedback", "")),
+            ("Fluency & Prosody:", speaking_eval.get("fluency_prosody", "")),
+            ("Oral Grammar Accuracy:", speaking_eval.get("grammar_accuracy", ""))
+        ]
+
+        for etiqueta, contenido in campos_orales:
+            if not str(contenido).strip():
+                continue
+            if pdf.get_y() > pdf.h - 30:
+                pdf.add_page()
+            pdf.set_x(pdf.l_margin)
+            pdf.set_font("Times", "B", 10)
+            pdf.set_text_color(11, 37, 69)
+            pdf.cell(pdf.epw, 5.5, text=clean_pdf_text(etiqueta), new_x="LMARGIN", new_y="NEXT")
+
+            pdf.set_x(pdf.l_margin + 4)
+            pdf.set_font("Times", "I" if "Transcription" in etiqueta else "", 10)
+            pdf.set_text_color(30, 30, 30)
+            pdf.multi_cell(pdf.epw - 4, 5.5, text=clean_pdf_text(contenido), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
+            pdf.ln(2)
+
+        tips_orales = speaking_eval.get("actionable_tips", [])
+        if tips_orales:
+            if pdf.get_y() > pdf.h - 30:
+                pdf.add_page()
+            pdf.set_x(pdf.l_margin)
+            pdf.set_font("Times", "B", 10)
+            pdf.set_text_color(11, 37, 69)
+            pdf.cell(pdf.epw, 5.5, text="Pedagogical Actionable Recommendations:", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_font("Times", size=9.8)
+            pdf.set_text_color(30, 30, 30)
+            for tip in tips_orales:
+                pdf.set_x(pdf.l_margin + 6)
+                pdf.multi_cell(pdf.epw - 6, 5.2, text=clean_pdf_text(f"- {tip}"), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
+            pdf.ln(3)
+
+    return bytes(pdf.output())
+# ==============================================================================
+# PARTE 7A: GENERADOR DE BOLETÍN OFICIAL EN PDF (APA 7a ED. + TIMBRE HMAC)
+# ==============================================================================
+def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter: str = "Vista General") -> tuple[bytes, dict]:
+    timbre = stamp_and_save_transcript_pg(student_name, gb_data, topic_filter)
+    folio_bol = timbre["folio_boletin"]
+    fecha_gen = timbre["fecha_generacion"]
+    sello_hmac = timbre["sello_hmac"]
+
+    app_base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
+    verify_url = f"{app_base_url}/?verify_transcript={urllib.parse.quote(folio_bol)}" if app_base_url else f"/?verify_transcript={urllib.parse.quote(folio_bol)}"
+
+    qr_buf = io.BytesIO()
+    qrcode.make(verify_url).save(qr_buf, format="PNG")
+    qr_buf.seek(0)
+
+    logo_src = None
+    perm_logo = load_permanent_logo()
+    if perm_logo and perm_logo.get("Logo_Base64"):
+        try:
+            logo_src = io.BytesIO(base64.b64decode(perm_logo["Logo_Base64"]))
+        except Exception:
+            logo_src = None
+    if logo_src is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
+        if os.path.exists(local_logo):
+            logo_src = local_logo
+
+    addr_doc = st.session_state.get("institute_address") or DEFAULT_ADDRESS
 
     class GradebookPDF(FPDF):
         def header(self):
@@ -2368,9 +1520,9 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
             self.set_font("Times", "I", 8)
             self.set_text_color(90, 90, 90)
             self.set_x(12)
-            self.cell(186, 4, f"© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti | APA 7th Ed. Standard | Page {self.page_no()}", new_x="LMARGIN", new_y="NEXT", align="C")
+            self.cell(186, 4, clean_pdf_text(f"© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti | APA 7th Ed. Standard | Page {self.page_no()}"), new_x="LMARGIN", new_y="NEXT", align="C")
             self.set_x(12)
-            self.cell(186, 4, clean_pdf_text(institute_address), new_x="LMARGIN", new_y="NEXT", align="C")
+            self.cell(186, 4, clean_pdf_text(addr_doc), new_x="LMARGIN", new_y="NEXT", align="C")
 
     pdf = GradebookPDF()
     pdf.set_auto_page_break(auto=True, margin=22)
@@ -2422,12 +1574,13 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
         temas_pdf = [t for t in temas_pdf if t["Grammar Topic"] == topic_filter]
 
     for t_row in temas_pdf:
-        pdf.cell(124, 6.2, clean_pdf_text(t_row["Grammar Topic"]), align="L")
+        pdf.cell(124, 6.2, clean_pdf_text(t_row["Grammar Topic"])[:68], align="L")
         pdf.cell(18, 6.2, str(t_row["Lecciones"]), align="C")
         pdf.cell(22, 6.2, f"{t_row['Dominio (%)']}%", align="C")
         pdf.cell(22, 6.2, clean_pdf_text(t_row["Estatus"]), align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
     pdf.ln(5)
+
     pdf.set_font("Times", "B", 11)
     pdf.cell(0, 6, "Table 2", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Times", "I", 10.5)
@@ -2464,7 +1617,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.set_draw_color(26, 42, 68)
     pdf.rect(12, y_seal, 186, 30, style="DF")
 
-    pdf.image(tmp_qr.name, x=15, y=y_seal + 2.5, w=25)
+    pdf.image(qr_buf, x=15, y=y_seal + 2.5, w=25)
     pdf.set_xy(43, y_seal + 3)
     pdf.set_font("Times", "B", 9.5)
     pdf.set_text_color(26, 42, 68)
@@ -2478,43 +1631,1335 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.set_font("Courier", "", 6.2)
     pdf.cell(152, 3.5, clean_pdf_text(f"VERIFY: {verify_url}"), new_x="LMARGIN", new_y="NEXT")
 
-
     pdf.set_xy(43, y_seal + 22)
     pdf.set_font("Times", "B", 8.5)
     pdf.set_text_color(20, 20, 20)
     pdf.cell(152, 5, clean_pdf_text("Signed digitally by: Jacob Zumaya Prianti - Academic Director, Career English Institute"), new_x="LMARGIN", new_y="NEXT")
 
+    return bytes(pdf.output()), timbre
+# ==============================================================================
+# PARTE 7B1: GENERADOR DE CERTIFICADO OFICIAL EN PDF (CARTA HORIZONTAL)
+# ==============================================================================
+def generar_pdf_certificado(
+    folio_c: str,
+    clave_alumno: str,
+    titular: str,
+    nivel_cefr: str,
+    programa: str,
+    calificacion: str,
+    fecha_c: str,
+    cadena_original: str,
+    sello_hmac: str,
+    direccion_inst: str
+) -> bytes:
+    pdf = FPDF(orientation="L", unit="mm", format="Letter")
+    pdf.set_auto_page_break(auto=False)
+    pdf.add_page()
+
+    pdf.set_draw_color(26, 42, 68)
+    pdf.set_line_width(1.6)
+    pdf.rect(10, 10, 259.4, 195.9)
+    pdf.set_draw_color(184, 142, 67)
+    pdf.set_line_width(0.6)
+    pdf.rect(13, 13, 253.4, 189.9)
+
+    logo_src = None
+    cfg_logo = load_permanent_logo()
+    if cfg_logo and cfg_logo.get("Logo_Base64"):
+        try:
+            logo_src = io.BytesIO(base64.b64decode(cfg_logo["Logo_Base64"]))
+        except Exception:
+            logo_src = None
+    if logo_src is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
+        if os.path.exists(local_logo):
+            logo_src = local_logo
+
+    if logo_src:
+        try:
+            pdf.image(logo_src, x=127.2, y=16, w=25)
+            pdf.set_y(44)
+        except Exception:
+            pdf.set_y(24)
+    else:
+        pdf.set_y(24)
+
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 9, clean_pdf_text("CAREER ENGLISH INSTITUTE"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_font("Helvetica", "I", 11)
+    pdf.set_text_color(100, 110, 125)
+    pdf.cell(0, 6, clean_pdf_text("Official Academic Certification & Linguistic Proficiency Authority"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(5)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.set_text_color(184, 142, 67)
+    pdf.cell(0, 8, clean_pdf_text("CERTIFICATE OF ACADEMIC ACHIEVEMENT"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(3)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(50, 55, 65)
+    pdf.cell(0, 6, clean_pdf_text("This official credential is proudly conferred upon:"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.set_text_color(20, 35, 60)
+    pdf.cell(0, 12, clean_pdf_text(titular.upper()), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_draw_color(184, 142, 67)
+    pdf.set_line_width(0.5)
+    pdf.line(65, pdf.get_y(), 214.4, pdf.get_y())
+    pdf.ln(4)
+
+    pdf.set_font("Helvetica", "", 11)
+    pdf.set_text_color(45, 50, 60)
+    pdf.cell(0, 6, clean_pdf_text(f"Student ID: {clave_alumno}   |   Accredited CEFR Level: {nivel_cefr}"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 7, clean_pdf_text(programa), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_font("Helvetica", "I", 11)
+    pdf.set_text_color(35, 115, 70)
+    pdf.cell(0, 6, clean_pdf_text(f"Final Evaluation & Standing: {calificacion}"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_y(148)
+    pdf.set_draw_color(40, 45, 55)
+    pdf.line(100, 148, 179.4, 148)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 5, clean_pdf_text("Jacob Zumaya Prianti"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(90, 95, 105)
+    pdf.cell(0, 4, clean_pdf_text("Academic Director & Principal Author - Career English Institute"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    verify_link = _build_cert_verify_url(folio_c)
+    qr = qrcode.QRCode(version=1, box_size=4, border=1)
+    qr.add_data(verify_link)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="#1a2a44", back_color="white")
+    qr_buf = io.BytesIO()
+    qr_img.save(qr_buf, format="PNG")
+    qr_buf.seek(0)
+    pdf.image(qr_buf, x=18, y=161, w=28)
+
+    pdf.set_xy(49, 162)
+    pdf.set_font("Helvetica", "B", 7.5)
+    pdf.set_text_color(26, 42, 68)
+    pdf.cell(0, 4, clean_pdf_text(f"OFFICIAL CERTIFICATE FOLIO: {folio_c}   |   ISSUED: {fecha_c}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf.set_x(49)
+    pdf.set_font("Courier", "", 6.3)
+    pdf.set_text_color(70, 75, 85)
+    pdf.multi_cell(210, 3.1, clean_pdf_text(f"ORIGINAL STRING: {cadena_original}\nHMAC-SHA256 DIGITAL SIGNATURE: {sello_hmac}"))
+
+    pdf.set_xy(49, max(pdf.get_y() + 1.0, 180))
+    pdf.set_font("Helvetica", "I", 6.8)
+    pdf.set_text_color(100, 105, 115)
+    pdf.multi_cell(
+        212,
+        3.2,
+        clean_pdf_text(f"Scan QR code or visit {verify_link} to verify authenticity.\n{direccion_inst}")
+    )
+
+    return bytes(pdf.output())
+# ==============================================================================
+# PARTE 7B2: MOTORES DE IA CON GEMINI (TEXTO, QUIZ, PRONUNCIACIÓN E IMAGEN)
+# ==============================================================================
+def generar_con_maxima_potencia(client_obj, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
+    gm = client_obj or init_gemini_client()
+    if not gm:
+        raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
+
+    modelos_preferidos = [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3.1-pro-preview",
+        "gemini-2.0-flash"
+    ]
+    excluidos = ("embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria")
     try:
-        os.unlink(tmp_qr.name)
+        for m in gm.models.list():
+            m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
+            metodos = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
+            if "gemini" in m_name and not any(ex in m_name for ex in excluidos):
+                if not metodos or "generateContent" in metodos:
+                    if m_name not in modelos_preferidos:
+                        modelos_preferidos.append(m_name)
     except Exception:
         pass
 
-    return bytes(pdf.output()), timbre
+    ultimo_error = None
+    for modelo in modelos_preferidos:
+        try:
+            cfg_kwargs = {"temperature": 0.65}
+            if instruccion_sistema:
+                cfg_kwargs["system_instruction"] = instruccion_sistema
+            if as_json:
+                cfg_kwargs["response_mime_type"] = "application/json"
+            config = types.GenerateContentConfig(**cfg_kwargs)
+            respuesta = gm.models.generate_content(
+                model=modelo,
+                contents=prompt_contenido,
+                config=config
+            )
+            if respuesta and respuesta.text:
+                return respuesta.text, modelo
+        except Exception as e:
+            ultimo_error = e
+            continue
 
+    if ultimo_error:
+        raise ultimo_error
+    raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
 
+def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None, client_obj=None):
+    gm = client_obj or init_gemini_client()
+    evitar_txt = ("IMPORTANT: Create COMPLETELY DIFFERENT questions from: " + str(evitar_preguntas) + "\n") if evitar_preguntas else ""
+    prompt_quiz = (
+        f"Based on this CEFR Level {nivel_cefr} English lesson tailored for {grado_acad} students, "
+        f"create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr} and {grado_acad} cognitive level, "
+        f"evaluating comprehension and target grammar ({tema_gramatical}).\n"
+        f"{evitar_txt}"
+        f"LESSON TEXT:\n{texto_leccion}\n"
+        "RETURN ONLY A VALID JSON ARRAY WITH THIS EXACT SCHEMA:\n"
+        '[{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}]'
+    )
+    raw_resp, _ = generar_con_maxima_potencia(
+        gm,
+        prompt_quiz,
+        instruccion_sistema="Output strictly a valid JSON array only.",
+        as_json=True
+    )
+    cleaned = raw_resp.strip()
+    if cleaned.startswith("```"):
+        cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
+    return json.loads(cleaned.strip())
 
+def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
+    gm_client = init_gemini_client()
+    if not gm_client:
+        raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
 
-#A quí estaba la Parte 8.
-def _sign_session_token(usuario: str, clave: str) -> str:
-    secret = str(st.secrets.get("HMAC_SECRET_KEY", "CEI-SESSION-KEY")).encode("utf-8")
-    raw_data = f"{usuario}|{clave}"
-    sig = hmac.new(secret, raw_data.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
-    payload = json.dumps({"u": usuario, "c": clave, "s": sig}).encode("utf-8")
-    return base64.urlsafe_b64encode(payload).decode("utf-8")
+    prompt_eval = f"""
+    Listen carefully to the student's audio reading the target lesson below (CEFR {nivel_cefr}, Academic Level: {grado_acad}, Target Grammar: {gramatica_obj}).
 
-def _verify_session_token(token_str: str):
-    decoded_json = base64.urlsafe_b64decode(token_str.encode("utf-8")).decode("utf-8")
-    token_data = json.loads(decoded_json)
-    u_tok = token_data.get("u", "")
-    c_tok = token_data.get("c", "")
-    s_tok = token_data.get("s", "")
-    if not (u_tok and c_tok and s_tok):
-        return None, None
-    secret = str(st.secrets.get("HMAC_SECRET_KEY", "CEI-SESSION-KEY")).encode("utf-8")
-    expected_sig = hmac.new(secret, f"{u_tok}|{c_tok}".encode("utf-8"), hashlib.sha256).hexdigest()[:16]
-    if hmac.compare_digest(s_tok, expected_sig):
-        return u_tok, c_tok
-    return None, None
+    Target text:
+    {texto_objetivo[:2500]}
+
+    Evaluate pronunciation, articulation, fluency, prosody, and grammatical accuracy.
+    Respond in Spanish for the feedback fields, keeping the detected transcription in English.
+    Return ONLY a valid JSON object with these exact keys:
+    {{
+      "score_percent": 88,
+      "cefr_performance": "B1 Solid / Proficient",
+      "transcription": "Exact English words spoken by the student",
+      "phonetic_feedback": "Análisis claro en español sobre pronunciación de vocales, consonantes y acentuación.",
+      "fluency_prosody": "Evaluación en español de ritmo, pausas y entonación natural.",
+      "grammar_accuracy": "Evaluación en español sobre la correcta pronunciación y uso de las estructuras objetivo.",
+      "actionable_tips": [
+        "Consejo práctico 1 con ejemplos de palabras del texto",
+        "Consejo práctico 2"
+      ]
+    }}
+    """
+
+    ultimo_error = ""
+    for modelo_oral in ["gemini-3.1-pro-preview", "gemini-2.5-flash"]:
+        try:
+            response = gm_client.models.generate_content(
+                model=modelo_oral,
+                contents=[
+                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                    prompt_eval
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2
+                )
+            )
+            raw_json = str(response.text or "").strip()
+            raw_json = raw_json.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            return json.loads(raw_json)
+        except Exception as e_mod:
+            ultimo_error = f"{modelo_oral}: {e_mod}"
+
+    raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
+
+try:
+    from media_generator import generar_imagen_garantizada
+except ImportError:
+    def generar_imagen_garantizada(*args, **kwargs):
+        return None
+# ==============================================================================
+# PARTE 8A: MOTOR LEXICOGRÁFICO HÍBRIDO Y NORMALIZADOR APA 7a EDICIÓN
+# ==============================================================================
+@st.cache_data(ttl=3600, show_spinner=False)
+def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_version: str = "v16_fixed_dict") -> dict:
+    texto_sin_bib = str(lesson_text or "")
+    for marcador in ["**Bibliography", "Bibliography ("]:
+        if marcador in texto_sin_bib:
+            texto_sin_bib = next(iter(texto_sin_bib.split(marcador, 1)), texto_sin_bib)
+
+    lineas_limpias = []
+    for linea in texto_sin_bib.splitlines():
+        l_strip = linea.strip()
+        if not l_strip:
+            continue
+        if re.match(r"^\*\*(Folio|Creation Date|Author|Institution|CEFR Level|Academic Level|Campus & Contact):", l_strip, flags=re.IGNORECASE):
+            continue
+        lineas_limpias.append(l_strip)
+
+    conjunciones = {
+        "and", "but", "or", "so", "because", "although", "while", "if",
+        "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"
+    }
+    oraciones_base = []
+    palabras_clave = []
+    vistas = set()
+
+    for idx_linea, bloque in enumerate(lineas_limpias):
+        sub_oraciones = [bloque] if idx_linea == 0 else re.split(r"(?<=[.!?])\s+", bloque)
+        for orac in sub_oraciones:
+            orac_limpia = orac.replace("**", "").replace("#", "").strip()
+            if not orac_limpia:
+                continue
+            tokens_raw = re.findall(r"[A-Za-z0-9'-]+|[^\w\s]", orac_limpia)
+            toks = []
+            for tk in tokens_raw:
+                low = tk.lower()
+                if low in conjunciones:
+                    pos = "conjunction"
+                elif low.endswith(("ing", "ed")) and len(low) > 4:
+                    pos = "verb"
+                elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
+                    pos = "adjective"
+                elif len(low) > 3 and low.isalpha():
+                    pos = "noun"
+                else:
+                    pos = "other"
+                toks.append({"w": tk, "pos": pos})
+
+                if low.isalpha() and len(low) >= 2 and low not in vistas:
+                    vistas.add(low)
+                    palabras_clave.append(low)
+            oraciones_base.append({"sentence_es": "", "tokens": toks})
+
+    dict_final = {}
+
+    if palabras_clave:
+        try:
+            with pg_session() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_lexicon_cache (
+                        word_en TEXT PRIMARY KEY,
+                        es TEXT NOT NULL,
+                        alt_es TEXT DEFAULT '',
+                        ipa TEXT DEFAULT '',
+                        pos TEXT DEFAULT 'other',
+                        pos_es TEXT DEFAULT 'Inglés (US)',
+                        def_es TEXT DEFAULT ''
+                    );
+                """)
+                cur.execute(
+                    "SELECT word_en, es, alt_es, ipa, pos, pos_es, def_es FROM cei_lexicon_cache WHERE word_en = ANY(%s);",
+                    (palabras_clave[:300],)
+                )
+                for row in cur.fetchall():
+                    w_key = str(row[0]).lower().strip()
+                    dict_final[w_key] = {
+                        "es": row[1] or "",
+                        "alt_es": row[2] or "",
+                        "ipa": row[3] or "",
+                        "pos": row[4] or "other",
+                        "pos_es": row[5] or "Inglés (US)",
+                        "def_es": row[6] or "",
+                        "examples": []
+                    }
+        except Exception:
+            pass
+
+    faltantes = [w for w in palabras_clave[:300] if w not in dict_final]
+    nuevas_para_guardar = []
+
+    if faltantes:
+        try:
+            traductor = GoogleTranslator(source="en", target="es")
+            bloque_es = traductor.translate("\n".join(faltantes))
+            lista_tr = [x.strip() for x in str(bloque_es or "").splitlines()]
+            if len(lista_tr) != len(faltantes):
+                lista_tr = traductor.translate_batch(faltantes)
+
+            for w_orig, w_es in zip(faltantes, lista_tr):
+                tr_limpia = str(w_es or w_orig).strip()
+                ipa_val = ""
+                def_val = ""
+                pos_code = "other"
+                pos_label = "Vocabulario Inglés (US)"
+
+                if len(nuevas_para_guardar) < 35 and len(w_orig) > 3:
+                    try:
+                        r_fd = requests.get(f"https://dictionaryapi.dev{urllib.parse.quote(w_orig)}", timeout=2.5)
+                        if r_fd.status_code == 200:
+                            jd_list = r_fd.json()
+                            if isinstance(jd_list, list) and jd_list:
+                                jd = jd_list[0]
+                                ipa_val = str(jd.get("phonetic") or "").strip()
+                                if not ipa_val:
+                                    for ph in jd.get("phonetics", []):
+                                        if isinstance(ph, dict) and ph.get("text"):
+                                            ipa_val = str(ph["text"]).strip()
+                                            break
+                                meanings = jd.get("meanings", [])
+                                if isinstance(meanings, list) and meanings:
+                                    first_m = meanings[0]
+                                    pos_en = str(first_m.get("partOfSpeech", "")).lower()
+                                    mapa_pos = {
+                                        "verb": ("verb", "Verbo"),
+                                        "noun": ("noun", "Sustantivo"),
+                                        "adjective": ("adjective", "Adjetivo"),
+                                        "conjunction": ("conjunction", "Conjunción"),
+                                        "adverb": ("other", "Adverbio"),
+                                        "preposition": ("other", "Preposición")
+                                    }
+                                    pos_code, pos_label = mapa_pos.get(pos_en, ("other", pos_en.capitalize() or "Inglés (US)"))
+                                    defs = first_m.get("definitions", [])
+                                    if isinstance(defs, list) and defs and isinstance(defs[0], dict) and defs[0].get("definition"):
+                                        def_val = str(traductor.translate(str(defs[0]["definition"])[:160]) or "").strip()
+                    except Exception:
+                        pass
+
+                entry = {
+                    "es": tr_limpia,
+                    "alt_es": "",
+                    "ipa": ipa_val,
+                    "pos": pos_code,
+                    "pos_es": pos_label,
+                    "def_es": def_val,
+                    "examples": []
+                }
+                dict_final[w_orig] = entry
+                nuevas_para_guardar.append((w_orig, tr_limpia, "", ipa_val, pos_code, pos_label, def_val))
+        except Exception:
+            pass
+
+    if nuevas_para_guardar:
+        try:
+            with pg_session() as cur:
+                for item in nuevas_para_guardar:
+                    cur.execute("""
+                        INSERT INTO cei_lexicon_cache (word_en, es, alt_es, ipa, pos, pos_es, def_es)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (word_en) DO UPDATE SET
+                            es = EXCLUDED.es,
+                            ipa = COALESCE(NULLIF(EXCLUDED.ipa, ''), cei_lexicon_cache.ipa),
+                            pos = EXCLUDED.pos,
+                            pos_es = EXCLUDED.pos_es,
+                            def_es = COALESCE(NULLIF(EXCLUDED.def_es, ''), cei_lexicon_cache.def_es);
+                    """, item)
+        except Exception:
+            pass
+
+    for s_obj in oraciones_base:
+        for tk in s_obj["tokens"]:
+            info_w = dict_final.get(tk["w"].lower())
+            if isinstance(info_w, dict) and info_w.get("pos") in ["verb", "noun", "adjective", "conjunction", "other"]:
+                tk["pos"] = info_w["pos"]
+
+    return {"sentences": oraciones_base, "dictionary": dict_final}
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _fast_translate_to_en(txt: str) -> str:
+    clean_t = str(txt or "").strip()
+    if not clean_t:
+        return ""
+    try:
+        tr = GoogleTranslator(source="auto", target="en").translate(clean_t)
+        return str(tr or clean_t).strip()
+    except Exception:
+        return clean_t
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _fast_translate_to_es(txt: str) -> str:
+    clean_t = str(txt or "").strip()
+    if not clean_t:
+        return ""
+    try:
+        tr = GoogleTranslator(source="en", target="es").translate(clean_t)
+        return str(tr or clean_t).strip()
+    except Exception:
+        return clean_t
+
+def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
+    ctx_en = _fast_translate_to_en(contexto_raw) or str(contexto_raw or "").strip()
+    per_en = _fast_translate_to_en(personas_raw) or str(personas_raw or "").strip()
+    asu_en = _fast_translate_to_en(asunto_raw) or str(asunto_raw or "").strip()
+
+    palabras_menores = {"a", "an", "the", "and", "but", "or", "for", "nor", "on", "at", "to", "from", "by", "in", "of", "with"}
+    palabras = asu_en.split()
+    asu_apa = " ".join(
+        w.capitalize() if (i == 0 or i == len(palabras) - 1 or w.lower() not in palabras_menores) else w.lower()
+        for i, w in enumerate(palabras)
+    ) if palabras else "Academic English Discourse"
+
+    return ctx_en, per_en, asu_apa
+# ==============================================================================
+# PARTE 8B1: VISOR INTERACTIVO DE ESTUDIO (PRE-PROCESAMIENTO Y ETIQUETADO)
+# ==============================================================================
+@st.cache_data(ttl=86400, show_spinner=False)
+def _prebuild_lesson_dictionary(text_block: str, existing_dict: dict) -> dict:
+    merged = dict(existing_dict or {})
+    words = set(re.findall(r"\b[a-zA-Z]{3,}\b", str(text_block or "").lower()))
+    faltantes = [w for w in sorted(words) if w not in merged][:45]
+    if faltantes:
+        try:
+            tr_batch = GoogleTranslator(source="en", target="es").translate("\n".join(faltantes))
+            tr_lines = [x.strip() for x in str(tr_batch or "").splitlines()]
+            if len(tr_lines) == len(faltantes):
+                for w_en, w_es in zip(faltantes, tr_lines):
+                    if w_es and w_es.lower() != w_en:
+                        merged[w_en] = {"es": w_es, "pos": "", "ipa": "", "alt": "", "def": ""}
+        except Exception:
+            pass
+    return merged
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _tts_word_us_mp3(texto_en: str) -> bytes | None:
+    clean_w = str(texto_en or "").strip()
+    if not clean_w:
+        return None
+    try:
+        buf = io.BytesIO()
+        gTTS(text=clean_w, lang="en", tld="us", slow=False).write_to_fp(buf)
+        return buf.getvalue()
+    except Exception:
+        return None
+
+def render_interactive_study_viewer(study_payload: dict):
+    raw_lesson = str(st.session_state.get("generated_text") or "").strip()
+    for marcador in ["**Bibliography", "Bibliography ("]:
+        if marcador in raw_lesson:
+            raw_lesson = next(iter(raw_lesson.split(marcador, 1)), raw_lesson)
+
+    clean_lines = []
+    for ln in raw_lesson.splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        if s.lower().startswith((
+            "**folio:", "**creation date:", "**author:",
+            "**institution:", "**cefr level:", "**academic level:", "**campus"
+        )):
+            continue
+        clean_lines.append(s.replace("**", "").replace("#", "").strip())
+
+    dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
+    base_dict = {}
+    for k, v in dict_map.items():
+        if isinstance(v, dict):
+            base_dict[str(k).lower().strip()] = {
+                "es": str(v.get("es", "")).strip(),
+                "pos": str(v.get("pos_es", "")).strip(),
+                "ipa": str(v.get("ipa", "")).strip(),
+                "alt": str(v.get("alt_es", "")).strip(),
+                "def": str(v.get("def_es", "")).strip()
+            }
+
+    clean_dict = _prebuild_lesson_dictionary("\n".join(clean_lines), base_dict)
+    conjunciones = {
+        "and", "but", "or", "so", "because", "although", "while", "if",
+        "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"
+    }
+
+    boxes_html = []
+    for idx_l, line in enumerate(clean_lines):
+        cls_box = "tbox" if idx_l == 0 else "sbox"
+        spans = []
+        sent_esc = html_lib.escape(line)
+        for part in re.split(r"(\s+)", line):
+            if not part or part.isspace():
+                continue
+            m = re.match(r"^([^A-Za-z0-9'-]*)([A-Za-z0-9'-]+)([^A-Za-z0-9'-]*)$", part)
+            if not m:
+                spans.append(html_lib.escape(part) + " ")
+                continue
+            pre, tok, post = m.groups()
+            low = tok.lower()
+            info_d = clean_dict.get(low, {})
+            pos_raw = str(info_d.get("pos", "")).lower()
+            if "verb" in pos_raw:
+                pos = "verb"
+            elif "sust" in pos_raw or "noun" in pos_raw:
+                pos = "noun"
+            elif "adj" in pos_raw:
+                pos = "adjective"
+            elif "conj" in pos_raw or low in conjunciones:
+                pos = "conjunction"
+            elif low.endswith(("ing", "ed")) and len(low) > 4:
+                pos = "verb"
+            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
+                pos = "adjective"
+            elif len(low) > 3 and low.isalpha():
+                pos = "noun"
+            else:
+                pos = "other"
+
+            tok_esc = html_lib.escape(tok)
+            spans.append(
+                f'{html_lib.escape(pre)}<span class="wt {pos}" data-w="{tok_esc}" data-p="{pos}" data-s="{sent_esc}">{tok_esc}</span>{html_lib.escape(post)} '
+            )
+        boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
+
+    rendered_lesson_html = "".join(boxes_html)
+    dict_json = json.dumps(clean_dict, ensure_ascii=False).replace("</", "<\\/")
+# ==============================================================================
+# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO (PLANTILLA HTML/JS Y AUDIO US)
+# ==============================================================================
+    html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    *{box-sizing:border-box}
+    body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
+    .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;
+        background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;
+        margin-bottom:12px;font-size:12px;font-weight:600;position:sticky;top:0;z-index:50}
+    .bg{padding:3px 8px;border-radius:6px}
+    .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
+    .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
+    .adjective{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}
+    .conjunction{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}
+    .other{background:#f1f5f9;color:#334155}
+    .tbox{background:#1a2a44;color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}
+    .tbox .wt{color:#1e293b;font-size:16px}
+    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;
+          border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}
+    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
+    #gt-panel{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;
+              border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.28);margin-top:14px;overflow:hidden;display:none}
+    .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;
+             color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
+    .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
+    .gt-col{padding:12px 14px}
+    .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
+    .gt-btn{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;
+            padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
+    .unlock-btn{background:#16a34a;color:#fff;border:none;border-radius:6px;padding:5px 10px;
+                font-size:12px;font-weight:700;cursor:pointer}
+    </style></head><body>
+    <div class="tb">
+      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
+           <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
+           <span class="bg other">Otros</span></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="btnUnlock" class="unlock-btn" onclick="unlockAudio()">🔊 Activar Voz Hover (US)</button>
+        <label style="cursor:pointer"><input type="checkbox" id="hov" checked> Auto-Voz</label>
+        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
+                onclick="spd()" id="sb">1.0x</button>
+      </div>
+    </div>
+    <div id="lc">__LESSON_HTML__</div>
+    <div id="gt-panel" onclick="event.stopPropagation()">
+      <div class="gt-head">
+        <span>🌐 GOOGLE TRANSLATE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
+        <div>
+          <button class="gt-btn" onclick="spk(curW,1)">🔊 Normal</button>
+          <button class="gt-btn" onclick="spk(curW,0.65)">🐢 Lento</button>
+          <button class="gt-btn" onclick="cls()">✖ Cerrar</button>
+        </div>
+      </div>
+      <div class="gt-grid">
+        <div class="gt-col">
+          <div style="font-size:11px;color:#64748b;font-weight:700">ENGLISH (UNITED STATES)</div>
+          <div id="bw" style="font-size:22px;font-weight:700;color:#0f172a;margin-top:2px"></div>
+          <div id="bi" style="font-size:13px;color:#475569;margin-top:2px"></div>
+          <div id="bp" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:4px"></div>
+        </div>
+        <div class="gt-col">
+          <div style="font-size:11px;color:#64748b;font-weight:700">ESPAÑOL (TRADUCCIÓN)</div>
+          <div id="be" style="font-size:22px;font-weight:700;color:#1a73e8;margin-top:2px"></div>
+          <div id="ba" style="font-size:12px;color:#475569;margin-top:4px"></div>
+          <div id="bd" style="font-size:12px;color:#334155;margin-top:4px"></div>
+        </div>
+      </div>
+      <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
+    </div>
+    <script>
+    const D=__DICT_JSON__;
+    const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
+    let curW="", lst="", sp=1, usVoiceCache=null, audioUnlocked=false;
+    function pickUSVoice(){
+      if(!('speechSynthesis'in window))return null;
+      const vs=window.speechSynthesis.getVoices()||[];
+      usVoiceCache=vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Samantha')||v.name.includes('Alex')))||vs.find(v=>v.lang==='en-US'||v.lang==='en_US')||vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
+      return usVoiceCache;
+    }
+    if('speechSynthesis'in window){pickUSVoice();window.speechSynthesis.onvoiceschanged=pickUSVoice;}
+    function unlockAudio(){audioUnlocked=true;const b=document.getElementById('btnUnlock');if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}spk('Ready',1);}
+    function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
+    function spk(w,r){
+      if(!('speechSynthesis'in window)||!w)return;
+      try{window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';const v=usVoiceCache||pickUSVoice();if(v)u.voice=v;u.rate=r||sp;window.speechSynthesis.speak(u);}catch(e){}
+    }
+    function cls(){document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}
+    function lookupLocalDict(k){
+      if(D[k])return D[k];
+      const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
+      for(const st of stems){if(st.length>2 && D[st])return D[st];}
+      return null;
+    }
+    function openWordCard(e,el){
+      e.stopPropagation();
+      if(!audioUnlocked){audioUnlocked=true;const b=document.getElementById('btnUnlock');if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}}
+      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+      el.classList.add('act');
+      const w=el.getAttribute('data-w')||'';
+      const p=el.getAttribute('data-p')||'other';
+      const fs=el.getAttribute('data-s')||'';
+      curW=w; spk(w,1);
+      const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
+      const inf=lookupLocalDict(k)||{};
+      const pnl=document.getElementById('gt-panel');
+      pnl.style.display='block';
+      document.getElementById('bw').innerText=w;
+      document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
+      document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
+      document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
+      document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
+      document.getElementById('be').innerText=inf.es||w;
+      const cleanQ=encodeURIComponent(k||w);
+      const bxEl=document.getElementById('bx'); bxEl.innerHTML='';
+      const ctxDiv=document.createElement('div'); ctxDiv.textContent='💬 Contexto en la lección: "'+fs+'"'; bxEl.appendChild(ctxDiv);
+      const linksDiv=document.createElement('div'); linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
+      const aWR=document.createElement('a'); aWR.href='https://wordreference.com; aWR.target='_blank';
+      aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;'; aWR.textContent='📖 Abrir en WordReference ↗';
+      const aGT=document.createElement('a'); aGT.href='https://google.com'; aGT.target='_blank';
+      aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;'; aGT.textContent='🌐 Abrir en Google Translate ↗';
+      linksDiv.appendChild(aWR); linksDiv.appendChild(aGT); bxEl.appendChild(linksDiv);
+      pnl.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
+    document.querySelectorAll('.wt').forEach(spn=>{
+      spn.addEventListener('mouseenter',()=>{const w=spn.getAttribute('data-w')||'';if(document.getElementById('hov').checked && lst!==w){lst=w;spk(w);}});
+      spn.addEventListener('mouseleave',()=>{lst="";});
+      spn.addEventListener('click',(e)=>openWordCard(e,spn));
+    });
+    document.body.onclick=cls;
+    </script></body></html>"""
+
+    html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
+    components.html(html_code, height=620, scrolling=True)
+# ==============================================================================
+# PARTE 9A: MIGRACIÓN SHEETS -> SUPABASE (PERMISOS, PADRÓN Y FOLIOS)
+# ==============================================================================
+def migrar_sheets_a_supabase() -> dict:
+    resumen = {"permisos": 0, "usuarios": 0, "folios": 0, "certificados": 0, "config": 0}
+    book = get_google_workbook()
+
+    with pg_session() as cur:
+        try:
+            ws_perm = book.worksheet("Matriz_Permisos")
+            for r in ws_perm.get_all_records():
+                prof = str(r.get("Perfil_Permiso") or r.get("Perfil") or "").strip()
+                if not prof:
+                    continue
+                caps_mig = {c: str(r.get(c, "NO")).upper() == "SI" for c in CAPABILITY_COLS}
+                cur.execute("""
+                    INSERT INTO roles_permissions (
+                        profile_name, generar_leccion, resolver_quiz, grabar_audio,
+                        emitir_certificados, gestionar_usuarios, editar_instituto_logo, capabilities_json
+                    ) VALUES (%s, TRUE, TRUE, TRUE, %s, %s, %s, %s::jsonb)
+                    ON CONFLICT (profile_name) DO UPDATE SET
+                        emitir_certificados = EXCLUDED.emitir_certificados,
+                        gestionar_usuarios = EXCLUDED.gestionar_usuarios,
+                        editar_instituto_logo = EXCLUDED.editar_instituto_logo,
+                        capabilities_json = EXCLUDED.capabilities_json,
+                        updated_at = NOW();
+                """, (
+                    prof,
+                    caps_mig.get("Emitir_Certificados", False),
+                    caps_mig.get("Registrar_Usuarios", caps_mig.get("Gestionar_Usuarios", False)),
+                    caps_mig.get("Editar_Instituto_Logo", False),
+                    json.dumps(caps_mig)
+                ))
+                resumen["permisos"] += 1
+        except Exception:
+            pass
+
+        mapa_user_ids = {}
+        ws_pad = book.worksheet("Padron")
+        for r in ws_pad.get_all_records():
+            u_name = str(r.get("Usuario", "")).strip()
+            c_pass = str(r.get("Clave", "")).strip()
+            if not u_name or not c_pass:
+                continue
+            perm_val = str(r.get("Permisos", "Basico")).strip() or "Basico"
+            cur.execute("INSERT INTO roles_permissions (profile_name) VALUES (%s) ON CONFLICT DO NOTHING;", (perm_val,))
+            cur.execute("""
+                INSERT INTO users_padron (usuario, clave_hash, rol, grado_academico, nivel_cefr, permisos, estatus)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (usuario) DO UPDATE SET
+                    clave_hash = EXCLUDED.clave_hash,
+                    rol = EXCLUDED.rol,
+                    grado_academico = EXCLUDED.grado_academico,
+                    nivel_cefr = EXCLUDED.nivel_cefr,
+                    permisos = EXCLUDED.permisos,
+                    estatus = EXCLUDED.estatus
+                RETURNING id;
+            """, (
+                u_name,
+                c_pass,
+                str(r.get("Rol", "Estudiante")).strip() or "Estudiante",
+                str(r.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad",
+                normalize_cefr(r.get("Nivel", "B1")),
+                perm_val,
+                "Activo" if str(r.get("Estatus", "Activo")).strip().lower() == "activo" else "Inactivo"
+            ))
+            row_id = next(iter(cur.fetchone()), None)
+            mapa_user_ids[u_name.lower()] = row_id
+            resumen["usuarios"] += 1
+
+        ws_h1 = book.sheet1
+        for r in ws_h1.get_all_records():
+            folio_val = str(r.get("Folio", "")).strip().upper()
+            u_folio = str(r.get("Usuario", "")).strip()
+            if not folio_val or not u_folio:
+                continue
+            uid = mapa_user_ids.get(u_folio.lower())
+            if not uid:
+                cur.execute("""
+                    INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
+                    VALUES (%s, 'MIGRATED_LEGACY', 'Estudiante', 'Basico', 'Inactivo')
+                    ON CONFLICT (usuario) DO UPDATE SET usuario = EXCLUDED.usuario
+                    RETURNING id;
+                """, (u_folio,))
+                uid = next(iter(cur.fetchone()), None)
+                mapa_user_ids[u_folio.lower()] = uid
+
+            raw_j = str(r.get("Contenido_JSON", "")).strip()
+            paq = {}
+            if raw_j:
+                try:
+                    paq = json.loads(raw_j)
+                except Exception:
+                    paq = {}
+
+            texto_lec = paq.get("text", str(r.get("Tema", "")))
+            cefr_lec = paq.get("cefr", "B1")
+            grado_lec = paq.get("grade", "Licenciatura / Universidad")
+            mejor_str = str(r.get("Mejor_Calificacion_PDF", "") or paq.get("best_score", "")).strip()
+            mejor_num = _extract_numeric_score(mejor_str)
+            spk_str = str(r.get("Mejor_Speaking_Nota", "")).strip()
+            spk_num = _extract_numeric_score(spk_str)
+
+            cur.execute("""
+                INSERT INTO lessons_folios (
+                    folio, user_id, tema, cefr_level, academic_grade, lesson_text,
+                    quiz_data, best_quiz_score, best_quiz_numeric, best_quiz_answers,
+                    best_speaking_score, pdf_link
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s::jsonb, %s, %s)
+                ON CONFLICT (folio) DO UPDATE SET
+                    best_quiz_score = EXCLUDED.best_quiz_score,
+                    best_quiz_numeric = GREATEST(lessons_folios.best_quiz_numeric, EXCLUDED.best_quiz_numeric),
+                    best_speaking_score = GREATEST(lessons_folios.best_speaking_score, EXCLUDED.best_speaking_score),
+                    updated_at = NOW();
+            """, (
+                folio_val, uid, str(r.get("Tema", "")), cefr_lec, grado_lec, texto_lec,
+                json.dumps(paq.get("quiz")) if paq.get("quiz") else None,
+                mejor_str or None, mejor_num,
+                json.dumps(paq.get("best_answers")) if paq.get("best_answers") else None,
+                spk_num, str(r.get("PDF_Link", ""))
+            ))
+            resumen["folios"] += 1
+# ==============================================================================
+# PARTE 9B: MIGRACIÓN (CERTIFICADOS / CONFIG) Y AJUSTES GLOBALES DE COBRANZA
+# ==============================================================================
+        try:
+            ws_cert = book.worksheet("Certificados")
+            for r in ws_cert.get_all_records():
+                f_cert = str(r.get("Folio_Certificado", "")).strip().upper()
+                titular_c = str(r.get("Titular") or r.get("Nombre_Estudiante") or "").strip()
+                if not f_cert or not titular_c:
+                    continue
+                uid_c = mapa_user_ids.get(titular_c.lower()) or next(iter(mapa_user_ids.values()), 1)
+                cur.execute("""
+                    INSERT INTO certificates (
+                        folio_cert, user_id, clave_alumno, titular, nivel_cefr,
+                        grado_academico, programa, calificacion, fecha_emision,
+                        firma_hmac, estatus, verify_url
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (folio_cert) DO NOTHING;
+                """, (
+                    f_cert, uid_c, str(r.get("Clave_Alumno", "")), titular_c,
+                    str(r.get("Nivel_CEFR", "B1")), str(r.get("Grado_Academico", "")),
+                    str(r.get("Programa") or r.get("Programa_Curso") or ""), str(r.get("Calificacion", "")),
+                    str(r.get("Fecha_Emision", "")), str(r.get("Firma_HMAC") or r.get("Sello_Digital_SHA256") or ""),
+                    "Valido" if str(r.get("Estatus", "Valido")).strip().lower() in ("valido", "vigente") else "Revocado",
+                    str(r.get("URL_Verificacion", "")) or _build_cert_verify_url(f_cert)
+                ))
+                resumen["certificados"] += 1
+        except Exception:
+            pass
+
+        try:
+            ws_cfg = book.worksheet("Config_Logo")
+            recs_cfg = ws_cfg.get_all_records()
+            if recs_cfg:
+                c0 = recs_cfg[0]
+                cur.execute("""
+                    INSERT INTO institute_config (id, logo_base64, mime_type, logo_width, logo_shape, direccion)
+                    VALUES (1, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        logo_base64 = EXCLUDED.logo_base64,
+                        mime_type = EXCLUDED.mime_type,
+                        logo_width = EXCLUDED.logo_width,
+                        logo_shape = EXCLUDED.logo_shape,
+                        direccion = EXCLUDED.direccion,
+                        updated_at = NOW();
+                """, (
+                    str(c0.get("Logo_Base64", "")),
+                    str(c0.get("Mime_Type", "image/png")),
+                    int(c0.get("Ancho") or c0.get("Width") or 115),
+                    str(c0.get("Forma") or c0.get("Shape") or "Circular"),
+                    str(c0.get("Direccion") or DEFAULT_ADDRESS)
+                ))
+                resumen["config"] = 1
+        except Exception:
+            pass
+
+    load_permissions_matrix.clear()
+    load_padron_records.clear()
+    load_permanent_logo.clear()
+    return resumen
+
+def get_billing_global_settings_pg() -> bool:
+    try:
+        with pg_session() as cur:
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS billing_global_settings ("
+                "id INT PRIMARY KEY DEFAULT 1, "
+                "activar_incentivo_recargo BOOLEAN DEFAULT FALSE, "
+                "updated_by TEXT, "
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW());"
+            )
+            cur.execute("SELECT activar_incentivo_recargo FROM billing_global_settings WHERE id = 1;")
+            row = cur.fetchone()
+            return bool(next(iter(row), False)) if row else False
+    except Exception:
+        return False
+
+def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool, str]:
+    try:
+        with pg_session() as cur:
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS billing_global_settings ("
+                "id INT PRIMARY KEY DEFAULT 1, "
+                "activar_incentivo_recargo BOOLEAN DEFAULT FALSE, "
+                "updated_by TEXT, "
+                "updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW());"
+            )
+            cur.execute(
+                "INSERT INTO billing_global_settings (id, activar_incentivo_recargo, updated_by, updated_at) "
+                "VALUES (1, %s, %s, NOW()) "
+                "ON CONFLICT (id) DO UPDATE "
+                "SET activar_incentivo_recargo = EXCLUDED.activar_incentivo_recargo, "
+                "updated_by = EXCLUDED.updated_by, updated_at = NOW();",
+                (bool(activo), str(usuario_op))
+            )
+        return True, f"Esquema {'ACTIVADO' if activo else 'DESACTIVADO'} correctamente."
+    except Exception as e:
+        return False, f"Error en base de datos: {e}"
+# ==============================================================================
+# PARTE 10A: EVALUACIÓN FINANCIERA INDIVIDUAL (CICLOS DE 28 DÍAS E IVA)
+# ==============================================================================
+def evaluar_estado_financiero_alumno(student_user: str) -> dict:
+    hoy = datetime.now(ZoneInfo("America/Hermosillo")).date()
+    reglas_activas = get_billing_global_settings_pg()
+
+    info = {
+        "fecha_inicio": hoy,
+        "mensualidad_base": 1500.00,
+        "aplicar_iva": False,
+        "subtotal_ajustado": 1500.00,
+        "iva_monto": 0.00,
+        "reglas_incentivo_activas": reglas_activas,
+        "afiliado_usuario": "",
+        "porcentaje_comision": 0.0,
+        "ciclo_actual": 1,
+        "ciclo_a_cobrar": 1,
+        "semana_ciclo": 1,
+        "ventana_pago_inicio": hoy,
+        "ventana_pago_fin": hoy + timedelta(days=27),
+        "ajuste_label": "Tarifa Base (Incentivos/Recargos desactivados)",
+        "ajuste_monto": 0.00,
+        "monto_a_pagar": 1500.00,
+        "ciclo_pagado": False,
+        "descarga_permitida": True,
+        "dias_retraso": 0,
+        "mensaje_estado": "Al corriente"
+    }
+
+    try:
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                SELECT rol, fecha_inicio_curso, mensualidad_base, aplicar_iva, afiliado_usuario, porcentaje_comision
+                FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;
+            """, (student_user,))
+            u = cur.fetchone()
+            if not u:
+                return info
+
+            if str(u.get("rol", "")).lower() not in ["estudiante", "student", "alumno"]:
+                return info
+
+            f_ini = u.get("fecha_inicio_curso") or hoy
+            base = float(u.get("mensualidad_base") or 1500.0)
+            con_iva = bool(u.get("aplicar_iva") or False)
+
+            dias_transcurridos = max(0, (hoy - f_ini).days)
+            ciclo_vigente = (dias_transcurridos // 28) + 1
+            dia_en_ciclo = (dias_transcurridos % 28) + 1
+            semana_en_ciclo = ((dia_en_ciclo - 1) // 7) + 1
+
+            cur.execute("""
+                SELECT ciclo_numero FROM tuition_payments
+                WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s)) AND estatus = 'Pagado';
+            """, (student_user,))
+            ciclos_pagados = {int(r["ciclo_numero"]) for r in cur.fetchall() if r.get("ciclo_numero") is not None}
+
+            ciclos_vencidos = [c for c in range(1, ciclo_vigente) if c not in ciclos_pagados]
+
+            if ciclos_vencidos:
+                ciclo_objetivo = next(iter(ciclos_vencidos))
+                es_moratorio = True
+                esta_pagado = False
+            else:
+                ciclo_objetivo = ciclo_vigente
+                es_moratorio = False
+                esta_pagado = ciclo_vigente in ciclos_pagados
+
+            inicio_ciclo_obj = f_ini + timedelta(days=(ciclo_objetivo - 1) * 28)
+            fin_sem4_obj = inicio_ciclo_obj + timedelta(days=27)
+            dias_retraso_calc = max(0, (hoy - fin_sem4_obj).days) if es_moratorio else 0
+
+            if not reglas_activas:
+                ajuste_lbl = "Mensualidad Estándar (Incentivos/Recargos desactivados)"
+                ajuste_mto = 0.0
+            elif es_moratorio:
+                ajuste_lbl = f"Recargo Moratorio Mes {ciclo_objetivo} Vencido (+5%)"
+                ajuste_mto = round(base * 0.05, 2)
+            else:
+                ajuste_lbl = f"Incentivo Pago en Tiempo Sem. {semana_en_ciclo}/4 (-7%)"
+                ajuste_mto = round(-base * 0.07, 2)
+
+            subtotal_mes = round(base + ajuste_mto, 2)
+            iva_mto = round(subtotal_mes * 0.16, 2) if con_iva else 0.0
+            monto_calc = round(subtotal_mes + iva_mto, 2)
+            bloqueado = es_moratorio
+
+            info.update({
+                "fecha_inicio": f_ini,
+                "mensualidad_base": base,
+                "aplicar_iva": con_iva,
+                "subtotal_ajustado": subtotal_mes,
+                "iva_monto": iva_mto,
+                "reglas_incentivo_activas": reglas_activas,
+                "afiliado_usuario": str(u.get("afiliado_usuario") or ""),
+                "porcentaje_comision": float(u.get("porcentaje_comision") or 0.0),
+                "ciclo_actual": ciclo_objetivo,
+                "ciclo_a_cobrar": ciclo_objetivo,
+                "semana_ciclo": semana_en_ciclo,
+                "ventana_pago_inicio": inicio_ciclo_obj,
+                "ventana_pago_fin": fin_sem4_obj,
+                "ajuste_label": ajuste_lbl,
+                "ajuste_monto": ajuste_mto,
+                "monto_a_pagar": monto_calc,
+                "ciclo_pagado": esta_pagado,
+                "descarga_permitida": not bloqueado,
+                "dias_retraso": dias_retraso_calc,
+                "mensaje_estado": (
+                    f"✅ Mes/Ciclo {ciclo_vigente} Pagado (Al corriente)" if esta_pagado
+                    else (
+                        f"⛔ Descarga bloqueada: Mes {ciclo_objetivo} vencido ({dias_retraso_calc} {'día' if dias_retraso_calc == 1 else 'días'} de retraso — Recargo +5%: ${monto_calc:,.2f})"
+                        if bloqueado
+                        else f"⏳ Mes {ciclo_vigente} — Sem. {semana_en_ciclo}/4 ({ajuste_lbl}: ${monto_calc:,.2f})"
+                    )
+                )
+            })
+    except Exception:
+        pass
+    return info
+# ==============================================================================
+# PARTE 10B1: BALANCE FINANCIERO GLOBAL OPTIMIZADO (SIN CONSULTAS N+1)
+# ==============================================================================
+def generar_estado_financiero_global_pg() -> dict:
+    hoy = datetime.now(ZoneInfo("America/Hermosillo")).date()
+    reglas_activas = get_billing_global_settings_pg()
+
+    filas = []
+    ingresos_cobrados_hist = 0.0
+    comisiones_generadas_hist = 0.0
+    estudiantes_db = []
+    pagos_por_alumno = {}
+
+    try:
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("SELECT COALESCE(SUM(monto_final), 0) AS total_ing FROM tuition_payments WHERE estatus = 'Pagado';")
+            row_ing = cur.fetchone()
+            ingresos_cobrados_hist = float(row_ing["total_ing"]) if row_ing else 0.0
+
+            cur.execute("SELECT COALESCE(SUM(comision_ganada), 0) AS total_com FROM affiliate_commissions;")
+            row_com = cur.fetchone()
+            comisiones_generadas_hist = float(row_com["total_com"]) if row_com else 0.0
+
+            cur.execute("""
+                SELECT id, COALESCE(matricula, 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
+                       usuario, rol, fecha_inicio_curso, mensualidad_base, aplicar_iva,
+                       afiliado_usuario, porcentaje_comision
+                FROM users_padron
+                WHERE LOWER(TRIM(rol)) IN ('estudiante', 'student', 'alumno')
+                ORDER BY id ASC;
+            """)
+            estudiantes_db = cur.fetchall()
+
+            cur.execute("""
+                SELECT LOWER(TRIM(student_user)) AS u_key, ciclo_numero
+                FROM tuition_payments
+                WHERE estatus = 'Pagado' AND ciclo_numero IS NOT NULL;
+            """)
+            for p_row in cur.fetchall():
+                pagos_por_alumno.setdefault(p_row["u_key"], set()).add(int(p_row["ciclo_numero"]))
+    except Exception:
+        pass
+
+    cartera_por_cobrar_vigente = 0.0
+    cartera_vencida_moratoria = 0.0
+    conteo_al_corriente = 0
+    conteo_moratorios = 0
+
+    for u in estudiantes_db:
+        u_nom = str(u.get("usuario") or "").strip()
+        mat_id = str(u.get("matricula") or "SIN-ID").strip()
+        f_ini = u.get("fecha_inicio_curso") or hoy
+        base = float(u.get("mensualidad_base") or 1500.0)
+        con_iva = bool(u.get("aplicar_iva") or False)
+        afiliado_u = str(u.get("afiliado_usuario") or "").strip()
+
+        dias_trans = max(0, (hoy - f_ini).days)
+        ciclo_vig = (dias_trans // 28) + 1
+        ciclos_pag = pagos_por_alumno.get(u_nom.lower(), set())
+        ciclos_venc = [c for c in range(1, ciclo_vig) if c not in ciclos_pag]
+
+        if ciclos_venc:
+            ciclo_obj = next(iter(ciclos_venc))
+            es_moratorio = True
+            esta_pagado = False
+        else:
+            ciclo_obj = ciclo_vig
+            es_moratorio = False
+            esta_pagado = ciclo_vig in ciclos_pag
+
+        fin_sem4_obj = f_ini + timedelta(days=(ciclo_obj * 28) - 1)
+        dias_retraso = max(0, (hoy - fin_sem4_obj).days) if es_moratorio else 0
+
+        if not reglas_activas:
+            ajuste_mto = 0.0
+        elif es_moratorio:
+            ajuste_mto = round(base * 0.05, 2)
+        else:
+            ajuste_mto = round(-base * 0.07, 2)
+
+        subtotal_mes = round(base + ajuste_mto, 2)
+        iva_mto = round(subtotal_mes * 0.16, 2) if con_iva else 0.0
+        monto_calc = round(subtotal_mes + iva_mto, 2)
+
+        if es_moratorio:
+            estatus_fin = "🔴 Moratorio (Vencido)"
+            cartera_vencida_moratoria += monto_calc
+            conteo_moratorios += 1
+        elif esta_pagado:
+            estatus_fin = "🟢 Pagado (Al Corriente)"
+            conteo_al_corriente += 1
+        else:
+            estatus_fin = "🟡 Pendiente (En Tiempo)"
+            cartera_por_cobrar_vigente += monto_calc
+            conteo_al_corriente += 1
+
+        filas.append({
+            "ID / Matrícula": mat_id,
+            "Estudiante": u_nom,
+            "Estatus Financiero": estatus_fin,
+            "Mes/Ciclo": int(ciclo_obj),
+            "Días Retraso": int(dias_retraso),
+            "Base ($)": float(base),
+            "Subtotal ($)": float(subtotal_mes),
+            "IVA 16% ($)": float(iva_mto),
+            "Monto Ciclo ($)": float(monto_calc),
+            "Boletín": "✅ Activo" if not es_moratorio else "🔒 Bloqueado",
+            "Afiliado": afiliado_u or "Directo"
+        })
+
+    total_alumnos = len(filas)
+    facturacion_esperada_ciclo = sum(f["Monto Ciclo ($)"] for f in filas)
+    pagado_ciclo_actual = sum(f["Monto Ciclo ($)"] for f in filas if "Pagado" in f["Estatus Financiero"])
+    tasa_cobranza_pct = round((pagado_ciclo_actual / facturacion_esperada_ciclo) * 100, 1) if facturacion_esperada_ciclo > 0 else 0.0
+    indice_morosidad_pct = round((cartera_vencida_moratoria / facturacion_esperada_ciclo) * 100, 1) if facturacion_esperada_ciclo > 0 else 0.0
+    ingreso_neto_post_comision = round(ingresos_cobrados_hist - comisiones_generadas_hist, 2)
+
+    return {
+        "rows": filas,
+        "total_alumnos": total_alumnos,
+        "conteo_al_corriente": conteo_al_corriente,
+        "conteo_moratorios": conteo_moratorios,
+        "ingresos_cobrados_hist": round(ingresos_cobrados_hist, 2),
+        "comisiones_generadas_hist": round(comisiones_generadas_hist, 2),
+        "ingreso_neto_post_comision": ingreso_neto_post_comision,
+        "cartera_por_cobrar_vigente": round(cartera_por_cobrar_vigente, 2),
+        "cartera_vencida_moratoria": round(cartera_vencida_moratoria, 2),
+        "tasa_cobranza_pct": tasa_cobranza_pct,
+        "indice_morosidad_pct": indice_morosidad_pct
+    }
+# ==============================================================================
+# PARTE 10B2: REGISTRO DE PAGOS, CONFIGURACIÓN FINANCIERA Y DATOS DE AFILIADOS
+# ==============================================================================
+def registrar_pago_mensual_y_comision_pg(student_user: str, registrado_por: str) -> dict:
+    est = evaluar_estado_financiero_alumno(student_user)
+    if est["ciclo_pagado"]:
+        return {"ok": False, "msg": f"El Ciclo {est['ciclo_actual']} ya está pagado."}
+
+    try:
+        with pg_session() as cur:
+            cur.execute("""
+                INSERT INTO tuition_payments (
+                    student_user, ciclo_numero, fecha_vencimiento,
+                    monto_base, ajuste_tipo, monto_final, estatus, registrado_por
+                ) VALUES (%s, %s, %s, %s, %s, %s, 'Pagado', %s)
+                ON CONFLICT (student_user, ciclo_numero) DO UPDATE
+                SET estatus = 'Pagado', monto_final = EXCLUDED.monto_final,
+                    ajuste_tipo = EXCLUDED.ajuste_tipo, fecha_pago = NOW(), registrado_por = EXCLUDED.registrado_por;
+            """, (
+                student_user.strip(), est["ciclo_actual"], est["ventana_pago_fin"],
+                est["mensualidad_base"], est["ajuste_label"], est["monto_a_pagar"], registrado_por
+            ))
+
+            afiliado = str(est.get("afiliado_usuario") or "").strip()
+            pct_com = float(est.get("porcentaje_comision") or 0.0)
+            comision_calc = 0.0
+
+            if afiliado and pct_com > 0:
+                comision_calc = round(est["monto_a_pagar"] * (pct_com / 100.0), 2)
+                cur.execute("""
+                    INSERT INTO affiliate_commissions (
+                        affiliate_user, student_user, ciclo_numero,
+                        monto_pagado, porcentaje_aplicado, comision_ganada, estatus_pago_comision
+                    ) VALUES (%s, %s, %s, %s, %s, %s, 'Pendiente')
+                    ON CONFLICT (affiliate_user, student_user, ciclo_numero) DO UPDATE
+                    SET monto_pagado = EXCLUDED.monto_pagado,
+                        porcentaje_aplicado = EXCLUDED.porcentaje_aplicado,
+                        comision_ganada = EXCLUDED.comision_ganada;
+                """, (
+                    afiliado, student_user.strip(), est["ciclo_actual"],
+                    est["monto_a_pagar"], pct_com, comision_calc
+                ))
+
+        return {
+            "ok": True,
+            "msg": f"✅ Pago registrado: ${est['monto_a_pagar']:,.2f} ({est['ajuste_label']})."
+                   + (f" Comisión generada para {afiliado}: ${comision_calc:,.2f} ({pct_com}%)." if comision_calc > 0 else "")
+        }
+    except Exception as e:
+        return {"ok": False, "msg": f"Error al registrar pago: {e}"}
+
+def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, mensualidad_val: float, aplicar_iva_val: bool, afiliado_user: str, pct_comision: float) -> bool:
+    try:
+        with pg_session() as cur:
+            aff_clean = afiliado_user.strip()
+            aff_id_val = None
+            if aff_clean:
+                cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (aff_clean,))
+                r_id = cur.fetchone()
+                aff_id_val = int(r_id) if r_id else None
+
+            cur.execute("""
+                UPDATE users_padron
+                SET fecha_inicio_curso = %s,
+                    mensualidad_base = %s,
+                    aplicar_iva = %s,
+                    afiliado_usuario = %s,
+                    afiliador_id = %s,
+                    porcentaje_comision = %s
+                WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
+            """, (
+                fecha_inicio_val, float(mensualidad_val), bool(aplicar_iva_val),
+                aff_clean, aff_id_val, float(pct_comision), student_user.strip()
+            ))
+        load_padron_records.clear()
+        return True
+    except Exception:
+        return False
+
+def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
+    res = {"students": [], "commissions": [], "total_ganado": 0.0, "total_pendiente": 0.0, "total_pagado": 0.0}
+    try:
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                SELECT usuario, nivel_cefr AS nivel, fecha_inicio_curso, mensualidad_base, porcentaje_comision, estatus
+                FROM users_padron
+                WHERE LOWER(TRIM(afiliado_usuario)) = LOWER(TRIM(%s))
+                ORDER BY usuario ASC;
+            """, (affiliate_user,))
+            res["students"] = [dict(r) for r in cur.fetchall()]
+
+            cur.execute("""
+                SELECT student_user AS "Estudiante", ciclo_numero AS "Ciclo (4 Sem)",
+                       monto_pagado AS "Colegiatura Pagada ($)", porcentaje_aplicado AS "Comisión (%)",
+                       comision_ganada AS "Comisión Generada ($)", estatus_pago_comision AS "Estatus Pago",
+                       TO_CHAR(created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD') AS "Fecha"
+                FROM affiliate_commissions
+                WHERE LOWER(TRIM(affiliate_user)) = LOWER(TRIM(%s))
+                ORDER BY created_at DESC;
+            """, (affiliate_user,))
+            comms = [dict(r) for r in cur.fetchall()]
+            res["commissions"] = comms
+            res["total_ganado"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms), 2)
+            res["total_pendiente"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms if c["Estatus Pago"] == "Pendiente"), 2)
+            res["total_pagado"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms if c["Estatus Pago"] != "Pendiente"), 2)
+    except Exception:
+        pass
+    return res
+# ==============================================================================
+# PARTE 11A: INICIALIZACIÓN DE SESIÓN Y VERIFICACIÓN PÚBLICA DE CERTIFICADOS (QR)
+# ==============================================================================
+DEFAULT_SESSION_STATES = [
+    ("authenticated", False), ("current_user", ""), ("user_role", "Estudiante"),
+    ("user_permissions", "Basico"), ("user_assigned_level", "B1 (Intermediate)"),
+    ("user_academic_grade", "Licenciatura / Universidad"),
+    ("selected_academic_grade", "Licenciatura / Universidad"),
+    ("generated_text", ""), ("image_bytes", None), ("audio_bytes", None),
+    ("app_exited", False), ("show_saved_audios", False), ("quiz_data", None),
+    ("quiz_graded", False), ("quiz_score", None), ("quiz_user_answers", {}),
+    ("pending_ls_token", None), ("selected_cefr", "B1 (Intermediate)"),
+    ("show_teacher_registry", False), ("current_folio", ""),
+    ("current_pdf_link", ""), ("current_creation_date", ""),
+    ("show_qr", True), ("url_folio_checked", False),
+    ("quiz_audio_bytes", None), ("study_mode_active", False),
+    ("speaking_eval_result", None), ("just_logged_out", False)
+]
+
+for key, default in DEFAULT_SESSION_STATES:
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+saved_cfg = load_permanent_logo()
+institute_address = (
+    str(saved_cfg.get("Direccion", "")).strip()
+    if (saved_cfg and saved_cfg.get("Direccion"))
+    else DEFAULT_ADDRESS
+)
+st.session_state["institute_address"] = institute_address
+
+ua_str = str(st.context.headers.get("User-Agent", "")).lower()
+is_mobile = any(k in ua_str for k in ["iphone", "android", "mobile", "ipad", "ipod"])
 
 url_folio = st.query_params.get("folio", "")
 if url_folio and not st.session_state.current_folio:
@@ -2523,16 +2968,86 @@ if url_folio and not st.session_state.current_folio:
 PERMISSIONS_MATRIX = load_permissions_matrix()
 PERMISOS_LISTA = list(PERMISSIONS_MATRIX.keys())
 
-if st.session_state.pending_ls_token is not None:
-    if st.session_state.pending_ls_token == "REMOVE":
-        streamlit_js_eval(js_expressions="localStorage.removeItem('cei_auth_token')", key="rm_ls_init")
-    else:
-        safe_js_token = json.dumps(st.session_state.pending_ls_token)
-        streamlit_js_eval(js_expressions=f"localStorage.setItem('cei_auth_token', {safe_js_token})", key="sv_ls_init")
-    st.session_state.pending_ls_token = None
+# --- PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN LOGIN) ---
+verify_folio = str(st.query_params.get("verify") or st.query_params.get("verify_cert") or "").strip().upper()
+if verify_folio:
+    if st.session_state.get("portal_verificacion_cerrado", False):
+        components.html("<script>window.parent.close(); window.close();</script>", height=0)
+        st.markdown("<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>", unsafe_allow_html=True)
+        st.stop()
 
+    col_vl, col_vc, col_vr = st.columns([1, 2.2, 1])
+    with col_vc:
+        b64_l, mime_l = (
+            (saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"])
+            if (saved_cfg and saved_cfg.get("Logo_Base64"))
+            else get_default_logo_b64()
+        )
+        if b64_l:
+            st.markdown(
+                f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 110px; border-radius: 50%;"></div>',
+                unsafe_allow_html=True
+            )
+        st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center; color: #555; font-size: 12px;'>📍 {institute_address}</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🛡️ DIGITAL CREDENTIAL VERIFICATION PORTAL</h2>", unsafe_allow_html=True)
+        st.divider()
 
-# --- VERIFICACIÓN PÚBLICA DE BOLETÍN OFICIAL TIMBRADO (VÍA QR) ---
+        try:
+            with st.spinner(f"Validando sello criptográfico del certificado {verify_folio}..."):
+                folio_norm = verify_folio.replace("-", "").replace(" ", "")
+                cert_encontrado = verify_certificate_by_folio_pg(verify_folio)
+
+                if not cert_encontrado:
+                    certs = get_certificados_sheet().get_all_records()
+                    cert_encontrado = next(
+                        (c for c in certs if str(c.get("Folio_Certificado", "")).strip().upper().replace("-", "") == folio_norm),
+                        None
+                    )
+
+                if cert_encontrado:
+                    folio_oficial = str(cert_encontrado.get("Folio_Certificado", verify_folio)).strip().upper()
+                    estatus_c = str(cert_encontrado.get("Estatus", "Valido")).strip()
+                    clave_c = str(cert_encontrado.get("Clave_Alumno", "")).strip()
+                    nombre_c = str(cert_encontrado.get("Nombre_Estudiante", "")).strip()
+                    nivel_c = str(cert_encontrado.get("Nivel_CEFR", "")).strip()
+                    prog_c = str(cert_encontrado.get("Programa_Curso", "")).strip()
+                    calif_c = str(cert_encontrado.get("Calificacion", "")).strip()
+                    fecha_c = str(cert_encontrado.get("Fecha_Emision", "")).strip()
+                    sello_bd = str(cert_encontrado.get("Sello_Digital_SHA256", "")).strip().upper()
+
+                    _, sello_recalculado = generar_sello_digital(folio_oficial, clave_c, nombre_c, nivel_c, fecha_c)
+                    firma_valida = hmac.compare_digest(sello_bd, sello_recalculado) if sello_recalculado else bool(sello_bd)
+
+                    if firma_valida and estatus_c.lower() in ("vigente", "valido", "válido"):
+                        st.success("✅ **CERTIFICADO AUTÉNTICO Y VERIFICADO CRIPTOGRÁFICAMENTE**")
+                        with st.container(border=True):
+                            st.markdown(f"**🔖 Folio Oficial:** `{folio_oficial}`")
+                            st.markdown(f"**👤 Titular / Student:** {nombre_c}")
+                            st.markdown(f"**🔑 Clave de Registro:** `{clave_c}`")
+                            st.markdown(f"**🎯 Nivel Certificado (CEFR):** {nivel_c}")
+                            st.markdown(f"**📚 Programa / Módulo:** {prog_c}")
+                            st.markdown(f"**🏆 Calificación Final:** {calif_c}")
+                            st.markdown(f"**📅 Fecha de Timbrado:** {fecha_c}")
+                            st.markdown("**✍️ Autoridad Emisora:** Jacob Zumaya Prianti (Career English Institute)")
+                            st.divider()
+                            st.caption("**Sello Digital HMAC-SHA256 Verificado:**")
+                            st.code(sello_bd, language="text")
+                    else:
+                        st.error("⛔ **ALERTA DE SEGURIDAD:** El sello digital no coincide o el certificado fue revocado.")
+                else:
+                    st.error(f"❌ No existe ningún certificado registrado con el Folio `{verify_folio}`.")
+        except Exception as e:
+            st.error(f"Error al verificar certificado: {e}")
+
+        st.write("")
+        if st.button("✖️ Cerrar Verificación", type="primary", width="stretch", key="btn_close_verify_cert"):
+            st.session_state["portal_verificacion_cerrado"] = True
+            st.rerun()
+    st.stop()
+# ==============================================================================
+# PARTE 11B1: VERIFICACIÓN DE BOLETINES (QR) Y TOKENS DE SESIÓN PERSISTENTE
+# ==============================================================================
 verify_bol_param = st.query_params.get("verify_transcript", "")
 if isinstance(verify_bol_param, list):
     verify_bol_param = verify_bol_param[0] if verify_bol_param else ""
@@ -2540,29 +3055,24 @@ verify_bol_param = str(verify_bol_param).strip().upper()
 
 if verify_bol_param:
     if st.session_state.get("portal_verificacion_cerrado", False):
-        st.iframe("<script>window.close();</script>", height=0)
+        components.html("<script>window.parent.close(); window.close();</script>", height=0)
         st.markdown("<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>", unsafe_allow_html=True)
         st.stop()
 
-
     st.markdown("### 🛡️ Verificación Oficial de Boletín Académico — Career English Institute")
     try:
-        conn_vb = get_pg_conn()
         row_vb = None
-        if conn_vb:
-            from psycopg.rows import dict_row
-            with conn_vb:
-                with conn_vb.cursor(row_factory=dict_row) as cur:
-                    cur.execute("""
-                        SELECT
-                            folio_boletin, matricula, student_name, nivel_cefr, topic_filter,
-                            overall_avg, quiz_avg, oral_avg, total_lessons, hmac_seal,
-                            TO_CHAR(issued_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI:SS') AS fecha_emision
-                        FROM transcripts_archive
-                        WHERE UPPER(TRIM(folio_boletin)) = %s
-                        LIMIT 1;
-                    """, (verify_bol_param,))
-                    row_vb = cur.fetchone()
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                SELECT
+                    folio_boletin, matricula, student_name, nivel_cefr, topic_filter,
+                    overall_avg, quiz_avg, oral_avg, total_lessons, hmac_seal,
+                    TO_CHAR(issued_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI:SS') AS fecha_emision
+                FROM transcripts_archive
+                WHERE UPPER(TRIM(folio_boletin)) = %s
+                LIMIT 1;
+            """, (verify_bol_param,))
+            row_vb = cur.fetchone()
 
         if row_vb:
             st.success(f"✅ **DOCUMENTO AUTÉNTICO Y VIGENTE** — Folio Oficial: `{row_vb['folio_boletin']}`")
@@ -2594,24 +3104,30 @@ if verify_bol_param:
         st.rerun()
     st.stop()
 
+def _sign_session_token(usuario: str, clave: str) -> str:
+    secret = _get_hmac_secret_bytes()
+    raw_data = f"{usuario}|{clave}"
+    sig = hmac.new(secret, raw_data.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+    payload = json.dumps({"u": usuario, "c": clave, "s": sig}).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("utf-8")
 
+def _verify_session_token(token_str: str):
+    try:
+        decoded_json = base64.urlsafe_b64decode(token_str.encode("utf-8")).decode("utf-8")
+        token_data = json.loads(decoded_json)
+        u_tok = token_data.get("u", "")
+        c_tok = token_data.get("c", "")
+        s_tok = token_data.get("s", "")
+        if not (u_tok and c_tok and s_tok):
+            return None, None
+        secret = _get_hmac_secret_bytes()
+        expected_sig = hmac.new(secret, f"{u_tok}|{c_tok}".encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+        if hmac.compare_digest(s_tok, expected_sig):
+            return u_tok, c_tok
+    except Exception:
+        pass
+    return None, None
 
-# --- SINCRONIZACIÓN DE COOKIE PERSISTENTE EN EL NAVEGADOR PRINCIPAL ---
-if st.session_state.get("pending_ls_token"):
-    tok_act = st.session_state.pop("pending_ls_token")
-    if tok_act == "REMOVE":
-        st.iframe(
-            "<script>try{window.parent.document.cookie='cei_session_token=; max-age=0; path=/; SameSite=Lax; Secure';}catch(e){document.cookie='cei_session_token=; max-age=0; path=/; SameSite=Lax; Secure';}</script>",
-            height=1
-        )
-    else:
-        tok_safe = urllib.parse.quote(str(tok_act))
-        st.iframe(
-            f"<script>try{{window.parent.document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';}}catch(e){{document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';}}</script>",
-            height=1
-        )
-
-# --- SINCRONIZACIÓN DE COOKIE PERSISTENTE EN EL NAVEGADOR ---
 if st.session_state.get("pending_ls_token"):
     tok_act = st.session_state.pop("pending_ls_token")
     if tok_act == "REMOVE":
@@ -2627,9 +3143,10 @@ if st.session_state.get("pending_ls_token"):
             "max-age=2592000; path=/; SameSite=Lax; Secure';}catch(e){"
             f"document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';}}</script>"
         )
-    st.iframe(js_ck, height=1)
-
-# --- AUTO-LOGIN DESDE COOKIE DEL NAVEGADOR ---
+    components.html(js_ck, height=0)
+# ==============================================================================
+# PARTE 11B2: AUTO-LOGIN DESDE COOKIE Y PANTALLA DE CONTROL DE ACCESO (LOGIN)
+# ==============================================================================
 if not st.session_state.authenticated and not st.session_state.get("just_logged_out"):
     ck_raw = urllib.parse.unquote(str(st.context.cookies.get("cei_session_token", "") or "")).strip()
     if ck_raw:
@@ -2715,14 +3232,14 @@ if not st.session_state.authenticated:
                             for reg in registros:
                                 u_db = str(reg.get("Usuario", "")).strip()
                                 c_db = str(reg.get("Clave", "")).strip()
-                                if u_db.lower() == input_user.strip().lower() and c_db == input_pass.strip():
+                                if u_db.lower() == input_user.strip().lower() and hmac.compare_digest(c_db, input_pass.strip()):
                                     usuario_encontrado = reg
                                     break
 
                             if usuario_encontrado is None:
                                 m_user = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
                                 m_key = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
-                                if m_user and m_key and input_user.strip().lower() == m_user.lower() and input_pass.strip() == m_key:
+                                if m_user and m_key and input_user.strip().lower() == m_user.lower() and hmac.compare_digest(m_key, input_pass.strip()):
                                     usuario_encontrado = {
                                         "Usuario": m_user,
                                         "Clave": m_key,
@@ -2774,612 +3291,13 @@ if not st.session_state.authenticated:
             unsafe_allow_html=True
         )
     st.stop()
-
-
-
-def generar_pdf_certificado(
-    folio_c: str,
-    clave_alumno: str,
-    titular: str,
-    nivel_cefr: str,
-    programa: str,
-    calificacion: str,
-    fecha_c: str,
-    cadena_original: str,
-    sello_hmac: str,
-    direccion_inst: str
-) -> bytes:
-    # Genera el Certificado Oficial en formato Carta horizontal (Letter Landscape) con timbre HMAC-SHA256 y QR.
-    import qrcode
-    from fpdf.enums import XPos, YPos
-
-    # Tamaño Carta horizontal: 279.4 mm x 215.9 mm
-    pdf = FPDF(orientation="L", unit="mm", format="Letter")
-    pdf.set_auto_page_break(auto=False)
-    pdf.add_page()
-
-    # Marco doble institucional (Azul Marino y Dorado) calibrado a Carta (279.4 x 215.9 mm)
-    pdf.set_draw_color(26, 42, 68)
-    pdf.set_line_width(1.6)
-    pdf.rect(10, 10, 259.4, 195.9)
-    pdf.set_draw_color(184, 142, 67)
-    pdf.set_line_width(0.6)
-    pdf.rect(13, 13, 253.4, 189.9)
-
-    # Logotipo institucional centrado (centro de 279.4 mm = 139.7 mm)
-    cfg_logo = load_permanent_logo()
-    if cfg_logo and cfg_logo.get("Logo_Base64"):
-        try:
-            raw_img = base64.b64decode(cfg_logo["Logo_Base64"])
-            tmp_logo = io.BytesIO(raw_img)
-            pdf.image(tmp_logo, x=127.2, y=16, w=25)
-            pdf.set_y(44)
-        except Exception:
-            pdf.set_y(24)
-    else:
-        pdf.set_y(24)
-
-    # Encabezado Institucional
-    pdf.set_font("Helvetica", "B", 20)
-    pdf.set_text_color(26, 42, 68)
-    pdf.cell(0, 9, clean_pdf_text("CAREER ENGLISH INSTITUTE"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.set_font("Helvetica", "I", 11)
-    pdf.set_text_color(100, 110, 125)
-    pdf.cell(0, 6, clean_pdf_text("Official Academic Certification & Linguistic Proficiency Authority"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.ln(5)
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.set_text_color(184, 142, 67)
-    pdf.cell(0, 8, clean_pdf_text("CERTIFICATE OF ACADEMIC ACHIEVEMENT"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.ln(3)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(50, 55, 65)
-    pdf.cell(0, 6, clean_pdf_text("This official credential is proudly conferred upon:"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Nombre del Titular
-    pdf.ln(2)
-    pdf.set_font("Helvetica", "B", 22)
-    pdf.set_text_color(20, 35, 60)
-    pdf.cell(0, 12, clean_pdf_text(titular.upper()), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Línea dorada centrada bajo el nombre (de 65 mm a 214.4 mm)
-    pdf.set_draw_color(184, 142, 67)
-    pdf.set_line_width(0.5)
-    pdf.line(65, pdf.get_y(), 214.4, pdf.get_y())
-    pdf.ln(4)
-
-    # Detalles del programa y calificación
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(45, 50, 60)
-    pdf.cell(0, 6, clean_pdf_text(f"Student ID: {clave_alumno}   |   Accredited CEFR Level: {nivel_cefr}"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.ln(2)
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_text_color(26, 42, 68)
-    pdf.cell(0, 7, clean_pdf_text(programa), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.set_font("Helvetica", "I", 11)
-    pdf.set_text_color(35, 115, 70)
-    pdf.cell(0, 6, clean_pdf_text(f"Final Evaluation & Standing: {calificacion}"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Firma del Director Académico centrada
-    pdf.set_y(148)
-    pdf.set_draw_color(40, 45, 55)
-    pdf.line(100, 148, 179.4, 148)
-    pdf.set_font("Helvetica", "B", 10)
-    pdf.set_text_color(26, 42, 68)
-    pdf.cell(0, 5, clean_pdf_text("Jacob Zumaya Prianti"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("Helvetica", "", 9)
-    pdf.set_text_color(90, 95, 105)
-    pdf.cell(0, 4, clean_pdf_text("Academic Director & Principal Author — Career English Institute"), align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    # Código QR de Verificación Pública (Esquina inferior izquierda)
-    base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
-    verify_link = f"{base_url}/?verify={urllib.parse.quote(folio_c)}" if base_url else f"/?verify={urllib.parse.quote(folio_c)}"
-    qr = qrcode.QRCode(version=1, box_size=4, border=1)
-    qr.add_data(verify_link)
-    qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="#1a2a44", back_color="white")
-    qr_buf = io.BytesIO()
-    qr_img.save(qr_buf, format="PNG")
-    qr_buf.seek(0)
-    pdf.image(qr_buf, x=18, y=161, w=28)
-
-
-    # Bloque de Timbre Digital Criptográfico HMAC-SHA256
-    pdf.set_xy(49, 162)
-    pdf.set_font("Helvetica", "B", 7.5)
-    pdf.set_text_color(26, 42, 68)
-    pdf.cell(0, 4, clean_pdf_text(f"OFFICIAL CERTIFICATE FOLIO: {folio_c}   |   ISSUED: {fecha_c}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-
-    pdf.set_x(49)
-    pdf.set_font("Courier", "", 6.5)
-    pdf.set_text_color(70, 75, 85)
-    pdf.multi_cell(210, 3.2, clean_pdf_text(f"ORIGINAL STRING: {cadena_original}\nHMAC-SHA256 DIGITAL SIGNATURE: {sello_hmac}"))
-
-    pdf.set_xy(49, 179)
-    pdf.set_font("Helvetica", "I", 6.8)
-    pdf.set_text_color(100, 105, 115)
-    pdf.multi_cell(
-        212,
-        3.2,
-        clean_pdf_text(f"Scan QR code or visit {verify_link} to verify authenticity.\n{direccion_inst}")
-    )
-
-    return bytes(pdf.output())
-
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def _prebuild_lesson_dictionary(text_block: str, existing_dict: dict) -> dict:
-    # Enriquece el diccionario local antes de renderizar para que el clic sea instantaneo (0 ms de latencia)
-    import re
-    merged = dict(existing_dict or {})
-    words = set(re.findall(r"\b[a-zA-Z]{3,}\b", str(text_block or "").lower()))
-    faltantes = [w for w in sorted(words) if w not in merged][:45]
-    if faltantes:
-        try:
-            from deep_translator import GoogleTranslator
-            tr_batch = GoogleTranslator(source="en", target="es").translate("\n".join(faltantes))
-            tr_lines = [x.strip() for x in str(tr_batch or "").splitlines()]
-            if len(tr_lines) == len(faltantes):
-                for w_en, w_es in zip(faltantes, tr_lines):
-                    if w_es and w_es.lower() != w_en:
-                        merged[w_en] = {"es": w_es, "pos": "", "ipa": "", "alt": "", "def": ""}
-        except Exception:
-            pass
-    return merged
-
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def _tts_word_us_mp3(texto_en: str) -> bytes | None:
-    # Genera pronunciacion estadounidense real (en-US) en MP3 con cache permanente
-    clean_w = str(texto_en or "").strip()
-    if not clean_w:
-        return None
-    try:
-        from gtts import gTTS
-        buf = io.BytesIO()
-        gTTS(text=clean_w, lang="en", tld="us", slow=False).write_to_fp(buf)
-        return buf.getvalue()
-    except Exception:
-        return None
-
-
-def render_interactive_study_viewer(study_payload: dict):
-    # Visor Interactivo Nativo CEI: Colores gramaticales + Audio MP3 US real (autoplay) + Diccionario tipo Google
-    import html as html_lib
-    import re
-
-    raw_lesson = str(st.session_state.get("generated_text") or "").strip()
-    for marcador in ["**Bibliography", "Bibliography ("]:
-        if marcador in raw_lesson:
-            raw_lesson = next(iter(raw_lesson.split(marcador, 1)), raw_lesson)
-
-    clean_lines = []
-    for ln in raw_lesson.splitlines():
-        s = ln.strip()
-        if not s:
-            continue
-        if s.lower().startswith((
-            "**folio:", "**creation date:", "**author:",
-            "**institution:", "**cefr level:", "**academic level:", "**campus"
-        )):
-            continue
-        clean_lines.append(s.replace("**", "").replace("#", "").strip())
-
-    dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
-    base_dict = {}
-    for k, v in dict_map.items():
-        if isinstance(v, dict):
-            base_dict[str(k).lower().strip()] = {
-                "es": str(v.get("es", "")).strip(),
-                "pos": str(v.get("pos_es", "")).strip(),
-                "ipa": str(v.get("ipa", "")).strip(),
-                "alt": str(v.get("alt_es", "")).strip(),
-                "def": str(v.get("def_es", "")).strip()
-            }
-
-    clean_dict = _prebuild_lesson_dictionary("\n".join(clean_lines), base_dict)
-    conjunciones = {
-        "and", "but", "or", "so", "because", "although", "while", "if",
-        "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"
-    }
-
-    boxes_html = []
-    vocab_ordenado = []
-    vistos = set()
-
-    for idx_l, line in enumerate(clean_lines):
-        cls_box = "tbox" if idx_l == 0 else "sbox"
-        spans = []
-        for part in re.split(r"(\s+)", line):
-            if not part or part.isspace():
-                continue
-            m = re.match(r"^([^A-Za-z0-9'-]*)([A-Za-z0-9'-]+)([^A-Za-z0-9'-]*)$", part)
-            if not m:
-                spans.append(html_lib.escape(part) + " ")
-                continue
-            pre, tok, post = m.groups()
-            low = tok.lower()
-            if len(low) >= 2 and low not in vistos and any(c.isalpha() for c in low):
-                vistos.add(low)
-                vocab_ordenado.append(tok)
-
-            info_d = clean_dict.get(low, {})
-            pos_raw = str(info_d.get("pos", "")).lower()
-            if "verb" in pos_raw:
-                pos = "verb"
-            elif "sust" in pos_raw or "noun" in pos_raw:
-                pos = "noun"
-            elif "adj" in pos_raw:
-                pos = "adjective"
-            elif "conj" in pos_raw or low in conjunciones:
-                pos = "conjunction"
-            elif low.endswith(("ing", "ed")) and len(low) > 4:
-                pos = "verb"
-            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
-                pos = "adjective"
-            elif len(low) > 3 and low.isalpha():
-                pos = "noun"
-            else:
-                pos = "other"
-
-            tok_esc = html_lib.escape(tok)
-            spans.append(f'{html_lib.escape(pre)}<span class="wt {pos}">{tok_esc}</span>{html_lib.escape(post)} ')
-        boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
-
-    study_css_html = f"""
-    <style>
-    .cei-tb{{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:12px;font-size:12px;font-weight:600}}
-    .cei-bg{{padding:3px 8px;border-radius:6px}}
-    .verb{{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}}
-    .noun{{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}}
-    .adjective{{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}}
-    .conjunction{{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}}
-    .other{{background:#f1f5f9;color:#334155}}
-    .tbox{{background:#1a2a44;color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}}
-    .tbox .wt{{color:#1e293b;font-size:16px}}
-    .sbox{{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
-    .wt{{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px}}
-    </style>
-    <div class="cei-tb">
-      <span>🎨 Categorías Gramaticales:</span>
-      <span class="cei-bg verb">Verbos</span>
-      <span class="cei-bg noun">Sustantivos</span>
-      <span class="cei-bg adjective">Adjetivos</span>
-      <span class="cei-bg conjunction">Conjunciones</span>
-      <span class="cei-bg other">Otros</span>
-    </div>
-    {"".join(boxes_html)}
-    """
-    st.html(study_css_html)
-
-    # Panel Nativo de Pronunciación US Real (MP3 Autoplay) + Diccionario Estilo Google Translate
-    st.markdown("### 🌐 Diccionario Contextual y Pronunciación Estadounidense (`en-US`)")
-    col_sel_w, col_custom_w = st.columns([2, 1.5])
-    with col_sel_w:
-        palabra_sel = st.selectbox(
-            "🔍 Selecciona cualquier palabra de la lección para escuchar y traducir:",
-            options=[""] + vocab_ordenado,
-            format_func=lambda x: "— Elige una palabra de la lección —" if x == "" else f"🔊 {x}",
-            key="sel_study_word_native"
-        )
-    with col_custom_w:
-        palabra_escrita = st.text_input(
-            "✍️ O escribe cualquier palabra o frase en inglés:",
-            placeholder="Ej: nevertheless, academic...",
-            key="txt_study_word_custom"
-        )
-
-    palabra_activa = (palabra_escrita.strip() or palabra_sel.strip())
-    if palabra_activa:
-        k_low = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", palabra_activa.lower())
-        info_w = clean_dict.get(k_low, {})
-        traduccion_es = info_w.get("es") or _fast_translate_to_en(palabra_activa)
-        try:
-            from deep_translator import GoogleTranslator
-            traduccion_es = GoogleTranslator(source="en", target="es").translate(palabra_activa) or traduccion_es
-        except Exception:
-            pass
-
-        oracion_ctx = next((ln for ln in clean_lines if k_low in ln.lower()), clean_lines[0] if clean_lines else "")
-
-        with st.container(border=True):
-            c_en, c_es = st.columns(2)
-            with c_en:
-                st.caption("🇺🇸 ENGLISH (UNITED STATES)")
-                st.markdown(f"## **{palabra_activa}**")
-                if info_w.get("ipa"):
-                    st.caption(f"Pronunciación IPA: `{info_w['ipa']}`")
-                if info_w.get("pos"):
-                    st.markdown(f"**Categoría:** `{info_w['pos']}`")
-                mp3_w = _tts_word_us_mp3(palabra_activa)
-                if mp3_w:
-                    st.audio(mp3_w, format="audio/mp3", autoplay=True)
-            with c_es:
-                st.caption("🇪🇸 ESPAÑOL (TRADUCCIÓN)")
-                st.markdown(f"## **{traduccion_es}**")
-                if info_w.get("alt"):
-                    st.caption(f"Acepciones: {info_w['alt']}")
-                if info_w.get("def"):
-                    st.markdown(f"📖 **Definición:** {info_w['def']}")
-
-            if oracion_ctx:
-                st.info(f"💬 **Contexto en la lección:** *\"{oracion_ctx}\"*")
-
-            q_url = urllib.parse.quote(k_low or palabra_activa)
-            st.markdown(
-                f"🔗 [📖 Abrir **{palabra_activa}** en WordReference ↗](https://wordreference.com{q_url}) "
-                f"&nbsp;&nbsp;|&nbsp;&nbsp; "
-                f"[🌐 Abrir en Google Translate ↗](https://google.com{q_url}&op=translate)"
-            )
-
-
-
-    html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    *{box-sizing:border-box}
-    body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
-    .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;
-        background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;
-        margin-bottom:12px;font-size:12px;font-weight:600;position:sticky;top:0;z-index:50}
-    .bg{padding:3px 8px;border-radius:6px}
-    .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
-    .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
-    .adjective{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}
-    .conjunction{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}
-    .other{background:#f1f5f9;color:#334155}
-    .tbox{background:#1a2a44;color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}
-    .tbox .wt{color:#1e293b;font-size:16px}
-    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;
-          border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:all .12s}
-    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
-    #gt-panel{position:sticky;bottom:8px;z-index:999;background:#fff;border:2px solid #1a73e8;
-              border-radius:12px;box-shadow:0 8px 24px rgba(26,115,232,.28);margin-top:14px;overflow:hidden;display:none}
-    .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;
-             color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
-    .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
-    .gt-col{padding:12px 14px}
-    .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
-    .gt-btn{border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:6px;
-            padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
-    .unlock-btn{background:#16a34a;color:#fff;border:none;border-radius:6px;padding:5px 10px;
-                font-size:12px;font-weight:700;cursor:pointer}
-    </style></head><body>
-    <div class="tb">
-      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
-           <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
-           <span class="bg other">Otros</span></div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button id="btnUnlock" class="unlock-btn" onclick="unlockAudio()">🔊 Activar Voz Hover (US)</button>
-        <label style="cursor:pointer"><input type="checkbox" id="hov" checked> Auto-Voz</label>
-        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;cursor:pointer;font-weight:600"
-                onclick="spd()" id="sb">1.0x</button>
-      </div>
-    </div>
-    <div id="lc">__LESSON_HTML__</div>
-    <div id="gt-panel" onclick="event.stopPropagation()">
-      <div class="gt-head">
-        <span>🌐 GOOGLE TRANSLATE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
-        <div>
-          <button class="gt-btn" onclick="spk(curW,1)">🔊 Normal</button>
-          <button class="gt-btn" onclick="spk(curW,0.65)">🐢 Lento</button>
-          <button class="gt-btn" onclick="cls()">✖ Cerrar</button>
-        </div>
-      </div>
-      <div class="gt-grid">
-        <div class="gt-col">
-          <div style="font-size:11px;color:#64748b;font-weight:700">ENGLISH (UNITED STATES)</div>
-          <div id="bw" style="font-size:22px;font-weight:700;color:#0f172a;margin-top:2px"></div>
-          <div id="bi" style="font-size:13px;color:#475569;margin-top:2px"></div>
-          <div id="bp" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:4px"></div>
-        </div>
-        <div class="gt-col">
-          <div style="font-size:11px;color:#64748b;font-weight:700">ESPAÑOL (TRADUCCIÓN)</div>
-          <div id="be" style="font-size:22px;font-weight:700;color:#1a73e8;margin-top:2px"></div>
-          <div id="ba" style="font-size:12px;color:#475569;margin-top:4px"></div>
-          <div id="bd" style="font-size:12px;color:#334155;margin-top:4px"></div>
-        </div>
-      </div>
-      <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
-    </div>
-    <script>
-    const D=__DICT_JSON__;
-    const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
-    let curW="", lst="", sp=1, usVoiceCache=null, audioUnlocked=false;
-
-    function pickUSVoice(){
-      if(!('speechSynthesis'in window))return null;
-      const vs=window.speechSynthesis.getVoices()||[];
-      usVoiceCache=
-        vs.find(v=>v.lang==='en-US'&&(v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')||v.name.includes('Guy')||v.name.includes('Samantha')||v.name.includes('Alex')))||
-        vs.find(v=>v.lang==='en-US'||v.lang==='en_US')||
-        vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
-      return usVoiceCache;
-    }
-    if('speechSynthesis'in window){pickUSVoice();window.speechSynthesis.onvoiceschanged=pickUSVoice;}
-
-    function unlockAudio(){
-      audioUnlocked=true;
-      const b=document.getElementById('btnUnlock');
-      if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}
-      spk('Ready',1);
-    }
-
-    function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
-    function spk(w,r){
-      if(!('speechSynthesis'in window)||!w)return;
-      try{
-        window.speechSynthesis.cancel();
-        const u=new SpeechSynthesisUtterance(w);
-        u.lang='en-US';
-        const v=usVoiceCache||pickUSVoice();
-        if(v)u.voice=v;
-        u.rate=r||sp;
-        window.speechSynthesis.speak(u);
-      }catch(e){}
-    }
-    function cls(){document.getElementById('gt-panel').style.display='none';document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));}
-
-    function lookupLocalDict(k){
-      if(D[k])return D[k];
-      const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
-      for(const st of stems){if(st.length>2 && D[st])return D[st];}
-      return null;
-    }
-
-    function openWordCard(e,el){
-      e.stopPropagation();
-      if(!audioUnlocked){
-        audioUnlocked=true;
-        const b=document.getElementById('btnUnlock');
-        if(b){b.innerText='✅ Voz US Activa';b.style.background='#0f766e';}
-      }
-      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
-      el.classList.add('act');
-      const w=el.getAttribute('data-w')||'';
-      const p=el.getAttribute('data-p')||'other';
-      const fs=el.getAttribute('data-s')||'';
-      curW=w;
-      spk(w,1);
-
-      const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
-      const inf=lookupLocalDict(k)||{};
-      const pnl=document.getElementById('gt-panel');
-      pnl.style.display='block';
-
-      document.getElementById('bw').innerText=w;
-      document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
-      document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
-      document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
-      document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
-      document.getElementById('be').innerText=inf.es||w;
-
-      const cleanQ=encodeURIComponent(k||w);
-      const bxEl=document.getElementById('bx');
-      bxEl.innerHTML='';
-      const ctxDiv=document.createElement('div');
-      ctxDiv.textContent='💬 Contexto en la lección: "'+fs+'"';
-      bxEl.appendChild(ctxDiv);
-
-      const linksDiv=document.createElement('div');
-      linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
-      const aWR=document.createElement('a');
-      aWR.href='https://wordreference.com;
-      aWR.target='_blank';
-      aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;';
-      aWR.textContent='📖 Abrir en WordReference ↗';
-      const aGT=document.createElement('a');
-      aGT.href='https://google.com';
-      aGT.target='_blank';
-      aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;';
-      aGT.textContent='🌐 Abrir en Google Translate ↗';
-      linksDiv.appendChild(aWR);
-      linksDiv.appendChild(aGT);
-      bxEl.appendChild(linksDiv);
-      pnl.scrollIntoView({behavior:'smooth',block:'nearest'});
-    }
-
-    document.querySelectorAll('.wt').forEach(spn=>{
-      spn.addEventListener('mouseenter',()=>{
-        const w=spn.getAttribute('data-w')||'';
-        if(document.getElementById('hov').checked && lst!==w){lst=w;spk(w);}
-      });
-      spn.addEventListener('mouseleave',()=>{lst="";});
-      spn.addEventListener('click',(e)=>openWordCard(e,spn));
-    });
-    document.body.onclick=cls;
-    </script></body></html>"""
-
-    html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
-    components.html(html_code, height=700, scrolling=True)
-
-
-    
-
-def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
-    # Selecciona modelos estables compatibles con v1/v1beta y consulta dinamicamente client.models.list() si es necesario
-    modelos_preferidos = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-3.1-pro-preview",
-        "gemini-2.0-flash"
-    ]
-
-    # Agrega dinamicamente cualquier modelo Gemini activo reportado por tu cuenta
-    try:
-        for m in client.models.list():
-            m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
-            metodos = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
-            if "gemini" in m_name and "embedding" not in m_name and "imagen" not in m_name and "tts" not in m_name:
-                if not metodos or "generateContent" in metodos:
-                    if m_name not in modelos_preferidos:
-                        modelos_preferidos.append(m_name)
-    except Exception:
-        pass
-
-    ultimo_error = None
-    for modelo in modelos_preferidos:
-        try:
-            cfg_kwargs = {"temperature": 0.65}
-            if instruccion_sistema:
-                cfg_kwargs["system_instruction"] = instruccion_sistema
-            if as_json:
-                cfg_kwargs["response_mime_type"] = "application/json"
-            config = types.GenerateContentConfig(**cfg_kwargs)
-            respuesta = client.models.generate_content(
-                model=modelo,
-                contents=prompt_contenido,
-                config=config
-            )
-            if respuesta and respuesta.text:
-                return respuesta.text, modelo
-        except Exception as e:
-            ultimo_error = e
-            continue
-
-    if ultimo_error:
-        raise ultimo_error
-    raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
-
-
-
-
-from media_generator import generar_imagen_garantizada
-
-
-def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None):
-    client = init_gemini_client()
-    evitar_txt = ("IMPORTANT: Create COMPLETELY DIFFERENT questions from: " + str(evitar_preguntas) + "\n") if evitar_preguntas else ""
-    prompt_quiz = (
-        "Based on this CEFR Level " + str(nivel_cefr) + " English lesson tailored for " + str(grado_acad) + " students, "
-        "create a 5-question multiple-choice quiz in English calibrated strictly to level " + str(nivel_cefr) + " and " + str(grado_acad) + " cognitive level, "
-        "evaluating comprehension and target grammar (" + str(tema_gramatical) + ").\n"
-        + evitar_txt +
-        "LESSON TEXT:\n" + str(texto_leccion) + "\n"
-        "RETURN ONLY A VALID JSON ARRAY WITH THIS EXACT SCHEMA:\n"
-        '[{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}]'
-    )
-    raw_resp, _ = generar_con_maxima_potencia(
-        client,
-        prompt_quiz,
-        instruccion_sistema="Output strictly a valid JSON array only.",
-        as_json=True
-    )
-    cleaned = raw_resp.strip()
-    if cleaned.startswith("```"):
-        cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
-    return json.loads(cleaned.strip())
-
-
-    
-    
-# --- 10. EVALUACIÓN DINÁMICA DE CAPACIDADES ---
+# ==============================================================================
+# PARTE 12A: EVALUACIÓN DE CAPACIDADES RBAC Y BARRA LATERAL DE PARÁMETROS
+# ==============================================================================
 user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
 def can(capability_name: str) -> bool:
     return bool(user_caps.get(capability_name, False))
+
 curr_u_clean = str(st.session_state.get("current_user", "")).strip().lower()
 curr_r_clean = str(st.session_state.get("user_role", "")).strip().lower()
 curr_p_clean = str(st.session_state.get("user_permissions", "")).strip().lower()
@@ -3395,8 +3313,7 @@ is_faculty_desktop = is_owner or (can("Ver_Panel_Admin") and (not is_mobile))
 has_faculty_access = is_owner or can("Reuso_Ilimitado_Folios") or (curr_r_clean in ["teacher", "docente"])
 cefr_options = list(CEFR_MAP.values())
 
-
-# --- 11. BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS) ---
+# --- BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS) ---
 with st.sidebar:
     st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
     st.caption(f"📍 {institute_address}")
@@ -3409,14 +3326,14 @@ with st.sidebar:
     st.header("⚙️ Academic Parameters")
     usuario = st.session_state.current_user
 
-    if is_owner:
-        st.subheader("🎯 Target Calibration (Owner / Admin)")
+    if is_owner or can("Previsualizar_A1_C2"):
+        st.subheader("🎯 Target Calibration (A1 - C2)")
         default_idx = (
             cefr_options.index(st.session_state.user_assigned_level)
             if st.session_state.user_assigned_level in cefr_options else 2
         )
         cefr_level = st.selectbox("Select CEFR Level (A1 - C2):", cefr_options, index=default_idx)
-        
+
         g_idx = (
             GRADOS_ACADEMICOS.index(st.session_state.user_academic_grade)
             if st.session_state.user_academic_grade in GRADOS_ACADEMICOS else 4
@@ -3430,29 +3347,20 @@ with st.sidebar:
     st.subheader("1. Context & Characters (Español / English)")
     contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="Ej: En un aeropuerto en Londres / At an airport")
     personas = st.text_input("Personas / Personajes:", placeholder="Ej: Un turista y una azafata / A tourist and a pilot")
-    
+
     st.subheader("2. Subject Matter (Español / English)")
     asunto = st.text_input("Asunto / Materia:", placeholder="Ej: Equipaje perdido / Lost luggage")
-    
-    st.subheader(f"3. Grammar Topics ({next(iter(cefr_level.split()), 'B1')})")
+
+    cefr_short_sb = next(iter(cefr_level.split()), "B1")
+    st.subheader(f"3. Grammar Topics ({cefr_short_sb})")
+    temas_nivel_actual = CEFR_GRAMMAR_TOPICS.get(cefr_short_sb, CEFR_GRAMMAR_TOPICS["B1"])
     gramatica_b1 = st.selectbox(
         "Selecciona el tema gramatical:",
-        [
-            "Present Simple & Continuous / Verb To Be",
-            "Past Simple & Past Continuous",
-            "Present Perfect vs. Past Simple",
-            "Future Forms (Will, Going to, Present Continuous)",
-            "First, Second & Third Conditionals (If clauses)",
-            "Modal Verbs (can, must, have to, might, should, could)",
-            "Passive Voice (All Tenses)",
-            "Relative Clauses (who, which, that, where, whose)",
-            "Used to / Would for past habits",
-            "Reported Speech (Statements, Questions & Commands)",
-            "Comparatives, Superlatives & Inversion"
-        ],
-        index=2
+        temas_nivel_actual,
+        index=0,
+        key="selected_grammar_topic"
     )
-    
+
     st.subheader("4. Discourse Mode")
     tipo_texto = st.selectbox(
         "Formato de generación para el estudiante:",
@@ -3466,410 +3374,12 @@ with st.sidebar:
             "Storytelling (Engaging Narrative)"
         ]
     )
-    
+
     st.markdown("---")
-    generar_btn = st.button(f"🚀 Generate {cefr_level.split()[0]} Lesson", type="primary", width="stretch")
-
-
-
-def get_billing_global_settings_pg() -> bool:
-    # Consulta si el sistema de incentivo (-7%) y recargo moratorio (+5%) esta activo globalmente. """
-    conn = get_pg_conn()
-    if not conn:
-        return False
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "CREATE TABLE IF NOT EXISTS billing_global_settings ("
-                    "id INT PRIMARY KEY DEFAULT 1, "
-                    "activar_incentivo_recargo BOOLEAN DEFAULT FALSE, "
-                    "updated_by TEXT, "
-                    "updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW());"
-                )
-                cur.execute("SELECT activar_incentivo_recargo FROM billing_global_settings WHERE id = 1;")
-                row = cur.fetchone()
-                return bool(next(iter(row), False)) if row else False
-    except Exception:
-        return False
-
-
-def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool, str]:
-    # Activa o desactiva globalmente el esquema de incentivos y recargos (solo Propietario). """
-    conn = get_pg_conn()
-    if not conn:
-        return False, "Sin conexión activa a Supabase PostgreSQL."
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "CREATE TABLE IF NOT EXISTS billing_global_settings ("
-                    "id INT PRIMARY KEY DEFAULT 1, "
-                    "activar_incentivo_recargo BOOLEAN DEFAULT FALSE, "
-                    "updated_by TEXT, "
-                    "updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW());"
-                )
-                cur.execute(
-                    "INSERT INTO billing_global_settings (id, activar_incentivo_recargo, updated_by, updated_at) "
-                    "VALUES (1, %s, %s, NOW()) "
-                    "ON CONFLICT (id) DO UPDATE "
-                    "SET activar_incentivo_recargo = EXCLUDED.activar_incentivo_recargo, "
-                    "updated_by = EXCLUDED.updated_by, updated_at = NOW();",
-                    (bool(activo), str(usuario_op))
-                )
-        return True, f"Esquema {'ACTIVADO' if activo else 'DESACTIVADO'} correctamente."
-    except Exception as e:
-        return False, f"Error en base de datos: {e}"
-
-
-
-
-def evaluar_estado_financiero_alumno(student_user: str) -> dict:
-
-    # Regla mensual (ciclos de 4 semanas / 28 días, no acumulable):
-    """
-    - Pago realizado dentro de la Semana 4 o antes (días 1-28 del mes): Incentivo -7% sobre base.
-    - Si inicia la semana del mes siguiente (día 29+) sin pagar el ciclo vencido: Recargo +5% y bloqueo de boletín.
-    - IVA (16%) se aplica sobre el subtotal con descuento o recargo ya aplicado.
-    """
-    from datetime import timedelta
-    from psycopg.rows import dict_row
-
-    hoy = datetime.now(ZoneInfo("America/Hermosillo")).date()
-    reglas_activas = get_billing_global_settings_pg()
-
-    info = {
-        "fecha_inicio": hoy,
-        "mensualidad_base": 1500.00,
-        "aplicar_iva": False,
-        "subtotal_ajustado": 1500.00,
-        "iva_monto": 0.00,
-        "reglas_incentivo_activas": reglas_activas,
-        "afiliado_usuario": "",
-        "porcentaje_comision": 0.0,
-        "ciclo_actual": 1,
-        "ciclo_a_cobrar": 1,
-        "semana_ciclo": 1,
-        "ventana_pago_inicio": hoy,
-        "ventana_pago_fin": hoy + timedelta(days=27),
-        "ajuste_label": "Tarifa Base (Incentivos/Recargos desactivados)",
-        "ajuste_monto": 0.00,
-        "monto_a_pagar": 1500.00,
-        "ciclo_pagado": False,
-        "descarga_permitida": True,
-        "mensaje_estado": "Al corriente"
-    }
-
-    conn = get_pg_conn()
-    if not conn:
-        return info
-
-    try:
-        with conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute("""
-                    SELECT rol, fecha_inicio_curso, mensualidad_base, aplicar_iva, afiliado_usuario, porcentaje_comision
-                    FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;
-                """, (student_user,))
-                u = cur.fetchone()
-                if not u:
-                    return info
-
-                if str(u.get("rol", "")).lower() not in ["estudiante", "student", "alumno"]:
-                    return info
-
-                f_ini = u.get("fecha_inicio_curso") or hoy
-                base = float(u.get("mensualidad_base") or 1500.0)
-                con_iva = bool(u.get("aplicar_iva") or False)
-
-                dias_transcurridos = max(0, (hoy - f_ini).days)
-                ciclo_vigente = (dias_transcurridos // 28) + 1
-                dia_en_ciclo = (dias_transcurridos % 28) + 1
-                semana_en_ciclo = ((dia_en_ciclo - 1) // 7) + 1
-
-                # Consulta todos los ciclos ya pagados por el estudiante
-                cur.execute("""
-                    SELECT ciclo_numero FROM tuition_payments
-                    WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s)) AND estatus = 'Pagado';
-                """, (student_user,))
-                ciclos_pagados = {int(r["ciclo_numero"]) for r in cur.fetchall() if r.get("ciclo_numero") is not None}
-
-                # Busca el primer ciclo vencido (cuya semana 4 ya terminó y ya inició el mes siguiente)
-                ciclos_vencidos = [c for c in range(1, ciclo_vigente) if c not in ciclos_pagados]
-
-                if ciclos_vencidos:
-                    ciclo_objetivo = next(iter(ciclos_vencidos))
-                    es_moratorio = True
-                    esta_pagado = False
-                else:
-                    ciclo_objetivo = ciclo_vigente
-                    es_moratorio = False
-                    esta_pagado = ciclo_vigente in ciclos_pagados
-
-
-                inicio_ciclo_obj = f_ini + timedelta(days=(ciclo_objetivo - 1) * 28)
-                fin_sem4_obj = inicio_ciclo_obj + timedelta(days=27)
-                dias_retraso_calc = max(0, (hoy - fin_sem4_obj).days) if es_moratorio else 0
-
-                if not reglas_activas:
-                    ajuste_lbl = "Mensualidad Estándar (Incentivos/Recargos desactivados)"
-                    ajuste_mto = 0.0
-                elif es_moratorio:
-                    ajuste_lbl = f"Recargo Moratorio Mes {ciclo_objetivo} Vencido (+5%)"
-                    ajuste_mto = round(base * 0.05, 2)
-                else:
-                    # Pago dentro de la Semana 4 o antes (días 1 a 28 del ciclo vigente)
-                    ajuste_lbl = f"Incentivo Pago en Tiempo Sem. {semana_en_ciclo}/4 (-7%)"
-                    ajuste_mto = round(-base * 0.07, 2)
-
-                subtotal_mes = round(base + ajuste_mto, 2)
-                iva_mto = round(subtotal_mes * 0.16, 2) if con_iva else 0.0
-                monto_calc = round(subtotal_mes + iva_mto, 2)
-
-                # Bloquea boletín si existe al menos un ciclo vencido (ya inició la semana del mes siguiente sin pagar)
-                bloqueado = es_moratorio
-
-                info.update({
-                    "fecha_inicio": f_ini,
-                    "mensualidad_base": base,
-                    "aplicar_iva": con_iva,
-                    "subtotal_ajustado": subtotal_mes,
-                    "iva_monto": iva_mto,
-                    "reglas_incentivo_activas": reglas_activas,
-                    "afiliado_usuario": str(u.get("afiliado_usuario") or ""),
-                    "porcentaje_comision": float(u.get("porcentaje_comision") or 0.0),
-                    "ciclo_actual": ciclo_objetivo,
-                    "ciclo_a_cobrar": ciclo_objetivo,
-                    "semana_ciclo": semana_en_ciclo,
-                    "ventana_pago_inicio": inicio_ciclo_obj,
-                    "ventana_pago_fin": fin_sem4_obj,
-                    "ajuste_label": ajuste_lbl,
-                    "ajuste_monto": ajuste_mto,
-                    "monto_a_pagar": monto_calc,
-                    "ciclo_pagado": esta_pagado,
-                    "descarga_permitida": not bloqueado,
-                    "dias_retraso": dias_retraso_calc,
-                    "mensaje_estado": (
-                        f"✅ Mes/Ciclo {ciclo_vigente} Pagado (Al corriente)" if esta_pagado
-                        else (f"⛔ Descarga bloqueada: Mes {ciclo_objetivo} vencido ({dias_retraso_calc} {'día' if dias_retraso_calc == 1 else 'días'} de retraso — Recargo +5%: ${monto_calc:,.2f})" if bloqueado
-                              else f"⏳ Mes {ciclo_vigente} — Sem. {semana_en_ciclo}/4 ({ajuste_lbl}: ${monto_calc:,.2f})")
-                    )
-                })
-    except Exception:
-        pass
-    return info
-
-
-
-def generar_estado_financiero_global_pg() -> dict:
-    # Consolida el Balance de Cobranza, Cartera Vencida (Aging) y KPIs Financieros Globales.
-    from psycopg.rows import dict_row
-
-    padron = load_padron_records()
-    estudiantes = [r for r in padron if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
-
-    filas = []
-    ingresos_cobrados_hist = 0.0
-    comisiones_generadas_hist = 0.0
-
-    conn = get_pg_conn()
-    if conn:
-        try:
-            with conn:
-                with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute("SELECT COALESCE(SUM(monto_final), 0) AS total_ing FROM tuition_payments WHERE estatus = 'Pagado';")
-                    row_ing = cur.fetchone()
-                    ingresos_cobrados_hist = float(row_ing["total_ing"]) if row_ing else 0.0
-
-                    cur.execute("SELECT COALESCE(SUM(comision_ganada), 0) AS total_com FROM affiliate_commissions;")
-                    row_com = cur.fetchone()
-                    comisiones_generadas_hist = float(row_com["total_com"]) if row_com else 0.0
-        except Exception:
-            pass
-
-    cartera_por_cobrar_vigente = 0.0
-    cartera_vencida_moratoria = 0.0
-    conteo_al_corriente = 0
-    conteo_moratorios = 0
-
-    for r in estudiantes:
-        u_nom = str(r.get("Usuario", "")).strip()
-        mat_id = str(r.get("Matricula", "")).strip() or "SIN-ID"
-        est = evaluar_estado_financiero_alumno(u_nom)
-
-        es_vencido = not est["descarga_permitida"]
-        esta_pagado_ciclo = est["ciclo_pagado"]
-
-        if es_vencido:
-            estatus_fin = "🔴 Moratorio (Vencido)"
-            cartera_vencida_moratoria += est["monto_a_pagar"]
-            conteo_moratorios += 1
-        elif esta_pagado_ciclo:
-            estatus_fin = "🟢 Pagado (Al Corriente)"
-            conteo_al_corriente += 1
-        else:
-            estatus_fin = "🟡 Pendiente (En Tiempo)"
-            cartera_por_cobrar_vigente += est["monto_a_pagar"]
-            conteo_al_corriente += 1
-
-        filas.append({
-            "ID / Matrícula": mat_id,
-            "Estudiante": u_nom,
-            "Estatus Financiero": estatus_fin,
-            "Mes/Ciclo": int(est["ciclo_a_cobrar"]),
-            "Días Retraso": int(est.get("dias_retraso", 0)),
-            "Base ($)": float(est["mensualidad_base"]),
-            "Subtotal ($)": float(est["subtotal_ajustado"]),
-            "IVA 16% ($)": float(est["iva_monto"]),
-            "Monto Ciclo ($)": float(est["monto_a_pagar"]),
-            "Boletín": "✅ Activo" if est["descarga_permitida"] else "🔒 Bloqueado",
-            "Afiliado": est["afiliado_usuario"] or "Directo"
-        })
-
-    total_alumnos = len(filas)
-    facturacion_esperada_ciclo = sum(f["Monto Ciclo ($)"] for f in filas)
-    pagado_ciclo_actual = sum(f["Monto Ciclo ($)"] for f in filas if "Pagado" in f["Estatus Financiero"])
-    tasa_cobranza_pct = round((pagado_ciclo_actual / facturacion_esperada_ciclo) * 100, 1) if facturacion_esperada_ciclo > 0 else 0.0
-    indice_morosidad_pct = round((cartera_vencida_moratoria / facturacion_esperada_ciclo) * 100, 1) if facturacion_esperada_ciclo > 0 else 0.0
-    ingreso_neto_post_comision = round(ingresos_cobrados_hist - comisiones_generadas_hist, 2)
-
-    return {
-        "rows": filas,
-        "total_alumnos": total_alumnos,
-        "conteo_al_corriente": conteo_al_corriente,
-        "conteo_moratorios": conteo_moratorios,
-        "ingresos_cobrados_hist": round(ingresos_cobrados_hist, 2),
-        "comisiones_generadas_hist": round(comisiones_generadas_hist, 2),
-        "ingreso_neto_post_comision": ingreso_neto_post_comision,
-        "cartera_por_cobrar_vigente": round(cartera_por_cobrar_vigente, 2),
-        "cartera_vencida_moratoria": round(cartera_vencida_moratoria, 2),
-        "tasa_cobranza_pct": tasa_cobranza_pct,
-        "indice_morosidad_pct": indice_morosidad_pct
-    }
-
- 
-
-
-def registrar_pago_mensual_y_comision_pg(student_user: str, registrado_por: str) -> dict:
-    # Registra el pago mensual del ciclo actual (aplicando -7%, 0% o +5%) y calcula la comisión del socio afiliado.
-    est = evaluar_estado_financiero_alumno(student_user)
-    if est["ciclo_pagado"]:
-        return {"ok": False, "msg": f"El Ciclo {est['ciclo_actual']} ya está pagado."}
-
-    conn = get_pg_conn()
-    if not conn:
-        return {"ok": False, "msg": "Sin conexión a Supabase PostgreSQL."}
-
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO tuition_payments (
-                        student_user, ciclo_numero, fecha_vencimiento,
-                        monto_base, ajuste_tipo, monto_final, estatus, registrado_por
-                    ) VALUES (%s, %s, %s, %s, %s, %s, 'Pagado', %s)
-                    ON CONFLICT (student_user, ciclo_numero) DO UPDATE
-                    SET estatus = 'Pagado', monto_final = EXCLUDED.monto_final,
-                        ajuste_tipo = EXCLUDED.ajuste_tipo, fecha_pago = NOW(), registrado_por = EXCLUDED.registrado_por;
-                """, (
-                    student_user.strip(), est["ciclo_actual"], est["ventana_pago_fin"],
-                    est["mensualidad_base"], est["ajuste_label"], est["monto_a_pagar"], registrado_por
-                ))
-
-                afiliado = str(est.get("afiliado_usuario") or "").strip()
-                pct_com = float(est.get("porcentaje_comision") or 0.0)
-                comision_calc = 0.0
-
-                if afiliado and pct_com > 0:
-                    comision_calc = round(est["monto_a_pagar"] * (pct_com / 100.0), 2)
-                    cur.execute("""
-                        INSERT INTO affiliate_commissions (
-                            affiliate_user, student_user, ciclo_numero,
-                            monto_pagado, porcentaje_aplicado, comision_ganada, estatus_pago_comision
-                        ) VALUES (%s, %s, %s, %s, %s, %s, 'Pendiente')
-                        ON CONFLICT (affiliate_user, student_user, ciclo_numero) DO UPDATE
-                        SET monto_pagado = EXCLUDED.monto_pagado,
-                            porcentaje_aplicado = EXCLUDED.porcentaje_aplicado,
-                            comision_ganada = EXCLUDED.comision_ganada;
-                    """, (
-                        afiliado, student_user.strip(), est["ciclo_actual"],
-                        est["monto_a_pagar"], pct_com, comision_calc
-                    ))
-
-        return {
-            "ok": True,
-            "msg": f"✅ Pago registrado: ${est['monto_a_pagar']:,.2f} ({est['ajuste_label']})."
-                   + (f" Comisión generada para {afiliado}: ${comision_calc:,.2f} ({pct_com}%)." if comision_calc > 0 else "")
-        }
-    except Exception as e:
-        return {"ok": False, "msg": f"Error al registrar pago: {e}"}
-
-
-def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, mensualidad_val: float, aplicar_iva_val: bool, afiliado_user: str, pct_comision: float) -> bool:
-    # Actualiza fecha de inicio, colegiatura base, IVA (16%) y comisión del socio afiliado.
-    conn = get_pg_conn()
-    if not conn:
-        return False
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE users_padron
-                    SET fecha_inicio_curso = %s,
-                        mensualidad_base = %s,
-                        aplicar_iva = %s,
-                        afiliado_usuario = %s,
-                        porcentaje_comision = %s
-                    WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
-                """, (
-                    fecha_inicio_val, float(mensualidad_val), bool(aplicar_iva_val),
-                    afiliado_user.strip(), float(pct_comision), student_user.strip()
-                ))
-        return True
-    except Exception:
-        return False
-
-
-def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
-    # Obtiene estudiantes referidos y comisiones calculadas para el portal del Socio Afiliado.
-    from psycopg.rows import dict_row
-    res = {"students": [], "commissions": [], "total_ganado": 0.0, "total_pendiente": 0.0, "total_pagado": 0.0}
-    conn = get_pg_conn()
-    if not conn:
-        return res
-    try:
-        with conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute("""
-                    SELECT usuario, nivel, fecha_inicio_curso, mensualidad_base, porcentaje_comision, estatus
-                    FROM users_padron
-                    WHERE LOWER(TRIM(afiliado_usuario)) = LOWER(TRIM(%s))
-                    ORDER BY usuario ASC;
-                """, (affiliate_user,))
-                res["students"] = [dict(r) for r in cur.fetchall()]
-
-                cur.execute("""
-                    SELECT student_user AS "Estudiante", ciclo_numero AS "Ciclo (4 Sem)",
-                           monto_pagado AS "Colegiatura Pagada ($)", porcentaje_aplicado AS "Comisión (%)",
-                           comision_ganada AS "Comisión Generada ($)", estatus_pago_comision AS "Estatus Pago",
-                           TO_CHAR(created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD') AS "Fecha"
-                    FROM affiliate_commissions
-                    WHERE LOWER(TRIM(affiliate_user)) = LOWER(TRIM(%s))
-                    ORDER BY created_at DESC;
-                """, (affiliate_user,))
-                comms = [dict(r) for r in cur.fetchall()]
-                res["commissions"] = comms
-                res["total_ganado"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms), 2)
-                res["total_pendiente"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms if c["Estatus Pago"] == "Pendiente"), 2)
-                res["total_pagado"] = round(sum(float(c["Comisión Generada ($)"]) for c in comms if c["Estatus Pago"] != "Pendiente"), 2)
-    except Exception:
-        pass
-    return res
-
-
-
-
-# --- 12. CABECERA INSTITUCIONAL ---
+    generar_btn = st.button(f"🚀 Generate {cefr_short_sb} Lesson", type="primary", width="stretch")
+# ==============================================================================
+# PARTE 12B: CABECERA INSTITUCIONAL Y BARRA DE COMANDO SPA (CON AUTO-UPDATE)
+# ==============================================================================
 try:
     default_width = int(saved_cfg["Width"]) if (saved_cfg and saved_cfg.get("Width")) else 115
 except (ValueError, TypeError):
@@ -3882,7 +3392,7 @@ default_shape_idx = shape_options.index(default_shape) if default_shape in shape
 col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.7, 1.9, 1.8])
 
 with col_logo:
-    if is_owner and (not is_mobile):
+    if (is_owner or can("Editar_Instituto_Logo")) and (not is_mobile):
         with st.popover("✏️ Editar Logo", width="stretch"):
             logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
             logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5, key="logo_width_slider")
@@ -3939,7 +3449,7 @@ with col_qr:
             st.rerun()
 
         if st.session_state.get("show_qr", False):
-            app_url = str(st.secrets.get("APP_BASE_URL") or st.secrets.get("APP_PUBLIC_URL") or "https://myceigrammarly.streamlit.app").strip().rstrip("/")
+            app_url = str(st.secrets.get("APP_BASE_URL") or st.secrets.get("APP_PUBLIC_URL") or "https://streamlit.app").strip().rstrip("/")
             if st.session_state.get("current_folio"):
                 app_url = f"{app_url}/?folio={urllib.parse.quote(str(st.session_state.current_folio))}"
 
@@ -3954,6 +3464,8 @@ with col_exit:
     if st.button("🚪 Salir", type="secondary", width="stretch", key="btn_header_exit_app"):
         st.session_state.app_exited = True
         st.session_state.authenticated = False
+        st.session_state.just_logged_out = True
+        st.session_state.pending_ls_token = "REMOVE"
         st.rerun()
 
 # --- BARRA DE COMANDO INSTITUCIONAL FIJA (SPA WORKSPACE SWITCHER) ---
@@ -3962,21 +3474,33 @@ if is_owner or is_faculty_desktop or es_socio_afiliado:
     if "active_admin_workspace" not in st.session_state:
         st.session_state["active_admin_workspace"] = None
 
-    opciones_menu_inst = (
-        ["🤝 Portal Socio Afiliado"]
-        if es_socio_afiliado
-        else [
-            "💳 Cobranza Mensual e IVA",
-            "📊 Estados Financieros",
-            "🤝 Alta de Socios Afiliados",
-            "🤝 Portal Socio Afiliado",
-            "👥 Inscripción y Padrón",
-            "🔐 Matriz Global de Permisos",
-            "🏅 Certificados (Timbre y QR)",
-            "🏛️ Datos del Instituto"
-        ]
-    )
+    if es_socio_afiliado:
+        opciones_menu_inst = ["🤝 Portal Socio Afiliado"]
+    else:
+        opciones_menu_inst = []
+        if is_owner or can("Editar_Fecha_Inicio_Curso") or can("Gestionar_Comisiones_Afiliados") or can("Gestionar_IVA_Mensualidad"):
+            opciones_menu_inst.append("💳 Cobranza Mensual e IVA")
+        if is_owner or can("Ver_Panel_Admin"):
+            opciones_menu_inst.append("📊 Estados Financieros")
+        if is_owner or can("Gestionar_Comisiones_Afiliados"):
+            opciones_menu_inst.extend(["🤝 Alta de Socios Afiliados", "🤝 Portal Socio Afiliado"])
+        if is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios"):
+            opciones_menu_inst.append("👥 Inscripción y Padrón")
+        if is_owner or can("Editar_Permisos"):
+            opciones_menu_inst.append("🔐 Matriz Global de Permisos")
+        if is_owner or can("Emitir_Certificados") or can("Revocar_Certificados"):
+            opciones_menu_inst.append("🏅 Certificados (Timbre y QR)")
+        if is_owner or can("Editar_Instituto_Logo"):
+            opciones_menu_inst.append("🏛️ Datos del Instituto")
+        if is_owner:
+            opciones_menu_inst.append("🔄 Autoactualización de Librerías")
+        if not opciones_menu_inst:
+            opciones_menu_inst = ["🏅 Certificados (Timbre y QR)"]
 
+    idx_ws_actual = (
+        opciones_menu_inst.index(st.session_state["active_admin_workspace"])
+        if st.session_state["active_admin_workspace"] in opciones_menu_inst else 0
+    )
 
     with st.container(border=True):
         c_nav1, c_nav2, c_nav3 = st.columns([3.2, 1.0, 1.2])
@@ -3984,6 +3508,7 @@ if is_owner or is_faculty_desktop or es_socio_afiliado:
             mod_elegido = st.selectbox(
                 "🧭 Centro de Mando Institucional:",
                 options=opciones_menu_inst,
+                index=idx_ws_actual,
                 label_visibility="collapsed",
                 key="sb_centro_mando_inst"
             )
@@ -3996,10 +3521,9 @@ if is_owner or is_faculty_desktop or es_socio_afiliado:
                 if st.button("✖️ CERRAR", type="secondary", width="stretch", key="btn_close_workspace_top"):
                     st.session_state["active_admin_workspace"] = None
                     st.rerun()
-
-
-        
-# --- 13. BUSCADOR DE FOLIOS Y BOLETÍN DE CALIFICACIONES EN TIEMPO REAL ---
+# ==============================================================================
+# PARTE 13A1: BUSCADOR DE FOLIOS Y BOLETÍN TIMBRADO EN TIEMPO REAL
+# ==============================================================================
 if "show_gradebook_panel" not in st.session_state:
     st.session_state.show_gradebook_panel = False
 
@@ -4023,12 +3547,11 @@ with st.container(border=True):
         else:
             st.caption("Busca un Folio o consulta tu Boletín en Tiempo Real.")
 
-# PANEL DESPLEGABLE: CALIFICACIONES, PROMEDIOS Y GRÁFICA POR GRAMMAR TOPIC
 if st.session_state.show_gradebook_panel:
     with st.container(border=True):
         st.subheader("📊 Boletín Académico Integral y Desempeño por Grammar Topic")
 
-        if is_owner:
+        if is_owner or can("Ver_Panel_Admin"):
             padron_gb = load_padron_records()
             opciones_gb = {}
             for r_u in padron_gb:
@@ -4053,7 +3576,6 @@ if st.session_state.show_gradebook_panel:
 
         gb_data = fetch_student_gradebook_pg(alumno_objetivo_gb)
 
-        # Selector de Vista General o Filtro por Tópico Gramatical + Descarga PDF Timbrado
         lista_topicos_disp = ["Vista General"] + [t["Grammar Topic"] for t in gb_data["topic_summary"]]
         col_f_top, col_f_pdf = st.columns([2.1, 1.4])
         with col_f_top:
@@ -4062,30 +3584,30 @@ if st.session_state.show_gradebook_panel:
                 lista_topicos_disp,
                 key="sel_filtro_topico_gradebook"
             )
-            
-        
+
         with col_f_pdf:
             st.write("")
             fin_alumno = evaluar_estado_financiero_alumno(alumno_objetivo_gb)
             d_ret = int(fin_alumno.get("dias_retraso", 0))
             if is_owner or fin_alumno["descarga_permitida"]:
-                pdf_boletin_bytes, timbre_info = create_official_gradebook_pdf(
-                    alumno_objetivo_gb,
-                    gb_data,
-                    topico_seleccionado_gb
-                )
-                register_gradebook_stamp_pg(
-                    timbre_info.get("folio_boletin", ""),
-                    alumno_objetivo_gb,
-                    str(gb_data.get("matricula", "SIN-MAT")),
-                    str(topico_seleccionado_gb),
-                    str(gb_data.get("promedio_final", gb_data.get("promedio", "N/A"))),
-                    timbre_info.get("sello_hmac", timbre_info.get("firma_hmac", ""))
-                )
+                cache_key_bol = f"{alumno_objetivo_gb}|{topico_seleccionado_gb}|{gb_data['overall_avg']}|{len(gb_data['records'])}"
+                if st.session_state.get("_bol_cache_key") != cache_key_bol:
+                    pdf_bol_bytes, timbre_bol = create_official_gradebook_pdf(
+                        alumno_objetivo_gb,
+                        gb_data,
+                        topico_seleccionado_gb
+                    )
+                    st.session_state["_bol_cache_key"] = cache_key_bol
+                    st.session_state["_bol_cache_pdf"] = pdf_bol_bytes
+                    st.session_state["_bol_cache_timbre"] = timbre_bol
+                else:
+                    pdf_bol_bytes = st.session_state["_bol_cache_pdf"]
+                    timbre_bol = st.session_state["_bol_cache_timbre"]
+
                 st.download_button(
-                    label=f"📥 Descargar Boletín Timbrado ({timbre_info['folio_boletin']})",
-                    data=pdf_boletin_bytes,
-                    file_name=f"{timbre_info['folio_boletin']}_{gb_data['matricula']}_{alumno_objetivo_gb.replace(' ', '_')}.pdf",
+                    label=f"📥 Descargar Boletín Timbrado ({timbre_bol['folio_boletin']})",
+                    data=pdf_bol_bytes,
+                    file_name=f"{timbre_bol['folio_boletin']}_{gb_data['matricula']}_{alumno_objetivo_gb.replace(' ', '_')}.pdf",
                     mime="application/pdf",
                     type="primary",
                     width="stretch",
@@ -4097,7 +3619,7 @@ if st.session_state.show_gradebook_panel:
                         f"en el Mes/Ciclo {fin_alumno['ciclo_a_cobrar']} (Para el alumno este boletín está **🔒 BLOQUEADO** — Adeudo: `${fin_alumno['monto_a_pagar']:,.2f} MXN`)."
                     )
                 else:
-                    st.caption(f"🛡️ Timbrado: `{timbre_info['folio_boletin']}` | {fin_alumno['mensaje_estado']}")
+                    st.caption(f"🛡️ Timbrado: `{timbre_bol['folio_boletin']}` | {fin_alumno['mensaje_estado']}")
             else:
                 st.error(
                     f"🔒 **Descarga de Boletín Suspendida — {d_ret} {'día' if d_ret == 1 else 'días'} de retraso**\n\n"
@@ -4106,10 +3628,9 @@ if st.session_state.show_gradebook_panel:
                     f"• **Total a cubrir ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
                     f"Realiza tu pago mensual para desbloquear la descarga oficial."
                 )
-
-
-
-        # Cálculo de métricas según vista elegida (General o Tópico específico)
+# ==============================================================================
+# PARTE 13A2: MÉTRICAS DEL BOLETÍN Y RECUPERACIÓN DIRECTA DE FOLIOS
+# ==============================================================================
         if topico_seleccionado_gb == "Vista General":
             prom_vista = gb_data["overall_avg"]
             recs_filtrados = gb_data["records"]
@@ -4137,6 +3658,7 @@ if st.session_state.show_gradebook_panel:
             st.dataframe(pd.DataFrame(recs_filtrados), width="stretch", hide_index=True)
         else:
             st.warning("Aún no hay lecciones registradas para este filtro en Supabase.")
+
 auto_fetch_url_folio = bool(
     st.session_state.current_folio
     and not st.session_state.generated_text
@@ -4150,57 +3672,42 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
     folio_buscado = folio_input.strip().upper()
     try:
         with st.spinner(f"Buscando Folio {folio_buscado} en Supabase PostgreSQL..."):
-            conn_f = get_pg_conn()
-            row_f = None
-            if conn_f:
-                from psycopg.rows import dict_row
-                with conn_f:
-                    with conn_f.cursor(row_factory=dict_row) as cur:
-                        cur.execute("""
-                            SELECT
-                                folio, tema, nivel_cefr, grado_academico, lesson_text,
-                                quiz_json, pdf_link,
-                                TO_CHAR(created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha
-                            FROM lessons_archive
-                            WHERE UPPER(TRIM(folio)) = %s
-                            LIMIT 1;
-                        """, (folio_buscado,))
-                        row_f = cur.fetchone()
+            row_f = fetch_lesson_by_folio(folio_buscado)
 
             if not row_f:
                 st.warning(f"⚠️ No se encontró ningún registro con el Folio `{folio_buscado}` en Supabase.")
             else:
-                st.session_state.generated_text = str(row_f.get("lesson_text", ""))
-                st.session_state.selected_cefr = str(row_f.get("nivel_cefr", "B1 (Intermediate)"))
-                st.session_state.selected_academic_grade = str(row_f.get("grado_academico", "Licenciatura / Universidad"))
+                st.session_state.generated_text = str(row_f.get("Text", ""))
+                st.session_state.selected_cefr = normalize_cefr(row_f.get("CEFR", "B1"))
+                st.session_state.selected_academic_grade = str(row_f.get("Grade", "Licenciatura / Universidad"))
                 st.session_state.current_folio = folio_buscado
-                st.session_state.current_pdf_link = str(row_f.get("pdf_link") or "")
-                st.session_state.current_creation_date = str(row_f.get("fecha") or "")
+                st.session_state.current_pdf_link = str(row_f.get("PDF_Link") or "")
+                st.session_state.current_creation_date = str(row_f.get("Created_At") or "")
                 st.session_state.study_mode_active = False
                 st.session_state.quiz_graded = False
                 st.session_state.quiz_score = None
                 st.session_state.quiz_user_answers = {}
                 st.session_state.image_bytes = None
-                st.session_state.current_lesson_image = None
-                st.session_state.current_motivational_quote = None
                 st.session_state.audio_bytes = None
                 st.session_state.quiz_audio_bytes = None
-                st.session_state.speaking_eval_result = None
+                st.session_state.speaking_eval_result = row_f.get("Speaking_Eval")
+                st.session_state["best_stored_score"] = str(row_f.get("Best_Score") or "")
 
-
-                raw_qz = str(row_f.get("quiz_json") or "").strip()
-                if raw_qz:
-                    try:
-                        qz_obj = json.loads(raw_qz)
-                        st.session_state.quiz_data = qz_obj.get("questions") if isinstance(qz_obj, dict) else qz_obj
-                    except Exception:
-                        st.session_state.quiz_data = None
+                qz_obj = row_f.get("Quiz")
+                if isinstance(qz_obj, list):
+                    st.session_state.quiz_data = qz_obj
+                elif isinstance(qz_obj, dict):
+                    st.session_state.quiz_data = qz_obj.get("questions")
                 else:
                     st.session_state.quiz_data = None
 
                 if st.session_state.generated_text:
                     try:
-                        clean_tts = st.session_state.generated_text.replace("*", "").replace("#", "")
+                        clean_tts = re.split(
+                            r"\bBibliography\b",
+                            st.session_state.generated_text.replace("*", "").replace("#", ""),
+                            maxsplit=1
+                        )
                         tts = gTTS(text=clean_tts, lang="en", slow=False)
                         afp = io.BytesIO()
                         tts.write_to_fp(afp)
@@ -4214,10 +3721,9 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
         st.error(f"Error al buscar folio en Supabase: {e}")
 
 st.divider()
-
-
-# --- 14. CENTRO DE MANDO INSTITUCIONAL FIJO (SPA WORKSPACE SWITCHER) ---
-
+# ==============================================================================
+# PARTE 14: CENTRO DE MANDO SPA — CERTIFICADOS (EMISIÓN Y VISTA PREVIA)
+# ==============================================================================
 if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("active_admin_workspace"):
     seccion_inst_sel = st.session_state["active_admin_workspace"]
 
@@ -4236,11 +3742,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
-
-     # 14.1 PESTAÑA CERTIFICADOS
+        # 14.1 PESTAÑA CERTIFICADOS
         if seccion_inst_sel == "🏅 Certificados (Timbre y QR)":
             if not (is_owner or can("Emitir_Certificados")):
-
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
             else:
                 st.markdown("#### 🏅 Emisión Oficial de Certificados con Firma Criptográfica (HMAC-SHA256) y Sello QR")
@@ -4265,10 +3769,11 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             clave_sel = str(datos_alumno.get("Matricula", "")).strip()
                             nombre_sel = str(datos_alumno.get("Usuario", "")).strip()
                             nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
-                            grado_sel = ""
+                            grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
                             st.info(
                                 f"**Titular:** {nombre_sel}\n\n"
-                                f"**Matrícula:** `{clave_sel}` | **Nivel CEFR:** {nivel_sel}"
+                                f"**Matrícula:** `{clave_sel}` | **Nivel CEFR:** {nivel_sel}\n\n"
+                                f"**Grado:** {grado_sel}"
                             )
 
                         with col_c2:
@@ -4277,7 +3782,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse",
                                 key="cert_prog_input"
                             )
-
                             calif_cert = st.text_input(
                                 "🏆 Calificación / Resultado Final:",
                                 value="98.0% — Passed with Academic Distinction",
@@ -4288,9 +3792,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
                                     folio_c = f"CERT-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
                                     fecha_c = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
-                                    
+
                                     cadena_o, sello_h = generar_sello_digital(folio_c, clave_sel, nombre_sel, nivel_sel, fecha_c)
-                                    
+
                                     insert_certificate_pg(
                                         folio_c=folio_c,
                                         clave_sel=clave_sel,
@@ -4314,13 +3818,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
                         if st.session_state.get("last_cert_pdf"):
                             f_actual = st.session_state["last_cert_folio"]
-                            app_pub_prev = str(
-                                st.secrets.get("APP_PUBLIC_URL")
-                                or st.secrets.get("APP_BASE_URL")
-                                or "https://myceigrammarly.streamlit.app"
-                            ).strip().rstrip("/")
-                            link_cert_directo = f"{app_pub_prev}/?verify_cert={urllib.parse.quote(f_actual)}"
-
+                            link_cert_directo = _build_cert_verify_url(f_actual)
 
                             st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
                             try:
@@ -4357,7 +3855,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.session_state["last_cert_folio"] = None
                                     st.session_state["last_cert_name"] = None
                                     st.rerun()
-
+# ==============================================================================
+# PARTE 14A: CENTRO DE MANDO SPA — HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
+# ==============================================================================
                     st.divider()
                     st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
                     certs_hist = load_certificates_pg()
@@ -4427,20 +3927,16 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.rerun()
                 except Exception as e:
                     st.error(f"Error en módulo de certificados: {e}")
-
-
-
-
-
-        # 14.2 PESTAÑA INSCRIPCIÓN Y PADRÓN
+# ==============================================================================
+# PARTE 14B1: CENTRO DE MANDO SPA — INSCRIPCIÓN DE USUARIOS EN EL PADRÓN
+# ==============================================================================
         elif seccion_inst_sel == "👥 Inscripción y Padrón":
-
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
             else:
                 permisos_disponibles = PERMISOS_LISTA if (is_owner or can("Editar_Permisos")) else ["Basico"]
                 default_perm_idx = permisos_disponibles.index("Basico") if "Basico" in permisos_disponibles else 0
-                
+
                 col_form_reg, col_tabla_reg = st.columns([1.2, 2.0])
                 with col_form_reg:
                     st.markdown("#### ➕ Formulario de Inscripción")
@@ -4459,7 +3955,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             reg_rol = st.selectbox("Rol:", ROLES_LISTA, index=0)
                         with c_r2:
                             reg_nivel = st.selectbox("Nivel CEFR:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2)
-                        
+
                         reg_grado = st.selectbox("🎓 Nivel Académico:", GRADOS_ACADEMICOS, index=1)
                         reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", permisos_disponibles, index=default_perm_idx)
                         reg_afiliador_label = st.selectbox(
@@ -4468,13 +3964,13 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             index=0
                         )
                         reg_afiliador_id = opciones_afiliadores[reg_afiliador_label]
-                        
+
                         if st.form_submit_button("💾 Guardar Inscripción", type="primary", width="stretch"):
                             if reg_usuario.strip() and reg_clave.strip():
                                 try:
                                     existentes_u = [str(r.get("Usuario", "")).strip().lower() for r in records_afiliadores]
                                     existentes_c = [str(r.get("Clave", "")).strip().lower() for r in records_afiliadores]
-                                    
+
                                     if reg_usuario.strip().lower() in existentes_u:
                                         st.error("⚠️ Ese nombre de usuario ya está registrado.")
                                     elif reg_clave.strip().lower() in existentes_c:
@@ -4496,6 +3992,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.error(f"Error al registrar en Supabase: {e}")
                             else:
                                 st.warning("⚠️ Completa tanto el usuario como la clave.")
+# ==============================================================================
+# PARTE 14B2: TABLA DE REGISTROS ACTIVOS, EDICIÓN Y ASIGNACIÓN DE AFILIADOS
+# ==============================================================================
                 with col_tabla_reg:
                     st.markdown("#### 📋 Tabla de Registros Activos")
                     try:
@@ -4507,11 +4006,11 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 if c in df_p.columns
                             ]
                             st.dataframe(df_p[cols_mostrar], height=205, width="stretch", hide_index=True)
-                            
+
                             c_ed1, c_ed2, c_ed3 = st.columns([1.4, 1.2, 1.4])
                             with c_ed1:
                                 user_to_edit = st.selectbox("Usuario:", df_p["Usuario"].tolist(), key="edit_u_sel")
-                            
+
                             filas_filtradas = df_p[df_p["Usuario"] == user_to_edit].to_dict(orient="records")
                             fila_sel = next(iter(filas_filtradas), {})
 
@@ -4541,7 +4040,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 new_perm_edit = st.selectbox("Permiso:", permisos_disponibles, index=idx_perm, key="edit_pm_sel")
                             with c_ed6:
                                 new_status = st.selectbox("Estatus:", estatus_opts, index=idx_stat, key="edit_st_sel")
-                                
+
                             if st.button("🔄 Actualizar Registro", width="stretch"):
                                 try:
                                     upsert_user_padron_pg(
@@ -4632,7 +4131,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                             st.warning("⚠️ Completa el nombre y la clave del socio.")
                     except Exception as e:
                         st.error(f"Error al cargar padrón: {e}")
-
+# ==============================================================================
+# PARTE 14C: MATRIZ RBAC, DATOS DEL INSTITUTO Y AUTOACTUALIZACIÓN DE LIBRERÍAS
+# ==============================================================================
         # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
         if seccion_inst_sel == "🔐 Matriz Global de Permisos":
             st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
@@ -4654,7 +4155,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     for i, cap in enumerate(CAPABILITY_COLS):
                         with cols_chk[i % 4]:
                             checks_vals[cap] = st.checkbox(cap.replace("_", " "), value=False, key=f"chk_{cap}")
-                    
+
                     if st.form_submit_button("💾 Guardar Perfil en Supabase", type="primary"):
                         perfil_limpio = nombre_perfil.strip()
                         if perfil_limpio:
@@ -4672,10 +4173,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         else:
                             st.warning("⚠️ Escribe un nombre para el perfil.")
 
-
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
         if seccion_inst_sel == "🏛️ Datos del Instituto":
-            if not can("Editar_Instituto_Logo"):
+            if not (is_owner or can("Editar_Instituto_Logo")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
             else:
                 st.markdown("#### 🏛️ Dirección y Teléfono Oficial de CAREER ENGLISH INSTITUTE")
@@ -4700,7 +4200,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         else:
                             st.warning("⚠️ La dirección institucional no puede quedar vacía.")
 
-
             if is_owner:
                 st.divider()
                 st.markdown("#### 🐘 Migración a PostgreSQL (Supabase)")
@@ -4719,14 +4218,45 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         except Exception as e:
                             st.error(f"❌ Error durante la migración a Supabase: {e}")
 
-        st.divider()
+        # 14.4B PESTAÑA AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO)
+        if seccion_inst_sel == "🔄 Autoactualización de Librerías":
+            if not is_owner:
+                st.warning("⛔ Solo el Propietario / Administrador Principal puede actualizar las librerías del servidor.")
+            else:
+                st.markdown("#### 🔄 Gestor Automático de Librerías y Dependencias (PyPI)")
+                st.caption("Verifica las versiones activas en tu servidor y actualiza todas las librerías integradas con un solo clic.")
 
+                c_upd1, c_upd2 = st.columns([1.2, 2.0])
+                with c_upd1:
+                    if st.button("🔍 Comprobar Actualizaciones", width="stretch", key="btn_check_pypi_updates"):
+                        check_libraries_updates.clear()
+                        st.rerun()
+
+                estado_pkgs = check_libraries_updates()
+                pendientes = [p["pip_spec"] for p in estado_pkgs if "Nueva versión" in p["Estado"] or "Pendiente" in p["Estado"]]
+
+                with c_upd2:
+                    label_btn_upd = (
+                        f"⚡ Autoactualizar {len(pendientes)} Librería(s) Pendiente(s)"
+                        if pendientes
+                        else "⚡ Reinstalar / Actualizar Todas las Librerías"
+                    )
+                    if st.button(label_btn_upd, type="primary", width="stretch", key="btn_run_auto_upgrade"):
+                        with st.spinner("Actualizando librerías desde PyPI (esto puede tardar 30-60 segundos)..."):
+                            ok_up, msg_up = upgrade_managed_libraries(pendientes or None)
+                            if ok_up:
+                                st.success(msg_up)
+                                st.rerun()
+                            else:
+                                st.error(msg_up)
+
+                df_pkgs = pd.DataFrame(estado_pkgs)[["Paquete", "Instalada", "Última PyPI", "Estado"]]
+                st.dataframe(df_pkgs, width="stretch", hide_index=True)
+# ==============================================================================
+# PARTE 14D1: MÓDULOS FINANCIEROS SPA — COBRANZA MENSUAL E IVA
+# ==============================================================================
         # 14.5 PESTAÑA COBRANZA MENSUAL E IVA
         if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
-            puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
-            puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
-            puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
-
             if not (is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
                 st.warning("⛔ Sin permisos financieros habilitados.")
             else:
@@ -4749,80 +4279,77 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     st.caption(
                         f"Estado guardado en base de datos: **{'🟢 ACTIVADO (Incentivo -7% / Recargo +5%)' if est_glob else '⚪ DESACTIVADO (Tarifa Base sin incentivos ni recargos)'}**"
                     )
+                    st.divider()
 
+                padron_fin = load_padron_records()
+                estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+                afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
 
+                if estudiantes_fin:
+                    mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
+                    sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
+                    est_objetivo = mapa_est_fin[sel_est_lbl]
+                    estado_f = evaluar_estado_financiero_alumno(est_objetivo)
 
-                st.divider()
-                
-            padron_fin = load_padron_records()
-            estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
-            afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+                    metrics_placeholder = st.container()
+                    col_cfg1, col_cfg2 = st.columns(2)
+                    with col_cfg1:
+                        st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
+                        nueva_fecha_ini = st.date_input("Fecha de Inicio:", value=estado_f["fecha_inicio"], disabled=not puede_editar_inicio, key="inp_f_ini")
+                        nueva_mensualidad = st.number_input("Mensualidad Base ($):", min_value=0.0, value=float(estado_f["mensualidad_base"]), step=100.0, disabled=not puede_editar_inicio, key="inp_m_base")
+                        nuevo_aplicar_iva = st.checkbox("Aplicar +16% de IVA sobre subtotal", value=bool(estado_f["aplicar_iva"]), disabled=not puede_gestionar_iva, key="chk_iva_al")
+                        opciones_aff = ["Sin Afiliado"] + afiliados_fin
+                        idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
+                        sel_aff_user = st.selectbox("Socio Afiliado:", opciones_aff, index=idx_aff, disabled=not puede_gestionar_afiliados, key="sel_aff_as")
+                        nuevo_pct_com = st.number_input("Comisión Afiliado (%):", min_value=0.0, max_value=100.0, value=float(estado_f["porcentaje_comision"]), step=1.0, disabled=not puede_gestionar_afiliados, key="inp_pct_af")
 
-            if estudiantes_fin:
-                mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
-                sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
-                est_objetivo = mapa_est_fin[sel_est_lbl]
-                estado_f = evaluar_estado_financiero_alumno(est_objetivo)
+                        ajuste_vivo = 0.0 if not estado_f["reglas_incentivo_activas"] else (round(nueva_mensualidad * 0.05, 2) if "Recargo" in estado_f["ajuste_label"] else round(-nueva_mensualidad * 0.07, 2))
+                        subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
+                        iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
+                        total_vivo = round(subtotal_vivo + iva_vivo, 2)
 
-                metrics_placeholder = st.container()
-                col_cfg1, col_cfg2 = st.columns(2)
-                with col_cfg1:
-                    st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
-                    nueva_fecha_ini = st.date_input("Fecha de Inicio:", value=estado_f["fecha_inicio"], disabled=not puede_editar_inicio, key="inp_f_ini")
-                    nueva_mensualidad = st.number_input("Mensualidad Base ($):", min_value=0.0, value=float(estado_f["mensualidad_base"]), step=100.0, disabled=not puede_editar_inicio, key="inp_m_base")
-                    nuevo_aplicar_iva = st.checkbox("Aplicar +16% de IVA sobre subtotal", value=bool(estado_f["aplicar_iva"]), disabled=not puede_gestionar_iva, key="chk_iva_al")
-                    opciones_aff = ["Sin Afiliado"] + afiliados_fin
-                    idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
-                    sel_aff_user = st.selectbox("Socio Afiliado:", opciones_aff, index=idx_aff, disabled=not puede_gestionar_afiliados, key="sel_aff_as")
-                    nuevo_pct_com = st.number_input("Comisión Afiliado (%):", min_value=0.0, max_value=100.0, value=float(estado_f["porcentaje_comision"]), step=1.0, disabled=not puede_gestionar_afiliados, key="inp_pct_af")
-
-                    ajuste_vivo = 0.0 if not estado_f["reglas_incentivo_activas"] else (round(nueva_mensualidad * 0.05, 2) if "Recargo" in estado_f["ajuste_label"] else round(-nueva_mensualidad * 0.07, 2))
-                    subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
-                    iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
-                    total_vivo = round(subtotal_vivo + iva_vivo, 2)
-
-                    if st.button("💾 Guardar Configuración", type="primary", key="btn_save_fin"):
-                        aff_s = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
-                        if actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva, aff_s, nuevo_pct_com):
-                            st.success(f"✅ Guardado. Total: ${total_vivo:,.2f} MXN")
-                            st.rerun()
-                    st.caption(f"🧮 **Cálculo Total:** Base `${nueva_mensualidad:,.2f}` | Subtotal `${subtotal_vivo:,.2f}` | IVA `${iva_vivo:,.2f}` ➔ **Total: `${total_vivo:,.2f}`**")
-                with metrics_placeholder:
-                    f1, f2, f3, f4 = st.columns(4)
-                    f1.metric("📅 Ciclo", f"Mes {estado_f['ciclo_a_cobrar']}", delta=f"Sem. {estado_f['semana_ciclo']}/4")
-                    f2.metric("💵 Subtotal", f"${subtotal_vivo:,.2f}", delta=f"Base: ${nueva_mensualidad:,.2f}")
-                    f3.metric("🧾 Total" + (" (+IVA)" if nuevo_aplicar_iva else ""), f"${total_vivo:,.2f}", delta=f"IVA: +${iva_vivo:,.2f}" if nuevo_aplicar_iva else "Sin IVA")
-                    d_ret_m = int(estado_f.get("dias_retraso", 0))
-                    f4.metric(
-                        "📄 Boletín",
-                        "✅ Activo" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
-                        delta="Al corriente" if estado_f["descarga_permitida"] else f"{d_ret_m} {'día' if d_ret_m == 1 else 'días'} de retraso (Mes {estado_f['ciclo_a_cobrar']})"
-                    )
-
-
-
-                with col_cfg2:
-                    st.markdown("##### 🧾 Desglose y Cobro Mensual")
-                    st.info(
-                        f"- **Base:** `${nueva_mensualidad:,.2f}` | **Ajuste:** `${ajuste_vivo:+,.2f}`\n"
-                        f"- **Subtotal:** `${subtotal_vivo:,.2f}` | **IVA (16%):** `${iva_vivo:,.2f}`\n"
-                        f"- **TOTAL A PAGAR:** **`${total_vivo:,.2f} MXN`**"
-                    )
-                    if estado_f["ciclo_pagado"]:
-                        st.success(f"✅ Mes {estado_f['ciclo_a_cobrar']} pagado.")
-                    else:
-                        if st.button(f"✅ Registrar Pago (${total_vivo:,.2f})", type="primary", width="stretch", key="btn_reg_pay"):
+                        if st.button("💾 Guardar Configuración", type="primary", key="btn_save_fin"):
                             aff_s = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
-                            actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva, aff_s, nuevo_pct_com)
-                            res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
-                            if res_p["ok"]:
-                                st.success(res_p["msg"])
+                            if actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva, aff_s, nuevo_pct_com):
+                                st.success(f"✅ Guardado. Total: ${total_vivo:,.2f} MXN")
                                 st.rerun()
-                            else:
-                                st.error(res_p["msg"])
+                        st.caption(f"🧮 **Cálculo Total:** Base `${nueva_mensualidad:,.2f}` | Subtotal `${subtotal_vivo:,.2f}` | IVA `${iva_vivo:,.2f}` ➔ **Total: `${total_vivo:,.2f}`**")
 
+                    with metrics_placeholder:
+                        f1, f2, f3, f4 = st.columns(4)
+                        f1.metric("📅 Ciclo", f"Mes {estado_f['ciclo_a_cobrar']}", delta=f"Sem. {estado_f['semana_ciclo']}/4")
+                        f2.metric("💵 Subtotal", f"${subtotal_vivo:,.2f}", delta=f"Base: ${nueva_mensualidad:,.2f}")
+                        f3.metric("🧾 Total" + (" (+IVA)" if nuevo_aplicar_iva else ""), f"${total_vivo:,.2f}", delta=f"IVA: +${iva_vivo:,.2f}" if nuevo_aplicar_iva else "Sin IVA")
+                        d_ret_m = int(estado_f.get("dias_retraso", 0))
+                        f4.metric(
+                            "📄 Boletín",
+                            "✅ Activo" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
+                            delta="Al corriente" if estado_f["descarga_permitida"] else f"{d_ret_m} {'día' if d_ret_m == 1 else 'días'} de retraso (Mes {estado_f['ciclo_a_cobrar']})"
+                        )
 
-        # 14.5b PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
+                    with col_cfg2:
+                        st.markdown("##### 🧾 Desglose y Cobro Mensual")
+                        st.info(
+                            f"- **Base:** `${nueva_mensualidad:,.2f}` | **Ajuste:** `${ajuste_vivo:+,.2f}`\n"
+                            f"- **Subtotal:** `${subtotal_vivo:,.2f}` | **IVA (16%):** `${iva_vivo:,.2f}`\n"
+                            f"- **TOTAL A PAGAR:** **`${total_vivo:,.2f} MXN`**"
+                        )
+                        if estado_f["ciclo_pagado"]:
+                            st.success(f"✅ Mes {estado_f['ciclo_a_cobrar']} pagado.")
+                        else:
+                            if st.button(f"✅ Registrar Pago (${total_vivo:,.2f})", type="primary", width="stretch", key="btn_reg_pay"):
+                                aff_s = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
+                                actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva, aff_s, nuevo_pct_com)
+                                res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
+                                if res_p["ok"]:
+                                    st.success(res_p["msg"])
+                                    st.rerun()
+                                else:
+                                    st.error(res_p["msg"])
+# ==============================================================================
+# PARTE 14D2: ESTADOS FINANCIEROS CONSOLIDADOS, ALTA Y PORTAL SOCIO AFILIADO
+# ==============================================================================
+        # 14.5B PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
         if seccion_inst_sel == "📊 Estados Financieros":
             if not (is_owner or can("Ver_Panel_Admin")):
                 st.warning("⛔ Tu perfil actual no tiene acceso a los Estados Financieros institucionales.")
@@ -4830,14 +4357,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 st.markdown("#### 📊 Estado Financiero Consolidado y Control de Cartera")
                 ef_data = generar_estado_financiero_global_pg()
 
-                # Fila 1: KPIs de Tesorería e Ingresos Netos
                 k1, k2, k3, k4 = st.columns(4)
                 k1.metric("💰 Ingreso Bruto Recaudado", f"${ef_data['ingresos_cobrados_hist']:,.2f} MXN")
                 k2.metric("🤝 Provisión Comisiones Afiliados", f"-${ef_data['comisiones_generadas_hist']:,.2f} MXN")
                 k3.metric("🏦 Ingreso Neto Operativo", f"${ef_data['ingreso_neto_post_comision']:,.2f} MXN")
                 k4.metric("📈 Eficiencia de Cobranza (Ciclo)", f"{ef_data['tasa_cobranza_pct']}%", delta=f"Morosidad: {ef_data['indice_morosidad_pct']}%", delta_color="inverse")
 
-                # Fila 2: Cuentas por Cobrar (Vigente vs. Cartera Vencida)
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("🎓 Matrícula Activa Evaluada", f"{ef_data['total_alumnos']} alumnos")
                 c2.metric("🟡 Por Cobrar en Tiempo (Sem. 1-4)", f"${ef_data['cartera_por_cobrar_vigente']:,.2f} MXN")
@@ -4846,7 +4371,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
                 st.divider()
 
-                # Buscador por ID / Nombre y Selector de Filtro (Todos / Moratorios / Pagos realizados)
                 col_f1, col_f2 = st.columns([1.4, 1.6])
                 busqueda_id = col_f1.text_input(
                     "🔍 Buscar por ID / Matrícula o Nombre:",
@@ -4865,14 +4389,14 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 if not df_ef.empty:
                     if busqueda_id:
                         mask_id = (
-                            df_ef["ID / Matrícula"].str.lower().str.contains(busqueda_id, na=False)
-                            | df_ef["Estudiante"].str.lower().str.contains(busqueda_id, na=False)
+                            df_ef["ID / Matrícula"].str.lower().str.contains(busqueda_id, regex=False, na=False)
+                            | df_ef["Estudiante"].str.lower().str.contains(busqueda_id, regex=False, na=False)
                         )
                         df_ef = df_ef[mask_id]
 
                     if filtro_tipo_ef == "Moratorios":
                         df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Moratorio", na=False)]
-                    if filtro_tipo_ef == "Pagos realizados":
+                    elif filtro_tipo_ef == "Pagos realizados":
                         df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pagado", na=False)]
                     elif filtro_tipo_ef == "Pendientes en tiempo":
                         df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pendiente", na=False)]
@@ -4890,68 +4414,71 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 else:
                     st.info("No hay registros financieros de estudiantes para mostrar.")
 
-
-        # 14.5c PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS Y QR DE REGISTRO
+        # 14.5C PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS Y QR DE REGISTRO
         if seccion_inst_sel == "🤝 Alta de Socios Afiliados":
             if not (is_owner or puede_gestionar_afiliados):
                 st.warning("⛔ Tu perfil actual no tiene permisos habilitados para dar de alta Socios Afiliados.")
             else:
-                from registro_afiliados import render_formulario_registro_afiliado
-                render_formulario_registro_afiliado(
-                    registrado_por=st.session_state.current_user,
-                    key_prefix="panel_admin_aff_main",
-                    mostrar_qr_dinamico=True
-                )
-
+                try:
+                    from registro_afiliados import render_formulario_registro_afiliado
+                    render_formulario_registro_afiliado(
+                        registrado_por=st.session_state.current_user,
+                        key_prefix="panel_admin_aff_main",
+                        mostrar_qr_dinamico=True
+                    )
+                except ModuleNotFoundError:
+                    st.warning("⚠️ Crea el archivo `registro_afiliados.py` en la raíz del proyecto para activar este formulario.")
 
         # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
-            try:
-                from portal_afiliado import render_portal_socio_afiliado
-                if is_owner or puede_gestionar_afiliados:
-                    url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
-                    padron_aff_view = load_padron_records()
-                    lista_aff_view = [str(r.get("Usuario", "")).strip() for r in padron_aff_view if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+            url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
+            aff_objetivo_portal = st.session_state.current_user
 
-                    col_p_sel, col_p_qr = st.columns([2.6, 1.0])
-                    with col_p_sel:
-                        if lista_aff_view:
-                            aff_sel_vista = st.selectbox("Portal del Socio Afiliado:", lista_aff_view, key="sel_prev_aff")
-                        else:
-                            aff_sel_vista = None
-                            st.info("Aún no hay Socios Afiliados registrados.")
+            if is_owner or puede_gestionar_afiliados:
+                padron_aff_view = load_padron_records()
+                lista_aff_view = [str(r.get("Usuario", "")).strip() for r in padron_aff_view if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+                col_p_sel, col_p_qr = st.columns([2.6, 1.0])
+                with col_p_sel:
+                    if lista_aff_view:
+                        aff_objetivo_portal = st.selectbox("Portal del Socio Afiliado:", lista_aff_view, key="sel_prev_aff")
+                    else:
+                        aff_objetivo_portal = None
+                        st.info("Aún no hay Socios Afiliados registrados.")
+                with col_p_qr:
+                    if url_portal_aff:
+                        buf_qp = io.BytesIO()
+                        qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
+                        st.image(buf_qp.getvalue(), caption="📲 QR Portal Afiliados", width=120)
+                        st.download_button(
+                            "⬇️ Descargar QR Portal",
+                            data=buf_qp.getvalue(),
+                            file_name="QR_Portal_Afiliados_CEI.png",
+                            mime="image/png",
+                            width="stretch",
+                            key="btn_dl_qrportal_main"
+                        )
 
-                    with col_p_qr:
-                        if url_portal_aff:
-                            try:
-                                import qrcode
-                                buf_qp = io.BytesIO()
-                                qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
-                                st.image(buf_qp.getvalue(), caption="📲 QR Portal Afiliados", width=120)
-                                st.download_button(
-                                    "⬇️ Descargar QR Portal",
-                                    data=buf_qp.getvalue(),
-                                    file_name="QR_Portal_Afiliados_CEI.png",
-                                    mime="image/png",
-                                    width="stretch",
-                                    key="btn_dl_qrportal_main"
-                                )
-                            except Exception:
-                                pass
-
-                    if aff_sel_vista:
-                        render_portal_socio_afiliado(aff_sel_vista)
-                else:
-                    render_portal_socio_afiliado(st.session_state.current_user)
-            except ModuleNotFoundError:
-                st.warning("⚠️ Crea el archivo `portal_afiliado.py` en la raíz del repositorio en GitHub para activar el portal completo.")
-
+            if aff_objetivo_portal:
+                try:
+                    from portal_afiliado import render_portal_socio_afiliado
+                    render_portal_socio_afiliado(aff_objetivo_portal)
+                except ModuleNotFoundError:
+                    dash_aff = fetch_affiliate_dashboard_pg(aff_objetivo_portal)
+                    ka1, ka2, ka3 = st.columns(3)
+                    ka1.metric("💰 Total Ganado", f"${dash_aff['total_ganado']:,.2f} MXN")
+                    ka2.metric("⏳ Pendiente de Pago", f"${dash_aff['total_pendiente']:,.2f} MXN")
+                    ka3.metric("✅ Ya Pagado", f"${dash_aff['total_pagado']:,.2f} MXN")
+                    if dash_aff["students"]:
+                        st.markdown("##### 🎓 Estudiantes Referidos")
+                        st.dataframe(pd.DataFrame(dash_aff["students"]), width="stretch", hide_index=True)
+                    if dash_aff["commissions"]:
+                        st.markdown("##### 💵 Historial de Comisiones")
+                        st.dataframe(pd.DataFrame(dash_aff["commissions"]), width="stretch", hide_index=True)
 
     st.stop()
-
-
-# --- 15. PROCESAMIENTO Y GENERACIÓN DE LECCIÓN CON GEMINI Y POSTGRESQL ---
-
+# ==============================================================================
+# PARTE 15: PROCESAMIENTO Y GENERACIÓN DE LECCIÓN (VALIDACIÓN Y PROMPT GEMINI)
+# ==============================================================================
 if generar_btn:
     campos_faltantes = []
     if not str(locals().get("contexto", "")).strip():
@@ -4960,12 +4487,9 @@ if generar_btn:
         campos_faltantes.append("Personajes / Participantes")
     if not str(locals().get("asunto", "")).strip():
         campos_faltantes.append("Tema / Asunto")
- 
-    gemini_key_ok = bool(
-        st.secrets.get("GEMINI_API_KEY", "")
-        or next((sec["GEMINI_API_KEY"] for sec in st.secrets.values() if isinstance(sec, dict) and "GEMINI_API_KEY" in sec), "")
-    )
-    if not gemini_key_ok:
+
+    gm_active = client or init_gemini_client()
+    if gm_active is None:
         st.sidebar.error("⚠️ GEMINI_API_KEY no configurada.")
         st.error("⚠️ Error de configuración: falta GEMINI_API_KEY.")
     elif campos_faltantes:
@@ -4974,8 +4498,8 @@ if generar_btn:
         st.sidebar.warning(f"⚠️ Completa los siguientes campos antes de generar:\n\n**{lista_faltantes}**")
         st.warning(f"⚠️ **Datos incompletos:** Por favor llena **{lista_faltantes}** en el panel izquierdo.")
     else:
-        # Oculta inmediatamente el panel de administración si estaba abierto
         st.session_state.show_teacher_registry = False
+        st.session_state["active_admin_workspace"] = None
 
         stop_box = st.empty()
         with stop_box.container():
@@ -4988,13 +4512,10 @@ if generar_btn:
                     st.warning("⏹️ Generación detenida por el usuario.")
                     st.stop()
 
-        client = init_gemini_client()
         with st.spinner(f"🧠 Normalizing inputs, translating & generating CEFR {cefr_level} ({academic_grade}) Lesson..."):
             try:
-
-                # 1. Traduce y corrige ortográficamente las entradas del usuario para APA
                 contexto_en, personas_en, asunto_apa = normalizar_entradas_apa(
-                    client, contexto, personas, asunto
+                    gm_active, contexto, personas, asunto
                 )
 
                 ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
@@ -5003,7 +4524,6 @@ if generar_btn:
 
                 base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
                 pdf_url_directo = f"{base_url}/?folio={urllib.parse.quote(nuevo_folio)}" if base_url else f"/?folio={urllib.parse.quote(nuevo_folio)}"
-
 
                 cefr_guidelines = {
                     "A1": "Use very basic everyday vocabulary, short simple sentences (5-8 words), present simple/continuous, and concrete familiar topics.",
@@ -5042,7 +4562,7 @@ if generar_btn:
                 - Academic Level: {academic_grade} | CEFR Level: {cefr_level}
                 - Context: {contexto_en} | Characters: {personas_en} | Subject: {asunto_apa}
                 - Target Grammar: {gramatica_b1} | Discourse Mode: {tipo_texto}
-                
+
                 STRICT RULES:
                 1. 100% English only. Calibrate vocabulary and grammar strictly to CEFR {cefr_level} and pedagogical tone to {academic_grade}. Highlight all {gramatica_b1} structures in **bold**.
                 2. APA Header & Byline: Include the academic title in bold, followed immediately by:
@@ -5054,10 +4574,10 @@ if generar_btn:
                    - Primary instructional module: Zumaya Prianti, J. (2026). *{asunto_apa}: CEFR {nivel_corto} ({academic_grade}) Applied Grammar & Discourse Module* (Folio {nuevo_folio}). Career English Institute.
                    - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto_apa}", "{gramatica_b1}", and {academic_grade} education, sorted alphabetically by author surname.
                 """
-
-                from concurrent.futures import ThreadPoolExecutor
-
-                texto_gen, mod_usado = generar_con_maxima_potencia(client, prompt_texto, sys_prompt)
+# ==============================================================================
+# PARTE 15A: EJECUCIÓN PARALELA (QUIZ + IMAGEN), AUDIO Y PERSISTENCIA EN PG
+# ==============================================================================
+                texto_gen, mod_usado = generar_con_maxima_potencia(gm_active, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
                 st.session_state.study_mode_active = False
                 st.session_state.active_model_name = mod_usado
@@ -5073,39 +4593,41 @@ if generar_btn:
                 st.session_state.quiz_user_answers = {}
                 st.session_state.audio_bytes = None
                 st.session_state.image_bytes = None
-                st.session_state.current_lesson_image = None
                 st.session_state.current_motivational_quote = None
+                st.session_state.speaking_eval_result = None
+                st.session_state["best_stored_score"] = ""
 
-                # Ejecución paralela simultánea: Quiz + Fotografía Temática / Frase Célebre
+                escena_visual = f"Setting: {contexto_en}. Characters: {personas_en}. Topic: {asunto_apa}."
+
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     fut_quiz = pool.submit(
                         generar_quiz_leccion,
                         texto_gen,
                         gramatica_b1,
                         cefr_level,
-                        academic_grade
+                        academic_grade,
+                        None,
+                        gm_active
                     )
                     fut_img = pool.submit(
                         generar_imagen_garantizada,
-                        client,
-                        asunto_apa,
-                        nuevo_folio,
+                        gm_active,
+                        escena_visual,
+                        f"Folio {nuevo_folio}",
                         cefr_level,
                         academic_grade
                     )
                     try:
-                        st.session_state.quiz_data = fut_quiz.result(timeout=15)
+                        st.session_state.quiz_data = fut_quiz.result(timeout=20)
                     except Exception:
                         st.session_state.quiz_data = None
                     try:
-                        st.session_state.image_bytes = fut_img.result(timeout=15)
+                        st.session_state.image_bytes = fut_img.result(timeout=20)
                     except Exception:
                         st.session_state.image_bytes = None
 
-
-                # 2. Síntesis de audio completo de la lección.
                 try:
-                    clean_tts = texto_gen.replace("*", "").replace("#", "")
+                    clean_tts = re.split(r"\bBibliography\b", texto_gen.replace("*", "").replace("#", ""), maxsplit=1)[0]
                     tts = gTTS(text=clean_tts, lang="en", slow=False)
                     audio_fp = io.BytesIO()
                     tts.write_to_fp(audio_fp)
@@ -5113,156 +4635,65 @@ if generar_btn:
                 except Exception:
                     st.warning("⚠️ Lección generada, pero el audio no pudo sintetizarse en este momento.")
 
-                # 2b. Generación automática de ilustración educativa con IA
                 try:
-                    prompt_escena_auto = f"""
-                    Write a vivid, friendly visual scene description (45 words) for an educational textbook illustration:
-                    Setting: {contexto_en}. Characters: {personas_en}. Topic: {asunto_apa}.
-                    Include bright warm lighting, natural interaction, and two short English speech bubbles from the lesson.
-                    """
-                    desc_escena, _ = generar_con_maxima_potencia(client, prompt_escena_auto)
-                    st.session_state.image_bytes = generar_imagen_garantizada(
-                        client,
-                        desc_escena,
-                        f"Folio {nuevo_folio}",
-                        cefr_level,
-                        academic_grade
+                    tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto_apa} ({gramatica_b1})"
+                    save_lesson_to_postgres(
+                        folio=nuevo_folio,
+                        usuario_name=st.session_state.get("current_user", usuario),
+                        tema=tema_reg,
+                        cefr=cefr_level,
+                        grado=academic_grade,
+                        texto=texto_gen,
+                        pdf_link=pdf_url_directo
                     )
-                except Exception:
-                    pass
+                    if st.session_state.quiz_data:
+                        save_quiz_and_best_score_pg(nuevo_folio, "", st.session_state.quiz_data, {})
+                except Exception as e_db:
+                    st.warning(f"⚠️ Lección generada, pero hubo un aviso al guardar en Supabase: {e_db}")
 
-                # 3. Persistencia directa en Supabase PostgreSQL
-                tema_reg = f"[{nivel_corto} | {academic_grade}] {asunto_apa} ({gramatica_b1})"
-                save_lesson_to_postgres(
-                    folio=nuevo_folio,
-                    usuario_name=st.session_state.get("current_user", usuario),
-                    tema=tema_reg,
-                    cefr=cefr_level,
-                    grado=academic_grade,
-                    texto=texto_gen,
-                    pdf_link=pdf_url_directo
-                )
-
-                # Colapsa la barra lateral y recarga para mostrar la lección en pantalla completa
                 st.session_state.sidebar_state = "collapsed"
                 st.rerun()
             except Exception as e:
                 st.error(f"⚠️ Error al generar lección: {e}")
+# ==============================================================================
+# PARTE 16: ÁREA DE LECTURA / MODO ESTUDIO INTERACTIVO Y QUIZ (PARTE 1)
+# ==============================================================================
+col_lesson_left, col_tools_right = st.columns([2.2, 1.3])
 
-
-# --- 16. PANEL CENTRAL (CONTENIDO, MODO ESTUDIO IA, QUIZ Y CONTEXTO VISUAL) ---
-if "selected_academic_grade" not in st.session_state:
-    st.session_state.selected_academic_grade = st.session_state.get("user_academic_grade", "Licenciatura / Universidad")
-if "study_mode_active" not in st.session_state:
-    st.session_state.study_mode_active = False
-if "show_right_panel" not in st.session_state:
-    st.session_state.show_right_panel = True
-
-if st.session_state.show_right_panel:
-    col_main_center, col_tools_right = st.columns([7, 3.5])
-else:
-    col_main_center = st.container()
-    col_tools_right = st.expander("🛠️ Herramientas Visuales, Audio, Video, PDF e Historial (Panel Oculto)", expanded=False)
-
-
-with col_main_center:
-    col_sub_t, col_badge, col_mode_btn, col_panel_btn = st.columns([2.3, 1.0, 1.7, 1.3])
-    with col_sub_t:
-        st.subheader("📄 Generated Content (APA Format)")
-    with col_badge:
-        if st.session_state.current_folio:
-            st.caption(f"🔖 Folio: `{st.session_state.current_folio}`")
-    with col_mode_btn:
+with col_lesson_left:
+    hdr_l1, hdr_l2 = st.columns([2.4, 1.4])
+    with hdr_l1:
+        st.subheader(f"📖 Generated Lesson ({st.session_state.selected_cefr})")
+    with hdr_l2:
         if st.session_state.get("generated_text"):
-            btn_study_label = (
-                "🖨️ Edición Impresión / PDF"
-                if st.session_state.study_mode_active
-                else "🧠 Modo Estudio Interactivo (IA)"
+            lbl_modo = (
+                "📄 Volver a Lectura Clásica"
+                if st.session_state.get("study_mode_active")
+                else "🧠 Activar Modo Estudio IA"
             )
-            if st.button(
-                btn_study_label,
-                type="primary" if not st.session_state.study_mode_active else "secondary",
-                width="stretch",
-                key="btn_toggle_study_mode"
-            ):
-                st.session_state.study_mode_active = not st.session_state.study_mode_active
+            if st.button(lbl_modo, type="secondary", width="stretch", key="btn_toggle_study_mode"):
+                st.session_state.study_mode_active = not st.session_state.get("study_mode_active", False)
                 st.rerun()
-    with col_panel_btn:
-        btn_rp_label = "◧ Ocultar Panel" if st.session_state.show_right_panel else "◨ Ver Panel Visual"
-        if st.button(btn_rp_label, type="secondary", width="stretch", key="btn_toggle_right_panel"):
-            st.session_state.show_right_panel = not st.session_state.show_right_panel
-            st.rerun()
 
-    if st.session_state.get("generated_text") and st.session_state.study_mode_active:
-        # Reproductor Nativo US English (en-US) con selector forzado de voz estadounidense
-        texto_us_clean = (
-            str(st.session_state.generated_text)
-            .replace("`", "")
-            .replace("*", "")
-            .replace("#", "")
-            .replace('"', "'")
-            .replace("\n", " ")
-        )
-        html_us_tts = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;">
-        <div style="background:#F0F4F8; border:1px solid #CBD5E1; border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px; font-family:sans-serif;">
-            <button onclick="playUS()" style="background:#1E3A8A; color:white; border:none; border-radius:6px; padding:6px 14px; font-weight:bold; cursor:pointer;">
-                🔊 Escuchar Lección (US English)
-            </button>
-            <button onclick="window.speechSynthesis.cancel()" style="background:#64748B; color:white; border:none; border-radius:6px; padding:6px 10px; cursor:pointer;">
-                ⏹️ Detener
-            </button>
-            <span id="us_voice_tag" style="font-size:12px; color:#334155;">🇺🇸 Pronunciación Americana (en-US)</span>
-        </div>
-        <script>
-            const lessonText = {json.dumps(texto_us_clean)};
-            function getBestUSVoice() {{
-                const voices = window.speechSynthesis.getVoices() || [];
-                return (
-                    voices.find(v => v.lang === 'en-US' && (v.name.includes('Google US English') || v.name.includes('Aria') || v.name.includes('Jenny') || v.name.includes('Guy') || v.name.includes('Samantha') || v.name.includes('Alex'))) ||
-                    voices.find(v => v.lang === 'en-US') ||
-                    voices.find(v => v.lang && v.lang.startsWith('en-'))
-                );
-            }}
-            window.speechSynthesis.onvoiceschanged = getBestUSVoice;
-            function playUS() {{
-                window.speechSynthesis.cancel();
-                const u = new SpeechSynthesisUtterance(lessonText);
-                u.lang = 'en-US';
-                u.rate = 0.96;
-                const v = getBestUSVoice();
-                if (v) {{
-                    u.voice = v;
-                    document.getElementById('us_voice_tag').innerText = '🇺🇸 Voz activa: ' + v.name;
-                }}
-                window.speechSynthesis.speak(u);
-            }}
-        </script></body></html>"""
-        b64_tts = base64.b64encode(html_us_tts.encode("utf-8")).decode("ascii")
-        st.iframe(f"data:text/html;base64,{b64_tts}", height=56)
-
-        estudio_data = {}
-        try:
-            with st.spinner("🧠 Cargando diccionario contextual y pronunciación US..."):
-                estudio_data = analyze_lesson_for_study_mode(
+    if st.session_state.get("generated_text"):
+        if st.session_state.get("study_mode_active"):
+            with st.spinner("Analizando estructuras gramaticales, fonética y definiciones..."):
+                payload_estudio = analyze_lesson_for_study_mode(
                     st.session_state.generated_text,
-                    st.session_state.get("selected_cefr", "B1")
-                ) or {}
-        except Exception:
-            estudio_data = {}
-
-        # Siempre abre el visor interactivo (usa estudio_data como acelerador y fallback en vivo)
-        render_interactive_study_viewer(estudio_data)
-    else:
-        top_container = st.container(height=420, border=True)
-        with top_container:
-            if st.session_state.get("generated_text"):
+                    st.session_state.selected_cefr
+                )
+            render_interactive_study_viewer(payload_estudio)
+        else:
+            with st.container(height=540, border=True):
                 st.markdown(st.session_state.generated_text)
-            else:
-                st.info("👈 Escribe los datos en Español o Inglés en la barra izquierda y presiona **Generate Lesson**, o busca un **Folio** arriba.")
+    else:
+        with st.container(height=280, border=True):
+            st.info(
+                "👈 Configura los parámetros en el panel izquierdo y presiona **Generate Lesson**, "
+                "o busca un **Folio** existente en la barra superior."
+            )
 
-
-
-    # QUIZ INTERACTIVO DE LA LECCIÓN (INTACTO EN AMBOS MODOS)
+    # QUIZ INTERACTIVO DE LA LECCIÓN
     if st.session_state.get("generated_text"):
         if st.session_state.quiz_data is None:
             cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
@@ -5274,8 +4705,10 @@ with col_main_center:
                 with st.spinner("Generando preguntas de evaluación y vinculando al Folio en Supabase..."):
                     try:
                         q_gen = generar_quiz_leccion(
-                            st.session_state.generated_text, gramatica_b1,
-                            st.session_state.selected_cefr, st.session_state.selected_academic_grade
+                            st.session_state.generated_text,
+                            gramatica_b1,
+                            st.session_state.selected_cefr,
+                            st.session_state.selected_academic_grade
                         )
                         st.session_state.quiz_data = q_gen
                         if st.session_state.current_folio:
@@ -5307,6 +4740,9 @@ with col_main_center:
                         else:
                             st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
                     st.write("")
+# ==============================================================================
+# PARTE 16A: CALIFICACIÓN DEL QUIZ, NUEVAS PREGUNTAS Y AUDIO DEL EXAMEN
+# ==============================================================================
                 col_btn_grade, col_btn_new = st.columns(2)
                 with col_btn_grade:
                     if st.button("✅ Calificar Quiz", type="primary", width="stretch"):
@@ -5337,13 +4773,18 @@ with col_main_center:
                             try:
                                 prev_qs = [q["question"] for q in st.session_state.quiz_data]
                                 q_new = generar_quiz_leccion(
-                                    st.session_state.generated_text, gramatica_b1,
-                                    st.session_state.selected_cefr, st.session_state.selected_academic_grade, prev_qs
+                                    st.session_state.generated_text,
+                                    gramatica_b1,
+                                    st.session_state.selected_cefr,
+                                    st.session_state.selected_academic_grade,
+                                    prev_qs
                                 )
                                 st.session_state.quiz_data = q_new
                                 st.session_state.quiz_graded = False
                                 st.session_state.quiz_score = None
                                 st.session_state.quiz_user_answers = {}
+                                for k_r in range(10):
+                                    st.session_state.pop(f"radio_quiz_{k_r}", None)
                                 if st.session_state.current_folio:
                                     save_quiz_and_best_score_pg(
                                         st.session_state.current_folio,
@@ -5378,6 +4819,7 @@ with col_main_center:
                         key="btn_dl_pdf_from_quiz",
                         width="stretch"
                     )
+
                 st.divider()
                 col_q_aud1, col_q_aud2 = st.columns(2)
                 with col_q_aud1:
@@ -5417,7 +4859,9 @@ with col_main_center:
 
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
-
+# ==============================================================================
+# PARTE 17: COLUMNA DERECHA — CONTEXTO VISUAL Y AUDIO MODELO
+# ==============================================================================
 with col_tools_right:
     st.subheader(f"🖼️ Visual Context & Quote ({st.session_state.selected_academic_grade})")
     if st.session_state.get("generated_text"):
@@ -5445,7 +4889,7 @@ with col_tools_right:
                         {instruccion_usuario}
                         1. SETTING & FURNITURE: Describe the physical background, furniture, and atmosphere in warm detail.
                         2. CHARACTERS & ACTION: Describe the characters interacting naturally in that setting.
-                        
+
                         LESSON:
                         {st.session_state.generated_text[:2500]}
                         """
@@ -5471,11 +4915,17 @@ with col_tools_right:
             st.image(st.session_state.image_bytes, width="stretch")
         elif st.session_state.get("generated_text"):
             fallback_img = generar_imagen_garantizada(
-                None, st.session_state.generated_text[:120],
-                f"Folio {st.session_state.current_folio}", st.session_state.selected_cefr, st.session_state.selected_academic_grade
+                None,
+                st.session_state.generated_text[:120],
+                f"Folio {st.session_state.current_folio}",
+                st.session_state.selected_cefr,
+                st.session_state.selected_academic_grade
             )
-            st.session_state.image_bytes = fallback_img
-            st.image(fallback_img, width="stretch")
+            if fallback_img:
+                st.session_state.image_bytes = fallback_img
+                st.image(fallback_img, width="stretch")
+            else:
+                st.caption("Imagen ilustrativa no disponible.")
         else:
             st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
 
@@ -5487,11 +4937,7 @@ with col_tools_right:
             f"🎯 **Reflection:** {mq.get('reflection', '')}"
         )
 
-
-
-
-# --- 17. PANEL DERECHO (AUDIO, VIDEO, EXPORTACIÓN PDF E HISTORIAL) ---
-with col_tools_right:
+    st.divider()
     st.subheader("🎧 1. Model Pronunciation")
     if st.session_state.audio_bytes:
         st.audio(st.session_state.audio_bytes, format="audio/mp3")
@@ -5505,15 +4951,16 @@ with col_tools_right:
         )
     else:
         st.caption("Audio available after generating lesson.")
-        
+# ==============================================================================
+# PARTE 17A: GRABADORA DE AUDIO Y VIDEO EN NAVEGADOR
+# ==============================================================================
     st.divider()
-
     st.subheader("🎙️ 2. Speaking & Video Practice")
     tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
-    
+
     with tab_rec_audio:
         student_audio = st.audio_input("Graba tu voz leyendo el texto:")
-        
+
     with tab_rec_video:
         st.caption("Activa tu cámara, graba tu lectura y descárgala:")
         safe_base_filename = f"CEI_Video_{st.session_state.current_folio or usuario.replace(' ', '_')}"
@@ -5529,7 +4976,7 @@ with col_tools_right:
             <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video</a>
         </div>
 
-         <script>
+        <script>
         let stream = null;
         let mediaRecorder = null;
         let recordedChunks = [];
@@ -5615,14 +5062,14 @@ with col_tools_right:
                 mediaRecorder.stop();
             }}
             btnStop.disabled = true;
-        }}; 
+        }};
         </script>
         """
-        b64_vid = base64.b64encode(video_recorder_html.encode("utf-8")).decode("ascii")
-        st.iframe(f"data:text/html;base64,{b64_vid}", height=320)
-
+        components.html(video_recorder_html, height=320)
         st.write("")
-
+# ==============================================================================
+# PARTE 18: DESCARGA DE AUDIO/PDF Y EVALUACIÓN ORAL CON IA
+# ==============================================================================
     if student_audio is not None:
         safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
         try:
@@ -5668,7 +5115,7 @@ with col_tools_right:
             key="btn_dl_pdf_sidebar_right"
         )
     else:
-        st.button("📥 Descargar PDF Oficial", disabled=True, width="stretch", key="btn_dl_pdf_disabled") 
+        st.button("📥 Descargar PDF Oficial", disabled=True, width="stretch", key="btn_dl_pdf_disabled")
 
     if student_audio is not None:
         if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
@@ -5705,7 +5152,9 @@ with col_tools_right:
                 st.markdown("**💡 Recomendaciones de Mejora:**")
                 for t in tips:
                     st.markdown(f"- {t}")
-
+# ==============================================================================
+# PARTE 18A (FINAL): HISTORIAL DE FOLIOS, BORRAR TODO Y PIE DE PÁGINA
+# ==============================================================================
     st.divider()
     if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
         st.session_state.show_saved_audios = not st.session_state.show_saved_audios
@@ -5754,14 +5203,13 @@ with col_tools_right:
                             speaking_row = row.get("Speaking_Score")
                             if mejor_nota_row:
                                 st.caption(f"🏆 **Mejor Quiz:** `{mejor_nota_row}`")
-                            if speaking_row is not None and int(speaking_row) > 0:
-                                st.caption(f"🎙️ **Mejor Evaluación Oral:** `{speaking_row}%`")
+                            if speaking_row is not None and float(speaking_row) > 0:
+                                st.caption(f"🎙️ **Mejor Evaluación Oral:** `{int(float(speaking_row))}%`")
 
-                            # Botón para cargar esta lección directamente en pantalla (y usar Modo Estudio IA)
                             if st.button(f"📖 Cargar Lección ({folio_item})", key=f"load_fol_{folio_item}_{idx_h}", width="stretch"):
                                 st.session_state.generated_text = str(row.get("Texto", ""))
                                 st.session_state.current_folio = folio_item
-                                st.session_state.selected_cefr = str(row.get("Nivel_CEFR", "B1"))
+                                st.session_state.selected_cefr = normalize_cefr(row.get("Nivel_CEFR", "B1"))
                                 st.session_state.selected_academic_grade = str(row.get("Grado_Academico", "Licenciatura / Universidad"))
                                 st.session_state.study_mode_active = False
                                 st.session_state.quiz_graded = False
@@ -5769,8 +5217,15 @@ with col_tools_right:
                                 st.session_state.quiz_user_answers = {}
                                 st.session_state.image_bytes = None
                                 st.session_state.current_motivational_quote = None
-                                raw_qz = str(row.get("Quiz_JSON") or "").strip()
-                                if raw_qz:
+                                st.session_state.speaking_eval_result = row.get("Speaking_Eval")
+                                st.session_state["best_stored_score"] = mejor_nota_row
+
+                                raw_qz = row.get("Quiz_JSON")
+                                if isinstance(raw_qz, list):
+                                    st.session_state.quiz_data = raw_qz
+                                elif isinstance(raw_qz, dict):
+                                    st.session_state.quiz_data = raw_qz.get("questions")
+                                elif isinstance(raw_qz, str) and raw_qz.strip():
                                     try:
                                         qz_obj = json.loads(raw_qz)
                                         st.session_state.quiz_data = qz_obj if isinstance(qz_obj, list) else qz_obj.get("questions")
@@ -5780,11 +5235,9 @@ with col_tools_right:
                                     st.session_state.quiz_data = None
                                 st.rerun()
 
-
                             st.divider()
             except Exception as e:
                 st.error(f"Error al cargar historial desde Supabase: {e}")
-
 
     st.divider()
 
@@ -5807,11 +5260,10 @@ with col_tools_right:
         st.session_state.current_pdf_link = ""
         st.session_state.current_creation_date = ""
         st.session_state.url_folio_checked = False
+        st.session_state["best_stored_score"] = ""
         st.query_params.clear()
         st.session_state.sidebar_state = "expanded"
         st.rerun()
-
-
 
 # --- 18. PIE DE PÁGINA INSTITUCIONAL ---
 st.divider()
@@ -5822,4 +5274,3 @@ footer_html = (
     "</div>"
 )
 st.markdown(footer_html, unsafe_allow_html=True)
-
