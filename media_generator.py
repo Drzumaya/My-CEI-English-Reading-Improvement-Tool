@@ -74,7 +74,7 @@ def _fetch_real_topic_photo(keywords: str) -> bytes | None:
 
 
 def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cefr_lvl: str, academic_gr: str) -> bytes:
-    """Genera ilustración educativa con IA o fotografía temática real más frase célebre bilingüe."""
+    """Genera fotografía temática real acorde al tópico y frase célebre motivacional bilingüe."""
     st.session_state["last_img_error"] = None
     escena_limpia = re.sub(r"[^a-zA-Z0-9 ,.-]+", " ", str(scene_prompt or "")).strip()
     escena_limpia = re.sub(r"\s+", " ", escena_limpia)
@@ -108,40 +108,12 @@ def generar_imagen_garantizada(client_gm, scene_prompt: str, folio_tag: str, cef
         except Exception:
             pass
 
-    # 2. Intento con Gemini Image Generation
-    errores_img = []
-    if client_gm:
-        full_prompt = (
-            "Create a clean, modern educational textbook illustration (no text or letters inside the image). Scene: " + escena_limpia
-        )[:380]
-        for modelo_mm in ["gemini-2.5-flash-image", "gemini-2.0-flash-exp-image-generation"]:
-            try:
-                res = client_gm.models.generate_content(
-                    model=modelo_mm,
-                    contents=full_prompt,
-                    config=types.GenerateContentConfig(response_modalities=["IMAGE"])
-                )
-                for cand in getattr(res, "candidates", []) or []:
-                    for part in getattr(cand.content, "parts", []) or []:
-                        inline = getattr(part, "inline_data", None)
-                        if inline and getattr(inline, "data", None):
-                            img_b = inline.data
-                            if isinstance(img_b, str):
-                                img_b = base64.b64decode(img_b)
-                            if img_b and len(img_b) > 2000:
-                                return img_b
-            except Exception as e_mm:
-                errores_img.append(f"{modelo_mm}: {str(e_mm)[:120]}")
-
-    if errores_img:
-        st.session_state["last_img_error"] = " | ".join(errores_img)
-
-    # 3. Fotografía Educativa Real desde Wikipedia / Wikimedia Commons
+    # 2. Fotografía Educativa Real desde Wikipedia / Wikimedia Commons (100% gratuita y sin límite de cuota)
     foto_real = _fetch_real_topic_photo(kw_busqueda)
     if foto_real:
         return foto_real
 
-    # 4. Respaldo visual institucional en Pillow
+    # 3. Respaldo visual institucional en Pillow (solo si no hay conexión externa)
     w, h = 800, 420
     img = Image.new("RGB", (w, h), color=(18, 36, 66))
     draw = ImageDraw.Draw(img)
