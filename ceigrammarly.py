@@ -2119,7 +2119,7 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B: VISOR INTERACTIVO DE ESTUDIO — BOTONES NATIVOS REALES (MAC + MÓVIL)
+# PARTE 8B: VISOR INTERACTIVO DE ESTUDIO — HOVER = VOZ US | CLIC = DICCIONARIO
 # ==============================================================================
 @st.cache_data(show_spinner=False, max_entries=500)
 def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
@@ -2135,8 +2135,28 @@ def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | No
         return None
 
 
+@st.cache_data(show_spinner=False, max_entries=60)
+def _build_lesson_audio_b64_map(unique_words_tuple: tuple, slow_mode: bool = False) -> dict:
+    """Pre-sintetiza en paralelo los audios Base64 de las palabras únicas para reproducción instantánea al Hover."""
+    audio_map = {}
+    if not unique_words_tuple:
+        return audio_map
+
+    def _encode_one(w_item: str):
+        mp3_b = _synthesize_word_mp3(w_item, slow_mode=slow_mode)
+        if mp3_b:
+            return w_item.lower(), base64.b64encode(mp3_b).decode("ascii")
+        return w_item.lower(), ""
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for k_w, b64_v in pool.map(_encode_one, unique_words_tuple):
+            if b64_v:
+                audio_map[k_w] = b64_v
+    return audio_map
+
+
 def render_interactive_study_viewer(study_payload: dict):
-    """Visor interactivo con botones nativos de Streamlit por palabra: 1 clic = Voz US + Diccionario."""
+    """Hover (deslizar cursor) = Pronunciación US instantánea | Clic = Diccionario completo."""
     if not study_payload or not study_payload.get("sentences"):
         st.warning("No se pudo estructurar el modo estudio para este texto.")
         return
@@ -2144,7 +2164,7 @@ def render_interactive_study_viewer(study_payload: dict):
     sentences = study_payload.get("sentences", [])
     dictionary = study_payload.get("dictionary", {})
 
-    # 1. Leyenda de colores y control de velocidad
+    # 1. Leyenda de colores, guía didáctica y control de velocidad
     col_leg, col_spd = st.columns([2.8, 1.0])
     with col_leg:
         st.markdown(
@@ -2166,7 +2186,7 @@ def render_interactive_study_viewer(study_payload: dict):
     active_p = str(st.session_state.get("active_study_pos", "other")).strip().lower()
     active_s = str(st.session_state.get("active_study_sentence", "")).strip()
 
-    # 2. Tarjeta de Audio y Diccionario (aparece arriba en cuanto pulsas cualquier palabra)
+    # 2. Tarjeta de Diccionario (se despliega SOLO al hacer clic en una palabra)
     if active_w:
         k_low = active_w.lower()
         info_dic = dictionary.get(k_low)
@@ -2195,7 +2215,7 @@ def render_interactive_study_viewer(study_payload: dict):
         with st.container(border=True):
             h_d1, h_d2 = st.columns([3.2, 1.0])
             with h_d1:
-                st.markdown(f"#### 🌐 Diccionario y Pronunciación US: **{active_w}** ➔ **{info_dic.get('es') or active_w}**")
+                st.markdown(f"#### 🌐 Diccionario: **{active_w}** ➔ **{info_dic.get('es') or active_w}**")
             with h_d2:
                 if st.button("✖ Cerrar", key="btn_close_study_card", width="stretch"):
                     st.session_state["active_study_word"] = ""
@@ -2222,8 +2242,19 @@ def render_interactive_study_viewer(study_payload: dict):
                     f"🔗 [WordReference ↗](https://wordreference.com{q_url})  |  "
                     f"[Google Translate ↗](https://google.com{q_url}&op=translate)"
                 )
+    # 3. Recolectar palabras únicas para pre-cargar audio Hover instantáneo
+    unique_words = []
+    seen_w = set()
+    for sent in sentences:
+        for tok in sent.get("tokens", []):
+            wc = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", str(tok.get("w", "")).strip())
+            if wc and wc.lower() not in seen_w:
+                seen_w.add(wc.lower())
+                unique_words.append(wc)
 
-    # 3. Botones Nativos Reales de Palabras agrupados por oración
+    audio_b64_map = _build_lesson_audio_b64_map(tuple(unique_words[:90]), slow_mode=velocidad_lenta)
+
+    # 4. Botones Nativos Reales de Palabras agrupados por oración
     pos_dot = {
         "verb": "🔴",
         "noun": "🔵",
@@ -2232,7 +2263,7 @@ def render_interactive_study_viewer(study_payload: dict):
         "other": "⚪"
     }
 
-    st.caption("👆 **Haz clic o toca cualquier botón de palabra** para escuchar su pronunciación (US) y ver su significado:")
+    st.caption("🎧 **Desliza el cursor** sobre una palabra para escucharla | 👆 **Haz clic** para abrir su diccionario:")
     with st.container(height=460, border=True):
         for s_idx, sent in enumerate(sentences):
             tokens = sent.get("tokens", [])
@@ -2247,7 +2278,6 @@ def render_interactive_study_viewer(study_payload: dict):
             if not valid_tokens:
                 continue
 
-            # Renderiza en filas de hasta 7 palabras por fila para mantener lectura fluida y táctil
             cols_per_row = 7
             for start_i in range(0, len(valid_tokens), cols_per_row):
                 chunk = valid_tokens[start_i:start_i + cols_per_row]
@@ -2267,6 +2297,48 @@ def render_interactive_study_viewer(study_payload: dict):
                             st.session_state["active_study_pos"] = pos_k
                             st.session_state["active_study_sentence"] = full_s
                             st.rerun()
+
+    # 5. Inyección segura de Hover Audio en el DOM principal (fuera del sandbox de iframe)
+    if audio_b64_map:
+        b64_json = json.dumps(audio_b64_map)
+        hover_js = f"""
+        (() => {{
+            try {{
+                const doc = window.parent.document;
+                window.parent.__ceiAudioMap = {b64_json};
+                if (!window.parent.__ceiHoverBound) {{
+                    window.parent.__ceiHoverBound = true;
+                    window.parent.__ceiLastHoverWord = "";
+                    window.parent.__ceiHoverPlayer = new Audio();
+                    doc.addEventListener("mouseover", function(e) {{
+                        const btn = e.target.closest("button");
+                        if (!btn) return;
+                        const rawTxt = (btn.innerText || "").trim();
+                        if (!/^[🔴🔵🟢🟡⚪]/.test(rawTxt)) return;
+                        const cleanW = rawTxt.replace(/^[🔴🔵🟢🟡⚪]\\s*/, "").replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, "").toLowerCase();
+                        if (!cleanW || window.parent.__ceiLastHoverWord === cleanW) return;
+                        window.parent.__ceiLastHoverWord = cleanW;
+                        const b64 = (window.parent.__ceiAudioMap || {{}})[cleanW];
+                        if (b64) {{
+                            const p = window.parent.__ceiHoverPlayer;
+                            p.pause();
+                            p.src = "data:audio/mp3;base64," + b64;
+                            p.play().catch(() => {{}});
+                        }}
+                    }}, true);
+                    doc.addEventListener("mouseout", function(e) {{
+                        const btn = e.target.closest("button");
+                        if (btn) window.parent.__ceiLastHoverWord = "";
+                    }}, true);
+                }}
+                return true;
+            }} catch (err) {{
+                return false;
+            }}
+        }})()
+        """
+        streamlit_js_eval(js_expressions=hover_js, key=f"cei_hover_bridge_{len(audio_b64_map)}_{velocidad_lenta}")
+
 
 # ==============================================================================
 # PARTE 9A: MIGRACIÓN SHEETS -> SUPABASE (PERMISOS, PADRÓN Y FOLIOS)
