@@ -3096,7 +3096,9 @@ def render_interactive_study_viewer(study_payload: dict):
         const u='https://googleapis.com;
         const r=await fetch(u);
         const j=await r.json();
-        if(Array.isArray(j)&&Array.isArray(j[0])&&Array.isArray(j[0][0])&&j[0][0][0])return String(j[0][0][0]);
+        if(Array.isArray(j) && Array.isArray(j[0]) && Array.isArray(j[0][0]) && j[0][0][0]){
+          return String(j[0][0][0]);
+        }
       }catch(e){}
       return word;
     }
@@ -3169,8 +3171,7 @@ def render_interactive_study_viewer(study_payload: dict):
     </script></body></html>"""
 
     html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
-    b64_study = base64.b64encode(html_code.encode("utf-8")).decode("ascii")
-    st.iframe(f"data:text/html;base64,{b64_study}", height=700)
+    st.html(html_code, unsafe_allow_javascript=True)
 
     
 
