@@ -2119,7 +2119,7 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B: VISOR INTERACTIVO DE ESTUDIO — HOVER = VOZ US | CLIC = DICCIONARIO
+# PARTE 8B: VISOR MULTIMODAL (TOUCH + HOVER/DBLCLICK) Y DICCIONARIO AUTOMÁTICO
 # ==============================================================================
 @st.cache_data(show_spinner=False, max_entries=500)
 def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
@@ -2137,26 +2137,99 @@ def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | No
 
 @st.cache_data(show_spinner=False, max_entries=60)
 def _build_lesson_audio_b64_map(unique_words_tuple: tuple, slow_mode: bool = False) -> dict:
-    """Pre-sintetiza en paralelo los audios Base64 de las palabras únicas para reproducción instantánea al Hover."""
+    """Pre-sintetiza en paralelo los audios Base64 (normal y lento) para reproducción instantánea."""
     audio_map = {}
     if not unique_words_tuple:
         return audio_map
 
     def _encode_one(w_item: str):
-        mp3_b = _synthesize_word_mp3(w_item, slow_mode=slow_mode)
-        if mp3_b:
-            return w_item.lower(), base64.b64encode(mp3_b).decode("ascii")
-        return w_item.lower(), ""
+        mp3_norm = _synthesize_word_mp3(w_item, slow_mode=slow_mode)
+        mp3_slow = _synthesize_word_mp3(w_item, slow_mode=True)
+        b64_n = base64.b64encode(mp3_norm).decode("ascii") if mp3_norm else ""
+        b64_s = base64.b64encode(mp3_slow).decode("ascii") if mp3_slow else b64_n
+        return w_item.lower(), {"n": b64_n, "s": b64_s}
 
     with ThreadPoolExecutor(max_workers=6) as pool:
-        for k_w, b64_v in pool.map(_encode_one, unique_words_tuple):
-            if b64_v:
-                audio_map[k_w] = b64_v
+        for k_w, pair_b64 in pool.map(_encode_one, unique_words_tuple):
+            if pair_b64["n"]:
+                audio_map[k_w] = pair_b64
     return audio_map
 
 
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=600)
+def _auto_lookup_bilingual_dict(word_clean: str) -> dict:
+    """Ejecuta búsqueda automática tipo Google Dictionary (Inglés US -> Español + IPA + Definición)."""
+    w_q = str(word_clean or "").strip().lower()
+    if not w_q:
+        return {}
+
+    es_trans = ""
+    ipa_txt = ""
+    pos_txt = ""
+    def_txt = ""
+    alt_list = []
+
+    # 1. Traducción automática al español (Google Translate endpoint gratuito)
+    try:
+        gt_url = (
+            "https://googleapis.com"
+            + urllib.parse.quote(w_q)
+        )
+        req = urllib.request.Request(gt_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            raw_gt = json.loads(resp.read().decode("utf-8"))
+        if isinstance(raw_gt, list) and raw_gt and isinstance(raw_gt[0], list):
+            es_trans = "".join(str(seg[0]) for seg in raw_gt[0] if seg and seg[0]).strip()
+        if isinstance(raw_gt, list) and len(raw_gt) > 1 and isinstance(raw_gt[1], list):
+            for entry in raw_gt[1][:2]:
+                if isinstance(entry, list) and len(entry) >= 2:
+                    if not pos_txt:
+                        pos_txt = str(entry[0]).capitalize()
+                    if isinstance(entry[1], list):
+                        alt_list.extend([str(x) for x in entry[1][:4]])
+    except Exception:
+        pass
+
+    # 2. Fonética IPA y definición académica desde Free Dictionary API
+    try:
+        fd_url = "https://dictionaryapi.dev" + urllib.parse.quote(w_q)
+        req_fd = urllib.request.Request(fd_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req_fd, timeout=4) as resp_fd:
+            fd_data = json.loads(resp_fd.read().decode("utf-8"))
+        if isinstance(fd_data, list) and fd_data:
+            first_item = fd_data[0]
+            ipa_txt = str(first_item.get("phonetic") or "").strip()
+            if not ipa_txt:
+                for ph in first_item.get("phonetics") or []:
+                    if ph.get("text"):
+                        ipa_txt = str(ph["text"]).strip()
+                        break
+            meanings = first_item.get("meanings") or []
+            if meanings:
+                if not pos_txt:
+                    pos_txt = str(meanings[0].get("partOfSpeech") or "").capitalize()
+                defs = meanings[0].get("definitions") or []
+                if defs:
+                    def_txt = str(defs[0].get("definition") or "").strip()
+    except Exception:
+        pass
+
+    return {
+        "es": es_trans or w_q,
+        "ipa": ipa_txt,
+        "pos": pos_txt,
+        "def": def_txt,
+        "alt": ", ".join(dict.fromkeys(alt_list))
+    }
+# ==============================================================================
+# PARTE 8B — MITAD 2A: REJILLA DE BOTONES NATIVOS Y PRECARGA DE AUDIO
+# ==============================================================================
 def render_interactive_study_viewer(study_payload: dict):
-    """Hover (deslizar cursor) = Pronunciación US instantánea | Clic = Diccionario completo."""
+    """
+    Interacción Multimodal Unificada:
+    - Touch (Móvil / Tablet / TV Touch): 1er toque = Voz US | Doble toque = Cajón deslizable hacia arriba (deslizar abajo para ocultar).
+    - Desktop (Laptop / PC): Hover = Voz US | Doble clic = Búsqueda automática y Tarjeta Diccionario bilingüe.
+    """
     if not study_payload or not study_payload.get("sentences"):
         st.warning("No se pudo estructurar el modo estudio para este texto.")
         return
@@ -2164,7 +2237,7 @@ def render_interactive_study_viewer(study_payload: dict):
     sentences = study_payload.get("sentences", [])
     dictionary = study_payload.get("dictionary", {})
 
-    # 1. Leyenda de colores, guía didáctica y control de velocidad
+    # 1. Leyenda de colores gramaticales y control de velocidad
     col_leg, col_spd = st.columns([2.8, 1.0])
     with col_leg:
         st.markdown(
@@ -2182,67 +2255,7 @@ def render_interactive_study_viewer(study_payload: dict):
     with col_spd:
         velocidad_lenta = st.toggle("🐢 Voz Lenta", value=False, key="study_native_slow_tgl")
 
-    active_w = str(st.session_state.get("active_study_word", "")).strip()
-    active_p = str(st.session_state.get("active_study_pos", "other")).strip().lower()
-    active_s = str(st.session_state.get("active_study_sentence", "")).strip()
-
-    # 2. Tarjeta de Diccionario (se despliega SOLO al hacer clic en una palabra)
-    if active_w:
-        k_low = active_w.lower()
-        info_dic = dictionary.get(k_low)
-        if not info_dic:
-            for stem in (
-                re.sub(r"ed$", "", k_low),
-                re.sub(r"ed$", "e", k_low),
-                re.sub(r"ing$", "", k_low),
-                re.sub(r"ing$", "e", k_low),
-                re.sub(r"ies$", "y", k_low),
-                re.sub(r"s$", "", k_low),
-            ):
-                if len(stem) > 2 and stem in dictionary:
-                    info_dic = dictionary[stem]
-                    break
-        info_dic = info_dic or {}
-
-        pos_es_map = {
-            "verb": "Verbo (Verb)",
-            "noun": "Sustantivo (Noun)",
-            "adjective": "Adjetivo (Adjective)",
-            "conjunction": "Conjunción (Conjunction)",
-            "other": "Preposición / Adverbio / Otro"
-        }
-
-        with st.container(border=True):
-            h_d1, h_d2 = st.columns([3.2, 1.0])
-            with h_d1:
-                st.markdown(f"#### 🌐 Diccionario: **{active_w}** ➔ **{info_dic.get('es') or active_w}**")
-            with h_d2:
-                if st.button("✖ Cerrar", key="btn_close_study_card", width="stretch"):
-                    st.session_state["active_study_word"] = ""
-                    st.rerun()
-
-            c_d1, c_d2 = st.columns([1.2, 1.4])
-            with c_d1:
-                st.caption(f"**Categoría:** {info_dic.get('pos') or pos_es_map.get(active_p, 'Vocabulario')}")
-                if info_dic.get("ipa"):
-                    st.markdown(f"**Fonética (IPA):** `{info_dic['ipa']}`")
-                mp3_word = _synthesize_word_mp3(active_w, slow_mode=velocidad_lenta)
-                if mp3_word:
-                    st.audio(mp3_word, format="audio/mp3", autoplay=True)
-
-            with c_d2:
-                if info_dic.get("alt"):
-                    st.markdown(f"**Sinónimos / Acepciones:** {info_dic['alt']}")
-                if info_dic.get("def"):
-                    st.info(f"📖 **Definición:** {info_dic['def']}")
-                if active_s:
-                    st.caption(f"💬 *\"{active_s}\"*")
-                q_url = urllib.parse.quote(k_low)
-                st.markdown(
-                    f"🔗 [WordReference ↗](https://wordreference.com{q_url})  |  "
-                    f"[Google Translate ↗](https://google.com{q_url}&op=translate)"
-                )
-    # 3. Recolectar palabras únicas para pre-cargar audio Hover instantáneo
+    # 2. Pre-cargar mapa de audios Base64 (Normal y Lento) para respuesta instantánea 0 ms
     unique_words = []
     seen_w = set()
     for sent in sentences:
@@ -2252,9 +2265,9 @@ def render_interactive_study_viewer(study_payload: dict):
                 seen_w.add(wc.lower())
                 unique_words.append(wc)
 
-    audio_b64_map = _build_lesson_audio_b64_map(tuple(unique_words[:90]), slow_mode=velocidad_lenta)
+    audio_b64_map = _build_lesson_audio_b64_map(tuple(unique_words[:95]), slow_mode=velocidad_lenta)
 
-    # 4. Botones Nativos Reales de Palabras agrupados por oración
+    # 3. Rejilla de Botones Nativos de Palabras
     pos_dot = {
         "verb": "🔴",
         "noun": "🔵",
@@ -2263,11 +2276,14 @@ def render_interactive_study_viewer(study_payload: dict):
         "other": "⚪"
     }
 
-    st.caption("🎧 **Desliza el cursor** sobre una palabra para escucharla | 👆 **Haz clic** para abrir su diccionario:")
-    with st.container(height=460, border=True):
+    st.caption(
+        "📱 **Touch (Móvil/Tablet/TV):** 1 toque = 🔊 Voz | 2 toques = 📖 Diccionario (desliza abajo para ocultar)  •  "
+        "💻 **PC/Laptop:** Deslizar cursor = 🔊 Voz | Doble clic = 📖 Búsqueda automática"
+    )
+
+    with st.container(height=480, border=True):
         for s_idx, sent in enumerate(sentences):
             tokens = sent.get("tokens", [])
-            full_s = str(sent.get("full_sentence", "")).strip()
             valid_tokens = []
             for t_idx, tok in enumerate(tokens):
                 w_raw = str(tok.get("w", "")).strip()
@@ -2283,52 +2299,206 @@ def render_interactive_study_viewer(study_payload: dict):
                 chunk = valid_tokens[start_i:start_i + cols_per_row]
                 cols_w = st.columns(cols_per_row)
                 for c_i, (t_idx, w_raw, w_clean, pos_k) in enumerate(chunk):
-                    is_sel = bool(active_w and w_clean.lower() == active_w.lower())
                     badge = pos_dot.get(pos_k, "⚪")
                     btn_label = f"{badge} {w_raw}"
                     with cols_w[c_i]:
-                        if st.button(
+                        st.button(
                             btn_label,
                             key=f"wbtn_{s_idx}_{t_idx}_{w_clean}",
-                            type="primary" if is_sel else "secondary",
+                            type="secondary",
                             width="stretch"
-                        ):
-                            st.session_state["active_study_word"] = w_clean
-                            st.session_state["active_study_pos"] = pos_k
-                            st.session_state["active_study_sentence"] = full_s
-                            st.rerun()
-
-    # 5. Inyección segura de Hover Audio en el DOM principal (fuera del sandbox de iframe)
+                        )
+# ==============================================================================
+# PARTE 8B — MITAD 2B-1: REPRODUCTOR BASE64 Y CAJÓN DESLIZABLE TÁCTIL
+# ==============================================================================
     if audio_b64_map:
         b64_json = json.dumps(audio_b64_map)
-        hover_js = f"""
+        dict_json = json.dumps({k.lower(): v for k, v in dictionary.items()})
+        multimodal_js = f"""
         (() => {{
             try {{
-                const doc = window.parent.document;
-                window.parent.__ceiAudioMap = {b64_json};
-                if (!window.parent.__ceiHoverBound) {{
-                    window.parent.__ceiHoverBound = true;
-                    window.parent.__ceiLastHoverWord = "";
-                    window.parent.__ceiHoverPlayer = new Audio();
-                    doc.addEventListener("mouseover", function(e) {{
-                        const btn = e.target.closest("button");
-                        if (!btn) return;
-                        const rawTxt = (btn.innerText || "").trim();
-                        if (!/^[🔴🔵🟢🟡⚪]/.test(rawTxt)) return;
-                        const cleanW = rawTxt.replace(/^[🔴🔵🟢🟡⚪]\\s*/, "").replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, "").toLowerCase();
-                        if (!cleanW || window.parent.__ceiLastHoverWord === cleanW) return;
-                        window.parent.__ceiLastHoverWord = cleanW;
-                        const b64 = (window.parent.__ceiAudioMap || {{}})[cleanW];
-                        if (b64) {{
-                            const p = window.parent.__ceiHoverPlayer;
-                            p.pause();
-                            p.src = "data:audio/mp3;base64," + b64;
-                            p.play().catch(() => {{}});
+                const win = window.parent;
+                const doc = win.document;
+                win.__ceiAudioMap = {b64_json};
+                win.__ceiLocalDict = {dict_json};
+                win.__ceiSlowMode = {str(bool(velocidad_lenta)).lower()};
+
+                win.__ceiPlayWord = function(wClean, forceSlow) {{
+                    const key = (wClean || "").toLowerCase();
+                    const entry = (win.__ceiAudioMap || {{}})[key];
+                    if (!entry) return;
+                    const b64 = (forceSlow || win.__ceiSlowMode) ? entry.s : entry.n;
+                    if (!b64) return;
+                    if (!win.__ceiPlayer) win.__ceiPlayer = new Audio();
+                    win.__ceiPlayer.pause();
+                    win.__ceiPlayer.src = "data:audio/mp3;base64," + b64;
+                    win.__ceiPlayer.play().catch(() => {{}});
+                }};
+
+                win.__ceiEnsureDrawer = function() {{
+                    let drw = doc.getElementById("cei-touch-drawer");
+                    if (drw) return drw;
+                    drw = doc.createElement("div");
+                    drw.id = "cei-touch-drawer";
+                    drw.style.cssText = [
+                        "position:fixed", "left:0", "right:0", "bottom:0", "z-index:999999",
+                        "background:#ffffff", "border-top:3px solid #1a73e8",
+                        "border-radius:18px 18px 0 0", "box-shadow:0 -10px 30px rgba(15,23,42,0.28)",
+                        "padding:12px 18px 20px 18px", "font-family:system-ui,-apple-system,sans-serif",
+                        "transform:translateY(110%)", "transition:transform 0.28s cubic-bezier(0.22,1,0.36,1)",
+                        "max-height:72vh", "overflow-y:auto"
+                    ].join(";");
+                    drw.innerHTML = `
+                        <div id="cei-drw-handle" style="width:48px;height:5px;background:#cbd5e1;border-radius:99px;margin:0 auto 10px auto;cursor:grab;"></div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:10px;">
+                            <span style="font-size:12px;font-weight:800;color:#1a73e8;">🌐 DICCIONARIO INGLÉS (US) ➔ ESPAÑOL (Desliza abajo para ocultar)</span>
+                            <div>
+                                <button id="cei-drw-spk-n" type="button" style="background:#1a73e8;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-weight:700;cursor:pointer;margin-right:4px;">🔊 Normal</button>
+                                <button id="cei-drw-spk-s" type="button" style="background:#0f766e;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-weight:700;cursor:pointer;margin-right:4px;">🐢 Lento</button>
+                                <button id="cei-drw-close" type="button" style="background:#f1f5f9;color:#334155;border:none;border-radius:6px;padding:5px 10px;font-weight:700;cursor:pointer;">⬇ Ocultar</button>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div style="background:#f8fafc;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">
+                                <div style="font-size:11px;color:#64748b;font-weight:700;">ENGLISH (US)</div>
+                                <div id="cei-drw-en" style="font-size:22px;font-weight:800;color:#0f172a;"></div>
+                                <div id="cei-drw-ipa" style="font-size:13px;color:#475569;margin-top:2px;"></div>
+                                <div id="cei-drw-pos" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:4px;"></div>
+                            </div>
+                            <div style="background:#eff6ff;padding:10px;border-radius:10px;border:1px solid #bfdbfe;">
+                                <div style="font-size:11px;color:#1e40af;font-weight:700;">ESPAÑOL (TRADUCCIÓN)</div>
+                                <div id="cei-drw-es" style="font-size:22px;font-weight:800;color:#1a73e8;"></div>
+                                <div id="cei-drw-alt" style="font-size:12px;color:#334155;margin-top:4px;"></div>
+                            </div>
+                        </div>
+                        <div id="cei-drw-def" style="margin-top:10px;font-size:13px;color:#334155;background:#f8fafc;padding:8px 12px;border-radius:8px;"></div>
+                        <div id="cei-drw-links" style="margin-top:10px;display:flex;gap:16px;font-size:13px;font-weight:700;"></div>
+                    `;
+                    doc.body.appendChild(drw);
+
+                    let startY = 0;
+                    drw.addEventListener("touchstart", (ev) => {{ startY = ev.touches.clientY; }}, {{passive: true}});
+                    drw.addEventListener("touchmove", (ev) => {{
+                        const deltaY = ev.touches.clientY - startY;
+                        if (deltaY > 45) drw.style.transform = "translateY(110%)";
+                    }}, {{passive: true}});
+                    doc.getElementById("cei-drw-close").onclick = () => {{ drw.style.transform = "translateY(110%)"; }};
+                    return drw;
+                }};
+                win.__ceiOpenDictionary = async function(wClean, posRaw) {{
+                    const drw = win.__ceiEnsureDrawer();
+                    const k = wClean.toLowerCase();
+                    const loc = (win.__ceiLocalDict || {{}})[k] || {{}};
+                    doc.getElementById("cei-drw-en").innerText = wClean;
+                    doc.getElementById("cei-drw-es").innerText = loc.es || "Buscando traducción...";
+                    doc.getElementById("cei-drw-ipa").innerText = loc.ipa ? ("IPA: " + loc.ipa) : "🇺🇸 US Pronunciation";
+                    doc.getElementById("cei-drw-pos").innerText = loc.pos || posRaw;
+                    doc.getElementById("cei-drw-alt").innerText = loc.alt ? ("Acepciones: " + loc.alt) : "";
+                    doc.getElementById("cei-drw-def").innerText = loc.def ? ("📖 " + loc.def) : "Consultando diccionario bilingüe...";
+                    const qEnc = encodeURIComponent(k);
+                    doc.getElementById("cei-drw-links").innerHTML =
+                        '<a href="https://google.com' + qEnc + '&op=translate" target="_blank" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
+                        '<a href="https://wordreference.com' + qEnc + '" target="_blank" style="color:#1a73e8;text-decoration:none;">📖 Abrir en WordReference ↗</a>';
+                    doc.getElementById("cei-drw-spk-n").onclick = () => win.__ceiPlayWord(wClean, false);
+                    doc.getElementById("cei-drw-spk-s").onclick = () => win.__ceiPlayWord(wClean, true);
+
+                    drw.style.transform = "translateY(0%)";
+                    win.__ceiPlayWord(wClean, false);
+
+                    if (!loc.es) {{
+                        try {{
+                            const r = await fetch("https://googleapis.com" + qEnc);
+                            const j = await r.json();
+                            if (Array.isArray(j) && Array.isArray(j[0])) {{
+                                const tr = j[0].map(s => s[0]).join("");
+                                if (tr) doc.getElementById("cei-drw-es").innerText = tr;
+                            }}
+                            if (Array.isArray(j) && Array.isArray(j[1]) && j[1][0] && Array.isArray(j[1][0][1])) {{
+                                doc.getElementById("cei-drw-alt").innerText = "Acepciones: " + j[1][0][1].slice(0, 4).join(", ");
+                            }}
+                        }} catch (e) {{}}
+                    }}
+                    if (!loc.def) {{
+                        try {{
+                            const r2 = await fetch("https://dictionaryapi.dev" + qEnc);
+                            const j2 = await r2.json();
+                            if (Array.isArray(j2) && j2[0]) {{
+                                if (j2[0].phonetic) doc.getElementById("cei-drw-ipa").innerText = "IPA: " + j2[0].phonetic;
+                                const m = (j2[0].meanings || [])[0];
+                                if (m && m.definitions && m.definitions[0]) {{
+                                    doc.getElementById("cei-drw-def").innerText = "📖 (" + (m.partOfSpeech || "") + ") " + m.definitions[0].definition;
+                                }}
+                            }}
+                        }} catch (e) {{}}
+                    }}
+                }};
+
+                if (!win.__ceiMultimodalBound) {{
+                    win.__ceiMultimodalBound = true;
+                    win.__ceiLastHover = "";
+                    win.__ceiLastTapWord = "";
+                    win.__ceiLastTapTime = 0;
+
+                    function parseBtnWord(btn) {{
+                        if (!btn) return null;
+                        const raw = (btn.innerText || "").trim();
+                        const m = raw.match(/^([🔴🔵🟢🟡⚪])\\s*(.+)$/);
+                        if (!m) return null;
+                        const clean = m[2].replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, "");
+                        if (!clean) return null;
+                        const posMap = {{"🔴":"Verbo","🔵":"Sustantivo","🟢":"Adjetivo","🟡":"Conjunción","⚪":"Vocabulario"}};
+                        return {{ clean: clean, pos: posMap[m[1]] || "Vocabulario" }};
+                    }}
+
+                    doc.addEventListener("pointerover", function(e) {{
+                        if (e.pointerType !== "mouse") return;
+                        const info = parseBtnWord(e.target.closest("button"));
+                        if (!info) return;
+                        if (win.__ceiLastHover === info.clean.toLowerCase()) return;
+                        win.__ceiLastHover = info.clean.toLowerCase();
+                        win.__ceiPlayWord(info.clean, false);
+                    }}, true);
+
+                    doc.addEventListener("pointerout", function(e) {{
+                        if (e.pointerType === "mouse" && e.target.closest("button")) {{
+                            win.__ceiLastHover = "";
                         }}
                     }}, true);
-                    doc.addEventListener("mouseout", function(e) {{
+
+                    doc.addEventListener("pointerdown", function(e) {{
                         const btn = e.target.closest("button");
-                        if (btn) window.parent.__ceiLastHoverWord = "";
+                        const info = parseBtnWord(btn);
+                        if (!info) return;
+
+                        if (e.pointerType === "touch" || e.pointerType === "pen") {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const now = Date.now();
+                            const isDoubleTap = (win.__ceiLastTapWord === info.clean.toLowerCase() && (now - win.__ceiLastTapTime) < 420);
+                            win.__ceiLastTapWord = info.clean.toLowerCase();
+                            win.__ceiLastTapTime = now;
+                            win.__ceiPlayWord(info.clean, false);
+                            if (isDoubleTap) {{
+                                win.__ceiOpenDictionary(info.clean, info.pos);
+                            }}
+                        }}
+                    }}, true);
+
+                    doc.addEventListener("click", function(e) {{
+                        const btn = e.target.closest("button");
+                        const info = parseBtnWord(btn);
+                        if (!info) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }}, true);
+
+                    doc.addEventListener("dblclick", function(e) {{
+                        const btn = e.target.closest("button");
+                        const info = parseBtnWord(btn);
+                        if (!info) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        win.__ceiOpenDictionary(info.clean, info.pos);
                     }}, true);
                 }}
                 return true;
@@ -2337,7 +2507,8 @@ def render_interactive_study_viewer(study_payload: dict):
             }}
         }})()
         """
-        streamlit_js_eval(js_expressions=hover_js, key=f"cei_hover_bridge_{len(audio_b64_map)}_{velocidad_lenta}")
+        streamlit_js_eval(js_expressions=multimodal_js, key=f"cei_mm_bridge_{len(audio_b64_map)}_{velocidad_lenta}")
+
 
 
 # ==============================================================================
