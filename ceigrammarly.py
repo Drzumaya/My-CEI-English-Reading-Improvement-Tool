@@ -2511,6 +2511,7 @@ def render_interactive_study_viewer(study_payload: dict):
       linksDiv.appendChild(aWR); linksDiv.appendChild(aGT); bxEl.appendChild(linksDiv);
     }
 
+
     document.querySelectorAll('.wt').forEach(spn=>{
       spn.addEventListener('mouseenter',()=>{
         const w=spn.getAttribute('data-w')||'';
