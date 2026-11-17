@@ -5495,7 +5495,7 @@ with col_tools_right:
                 mediaRecorder.stop();
             }}
             btnStop.disabled = true;
-        }};
+        }}; 
         </script>
         """
         b64_vid = base64.b64encode(video_recorder_html.encode("utf-8")).decode("ascii")
