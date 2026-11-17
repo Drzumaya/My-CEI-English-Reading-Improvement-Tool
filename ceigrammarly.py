@@ -2932,17 +2932,30 @@ def _prebuild_lesson_dictionary(text_block: str, existing_dict: dict) -> dict:
     return merged
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def _tts_word_us_mp3(texto_en: str) -> bytes | None:
+    # Genera pronunciacion estadounidense real (en-US) en MP3 con cache permanente
+    clean_w = str(texto_en or "").strip()
+    if not clean_w:
+        return None
+    try:
+        from gtts import gTTS
+        buf = io.BytesIO()
+        gTTS(text=clean_w, lang="en", tld="us", slow=False).write_to_fp(buf)
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
 def render_interactive_study_viewer(study_payload: dict):
-    # Visor Interactivo CEI Standard: AudioContext Unlock + Voz US Neural/System + Diccionario Contextual
+    # Visor Interactivo Nativo CEI: Colores gramaticales + Audio MP3 US real (autoplay) + Diccionario tipo Google
     import html as html_lib
     import re
-    import streamlit.components.v1 as components
 
     raw_lesson = str(st.session_state.get("generated_text") or "").strip()
     for marcador in ["**Bibliography", "Bibliography ("]:
         if marcador in raw_lesson:
-            raw_lesson = raw_lesson.split(marcador, 1)[0]
-
+            raw_lesson = next(iter(raw_lesson.split(marcador, 1)), raw_lesson)
 
     clean_lines = []
     for ln in raw_lesson.splitlines():
@@ -2975,9 +2988,11 @@ def render_interactive_study_viewer(study_payload: dict):
     }
 
     boxes_html = []
+    vocab_ordenado = []
+    vistos = set()
+
     for idx_l, line in enumerate(clean_lines):
         cls_box = "tbox" if idx_l == 0 else "sbox"
-        line_esc = html_lib.escape(line, quote=True)
         spans = []
         for part in re.split(r"(\s+)", line):
             if not part or part.isspace():
@@ -2988,6 +3003,10 @@ def render_interactive_study_viewer(study_payload: dict):
                 continue
             pre, tok, post = m.groups()
             low = tok.lower()
+            if len(low) >= 2 and low not in vistos and any(c.isalpha() for c in low):
+                vistos.add(low)
+                vocab_ordenado.append(tok)
+
             info_d = clean_dict.get(low, {})
             pos_raw = str(info_d.get("pos", "")).lower()
             if "verb" in pos_raw:
@@ -3007,15 +3026,96 @@ def render_interactive_study_viewer(study_payload: dict):
             else:
                 pos = "other"
 
-            tok_esc = html_lib.escape(tok, quote=True)
-            spans.append(
-                f'{html_lib.escape(pre)}<span class="wt {pos}" data-w="{tok_esc}" '
-                f'data-p="{pos}" data-s="{line_esc}">{tok_esc}</span>{html_lib.escape(post)} '
-            )
+            tok_esc = html_lib.escape(tok)
+            spans.append(f'{html_lib.escape(pre)}<span class="wt {pos}">{tok_esc}</span>{html_lib.escape(post)} ')
         boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
 
-    rendered_lesson_html = "\n".join(boxes_html) or '<div class="sbox">Sin texto cargado.</div>'
-    dict_json = json.dumps(clean_dict, ensure_ascii=True).replace("</", "<\\/")
+    study_css_html = f"""
+    <style>
+    .cei-tb{{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:12px;font-size:12px;font-weight:600}}
+    .cei-bg{{padding:3px 8px;border-radius:6px}}
+    .verb{{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}}
+    .noun{{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}}
+    .adjective{{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}}
+    .conjunction{{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}}
+    .other{{background:#f1f5f9;color:#334155}}
+    .tbox{{background:#1a2a44;color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}}
+    .tbox .wt{{color:#1e293b;font-size:16px}}
+    .sbox{{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
+    .wt{{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px}}
+    </style>
+    <div class="cei-tb">
+      <span>🎨 Categorías Gramaticales:</span>
+      <span class="cei-bg verb">Verbos</span>
+      <span class="cei-bg noun">Sustantivos</span>
+      <span class="cei-bg adjective">Adjetivos</span>
+      <span class="cei-bg conjunction">Conjunciones</span>
+      <span class="cei-bg other">Otros</span>
+    </div>
+    {"".join(boxes_html)}
+    """
+    st.html(study_css_html)
+
+    # Panel Nativo de Pronunciación US Real (MP3 Autoplay) + Diccionario Estilo Google Translate
+    st.markdown("### 🌐 Diccionario Contextual y Pronunciación Estadounidense (`en-US`)")
+    col_sel_w, col_custom_w = st.columns([2, 1.5])
+    with col_sel_w:
+        palabra_sel = st.selectbox(
+            "🔍 Selecciona cualquier palabra de la lección para escuchar y traducir:",
+            options=[""] + vocab_ordenado,
+            format_func=lambda x: "— Elige una palabra de la lección —" if x == "" else f"🔊 {x}",
+            key="sel_study_word_native"
+        )
+    with col_custom_w:
+        palabra_escrita = st.text_input(
+            "✍️ O escribe cualquier palabra o frase en inglés:",
+            placeholder="Ej: nevertheless, academic...",
+            key="txt_study_word_custom"
+        )
+
+    palabra_activa = (palabra_escrita.strip() or palabra_sel.strip())
+    if palabra_activa:
+        k_low = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", palabra_activa.lower())
+        info_w = clean_dict.get(k_low, {})
+        traduccion_es = info_w.get("es") or _fast_translate_to_en(palabra_activa)
+        try:
+            from deep_translator import GoogleTranslator
+            traduccion_es = GoogleTranslator(source="en", target="es").translate(palabra_activa) or traduccion_es
+        except Exception:
+            pass
+
+        oracion_ctx = next((ln for ln in clean_lines if k_low in ln.lower()), clean_lines[0] if clean_lines else "")
+
+        with st.container(border=True):
+            c_en, c_es = st.columns(2)
+            with c_en:
+                st.caption("🇺🇸 ENGLISH (UNITED STATES)")
+                st.markdown(f"## **{palabra_activa}**")
+                if info_w.get("ipa"):
+                    st.caption(f"Pronunciación IPA: `{info_w['ipa']}`")
+                if info_w.get("pos"):
+                    st.markdown(f"**Categoría:** `{info_w['pos']}`")
+                mp3_w = _tts_word_us_mp3(palabra_activa)
+                if mp3_w:
+                    st.audio(mp3_w, format="audio/mp3", autoplay=True)
+            with c_es:
+                st.caption("🇪🇸 ESPAÑOL (TRADUCCIÓN)")
+                st.markdown(f"## **{traduccion_es}**")
+                if info_w.get("alt"):
+                    st.caption(f"Acepciones: {info_w['alt']}")
+                if info_w.get("def"):
+                    st.markdown(f"📖 **Definición:** {info_w['def']}")
+
+            if oracion_ctx:
+                st.info(f"💬 **Contexto en la lección:** *\"{oracion_ctx}\"*")
+
+            q_url = urllib.parse.quote(k_low or palabra_activa)
+            st.markdown(
+                f"🔗 [📖 Abrir **{palabra_activa}** en WordReference ↗](https://wordreference.com{q_url}) "
+                f"&nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"[🌐 Abrir en Google Translate ↗](https://google.com{q_url}&op=translate)"
+            )
+
 
 
     html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
