@@ -46,10 +46,6 @@ except ImportError:
         add_script_run_ctx = None
         get_script_run_ctx = None
 
-if hasattr(st, "iframe"):
-    components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
-        html_str, height=height or 150, width=width or "stretch"
-    )
 
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
