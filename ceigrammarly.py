@@ -2227,11 +2227,13 @@ def render_interactive_study_viewer(study_payload: dict):
     rendered_lesson_html = "".join(boxes_html)
     dict_json = json.dumps(clean_dict, ensure_ascii=False).replace("</", "<\\/")
 # ==============================================================================
-# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO (CLIC = VOZ US | DOBLE CLIC = DICCIONARIO)
+# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO — ARQUITECTURA DELEGADA (1 CLIC / 2 CLICS)
 # ==============================================================================
+    safe_dict_json = dict_json.replace("</", "<\\/")
+
     html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    *{box-sizing:border-box}
-    body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
     .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;
         background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;
         margin-bottom:10px;font-size:12px;font-weight:600;position:sticky;top:0;z-index:100}
@@ -2244,11 +2246,12 @@ def render_interactive_study_viewer(study_payload: dict):
     .tbox{background:#1a2a44;color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}
     .tbox .wt{color:#1e293b;font-size:16px}
     .sbox{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;
-          border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;user-select:none;transition:all .12s}
-    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
+          border-radius:8px;line-height:2.1;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .wt{display:inline-block;padding:2px 7px;margin:2px;border-radius:6px;cursor:pointer;user-select:none;transition:transform .1s,box-shadow .1s}
+    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important}
+    .spk-pulse{outline:2px solid #0f766e !important;background:#ccfbf1 !important;color:#115e59 !important;transform:scale(1.05)}
     #gt-panel{position:sticky;top:52px;z-index:999;background:#fff;border:2px solid #1a73e8;
-              border-radius:12px;box-shadow:0 10px 28px rgba(26,115,232,.32);margin-bottom:12px;overflow:hidden;display:none}
+              border-radius:12px;box-shadow:0 12px 30px rgba(26,115,232,.35);margin-bottom:12px;overflow:hidden;display:none}
     .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;
              color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
     .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
@@ -2262,19 +2265,19 @@ def render_interactive_study_viewer(study_payload: dict):
            <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
            <span class="bg other">Otros</span></div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="color:#475569;font-size:11px;">🖱️ 1 Clic: 🔊 Voz | 2 Clics: 📖 Diccionario</span>
-        <button style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700"
+        <span id="audioBadge" style="color:#0f766e;font-size:11px;font-weight:700;">🖱️ 1 Clic: 🔊 Voz | 2 Clics: 📖 Diccionario</span>
+        <button type="button" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700"
                 onclick="spd()" id="sb">1.0x</button>
       </div>
     </div>
 
-    <div id="gt-panel" onclick="event.stopPropagation()">
+    <div id="gt-panel">
       <div class="gt-head">
         <span>🌐 GOOGLE TRANSLATE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
         <div>
-          <button class="gt-btn" onclick="spk(curW,1)">🔊 Normal</button>
-          <button class="gt-btn" onclick="spk(curW,0.65)">🐢 Lento</button>
-          <button class="gt-btn" onclick="cls()">✖ Cerrar</button>
+          <button type="button" class="gt-btn" onclick="spk(curW,1)">🔊 Normal</button>
+          <button type="button" class="gt-btn" onclick="spk(curW,0.65)">🐢 Lento</button>
+          <button type="button" class="gt-btn" onclick="cls()">✖ Cerrar</button>
         </div>
       </div>
       <div class="gt-grid">
@@ -2296,124 +2299,132 @@ def render_interactive_study_viewer(study_payload: dict):
 
     <div id="lc">__LESSON_HTML__</div>
     <script>
-    const D=__DICT_JSON__;
-    const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
-    let curW="", sp=1, usVoiceCache=null, fallbackAudio=null, lastTapTs=0, lastTapEl=null;
+    (function(){
+      const D=__DICT_JSON__;
+      const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
+      let curW="", sp=1, usVoiceCache=null, lastTapTs=0, lastTapEl=null;
 
-    function pickUSVoice(){
-      if(!('speechSynthesis'in window))return null;
-      const vs=window.speechSynthesis.getVoices()||[];
-      if(!vs.length)return null;
-      usVoiceCache=vs.find(v=>v.lang==='en-US'&&(v.name.includes('Samantha')||v.name.includes('Alex')||v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')))
-        ||vs.find(v=>v.lang==='en-US'||v.lang==='en_US')
-        ||vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
-      return usVoiceCache;
-    }
-    if('speechSynthesis'in window){
-      pickUSVoice();
-      window.speechSynthesis.onvoiceschanged=pickUSVoice;
-    }
+      function pickUSVoice(){
+        try{
+          if(!('speechSynthesis' in window))return null;
+          const vs=window.speechSynthesis.getVoices()||[];
+          if(!vs.length)return null;
+          usVoiceCache=vs.find(v=>v.lang==='en-US'&&(v.name.includes('Samantha')||v.name.includes('Alex')||v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')))
+            ||vs.find(v=>v.lang==='en-US'||v.lang==='en_US')
+            ||vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
+          return usVoiceCache;
+        }catch(e){return null;}
+      }
 
-    function spd(){sp=sp===1?0.75:1;document.getElementById('sb').innerText=sp+'x';}
+      if('speechSynthesis' in window){
+        pickUSVoice();
+        window.speechSynthesis.onvoiceschanged=pickUSVoice;
+      }
 
-    function playFallbackTTS(word, rate){
-      try{
-        if(fallbackAudio){fallbackAudio.pause();}
-        const q=encodeURIComponent(String(word).trim());
-        const spdParam=(rate&&rate<0.9)?'0.4':'1';
-        fallbackAudio=new Audio('https://google.com);
-        fallbackAudio.play().catch(()=>{});
-      }catch(e){}
-    }
+      window.spd=function(){
+        sp=(sp===1)?0.75:1;
+        const sb=document.getElementById('sb');
+        if(sb)sb.innerText=sp+'x';
+      };
 
-    function spk(w,r){
-      if(!w)return;
-      const rateVal=r||sp;
-      let started=false;
-      try{
-        if('speechSynthesis'in window){
-          window.speechSynthesis.resume();
-          window.speechSynthesis.cancel();
-          const u=new SpeechSynthesisUtterance(String(w));
-          u.lang='en-US';
-          u.rate=rateVal;
-          u.volume=1.0;
-          const v=usVoiceCache||pickUSVoice();
-          if(v)u.voice=v;
-          u.onstart=()=>{started=true;};
-          u.onerror=()=>{if(!started)playFallbackTTS(w,rateVal);};
-          window.speechSynthesis.speak(u);
-          setTimeout(()=>{if(!started && !window.speechSynthesis.speaking)playFallbackTTS(w,rateVal);}, 280);
+      window.spk=function(w,r){
+        if(!w)return;
+        try{
+          if('speechSynthesis' in window){
+            window.speechSynthesis.resume();
+            window.speechSynthesis.cancel();
+            const u=new SpeechSynthesisUtterance(String(w));
+            u.lang='en-US';
+            u.rate=r||sp;
+            u.volume=1.0;
+            const v=usVoiceCache||pickUSVoice();
+            if(v)u.voice=v;
+            window.speechSynthesis.speak(u);
+          }
+        }catch(e){}
+      };
+
+      window.cls=function(){
+        const pnl=document.getElementById('gt-panel');
+        if(pnl)pnl.style.display='none';
+        document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+      };
+
+      function lookupLocalDict(k){
+        if(D[k])return D[k];
+        const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
+        for(const st of stems){if(st.length>2 && D[st])return D[st];}
+        return null;
+      }
+
+      function openWordCard(el){
+        document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+        el.classList.add('act');
+        const w=el.getAttribute('data-w')||'';
+        const p=el.getAttribute('data-p')||'other';
+        const fs=el.getAttribute('data-s')||'';
+        curW=w;
+        const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
+        const inf=lookupLocalDict(k)||{};
+        const pnl=document.getElementById('gt-panel');
+        if(pnl)pnl.style.display='block';
+        document.getElementById('bw').innerText=w;
+        document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
+        document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
+        document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
+        document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
+        document.getElementById('be').innerText=inf.es||w;
+        const cleanQ=encodeURIComponent(k||w);
+        const bxEl=document.getElementById('bx');
+        bxEl.innerHTML='';
+        const ctxDiv=document.createElement('div');
+        ctxDiv.textContent='💬 Contexto en la lección: "'+fs+'"';
+        bxEl.appendChild(ctxDiv);
+        const linksDiv=document.createElement('div');
+        linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
+        const aWR=document.createElement('a');
+        aWR.href='https://wordreference.com;
+        aWR.target='_blank';
+        aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;';
+        aWR.textContent='📖 Abrir en WordReference ↗';
+        const aGT=document.createElement('a');
+        aGT.href='https://google.com';
+        aGT.target='_blank';
+        aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;';
+        aGT.textContent='🌐 Abrir en Google Translate ↗';
+        linksDiv.appendChild(aWR);
+        linksDiv.appendChild(aGT);
+        bxEl.appendChild(linksDiv);
+      }
+
+      document.addEventListener('click',function(e){
+        const pnl=document.getElementById('gt-panel');
+        if(pnl && pnl.contains(e.target))return;
+        const spn=e.target.closest('.wt');
+        if(!spn){
+          window.cls();
           return;
         }
-      }catch(e){}
-      playFallbackTTS(w,rateVal);
-    }
-
-    function cls(){
-      document.getElementById('gt-panel').style.display='none';
-      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
-    }
-
-    function lookupLocalDict(k){
-      if(D[k])return D[k];
-      const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
-      for(const st of stems){if(st.length>2 && D[st])return D[st];}
-      return null;
-    }
-
-    function openWordCard(el){
-      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
-      el.classList.add('act');
-      const w=el.getAttribute('data-w')||'';
-      const p=el.getAttribute('data-p')||'other';
-      const fs=el.getAttribute('data-s')||'';
-      curW=w;
-      const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
-      const inf=lookupLocalDict(k)||{};
-      const pnl=document.getElementById('gt-panel');
-      pnl.style.display='block';
-      document.getElementById('bw').innerText=w;
-      document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
-      document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
-      document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
-      document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
-      document.getElementById('be').innerText=inf.es||w;
-      const cleanQ=encodeURIComponent(k||w);
-      const bxEl=document.getElementById('bx'); bxEl.innerHTML='';
-      const ctxDiv=document.createElement('div'); ctxDiv.textContent='💬 Contexto en la lección: "'+fs+'"'; bxEl.appendChild(ctxDiv);
-      const linksDiv=document.createElement('div'); linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
-      const aWR=document.createElement('a'); aWR.href='https://wordreference.com; aWR.target='_blank';
-      aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;'; aWR.textContent='📖 Abrir en WordReference ↗';
-      const aGT=document.createElement('a'); aGT.href='https://google.com'; aGT.target='_blank';
-      aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;'; aGT.textContent='🌐 Abrir en Google Translate ↗';
-      linksDiv.appendChild(aWR); linksDiv.appendChild(aGT); bxEl.appendChild(linksDiv);
-    }
-
-    document.querySelectorAll('.wt').forEach(spn=>{
-      spn.addEventListener('click',(e)=>{
         e.stopPropagation();
         const w=spn.getAttribute('data-w')||'';
         const now=Date.now();
-        const isDouble=(lastTapEl===spn && (now-lastTapTs)<380);
+        const isDouble=(lastTapEl===spn && (now-lastTapTs)<420);
         lastTapTs=now;
         lastTapEl=spn;
-        document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
-        spn.classList.add('act');
-        spk(w);
-        if(isDouble){openWordCard(spn);}
-      });
-      spn.addEventListener('dblclick',(e)=>{
-        e.stopPropagation();
-        openWordCard(spn);
-      });
-    });
-    document.body.onclick=cls;
+
+        spn.classList.add('spk-pulse');
+        setTimeout(()=>spn.classList.remove('spk-pulse'),240);
+
+        window.spk(w,sp);
+        if(isDouble){
+          openWordCard(spn);
+        }
+      },true);
+    })();
     </script></body></html>"""
 
-    html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", dict_json)
+    html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", safe_dict_json)
     components.html(html_code, height=640, scrolling=True)
-
 # ==============================================================================
 # PARTE 9A: MIGRACIÓN SHEETS -> SUPABASE (PERMISOS, PADRÓN Y FOLIOS)
 # ==============================================================================
