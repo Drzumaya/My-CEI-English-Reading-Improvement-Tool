@@ -14,6 +14,11 @@ import qrcode
 import streamlit as st
 import streamlit.components.v1 as components
 
+if hasattr(st, "iframe"):
+    components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
+        html_str, height=height or 150, width=width or "stretch"
+    )
+
 
 def _find_secret(key_name: str) -> str:
     if key_name in st.secrets:
@@ -115,6 +120,9 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
             except Exception:
                 pass
     return True, "Token válido"
+
+
+
 # ==============================================================================
 # registro_afiliados.py — PARTE 2 DE 4: TEMPORIZADOR Y CABECERA DEL FORMULARIO
 # ==============================================================================
