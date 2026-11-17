@@ -1589,8 +1589,8 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
 
     texto_sin_bib = str(lesson_text or "")
     for marcador in ["**Bibliography", "Bibliography ("]:
-        if marcador in texto_sin_bib:
-            texto_sin_bib = next(iter(texto_sin_bib.split(marcador, 1)), "")
+        if marcador in raw_lesson:
+            raw_lesson = raw_lesson.split(marcador, 1)[0]
 
     lineas_limpias = []
     for linea in texto_sin_bib.splitlines():
@@ -2941,7 +2941,8 @@ def render_interactive_study_viewer(study_payload: dict):
     raw_lesson = str(st.session_state.get("generated_text") or "").strip()
     for marcador in ["**Bibliography", "Bibliography ("]:
         if marcador in raw_lesson:
-            raw_lesson = raw_lesson.split(marcador, 1)
+            raw_lesson = raw_lesson.split(marcador, 1)[0]
+
 
     clean_lines = []
     for ln in raw_lesson.splitlines():
