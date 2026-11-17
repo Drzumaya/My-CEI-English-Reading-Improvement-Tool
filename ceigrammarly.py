@@ -4604,6 +4604,9 @@ if generar_btn:
 # ==============================================================================
 # PARTE 16: ÁREA DE LECTURA / MODO ESTUDIO INTERACTIVO Y QUIZ (PARTE 1)
 # ==============================================================================
+if st.query_params.get("study_w"):
+    st.session_state["study_mode_active"] = True
+
 col_lesson_left, col_tools_right = st.columns([2.2, 1.3])
 
 with col_lesson_left:
@@ -4619,6 +4622,12 @@ with col_lesson_left:
             )
             if st.button(lbl_modo, type="secondary", width="stretch", key="btn_toggle_study_mode"):
                 st.session_state.study_mode_active = not st.session_state.get("study_mode_active", False)
+                if not st.session_state.study_mode_active:
+                    st.session_state["active_study_word"] = ""
+                    if "study_w" in st.query_params:
+                        del st.query_params["study_w"]
+                    if "study_p" in st.query_params:
+                        del st.query_params["study_p"]
                 st.rerun()
 
     if st.session_state.get("generated_text"):
@@ -4638,6 +4647,7 @@ with col_lesson_left:
                 "👈 Configura los parámetros en el panel izquierdo y presiona **Generate Lesson**, "
                 "o busca un **Folio** existente en la barra superior."
             )
+
 
     # QUIZ INTERACTIVO DE LA LECCIÓN
     if st.session_state.get("generated_text"):
