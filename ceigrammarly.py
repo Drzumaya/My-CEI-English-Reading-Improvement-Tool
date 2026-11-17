@@ -1590,7 +1590,7 @@ def analyze_lesson_for_study_mode(lesson_text: str, cefr_level: str, cache_versi
     texto_sin_bib = str(lesson_text or "")
     for marcador in ["**Bibliography", "Bibliography ("]:
         if marcador in raw_lesson:
-            raw_lesson = raw_lesson.split(marcador, 1)[0]
+            raw_lesson = next(iter(raw_lesson.split(marcador, 1)), raw_lesson)
 
     lineas_limpias = []
     for linea in texto_sin_bib.splitlines():
