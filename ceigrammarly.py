@@ -3192,23 +3192,34 @@ def render_interactive_study_viewer(study_payload: dict):
     
 
 def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
-    # Modelos activos de Google AI Studio (noviembre 2026): alta velocidad + respaldo 3.1-pro-preview
-    modelos_potentes = [
+    # Selecciona modelos estables compatibles con v1/v1beta y consulta dinamicamente client.models.list() si es necesario
+    modelos_preferidos = [
         "gemini-2.5-flash",
-        "gemini-3.1-pro-preview",
         "gemini-2.5-flash-lite",
-        "gemini-3-flash-preview"
+        "gemini-3.1-pro-preview",
+        "gemini-2.0-flash"
     ]
+
+    # Agrega dinamicamente cualquier modelo Gemini activo reportado por tu cuenta
+    try:
+        for m in client.models.list():
+            m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
+            metodos = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
+            if "gemini" in m_name and "embedding" not in m_name and "imagen" not in m_name and "tts" not in m_name:
+                if not metodos or "generateContent" in metodos:
+                    if m_name not in modelos_preferidos:
+                        modelos_preferidos.append(m_name)
+    except Exception:
+        pass
+
     ultimo_error = None
-    for modelo in modelos_potentes:
+    for modelo in modelos_preferidos:
         try:
             cfg_kwargs = {"temperature": 0.65}
             if instruccion_sistema:
                 cfg_kwargs["system_instruction"] = instruccion_sistema
             if as_json:
                 cfg_kwargs["response_mime_type"] = "application/json"
-            if "flash" in modelo:
-                cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
             config = types.GenerateContentConfig(**cfg_kwargs)
             respuesta = client.models.generate_content(
                 model=modelo,
@@ -3220,6 +3231,7 @@ def generar_con_maxima_potencia(client, prompt_contenido: str, instruccion_siste
         except Exception as e:
             ultimo_error = e
             continue
+
     if ultimo_error:
         raise ultimo_error
     raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
