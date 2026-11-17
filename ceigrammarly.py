@@ -37,6 +37,11 @@ import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_js_eval import streamlit_js_eval
 
+if hasattr(st, "iframe"):
+    components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
+        html_str, height=height or 150, width=width or "stretch"
+    )
+
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
     page_title="CEFR Academic Grammar & Discourse System - Career English Institute",
@@ -64,6 +69,7 @@ MANAGED_PACKAGES = [
     "pydub",
     "static-ffmpeg"
 ]
+
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def check_libraries_updates() -> list[dict]:
