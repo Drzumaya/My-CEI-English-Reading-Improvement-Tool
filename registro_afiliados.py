@@ -1,3 +1,6 @@
+# ==============================================================================
+# registro_afiliados.py — PARTE 1 DE 4: CONEXIÓN Y VALIDACIÓN DE TOKENS QR
+# ==============================================================================
 import base64
 from datetime import date
 import hashlib
@@ -9,25 +12,52 @@ import urllib.parse
 import psycopg
 import qrcode
 import streamlit as st
+import streamlit.components.v1 as components
 
 
+def _find_secret(key_name: str) -> str:
+    if key_name in st.secrets:
+        return str(st.secrets[key_name]).strip()
+    for sec in st.secrets.values():
+        if isinstance(sec, dict) and key_name in sec:
+            return str(sec[key_name]).strip()
+    return ""
 
- 
+
 def _get_conn_afiliados():
-    db_url = ""
-    if "SUPABASE_DB_URL" in st.secrets:
-        db_url = str(st.secrets["SUPABASE_DB_URL"]).strip()
-    elif "postgres" in st.secrets and "url" in st.secrets["postgres"]:
-        db_url = str(st.secrets["postgres"]["url"]).strip()
+    pg_host = _find_secret("PG_HOST")
+    pg_user = _find_secret("PG_USER")
+    pg_pass = _find_secret("PG_PASSWORD")
+    pg_port = int(_find_secret("PG_PORT") or 6543)
+    pg_db = _find_secret("PG_DBNAME") or "postgres"
+
+    if pg_host and pg_user and pg_pass:
+        return psycopg.connect(
+            host=pg_host,
+            port=pg_port,
+            dbname=pg_db,
+            user=pg_user,
+            password=pg_pass,
+            sslmode="require",
+            prepare_threshold=None
+        )
+
+    db_url = _find_secret("SUPABASE_DB_URL") or _find_secret("DATABASE_URL")
+    if not db_url and "postgres" in st.secrets and isinstance(st.secrets["postgres"], dict):
+        db_url = str(st.secrets["postgres"].get("url", "")).strip()
     if not db_url:
         return None
     if "sslmode=" not in db_url:
         db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
-    return psycopg.connect(db_url)
+    return psycopg.connect(db_url, prepare_threshold=None)
 
 
 def _get_hmac_secret() -> bytes:
-    raw = str(st.secrets.get("HMAC_SECRET_KEY") or st.secrets.get("SUPABASE_DB_URL") or "CEI_AFF_KEY").strip()
+    raw = str(
+        _find_secret("HMAC_SECRET_KEY")
+        or _find_secret("SUPABASE_DB_URL")
+        or "CEI_AFF_KEY"
+    ).strip()
     return raw.encode("utf-8")
 
 
@@ -42,9 +72,8 @@ def generar_token_qr_7min() -> tuple[str, int]:
 
 
 def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
-    """Valida el token del QR (o autoriza sesión única de 20 min si entra directo) y verifica que no haya sido usado."""
+    """Valida el token del QR y verifica que no haya sido utilizado."""
     if not token_str:
-        # Si entra por el enlace directo sin parámetro, genera un token de sesión única válido por 20 min
         return True, "Sesión directa autorizada (20 min)"
 
     if "." not in token_str:
@@ -80,9 +109,15 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
                         return False, "🔒 Este enlace de registro ya fue utilizado y ha quedado inhabilitado."
         except Exception:
             pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
     return True, "Token válido"
-
-
+# ==============================================================================
+# registro_afiliados.py — PARTE 2 DE 4: TEMPORIZADOR Y CABECERA DEL FORMULARIO
+# ==============================================================================
 def _consumir_token_qr(token_str: str):
     """Inhabilita el token tras el envío del formulario."""
     if not token_str:
@@ -103,6 +138,13 @@ def _consumir_token_qr(token_str: str):
                 cur.execute("INSERT INTO affiliate_used_tokens (token_hash) VALUES (%s) ON CONFLICT DO NOTHING;", (t_hash,))
     except Exception:
         pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def _render_cuenta_regresiva_20min(segundos_restantes: int):
     """Muestra la nota oficial y la cuenta regresiva en vivo de 20 minutos."""
     html_timer = f"""
@@ -133,9 +175,7 @@ def _render_cuenta_regresiva_20min(segundos_restantes: int):
         setInterval(tick, 1000);
     </script>
     """
-    st.iframe(html_timer, height=82)
-
-
+    components.html(html_timer, height=82)
 
 
 def render_formulario_registro_afiliado(
@@ -166,7 +206,7 @@ def render_formulario_registro_afiliado(
         _render_cuenta_regresiva_20min(restante_20m)
 
     if mostrar_qr_dinamico:
-        base_url_aff = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip().rstrip("/")
+        base_url_aff = str(_find_secret("AFFILIATE_REG_URL")).strip().rstrip("/")
         token_actual, seg_restantes = generar_token_qr_7min()
         min_rest, sec_rest = divmod(seg_restantes, 60)
 
@@ -194,8 +234,11 @@ def render_formulario_registro_afiliado(
             st.session_state[state_submitted_key] = False
             st.rerun()
         return
-
-    id_sugerido = f"AFIL-CEI-{date.today().year}-{random.randint(1000, 9999)}"
+# ==============================================================================
+# registro_afiliados.py — PARTE 3 DE 4: FORMULARIO Y GUARDADO TRANSACCIONAL
+# ==============================================================================
+    anio_actual = date.today().year
+    id_sugerido = f"AFIL-CEI-{anio_actual}-{random.randint(1000, 9999)}"
     es_externo = tiempo_inicio_escaneo is not None
 
     with st.form(f"{key_prefix}_form", clear_on_submit=False):
@@ -286,20 +329,32 @@ def render_formulario_registro_afiliado(
                             ON CONFLICT (usuario) DO UPDATE SET
                                 rol = 'Socio Afiliado',
                                 estatus = EXCLUDED.estatus,
-                                porcentaje_comision = EXCLUDED.porcentaje_comision;
+                                porcentaje_comision = EXCLUDED.porcentaje_comision
+                            RETURNING id, matricula;
                         """, (u_clean, clave_acceso.strip(), estatus_padron, float(pct_default)))
+                        row_pad = cur.fetchone()
+                        if row_pad and not row_pad[1]:
+                            mat_gen = f"CEI-{anio_actual}-{int(row_pad[0]):04d}"
+                            cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_gen, row_pad[0]))
 
                 if token_sesion_externa:
                     _consumir_token_qr(token_sesion_externa)
 
+                st.cache_data.clear()
                 st.session_state[state_id_key] = id_clean
                 st.session_state[state_name_key] = nombre_completo
                 st.session_state[state_submitted_key] = True
                 st.rerun()
             except Exception as e:
                 st.error(f"Error al guardar expediente: {e}")
-
-
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+# ==============================================================================
+# registro_afiliados.py — PARTE 4 DE 4 (FINAL): MODO INDEPENDIENTE (STANDALONE)
+# ==============================================================================
 if __name__ == "__main__":
     st.set_page_config(page_title="Registro de Socios Afiliados — CEI", page_icon="🤝", layout="centered")
     q_token = str(st.query_params.get("reg_token", "")).strip()
