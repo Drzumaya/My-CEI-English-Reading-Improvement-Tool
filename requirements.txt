@@ -1,23 +1,30 @@
+# Base de datos y Google Cloud
 psycopg[binary]>=3.1.18
 SQLAlchemy
-reportlab>=4.1.0
-google-auth
-streamlit>=1.38.0
-google-genai>=0.3.0
-gTTS>=2.5.1
-qrcode[pil]>=7.4.2
-Pillow>=10.4.0
-fpdf2>=2.7.9
-requests>=2.32.3
 gspread>=6.1.2
-pandas>=2.2.2
+google-auth>=2.29.0
+
+# Interfaz Web y Datos
+streamlit>=1.42.0
 streamlit-js-eval>=0.1.7
+pandas>=2.2.2
+requests>=2.32.3
+
+# Inteligencia Artificial, Traducción y Voz
+google-genai>=1.0.0
+deep-translator>=1.11.4
+gTTS>=2.5.1
+
+# Documentos PDF, Gráficos Vectoriales, Imágenes y QR
+fpdf2>=2.7.9
+reportlab>=4.1.0
 svglib
-pydub
-static-ffmpeg
 cairosvg
-pypdfium2
-deep-translator
+Pillow>=10.4.0
+qrcode[pil]>=7.4.2
+pypdfium2>=4.30.0
 
-
-
+# Procesamiento de Audio
+pydub>=0.25.1
+static-ffmpeg>=2.7
+audioop-lts; python_version >= "3.13"
