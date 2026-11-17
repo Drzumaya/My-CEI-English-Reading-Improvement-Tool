@@ -1193,6 +1193,7 @@ class AcademicPDF(FPDF):
         self.cell(self.epw, 4, text=clean_pdf_text(self.address_str), align="C")
 
 
+
 def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, speaking_eval=None) -> bytes:
     folio_doc = st.session_state.get("current_folio") or "SIN-FOLIO"
     base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
