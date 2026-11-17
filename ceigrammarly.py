@@ -2118,313 +2118,172 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B1: VISOR INTERACTIVO DE ESTUDIO (PRE-PROCESAMIENTO Y ETIQUETADO)
+# PARTE 8B: VISOR INTERACTIVO DE ESTUDIO NATIVO (INMUNE A SANDBOX — MAC + MÓVIL)
 # ==============================================================================
-@st.cache_data(ttl=86400, show_spinner=False)
-def _prebuild_lesson_dictionary(text_block: str, existing_dict: dict) -> dict:
-    merged = dict(existing_dict or {})
-    words = set(re.findall(r"\b[a-zA-Z]{3,}\b", str(text_block or "").lower()))
-    faltantes = [w for w in sorted(words) if w not in merged][:45]
-    if faltantes:
-        try:
-            tr_batch = GoogleTranslator(source="en", target="es").translate("\n".join(faltantes))
-            tr_lines = [x.strip() for x in str(tr_batch or "").splitlines()]
-            if len(tr_lines) == len(faltantes):
-                for w_en, w_es in zip(faltantes, tr_lines):
-                    if w_es and w_es.lower() != w_en:
-                        merged[w_en] = {"es": w_es, "pos": "", "ipa": "", "alt": "", "def": ""}
-        except Exception:
-            pass
-    return merged
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def _tts_word_us_mp3(texto_en: str) -> bytes | None:
-    clean_w = str(texto_en or "").strip()
-    if not clean_w:
+@st.cache_data(show_spinner=False, max_entries=500)
+def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
+    """Genera y cachea en memoria la pronunciación MP3 nativa (US) de una palabra."""
+    if not word_clean:
         return None
     try:
+        tts = gTTS(text=word_clean, lang="en", tld="com", slow=slow_mode)
         buf = io.BytesIO()
-        gTTS(text=clean_w, lang="en", tld="us", slow=False).write_to_fp(buf)
+        tts.write_to_fp(buf)
         return buf.getvalue()
     except Exception:
         return None
 
+
 def render_interactive_study_viewer(study_payload: dict):
-    raw_lesson = str(st.session_state.get("generated_text") or "").strip()
-    for marcador in ["**Bibliography", "Bibliography ("]:
-        if marcador in raw_lesson:
-            raw_lesson = next(iter(raw_lesson.split(marcador, 1)), raw_lesson)
+    """Visor interactivo 100% nativo de Streamlit: cero iframes, voz MP3 real y diccionario instantáneo."""
+    if not study_payload or not study_payload.get("sentences"):
+        st.warning("No se pudo estructurar el modo estudio para este texto.")
+        return
 
-    clean_lines = []
-    for ln in raw_lesson.splitlines():
-        s = ln.strip()
-        if not s:
-            continue
-        if s.lower().startswith((
-            "**folio:", "**creation date:", "**author:",
-            "**institution:", "**cefr level:", "**academic level:", "**campus"
-        )):
-            continue
-        clean_lines.append(s.replace("**", "").replace("#", "").strip())
+    sentences = study_payload.get("sentences", [])
+    dictionary = study_payload.get("dictionary", {})
 
-    dict_map = study_payload.get("dictionary", {}) if isinstance(study_payload, dict) else {}
-    base_dict = {}
-    for k, v in dict_map.items():
-        if isinstance(v, dict):
-            base_dict[str(k).lower().strip()] = {
-                "es": str(v.get("es", "")).strip(),
-                "pos": str(v.get("pos_es", "")).strip(),
-                "ipa": str(v.get("ipa", "")).strip(),
-                "alt": str(v.get("alt_es", "")).strip(),
-                "def": str(v.get("def_es", "")).strip()
-            }
+    # 1. Leyenda de colores gramaticales
+    st.markdown(
+        """
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;margin-bottom:10px;font-size:12px;font-weight:700;">
+            <span style="background:#fee2e2;color:#991b1b;padding:3px 8px;border-radius:6px;border-bottom:2px solid #ef4444;">Verbos</span>
+            <span style="background:#dbeafe;color:#1e40af;padding:3px 8px;border-radius:6px;border-bottom:2px solid #3b82f6;">Sustantivos</span>
+            <span style="background:#dcfce7;color:#166534;padding:3px 8px;border-radius:6px;border-bottom:2px solid #22c55e;">Adjetivos</span>
+            <span style="background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:6px;border-bottom:2px solid #f59e0b;">Conjunciones</span>
+            <span style="background:#f1f5f9;color:#334155;padding:3px 8px;border-radius:6px;">Otros</span>
+            <span style="margin-left:auto;color:#0f766e;">👆 Toca cualquier palabra abajo para 🔊 Escuchar y 📖 Ver Diccionario</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    clean_dict = _prebuild_lesson_dictionary("\n".join(clean_lines), base_dict)
-    conjunciones = {
-        "and", "but", "or", "so", "because", "although", "while", "if",
-        "when", "since", "unless", "whereas", "however", "therefore", "yet", "nor"
+    # 2. Texto completo coloreado gramaticalmente (vista rápida de lectura)
+    pos_styles = {
+        "verb": "background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444;",
+        "noun": "background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6;",
+        "adjective": "background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e;",
+        "conjunction": "background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b;",
+        "other": "background:#f1f5f9;color:#334155;"
     }
 
-    boxes_html = []
-    for idx_l, line in enumerate(clean_lines):
-        cls_box = "tbox" if idx_l == 0 else "sbox"
-        spans = []
-        sent_esc = html_lib.escape(line)
-        for part in re.split(r"(\s+)", line):
-            if not part or part.isspace():
-                continue
-            m = re.match(r"^([^A-Za-z0-9'-]*)([A-Za-z0-9'-]+)([^A-Za-z0-9'-]*)$", part)
-            if not m:
-                spans.append(html_lib.escape(part) + " ")
-                continue
-            pre, tok, post = m.groups()
-            low = tok.lower()
-            info_d = clean_dict.get(low, {})
-            pos_raw = str(info_d.get("pos", "")).lower()
-            if "verb" in pos_raw:
-                pos = "verb"
-            elif "sust" in pos_raw or "noun" in pos_raw:
-                pos = "noun"
-            elif "adj" in pos_raw:
-                pos = "adjective"
-            elif "conj" in pos_raw or low in conjunciones:
-                pos = "conjunction"
-            elif low.endswith(("ing", "ed")) and len(low) > 4:
-                pos = "verb"
-            elif low.endswith(("ous", "ful", "able", "ible", "al", "ive", "ic", "ly")) and len(low) > 4:
-                pos = "adjective"
-            elif len(low) > 3 and low.isalpha():
-                pos = "noun"
+    with st.container(height=250, border=True):
+        for s_idx, sent in enumerate(sentences):
+            tokens = sent.get("tokens", [])
+            spans_html = []
+            for tok in tokens:
+                w_txt = html_lib.escape(str(tok.get("w", "")))
+                pos_k = str(tok.get("pos", "other")).lower()
+                st_css = pos_styles.get(pos_k, pos_styles["other"])
+                spans_html.append(
+                    f'<span style="display:inline-block;padding:1px 5px;margin:2px;border-radius:5px;{st_css}">{w_txt}</span>'
+                )
+            if sent.get("is_title"):
+                st.markdown(
+                    f'<div style="background:#1a2a44;color:#fff;padding:10px 14px;border-radius:8px;margin-bottom:8px;font-weight:700;">{" ".join(spans_html)}</div>',
+                    unsafe_allow_html=True
+                )
             else:
-                pos = "other"
+                st.markdown(
+                    f'<div style="border-left:4px solid #1a2a44;padding:6px 12px;margin-bottom:8px;line-height:1.9;">{" ".join(spans_html)}</div>',
+                    unsafe_allow_html=True
+                )
 
-            tok_esc = html_lib.escape(tok)
-            spans.append(
-                f'{html_lib.escape(pre)}<span class="wt {pos}" data-w="{tok_esc}" data-p="{pos}" data-s="{sent_esc}">{tok_esc}</span>{html_lib.escape(post)} '
-            )
-        boxes_html.append(f'<div class="{cls_box}">{"".join(spans)}</div>')
+    # 3. Explorador Interactivo Nativo por Oración y Palabra
+    st.markdown("#### 🔍 Explorador Fonético y Diccionario Interactivo")
+    opciones_oraciones = {
+        f"Oración {i + 1}: {str(s.get('full_sentence', ''))[:75]}...": i
+        for i, s in enumerate(sentences)
+        if str(s.get("full_sentence", "")).strip()
+    }
 
-    rendered_lesson_html = "".join(boxes_html)
-    dict_json = json.dumps(clean_dict, ensure_ascii=False).replace("</", "<\\/")
-# ==============================================================================
-# PARTE 8B2: VISOR INTERACTIVO DE ESTUDIO — ARQUITECTURA DELEGADA (1 CLIC / 2 CLICS)
-# ==============================================================================
-    safe_dict_json = dict_json.replace("</", "<\\/")
+    if not opciones_oraciones:
+        return
 
-    html_doc = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:12px;background:#f8fafc;color:#1e293b}
-    .tb{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;
-        background:#fff;padding:10px 14px;border-radius:10px;border:1px solid #cbd5e1;
-        margin-bottom:10px;font-size:12px;font-weight:600;position:sticky;top:0;z-index:100}
-    .bg{padding:3px 8px;border-radius:6px}
-    .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
-    .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
-    .adjective{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}
-    .conjunction{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}
-    .other{background:#f1f5f9;color:#334155}
-    .tbox{background:#1a2a44;color:#fff;padding:14px 18px;border-radius:10px;margin-bottom:12px;font-size:18px;font-weight:700}
-    .tbox .wt{color:#1e293b;font-size:16px}
-    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:12px 16px;margin-bottom:10px;
-          border-radius:8px;line-height:2.1;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-    .wt{display:inline-block;padding:2px 7px;margin:2px;border-radius:6px;cursor:pointer;user-select:none;transition:transform .1s,box-shadow .1s}
-    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important}
-    .spk-pulse{outline:2px solid #0f766e !important;background:#ccfbf1 !important;color:#115e59 !important;transform:scale(1.05)}
-    #gt-panel{position:sticky;top:52px;z-index:999;background:#fff;border:2px solid #1a73e8;
-              border-radius:12px;box-shadow:0 12px 30px rgba(26,115,232,.35);margin-bottom:12px;overflow:hidden;display:none}
-    .gt-head{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;
-             color:#fff;padding:8px 14px;font-size:12px;font-weight:700}
-    .gt-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e2e8f0}
-    .gt-col{padding:10px 14px}
-    .gt-col:first-child{border-right:1px solid #e2e8f0;background:#f8fafc}
-    .gt-btn{border:none;background:rgba(255,255,255,.22);color:#fff;border-radius:6px;
-            padding:4px 9px;cursor:pointer;font-size:12px;font-weight:600;margin-left:4px}
-    </style></head><body>
-    <div class="tb">
-      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
-           <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
-           <span class="bg other">Otros</span></div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span id="audioBadge" style="color:#0f766e;font-size:11px;font-weight:700;">🖱️ 1 Clic: 🔊 Voz | 2 Clics: 📖 Diccionario</span>
-        <button type="button" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;font-weight:700"
-                onclick="spd()" id="sb">1.0x</button>
-      </div>
-    </div>
+    col_s1, col_s2 = st.columns([2.6, 1.0])
+    with col_s1:
+        oracion_label = st.selectbox(
+            "Selecciona la oración que estás estudiando:",
+            list(opciones_oraciones.keys()),
+            key="study_native_sentence_sel"
+        )
+    with col_s2:
+        velocidad_lenta = st.toggle("🐢 Voz Lenta", value=False, key="study_native_slow_tgl")
 
-    <div id="gt-panel">
-      <div class="gt-head">
-        <span>🌐 GOOGLE TRANSLATE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
-        <div>
-          <button type="button" class="gt-btn" onclick="spk(curW,1)">🔊 Normal</button>
-          <button type="button" class="gt-btn" onclick="spk(curW,0.65)">🐢 Lento</button>
-          <button type="button" class="gt-btn" onclick="cls()">✖ Cerrar</button>
-        </div>
-      </div>
-      <div class="gt-grid">
-        <div class="gt-col">
-          <div style="font-size:11px;color:#64748b;font-weight:700">ENGLISH (UNITED STATES)</div>
-          <div id="bw" style="font-size:21px;font-weight:700;color:#0f172a;margin-top:2px"></div>
-          <div id="bi" style="font-size:13px;color:#475569;margin-top:2px"></div>
-          <div id="bp" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:4px"></div>
-        </div>
-        <div class="gt-col">
-          <div style="font-size:11px;color:#64748b;font-weight:700">ESPAÑOL (TRADUCCIÓN)</div>
-          <div id="be" style="font-size:21px;font-weight:700;color:#1a73e8;margin-top:2px"></div>
-          <div id="ba" style="font-size:12px;color:#475569;margin-top:4px"></div>
-          <div id="bd" style="font-size:12px;color:#334155;margin-top:4px"></div>
-        </div>
-      </div>
-      <div id="bx" style="padding:8px 14px;font-size:12px;color:#334155;background:#f1f5f9"></div>
-    </div>
+    idx_oracion = opciones_oraciones[oracion_label]
+    oracion_actual = sentences[idx_oracion]
+    tokens_oracion = oracion_actual.get("tokens", [])
 
-    <div id="lc">__LESSON_HTML__</div>
-    <script>
-    (function(){
-      const D=__DICT_JSON__;
-      const L={verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Preposición / Adverbio"};
-      let curW="", sp=1, usVoiceCache=null, lastTapTs=0, lastTapEl=null;
+    palabras_botones = []
+    mapa_tokens = {}
+    for t_i, tok in enumerate(tokens_oracion):
+        w_raw = str(tok.get("w", "")).strip()
+        w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw)
+        if w_clean:
+            etiqueta = f"{w_raw} ·" if w_raw in mapa_tokens else w_raw
+            palabras_botones.append(etiqueta)
+            mapa_tokens[etiqueta] = (w_clean, str(tok.get("pos", "other")).lower())
 
-      function pickUSVoice(){
-        try{
-          if(!('speechSynthesis' in window))return null;
-          const vs=window.speechSynthesis.getVoices()||[];
-          if(!vs.length)return null;
-          usVoiceCache=vs.find(v=>v.lang==='en-US'&&(v.name.includes('Samantha')||v.name.includes('Alex')||v.name.includes('Google US English')||v.name.includes('Aria')||v.name.includes('Jenny')))
-            ||vs.find(v=>v.lang==='en-US'||v.lang==='en_US')
-            ||vs.find(v=>v.lang&&v.lang.toLowerCase().startsWith('en-'))||null;
-          return usVoiceCache;
-        }catch(e){return null;}
-      }
+    if palabras_botones:
+        palabra_elegida = st.pills(
+            "👆 Toca una palabra para escuchar su pronunciación (US) y ver su significado:",
+            options=palabras_botones,
+            selection_mode="single",
+            key=f"study_pills_sent_{idx_oracion}"
+        )
 
-      if('speechSynthesis' in window){
-        pickUSVoice();
-        window.speechSynthesis.onvoiceschanged=pickUSVoice;
-      }
+        if palabra_elegida and palabra_elegida in mapa_tokens:
+            w_clean, pos_tag = mapa_tokens[palabra_elegida]
+            k_low = w_clean.lower()
 
-      window.spd=function(){
-        sp=(sp===1)?0.75:1;
-        const sb=document.getElementById('sb');
-        if(sb)sb.innerText=sp+'x';
-      };
+            info_dic = dictionary.get(k_low)
+            if not info_dic:
+                for stem in (
+                    re.sub(r"ed$", "", k_low),
+                    re.sub(r"ed$", "e", k_low),
+                    re.sub(r"ing$", "", k_low),
+                    re.sub(r"ing$", "e", k_low),
+                    re.sub(r"ies$", "y", k_low),
+                    re.sub(r"s$", "", k_low),
+                ):
+                    if len(stem) > 2 and stem in dictionary:
+                        info_dic = dictionary[stem]
+                        break
+            info_dic = info_dic or {}
 
-      window.spk=function(w,r){
-        if(!w)return;
-        try{
-          if('speechSynthesis' in window){
-            window.speechSynthesis.resume();
-            window.speechSynthesis.cancel();
-            const u=new SpeechSynthesisUtterance(String(w));
-            u.lang='en-US';
-            u.rate=r||sp;
-            u.volume=1.0;
-            const v=usVoiceCache||pickUSVoice();
-            if(v)u.voice=v;
-            window.speechSynthesis.speak(u);
-          }
-        }catch(e){}
-      };
+            pos_es_map = {
+                "verb": "Verbo (Verb)",
+                "noun": "Sustantivo (Noun)",
+                "adjective": "Adjetivo (Adjective)",
+                "conjunction": "Conjunción (Conjunction)",
+                "other": "Preposición / Adverbio / Otro"
+            }
 
-      window.cls=function(){
-        const pnl=document.getElementById('gt-panel');
-        if(pnl)pnl.style.display='none';
-        document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
-      };
+            with st.container(border=True):
+                c_d1, c_d2 = st.columns([1.2, 1.3])
+                with c_d1:
+                    st.markdown(f"### 🇺🇸 {w_clean}")
+                    st.caption(f"**Categoría:** {info_dic.get('pos') or pos_es_map.get(pos_tag, 'Vocabulario')}")
+                    if info_dic.get("ipa"):
+                        st.markdown(f"**Fonética (IPA):** `{info_dic['ipa']}`")
 
-      function lookupLocalDict(k){
-        if(D[k])return D[k];
-        const stems=[k.replace(/ed$/,''),k.replace(/ed$/,'e'),k.replace(/ing$/,''),k.replace(/ing$/,'e'),k.replace(/ies$/,'y'),k.replace(/s$/,'')];
-        for(const st of stems){if(st.length>2 && D[st])return D[st];}
-        return null;
-      }
+                    mp3_word = _synthesize_word_mp3(w_clean, slow_mode=velocidad_lenta)
+                    if mp3_word:
+                        st.audio(mp3_word, format="audio/mp3", autoplay=True)
 
-      function openWordCard(el){
-        document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
-        el.classList.add('act');
-        const w=el.getAttribute('data-w')||'';
-        const p=el.getAttribute('data-p')||'other';
-        const fs=el.getAttribute('data-s')||'';
-        curW=w;
-        const k=w.toLowerCase().replace(/^[^a-z0-9'-]+|[^a-z0-9'-]+$/g,'');
-        const inf=lookupLocalDict(k)||{};
-        const pnl=document.getElementById('gt-panel');
-        if(pnl)pnl.style.display='block';
-        document.getElementById('bw').innerText=w;
-        document.getElementById('bp').innerText=inf.pos||L[p]||'Vocabulario Inglés (US)';
-        document.getElementById('bi').innerText=inf.ipa?('Pronunciación: '+inf.ipa):'🇺🇸 US English';
-        document.getElementById('ba').innerText=inf.alt?('Sinónimos / Acepciones: '+inf.alt):'';
-        document.getElementById('bd').innerText=inf.def?('📖 Definición: '+inf.def):'';
-        document.getElementById('be').innerText=inf.es||w;
-        const cleanQ=encodeURIComponent(k||w);
-        const bxEl=document.getElementById('bx');
-        bxEl.innerHTML='';
-        const ctxDiv=document.createElement('div');
-        ctxDiv.textContent='💬 Contexto en la lección: "'+fs+'"';
-        bxEl.appendChild(ctxDiv);
-        const linksDiv=document.createElement('div');
-        linksDiv.style.cssText='margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;';
-        const aWR=document.createElement('a');
-        aWR.href='https://wordreference.com;
-        aWR.target='_blank';
-        aWR.style.cssText='color:#1a73e8;font-weight:700;text-decoration:none;';
-        aWR.textContent='📖 Abrir en WordReference ↗';
-        const aGT=document.createElement('a');
-        aGT.href='https://google.com';
-        aGT.target='_blank';
-        aGT.style.cssText='color:#0f766e;font-weight:700;text-decoration:none;';
-        aGT.textContent='🌐 Abrir en Google Translate ↗';
-        linksDiv.appendChild(aWR);
-        linksDiv.appendChild(aGT);
-        bxEl.appendChild(linksDiv);
-      }
+                with c_d2:
+                    st.markdown(f"### 🇪🇸 {info_dic.get('es') or w_clean}")
+                    if info_dic.get("alt"):
+                        st.markdown(f"**Sinónimos / Acepciones:** {info_dic['alt']}")
+                    if info_dic.get("def"):
+                        st.info(f"📖 **Definición:** {info_dic['def']}")
 
-      document.addEventListener('click',function(e){
-        const pnl=document.getElementById('gt-panel');
-        if(pnl && pnl.contains(e.target))return;
-        const spn=e.target.closest('.wt');
-        if(!spn){
-          window.cls();
-          return;
-        }
-        e.stopPropagation();
-        const w=spn.getAttribute('data-w')||'';
-        const now=Date.now();
-        const isDouble=(lastTapEl===spn && (now-lastTapTs)<420);
-        lastTapTs=now;
-        lastTapEl=spn;
+                    q_url = urllib.parse.quote(k_low)
+                    st.markdown(
+                        f"🔗 [Abrir en WordReference ↗](https://wordreference.com{q_url})  |  "
+                        f"[Abrir en Google Translate ↗](https://google.com{q_url}&op=translate)"
+                    )
 
-        spn.classList.add('spk-pulse');
-        setTimeout(()=>spn.classList.remove('spk-pulse'),240);
-
-        window.spk(w,sp);
-        if(isDouble){
-          openWordCard(spn);
-        }
-      },true);
-    })();
-    </script></body></html>"""
-
-    html_code = html_doc.replace("__LESSON_HTML__", rendered_lesson_html).replace("__DICT_JSON__", safe_dict_json)
-    components.html(html_code, height=640, scrolling=True)
 # ==============================================================================
 # PARTE 9A: MIGRACIÓN SHEETS -> SUPABASE (PERMISOS, PADRÓN Y FOLIOS)
 # ==============================================================================
