@@ -4688,99 +4688,259 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 df_pkgs = pd.DataFrame(estado_pkgs)[["Paquete", "Instalada", "Última PyPI", "Estado"]]
                 st.dataframe(df_pkgs, width="stretch", hide_index=True)
 # ==============================================================================
-# PARTE 14D1: MÓDULOS FINANCIEROS SPA — COBRANZA MENSUAL E IVA
+# PARTE 14D1 — MITAD 1 DE 2: VALIDACIÓN BANCARIA, WHATSAPP Y VACACIONES
 # ==============================================================================
-        # 14.5 PESTAÑA COBRANZA MENSUAL E IVA
         if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
-            if not (is_owner or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
+            puede_validar_pagos = bool(is_owner or can("Gestionar_Pagos_Cobranza"))
+            if not (is_owner or puede_validar_pagos or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
                 st.warning("⛔ Sin permisos financieros habilitados.")
             else:
-                if is_owner:
-                    st.markdown("##### 🎛️ Control Global de Incentivos (-7%) y Recargos (+5%)")
-                    est_glob = get_billing_global_settings_pg()
-                    c_sw1, c_sw2 = st.columns([2.4, 1.0])
-                    nuevo_glob = c_sw1.toggle(
-                        "Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)",
-                        value=est_glob,
-                        key="tgl_glob_bill"
-                    )
-                    if c_sw2.button("💾 Guardar Cambio", type="primary", width="stretch", key="btn_glob_bill"):
-                        ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
-                        if ok_g:
-                            st.success(f"✅ {msg_g}")
-                            st.rerun()
-                        else:
-                            st.error(f"❌ {msg_g}")
-                    st.caption(
-                        f"Estado guardado en base de datos: **{'🟢 ACTIVADO (Incentivo -7% / Recargo +5%)' if est_glob else '⚪ DESACTIVADO (Tarifa Base sin incentivos ni recargos)'}**"
-                    )
+                tab_val, tab_ind, tab_vac = st.tabs([
+                    "📥 Comprobantes por Confirmar y WhatsApp",
+                    "👤 Cobranza Individual (9 Bloques)",
+                    "🏖️ Períodos Vacacionales (IA Activa 24/7)"
+                ])
+
+                with tab_val:
+                    st.markdown("##### 📥 Comprobantes Subidos por Estudiantes (Cotejo Bancario)")
+                    pendientes_list = listar_comprobantes_pendientes_pg()
+                    if not pendientes_list:
+                        st.success("✅ No hay comprobantes bancarios pendientes de confirmación en este momento.")
+                    else:
+                        for item_p in pendientes_list:
+                            with st.container(border=True):
+                                c_v1, c_v2, c_v3 = st.columns([2.2, 1.4, 1.3])
+                                with c_v1:
+                                    st.markdown(
+                                        f"**🧾 Folio:** `{item_p.get('folio_pago') or 'S/F'}`  |  "
+                                        f"**👤 Estudiante:** {item_p.get('nombre_completo')} (`{item_p.get('student_user')}`)"
+                                    )
+                                    st.caption(
+                                        f"Nivel **{item_p.get('nivel_cefr') or 'CEFR'}**  •  "
+                                        f"**Bloque {item_p.get('ciclo_numero')}**  •  "
+                                        f"Método: **{item_p.get('metodo_pago')}**  •  "
+                                        f"Ref: `{item_p.get('referencia_comprobante') or 'N/A'}`  •  "
+                                        f"Reportado: {item_p.get('fecha_reporte')}"
+                                    )
+                                    b64_doc = str(item_p.get("comprobante_b64") or "").strip()
+                                    mime_doc = str(item_p.get("comprobante_mime") or "").strip()
+                                    if b64_doc:
+                                        if "pdf" in mime_doc.lower():
+                                            st.download_button(
+                                                "📄 Ver / Descargar Comprobante PDF",
+                                                data=base64.b64decode(b64_doc),
+                                                file_name=f"{item_p.get('folio_pago') or 'comprobante'}.pdf",
+                                                mime="application/pdf",
+                                                key=f"dl_comp_{item_p['id']}"
+                                            )
+                                        else:
+                                            with st.expander("🖼️ Ver Imagen del Comprobante Bancario"):
+                                                st.image(base64.b64decode(b64_doc), width=320)
+
+                                with c_v2:
+                                    st.metric("Monto Reportado", f"${float(item_p.get('monto_final') or 0):,.2f} MXN")
+                                    nota_val = st.text_input(
+                                        "Nota bancaria:",
+                                        placeholder="Ej: Confirmado en BBVA",
+                                        key=f"nota_val_{item_p['id']}"
+                                    )
+
+                                with c_v3:
+                                    if puede_validar_pagos:
+                                        if st.button(
+                                            "✅ Confirmar Pago y Activar Boletín",
+                                            type="primary",
+                                            width="stretch",
+                                            key=f"btn_ok_pay_{item_p['id']}"
+                                        ):
+                                            res_ok = confirmar_pago_bancario_pg(
+                                                student_user=str(item_p["student_user"]),
+                                                ciclo_numero=int(item_p["ciclo_numero"]),
+                                                validado_por=str(st.session_state.get("current_user", "Owner")),
+                                                notas_admin=nota_val
+                                            )
+                                            if res_ok["ok"]:
+                                                st.success(res_ok["msg"])
+                                                st.rerun()
+                                            else:
+                                                st.error(res_ok["msg"])
+
                     st.divider()
+                    st.markdown("##### 📲 Radar de Avisos WhatsApp (4ta Semana de Pago y 5ta Semana con Recargo)")
+                    padron_radar = load_padron_records()
+                    alumnos_radar = [r for r in padron_radar if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+                    avisos_encontrados = 0
+                    for r_al in alumnos_radar:
+                        u_al = str(r_al.get("Usuario") or "").strip()
+                        nom_al = str(r_al.get("Nombre_Completo") or u_al).strip()
+                        est_r = evaluar_estado_financiero_alumno(u_al)
+                        es_sem4 = (int(est_r.get("semana_ciclo") or 1) == 4 and not est_r.get("ciclo_pagado"))
+                        es_mora = (int(est_r.get("dias_retraso") or 0) > 0)
+                        if es_sem4 or es_mora:
+                            avisos_encontrados += 1
+                            _, wa_link_est = build_whatsapp_recordatorio_estudiante(
+                                est_r,
+                                nombre_alumno=nom_al,
+                                telefono_alumno=est_r.get("telefono_whatsapp", "")
+                            )
+                            etq_badge = "🔴 Semana 5+ (Recargo Activo)" if es_mora else "🟡 4ta Semana (Ventana de Pago)"
+                            with st.container(border=True):
+                                rw1, rw2 = st.columns([2.6, 1.2])
+                                with rw1:
+                                    st.markdown(
+                                        f"**{etq_badge}** — **{nom_al}** (`{u_al}`)  |  "
+                                        f"Bloque **{est_r['ciclo_a_cobrar']}**  |  Monto: **${est_r['monto_a_pagar']:,.2f} MXN**"
+                                    )
+                                    st.caption(
+                                        f"Ventana 4ta Sem: {est_r['sem4_pago_inicio']} al {est_r['sem4_pago_fin']}  •  "
+                                        f"Recargo desde: {est_r['fecha_recargo']}  •  "
+                                        f"Boletín: {'✅ Activo' if est_r['descarga_permitida'] else '🔒 Pausado'}"
+                                    )
+                                with rw2:
+                                    st.link_button(
+                                        "📲 Enviar Aviso WhatsApp",
+                                        url=wa_link_est,
+                                        width="stretch"
+                                    )
+                    if avisos_encontrados == 0:
+                        st.info("🟢 Todos los estudiantes se encuentran al corriente en semanas 1 a 3.")
 
-                padron_fin = load_padron_records()
-                estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
-                afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
-
-                if estudiantes_fin:
-                    mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
-                    sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
-                    est_objetivo = mapa_est_fin[sel_est_lbl]
-                    estado_f = evaluar_estado_financiero_alumno(est_objetivo)
-
-                    metrics_placeholder = st.container()
-                    col_cfg1, col_cfg2 = st.columns(2)
-                    with col_cfg1:
-                        st.markdown("##### ⚙️ Configuración de Curso, IVA y Comisión")
-                        nueva_fecha_ini = st.date_input("Fecha de Inicio:", value=estado_f["fecha_inicio"], disabled=not puede_editar_inicio, key="inp_f_ini")
-                        nueva_mensualidad = st.number_input("Mensualidad Base ($):", min_value=0.0, value=float(estado_f["mensualidad_base"]), step=100.0, disabled=not puede_editar_inicio, key="inp_m_base")
-                        nuevo_aplicar_iva = st.checkbox("Aplicar +16% de IVA sobre subtotal", value=bool(estado_f["aplicar_iva"]), disabled=not puede_gestionar_iva, key="chk_iva_al")
-                        opciones_aff = ["Sin Afiliado"] + afiliados_fin
-                        idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
-                        sel_aff_user = st.selectbox("Socio Afiliado:", opciones_aff, index=idx_aff, disabled=not puede_gestionar_afiliados, key="sel_aff_as")
-                        nuevo_pct_com = st.number_input("Comisión Afiliado (%):", min_value=0.0, max_value=100.0, value=float(estado_f["porcentaje_comision"]), step=1.0, disabled=not puede_gestionar_afiliados, key="inp_pct_af")
-
-                        ajuste_vivo = 0.0 if not estado_f["reglas_incentivo_activas"] else (round(nueva_mensualidad * 0.05, 2) if "Recargo" in estado_f["ajuste_label"] else round(-nueva_mensualidad * 0.07, 2))
-                        subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
-                        iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
-                        total_vivo = round(subtotal_vivo + iva_vivo, 2)
-
-                        if st.button("💾 Guardar Configuración", type="primary", key="btn_save_fin"):
-                            aff_s = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
-                            if actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva, aff_s, nuevo_pct_com):
-                                st.success(f"✅ Guardado. Total: ${total_vivo:,.2f} MXN")
+                with tab_vac:
+                    st.markdown("##### 🏖️ Calendario de Vacaciones del Instituto")
+                    st.info(
+                        "📚 **Política Académica y Tecnológica:** Durante los períodos vacacionales se suspenden las clases presenciales, "
+                        "**pero el sistema permanece 100 % activo las 24 horas** para que el estudiante siga generando lecciones y avanzando en su aprendizaje. "
+                        "Por ello, los ciclos de pago de 4 semanas continúan de forma ininterrumpida."
+                    )
+                    cv1, cv2, cv3, cv4 = st.columns([1.8, 1.1, 1.1, 1.0])
+                    v_nom = cv1.text_input("Nombre del período:", placeholder="Ej: Receso de Invierno 2026", key="vac_nom_in")
+                    v_ini = cv2.date_input("Desde:", key="vac_ini_in")
+                    v_fin = cv3.date_input("Hasta:", key="vac_fin_in")
+                    if cv4.button("➕ Agregar", type="primary", width="stretch", key="btn_add_vac"):
+                        if v_nom.strip() and v_fin >= v_ini:
+                            if guardar_vacaciones_instituto_pg(v_nom, v_ini, v_fin):
+                                st.success("✅ Período vacacional guardado.")
                                 st.rerun()
-                        st.caption(f"🧮 **Cálculo Total:** Base `${nueva_mensualidad:,.2f}` | Subtotal `${subtotal_vivo:,.2f}` | IVA `${iva_vivo:,.2f}` ➔ **Total: `${total_vivo:,.2f}`**")
+                    lista_v = load_institute_holidays_pg()
+                    for hv in lista_v:
+                        vc1, vc2 = st.columns([3.5, 0.8])
+                        vc1.markdown(f"🏖️ **{hv['nombre_periodo']}** — Del `{hv['fecha_inicio']}` al `{hv['fecha_fin']}`")
+                        if vc2.button("🗑️ Quitar", key=f"del_vac_{hv['id']}"):
+                            eliminar_vacaciones_instituto_pg(hv["id"])
+                            st.rerun()
 
-                    with metrics_placeholder:
-                        f1, f2, f3, f4 = st.columns(4)
-                        f1.metric("📅 Ciclo", f"Mes {estado_f['ciclo_a_cobrar']}", delta=f"Sem. {estado_f['semana_ciclo']}/4")
-                        f2.metric("💵 Subtotal", f"${subtotal_vivo:,.2f}", delta=f"Base: ${nueva_mensualidad:,.2f}")
-                        f3.metric("🧾 Total" + (" (+IVA)" if nuevo_aplicar_iva else ""), f"${total_vivo:,.2f}", delta=f"IVA: +${iva_vivo:,.2f}" if nuevo_aplicar_iva else "Sin IVA")
-                        d_ret_m = int(estado_f.get("dias_retraso", 0))
-                        f4.metric(
-                            "📄 Boletín",
-                            "✅ Activo" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
-                            delta="Al corriente" if estado_f["descarga_permitida"] else f"{d_ret_m} {'día' if d_ret_m == 1 else 'días'} de retraso (Mes {estado_f['ciclo_a_cobrar']})"
+                with tab_ind:
+                    if is_owner:
+                        st.markdown("##### 🎛️ Control Global de Incentivos (-7%) y Recargos (+5%)")
+                        est_glob = get_billing_global_settings_pg()
+                        c_sw1, c_sw2 = st.columns([2.4, 1.0])
+                        nuevo_glob = c_sw1.toggle(
+                            "Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)",
+                            value=est_glob,
+                            key="tgl_glob_bill"
                         )
+                        if c_sw2.button("💾 Guardar Cambio", type="primary", width="stretch", key="btn_glob_bill"):
+                            ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
+                            if ok_g:
+                                st.success(f"✅ {msg_g}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_g}")
+                        st.divider()
 
-                    with col_cfg2:
-                        st.markdown("##### 🧾 Desglose y Cobro Mensual")
-                        st.info(
-                            f"- **Base:** `${nueva_mensualidad:,.2f}` | **Ajuste:** `${ajuste_vivo:+,.2f}`\n"
-                            f"- **Subtotal:** `${subtotal_vivo:,.2f}` | **IVA (16%):** `${iva_vivo:,.2f}`\n"
-                            f"- **TOTAL A PAGAR:** **`${total_vivo:,.2f} MXN`**"
-                        )
-                        if estado_f["ciclo_pagado"]:
-                            st.success(f"✅ Mes {estado_f['ciclo_a_cobrar']} pagado.")
-                        else:
-                            if st.button(f"✅ Registrar Pago (${total_vivo:,.2f})", type="primary", width="stretch", key="btn_reg_pay"):
+                    padron_fin = load_padron_records()
+                    estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+                    afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+
+                    if estudiantes_fin:
+                        mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
+                        sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
+                        est_objetivo = mapa_est_fin[sel_est_lbl]
+                        estado_f = evaluar_estado_financiero_alumno(est_objetivo)
+
+                        metrics_placeholder = st.container()
+                        col_cfg1, col_cfg2 = st.columns(2)
+                        with col_cfg1:
+                            st.markdown("##### ⚙️ Configuración de Inscripción, Inicio y Tarifa")
+                            nueva_fecha_ins = st.date_input("📝 Fecha de Inscripción:", value=estado_f["fecha_inscripcion"], disabled=not puede_editar_inicio, key="inp_f_ins")
+                            nueva_fecha_ini = st.date_input("🎓 Fecha de Inicio de Clases:", value=estado_f["fecha_inicio"], disabled=not puede_editar_inicio, key="inp_f_ini")
+                            nuevo_tel_wa = st.text_input("📱 WhatsApp del Estudiante:", value=estado_f["telefono_whatsapp"], key="inp_tel_wa")
+                            nueva_mensualidad = st.number_input("Mensualidad Base ($):", min_value=0.0, value=float(estado_f["mensualidad_base"]), step=100.0, disabled=not puede_editar_inicio, key="inp_m_base")
+                            nuevo_aplicar_iva = st.checkbox("Aplicar +16% de IVA sobre subtotal", value=bool(estado_f["aplicar_iva"]), disabled=not puede_gestionar_iva, key="chk_iva_al")
+                            opciones_aff = ["Sin Afiliado"] + afiliados_fin
+                            idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
+                            sel_aff_user = st.selectbox("Socio Afiliado:", opciones_aff, index=idx_aff, disabled=not puede_gestionar_afiliados, key="sel_aff_as")
+                            nuevo_pct_com = st.number_input("Comisión Afiliado (%):", min_value=0.0, max_value=100.0, value=float(estado_f["porcentaje_comision"]), step=1.0, disabled=not puede_gestionar_afiliados, key="inp_pct_af")
+
+                            ajuste_vivo = 0.0 if not estado_f["reglas_incentivo_activas"] else (round(nueva_mensualidad * 0.05, 2) if "Recargo" in estado_f["ajuste_label"] else round(-nueva_mensualidad * 0.07, 2))
+                            subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
+                            iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
+                            total_vivo = round(subtotal_vivo + iva_vivo, 2)
+
+                            if st.button("💾 Guardar Configuración", type="primary", key="btn_save_fin"):
                                 aff_s = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
-                                actualizar_config_financiera_alumno_pg(est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva, aff_s, nuevo_pct_com)
-                                res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
-                                if res_p["ok"]:
-                                    st.success(res_p["msg"])
+                                if actualizar_config_financiera_alumno_pg(
+                                    est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva,
+                                    aff_s, nuevo_pct_com, fecha_inscripcion_val=nueva_fecha_ins, telefono_whatsapp_val=nuevo_tel_wa
+                                ):
+                                    st.success(f"✅ Guardado. Total: ${total_vivo:,.2f} MXN")
                                     st.rerun()
-                                else:
-                                    st.error(res_p["msg"])
+
+                        with metrics_placeholder:
+                            f1, f2, f3, f4 = st.columns(4)
+                            f1.metric("📅 Bloque Nivel", f"Bloque {estado_f['bloque_en_nivel']}/9", delta=f"Sem. {estado_f['semana_ciclo']}/4")
+                            f2.metric("🟡 4ta Sem. Pago", f"{estado_f['sem4_pago_inicio']}", delta=f"Hasta {estado_f['sem4_pago_fin']}")
+                            f3.metric("🧾 Total Ciclo", f"${total_vivo:,.2f}", delta=f"Recargo: {estado_f['fecha_recargo']}")
+                            d_ret_m = int(estado_f.get("dias_retraso", 0))
+                            f4.metric(
+                                "📄 Boletín",
+                                "✅ Activo" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
+                                delta="Al corriente" if estado_f["descarga_permitida"] else f"{d_ret_m} días retraso"
+                            )
+
+                        with col_cfg2:
+                            st.markdown("##### 🧾 Cobro Directo y Aviso WhatsApp")
+                            st.info(
+                                f"- **Inscripción:** `{nueva_fecha_ins}`  |  **Inicio Clases:** `{nueva_fecha_ini}`\n"
+                                f"- **Ventana 4ta Semana (Sin recargo):** `{estado_f['sem4_pago_inicio']}` al `{estado_f['sem4_pago_fin']}`\n"
+                                f"- **Inicio Siguiente Bloque / Recargo:** `{estado_f['fecha_recargo']}`\n"
+                                f"- **TOTAL A PAGAR:** **`${total_vivo:,.2f} MXN`**"
+                            )
+                            _, wa_est_url = build_whatsapp_recordatorio_estudiante(estado_f, est_objetivo, nuevo_tel_wa)
+                            st.link_button("📲 Enviar Recordatorio WhatsApp al Estudiante", url=wa_est_url, width="stretch")
+
+                            if estado_f["ciclo_pagado"]:
+                                st.success(f"✅ Bloque {estado_f['ciclo_a_cobrar']} pagado.")
+                            else:
+                                if st.button(f"✅ Confirmar Pago Directo (${total_vivo:,.2f})", type="primary", width="stretch", key="btn_reg_pay"):
+                                    aff_s = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
+                                    actualizar_config_financiera_alumno_pg(
+                                        est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva,
+                                        aff_s, nuevo_pct_com, fecha_inscripcion_val=nueva_fecha_ins, telefono_whatsapp_val=nuevo_tel_wa
+                                    )
+                                    res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
+                                    if res_p["ok"]:
+                                        st.success(res_p["msg"])
+                                        st.rerun()
+                                    else:
+                                        st.error(res_p["msg"])
+
+                        if estado_f.get("bloques_9"):
+                            st.markdown("##### 🗓️ Plan de 9 Bloques de 4 Semanas del Nivel (36 Semanas)")
+                            df_b9 = pd.DataFrame([
+                                {
+                                    "Bloque (4 Sem)": f"Bloque {b['bloque_num']}/9",
+                                    "Inicio Bloque": str(b["inicio_bloque"]),
+                                    "Fin Bloque": str(b["fin_bloque"]),
+                                    "4ta Semana Pago (Sin Recargo)": f"{b['sem4_inicio']} al {b['sem4_fin']}",
+                                    "Recargo / Sig. Bloque": str(b["fecha_recargo"]),
+                                    "Clases / Vacaciones (IA 24/7)": b["vacaciones"],
+                                    "Estatus": b["estatus"]
+                                }
+                                for b in estado_f["bloques_9"]
+                            ])
+                            st.dataframe(df_b9, width="stretch", hide_index=True)
+
 # ==============================================================================
 # PARTE 14D2: ESTADOS FINANCIEROS CONSOLIDADOS, ALTA Y PORTAL SOCIO AFILIADO
 # ==============================================================================
