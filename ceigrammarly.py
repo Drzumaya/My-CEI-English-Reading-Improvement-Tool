@@ -4147,12 +4147,52 @@ with col_exit:
         st.session_state.pending_ls_token = "REMOVE"
         st.rerun()
 
-# --- BARRA DE COMANDO INSTITUCIONAL FIJA (SPA WORKSPACE SWITCHER) ---
+# --- BARRA DE COMANDO SPA (ROL-AWARE: ESTUDIANTE VS INSTITUCIONAL) ---
 es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
-if is_owner or is_faculty_desktop or es_socio_afiliado or can("Gestionar_Pagos_Cobranza"):
-    if "active_admin_workspace" not in st.session_state:
-        st.session_state["active_admin_workspace"] = None
+es_estudiante_rol = (curr_r_clean in ["estudiante", "student", "alumno"]) and (not is_owner)
 
+if "active_admin_workspace" not in st.session_state:
+    st.session_state["active_admin_workspace"] = None
+if "active_student_workspace" not in st.session_state:
+    st.session_state["active_student_workspace"] = None
+
+if es_estudiante_rol:
+    # Blindaje: el estudiante jamás abre workspaces administrativos
+    st.session_state["active_admin_workspace"] = None
+    opciones_menu_est = [
+        "💳 Mis Pagos (9 Bloques)",
+        "📊 Mis Calificaciones y Boletín",
+        "📚 Mis Lecciones y Folios",
+        "🎧 Mis Audios y Pronunciación"
+    ]
+    idx_est_ws = (
+        opciones_menu_est.index(st.session_state["active_student_workspace"])
+        if st.session_state["active_student_workspace"] in opciones_menu_est else 0
+    )
+    with st.container(border=True):
+        ce1, ce2, ce3 = st.columns([3.2, 1.0, 1.2])
+        with ce1:
+            mod_est_elegido = st.selectbox(
+                "🎓 Mi Espacio Estudiantil:",
+                options=opciones_menu_est,
+                index=idx_est_ws,
+                label_visibility="collapsed",
+                key="sb_portal_estudiante_nav"
+            )
+        with ce2:
+            if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_student_ws"):
+                st.session_state["active_student_workspace"] = mod_est_elegido
+                st.rerun()
+        with ce3:
+            if st.session_state["active_student_workspace"]:
+                if st.button("✖️ CERRAR", type="secondary", width="stretch", key="btn_close_student_ws"):
+                    st.session_state["active_student_workspace"] = None
+                    st.rerun()
+            else:
+                st.caption("🎓 Aula de Aprendizaje Activa")
+
+elif is_owner or is_faculty_desktop or es_socio_afiliado or can("Gestionar_Pagos_Cobranza"):
+    st.session_state["active_student_workspace"] = None
     if es_socio_afiliado:
         opciones_menu_inst = ["🤝 Portal Socio Afiliado"]
     else:
@@ -4202,6 +4242,7 @@ if is_owner or is_faculty_desktop or es_socio_afiliado or can("Gestionar_Pagos_C
                     st.rerun()
             else:
                 st.caption("📚 Aula Académica Activa")
+
 
 # ==============================================================================
 # PARTE 13A1 — BLOQUE 1 DE 3: BARRA DE FOLIOS, BOLETÍN Y MIS PAGOS (FOCUS MODE)
