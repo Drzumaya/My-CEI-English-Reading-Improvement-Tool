@@ -4287,7 +4287,9 @@ if not st.session_state.get("active_admin_workspace"):
         with st.container(border=True):
             st.subheader("💳 Calendario de Pagos Mensuales (9 Bloques de 4 Semanas) y Comprobantes")
 
-            if is_owner or can("Gestionar_Pagos_Cobranza") or can("Ver_Panel_Admin"):
+            es_est_actual_sp = (curr_r_clean in ["estudiante", "student", "alumno"]) and (not is_owner)
+            if (is_owner or can("Gestionar_Pagos_Cobranza") or can("Ver_Panel_Admin")) and (not es_est_actual_sp):
+
                 padron_sp = load_padron_records()
                 opciones_sp = {
                     f"{r.get('Matricula', '')} — {r.get('Usuario', '')} (CEFR {r.get('Nivel', '')})": str(r.get("Usuario", "")).strip()
@@ -4417,7 +4419,8 @@ if not st.session_state.get("active_admin_workspace"):
         with st.container(border=True):
             st.subheader("📊 Boletín Académico Integral y Desempeño por Grammar Topic")
 
-            if is_owner or can("Ver_Panel_Admin"):
+            es_est_actual = (curr_r_clean in ["estudiante", "student", "alumno"]) and (not is_owner)
+            if (is_owner or can("Ver_Panel_Admin")) and (not es_est_actual):
                 padron_gb = load_padron_records()
                 opciones_gb = {}
                 for r_u in padron_gb:
@@ -4439,6 +4442,7 @@ if not st.session_state.get("active_admin_workspace"):
             else:
                 alumno_objetivo_gb = st.session_state.current_user
                 st.info(f"🎓 **Expediente Académico de:** {alumno_objetivo_gb}")
+
 
             gb_data = fetch_student_gradebook_pg(alumno_objetivo_gb)
 
