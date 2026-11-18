@@ -5517,7 +5517,16 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         st.markdown("##### 💵 Historial de Comisiones")
                         st.dataframe(pd.DataFrame(dash_aff["commissions"]), width="stretch", hide_index=True)
 
+    st.divider()
+    st.markdown(
+        "<div style='text-align: center; color: #777; font-size: 13px; margin-top: 20px;'>"
+        "📍 <b>" + str(institute_address) + "</b><br>"
+        "© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti"
+        "</div>",
+        unsafe_allow_html=True
+    )
     st.stop()
+
 # ==============================================================================
 # PARTE 15: PROCESAMIENTO Y GENERACIÓN DE LECCIÓN (VALIDACIÓN Y PROMPT GEMINI)
 # ==============================================================================
