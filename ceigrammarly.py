@@ -2140,18 +2140,20 @@ def _fetch_google_translate_server(word_en: str) -> tuple[str, str]:
         tr_main = ""
         alts = []
         if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
-            tr_main = "".join(str(seg[0]) for seg in data[0] if isinstance(seg, list) and seg).strip()
+            tr_main = "".join(str(seg[0]) for seg in data[0] if isinstance(seg, list) and len(seg) > 0 and seg[0]).strip()
         if isinstance(data, list) and len(data) > 1 and isinstance(data[1], list):
             for grp in data[1][:2]:
                 if isinstance(grp, list) and len(grp) > 1 and isinstance(grp[1], list):
                     alts.extend(str(x) for x in grp[1][:3])
-        return tr_main, ", ".join(dict.fromkeys(alts))
+        if tr_main and tr_main.lower() != w_q.lower():
+            return tr_main, ", ".join(dict.fromkeys(alts))
     except Exception:
-        try:
-            fallback_es = GoogleTranslator(source="en", target="es").translate(w_q)
-            return str(fallback_es or "").strip(), ""
-        except Exception:
-            return "", ""
+        pass
+    try:
+        fallback_es = GoogleTranslator(source="en", target="es").translate(w_q)
+        return str(fallback_es or "").strip(), ""
+    except Exception:
+        return "", ""
 
 
 @st.cache_data(ttl=86400, show_spinner=False, max_entries=60)
@@ -2385,6 +2387,14 @@ def render_interactive_study_viewer(study_payload: dict):
       const p = el.getAttribute('data-p') || 'other';
       const origTxt = el.innerText.trim();
       curKey = k;
+
+      if (isTouchDevice) {
+        document.getElementById('drawer').style.display = 'none';
+        selectWordNode(el);
+        playKey(k, false);
+        return;
+      }
+
       const info = DMAP[k] || {};
       const q = encodeURIComponent(k);
       const gtUrl = 'https://google.com' + q + '&op=translate';
@@ -2399,12 +2409,10 @@ def render_interactive_study_viewer(study_payload: dict):
         '<a href="' + gtUrl + '" target="_blank" rel="noopener noreferrer" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
         '<a href="https://wordreference.com' + q + '" target="_blank" rel="noopener noreferrer" style="color:#1a73e8;text-decoration:none;">📖 Abrir en WordReference ↗</a>';
 
-      if (isTouchDevice) {
-        selectWordNode(el);
-      }
       document.getElementById('drawer').style.display = 'block';
       playKey(k, false);
     }
+
 
     function closeDrawer() {
       document.getElementById('drawer').style.display = 'none';
