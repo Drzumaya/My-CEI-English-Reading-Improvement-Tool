@@ -2108,7 +2108,7 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B: VISOR MULTIMODAL DEFINITIVO (TOUCH + HOVER/DBLCLICK + GOOGLE DICT)
+# PARTE 8B: VISOR MULTIMODAL DEFINITIVO (TOUCH + HOVER/DBLCLICK + GOOGLE)
 # ==============================================================================
 @st.cache_data(show_spinner=False, max_entries=500)
 def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
@@ -2125,8 +2125,13 @@ def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | No
 
 
 @st.cache_data(ttl=86400, show_spinner=False, max_entries=60)
-def _build_full_study_bundle(unique_words_tuple: tuple, base_dict_json: str) -> tuple[dict, dict]:
-    """Pre-calcula en paralelo audios MP3 Base64 (normal/lento) y traducciones reales al español."""
+def _build_full_study_bundle(
+    unique_words_tuple: tuple,
+    base_dict_json: str,
+    api_key_override: str = "",
+    cache_v: str = "v20_google_real"
+) -> tuple[dict, dict]:
+    """Pre-calcula audios MP3 Base64 (normal/lento) y traducciones reales al español con Google + Gemini."""
     words_list = [str(w).strip() for w in unique_words_tuple if str(w).strip()]
     base_dict = json.loads(base_dict_json) if base_dict_json else {}
     merged_dict = {str(k).lower(): (dict(v) if isinstance(v, dict) else {}) for k, v in base_dict.items()}
@@ -2148,52 +2153,53 @@ def _build_full_study_bundle(unique_words_tuple: tuple, base_dict_json: str) -> 
             if pair["n"]:
                 audio_map[k_w] = pair
 
-    # 2. Enriquecimiento lexicográfico completo en español (traducción + sinónimos + definición)
-    faltantes = [
-        w for w in words_list
-        if not merged_dict.get(w.lower(), {}).get("def")
-        or not merged_dict.get(w.lower(), {}).get("es")
-    ]
+    # 2. Traducción real en lote con Google Translator (inglés -> español)
+    try:
+        chunk_size = 30
+        for idx_c in range(0, len(words_list), chunk_size):
+            sub_w = words_list[idx_c:idx_c + chunk_size]
+            joined_en = "\n".join(sub_w)
+            tr_block = GoogleTranslator(source="en", target="es").translate(joined_en)
+            if tr_block:
+                tr_lines = [ln.strip() for ln in str(tr_block).splitlines()]
+                if len(tr_lines) == len(sub_w):
+                    for w_en, w_es in zip(sub_w, tr_lines):
+                        kl = w_en.lower()
+                        if w_es and w_es.lower() != kl:
+                            merged_dict.setdefault(kl, {})["es"] = w_es
+    except Exception:
+        pass
 
-    if faltantes:
-        try:
-            gm_tr = init_gemini_client()
-            if gm_tr:
-                prompt_tr = (
-                    "For each English word below, provide its accurate Spanish translation, part of speech in Spanish, "
-                    "US IPA pronunciation, 2 Spanish synonyms/meanings, and a brief clear definition in Spanish. "
-                    "Return ONLY a valid JSON object where each key is the lowercase English word and each value is "
-                    '{"es": "...", "pos": "...", "ipa": "...", "alt": "...", "def": "..."}.\n'
-                    f"Words: {json.dumps(faltantes)}"
-                )
-                r_tr = gm_tr.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt_tr,
-                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-                )
-                raw_tr = str(r_tr.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                parsed_tr = json.loads(raw_tr)
-                if isinstance(parsed_tr, dict):
-                    for k_e, info_obj in parsed_tr.items():
-                        kl = str(k_e).strip().lower()
-                        if isinstance(info_obj, dict):
-                            merged_dict.setdefault(kl, {}).update({k2: v2 for k2, v2 in info_obj.items() if v2})
-                        elif isinstance(info_obj, str) and info_obj.strip():
-                            merged_dict.setdefault(kl, {})["es"] = info_obj.strip()
-        except Exception:
-            pass
-
-    # Respaldo puntual con GoogleTranslator para cualquier palabra aún pendiente
-    for w_rem in words_list:
-        kl = w_rem.lower()
-        cur_es = str(merged_dict.get(kl, {}).get("es", "")).strip()
-        if not cur_es or cur_es.lower() == kl:
-            try:
-                tr_single = GoogleTranslator(source="en", target="es").translate(w_rem)
-                if tr_single and str(tr_single).strip().lower() != kl:
-                    merged_dict.setdefault(kl, {})["es"] = str(tr_single).strip()
-            except Exception:
-                pass
+    # 3. Enriquecimiento lexicográfico completo en español con Gemini Flash
+    try:
+        gm_tr = init_gemini_client(api_key_override if api_key_override else None)
+        if gm_tr:
+            prompt_tr = (
+                "Translate and define each English word below into natural Spanish for a language student. "
+                "Return ONLY a valid JSON object where each key is the lowercase English word and each value is: "
+                '{"es": "Spanish translation (1-3 words)", "pos": "Categoría gramatical en español", '
+                '"ipa": "US IPA", "alt": "2 sinónimos en español", "def": "definición breve en español"}.\n'
+                f"Words: {json.dumps(words_list)}"
+            )
+            r_tr = gm_tr.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt_tr,
+                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+            )
+            raw_tr = str(r_tr.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            parsed_tr = json.loads(raw_tr)
+            if isinstance(parsed_tr, dict):
+                for k_e, info_obj in parsed_tr.items():
+                    kl = str(k_e).strip().lower()
+                    if isinstance(info_obj, dict):
+                        cur_entry = merged_dict.setdefault(kl, {})
+                        for k2, v2 in info_obj.items():
+                            if v2 and (not cur_entry.get(k2) or str(cur_entry.get(k2)).lower() == kl):
+                                cur_entry[k2] = str(v2).strip()
+                    elif isinstance(info_obj, str) and info_obj.strip():
+                        merged_dict.setdefault(kl, {})["es"] = info_obj.strip()
+    except Exception:
+        pass
 
     return audio_map, merged_dict
 # ==============================================================================
@@ -2201,9 +2207,9 @@ def _build_full_study_bundle(unique_words_tuple: tuple, base_dict_json: str) -> 
 # ==============================================================================
 def render_interactive_study_viewer(study_payload: dict):
     """
-    Visor Multimodal Autocontenido (cero CORS, cero window.parent):
-    - Touch (Móvil / Tablet / TV Touch): 1 toque = Voz US | 2 toques = Cajón deslizable (deslizar abajo para ocultar).
-    - Desktop (MacBook Pro / PC): Hover = Voz US | Doble clic = Diccionario Bilingüe completo.
+    Visor Multimodal (Móvil / Tablet / TV Touch + MacBook Pro / PC):
+    - Móvil/Touch: 1 toque = Voz US | 2 toques = Panel Google Dictionary arriba + enlace directo a Google Translate.
+    - Mac/PC: Hover = Voz US | Doble clic = Panel Google Dictionary bilingüe con traducción real en español.
     """
     if not study_payload or not study_payload.get("sentences"):
         st.warning("No se pudo estructurar el modo estudio para este texto.")
@@ -2221,9 +2227,12 @@ def render_interactive_study_viewer(study_payload: dict):
                 seen_w.add(wc.lower())
                 unique_words.append(wc)
 
+    active_k_override = str(st.session_state.get("custom_api_key", "")).strip()
     audio_map, merged_dict = _build_full_study_bundle(
         tuple(unique_words[:95]),
-        json.dumps(dictionary, ensure_ascii=False)
+        json.dumps(dictionary, ensure_ascii=False),
+        api_key_override=active_k_override,
+        cache_v="v20_google_real"
     )
 
     pos_class = {"verb": "verb", "noun": "noun", "adjective": "adjective", "conjunction": "conjunction"}
@@ -2254,10 +2263,10 @@ def render_interactive_study_viewer(study_payload: dict):
 
     viewer_html = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:10px;background:#f8fafc;color:#1e293b;overflow-x:hidden}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:10px;background:#f8fafc;color:#1e293b}
     .tb{display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;align-items:center;
-        background:#fff;padding:9px 12px;border-radius:10px;border:1px solid #cbd5e1;
-        margin-bottom:10px;font-size:12px;font-weight:700;position:sticky;top:0;z-index:50}
+        background:#fff;padding:8px 12px;border-radius:10px;border:1px solid #cbd5e1;
+        margin-bottom:8px;font-size:12px;font-weight:700;position:sticky;top:0;z-index:100}
     .bg{padding:2px 7px;border-radius:5px}
     .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
     .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
@@ -2270,12 +2279,12 @@ def render_interactive_study_viewer(study_payload: dict):
           border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
     .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:transform .1s}
     .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
-    #drawer{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#fff;border-top:3px solid #1a73e8;
-            border-radius:18px 18px 0 0;box-shadow:0 -10px 28px rgba(15,23,42,.28);padding:10px 16px 18px 16px;
-            transform:translateY(110%);transition:transform .26s cubic-bezier(.22,1,.36,1);max-height:78vh;overflow-y:auto}
-    .handle{width:46px;height:5px;background:#cbd5e1;border-radius:99px;margin:0 auto 8px auto}
-    .dhead{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:10px}
-    .dbtn{border:none;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px}
+    #drawer{position:sticky;top:46px;z-index:999;background:#fff;border:2px solid #1a73e8;
+            border-radius:14px;box-shadow:0 10px 28px rgba(26,115,232,.32);padding:10px 14px 14px 14px;
+            margin-bottom:10px;display:none}
+    .dhead{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;color:#fff;
+           margin:-10px -14px 10px -14px;padding:8px 14px;border-radius:11px 11px 0 0;font-size:12px;font-weight:800}
+    .dbtn{border:none;border-radius:6px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px;background:rgba(255,255,255,.22);color:#fff}
     .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     </style></head><body>
     <div class="tb">
@@ -2288,35 +2297,33 @@ def render_interactive_study_viewer(study_payload: dict):
       </div>
     </div>
 
-    <div id="lc">__LESSON_HTML__</div>
-
     <div id="drawer">
-      <div class="handle"></div>
       <div class="dhead">
-        <span style="font-size:12px;font-weight:800;color:#1a73e8;">🌐 DICCIONARIO INGLÉS (US) ➔ ESPAÑOL (Desliza abajo para ocultar)</span>
+        <span>🌐 GOOGLE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
         <div>
-          <button type="button" class="dbtn" style="background:#1a73e8;color:#fff;" id="btnN">🔊 Normal</button>
-          <button type="button" class="dbtn" style="background:#0f766e;color:#fff;" id="btnS">🐢 Lento</button>
-          <button type="button" class="dbtn" style="background:#f1f5f9;color:#334155;" id="btnC">⬇ Ocultar</button>
+          <button type="button" class="dbtn" id="btnN">🔊 Normal</button>
+          <button type="button" class="dbtn" id="btnS">🐢 Lento</button>
+          <button type="button" class="dbtn" id="btnC">✖ Cerrar</button>
         </div>
       </div>
       <div class="dgrid">
-        <div style="background:#f8fafc;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">
-          <div style="font-size:11px;color:#64748b;font-weight:700;">ENGLISH (US)</div>
-          <div id="dEn" style="font-size:21px;font-weight:800;color:#0f172a;"></div>
-          <div id="dIpa" style="font-size:13px;color:#475569;margin-top:2px;"></div>
-          <div id="dPos" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:4px;"></div>
+        <div style="background:#f8fafc;padding:9px;border-radius:9px;border:1px solid #e2e8f0;">
+          <div style="font-size:10px;color:#64748b;font-weight:700;">ENGLISH (US)</div>
+          <div id="dEn" style="font-size:20px;font-weight:800;color:#0f172a;"></div>
+          <div id="dIpa" style="font-size:12px;color:#475569;margin-top:2px;"></div>
+          <div id="dPos" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:3px;"></div>
         </div>
-        <div style="background:#eff6ff;padding:10px;border-radius:10px;border:1px solid #bfdbfe;">
-          <div style="font-size:11px;color:#1e40af;font-weight:700;">ESPAÑOL (TRADUCCIÓN)</div>
-          <div id="dEs" style="font-size:21px;font-weight:800;color:#1a73e8;"></div>
-          <div id="dAlt" style="font-size:12px;color:#334155;margin-top:4px;"></div>
+        <div style="background:#eff6ff;padding:9px;border-radius:9px;border:1px solid #bfdbfe;">
+          <div style="font-size:10px;color:#1e40af;font-weight:700;">ESPAÑOL (TRADUCCIÓN)</div>
+          <div id="dEs" style="font-size:20px;font-weight:800;color:#1a73e8;"></div>
+          <div id="dAlt" style="font-size:12px;color:#334155;margin-top:3px;"></div>
         </div>
       </div>
-      <div id="dDef" style="margin-top:8px;font-size:13px;color:#334155;background:#f8fafc;padding:8px 10px;border-radius:8px;"></div>
-      <div id="dCtx" style="margin-top:6px;font-size:12px;color:#64748b;font-style:italic;"></div>
-      <div id="dLnk" style="margin-top:8px;font-size:12px;font-weight:700;display:flex;gap:14px;"></div>
+      <div id="dDef" style="margin-top:8px;font-size:12px;color:#334155;background:#f8fafc;padding:7px 10px;border-radius:8px;"></div>
+      <div id="dLnk" style="margin-top:8px;font-size:12px;font-weight:700;display:flex;gap:14px;flex-wrap:wrap;"></div>
     </div>
+
+    <div id="lc">__LESSON_HTML__</div>
     <script>
     const AMAP = __AUDIO_JSON__;
     const DMAP = __DICT_JSON__;
@@ -2339,26 +2346,25 @@ def render_interactive_study_viewer(study_payload: dict):
       el.classList.add('act');
       const k = el.getAttribute('data-k') || '';
       const p = el.getAttribute('data-p') || 'other';
-      const s = el.getAttribute('data-s') || '';
+      const origTxt = el.innerText.trim();
       curKey = k;
       const info = DMAP[k] || {};
-      document.getElementById('dEn').innerText = el.innerText.trim();
-      document.getElementById('dEs').innerText = info.es || el.innerText.trim();
+      document.getElementById('dEn').innerText = origTxt;
+      document.getElementById('dEs').innerText = info.es || origTxt;
       document.getElementById('dIpa').innerText = info.ipa ? ('IPA: ' + info.ipa) : '🇺🇸 US Pronunciation';
       document.getElementById('dPos').innerText = info.pos || POS_L[p] || 'Vocabulario';
       document.getElementById('dAlt').innerText = info.alt ? ('Sinónimos: ' + info.alt) : '';
       document.getElementById('dDef').innerText = info.def ? ('📖 ' + info.def) : '';
-      document.getElementById('dCtx').innerText = s ? ('💬 "' + s + '"') : '';
       const q = encodeURIComponent(k);
       document.getElementById('dLnk').innerHTML =
-        '<a href="https://google.com' + q + '&op=translate" target="_blank" style="color:#0f766e;text-decoration:none;">🌐 Google Translate ↗</a>' +
-        '<a href="https://wordreference.com' + q + '" target="_blank" style="color:#1a73e8;text-decoration:none;">📖 WordReference ↗</a>';
-      document.getElementById('drawer').style.transform = 'translateY(0%)';
+        '<a href="https://google.com' + q + '&op=translate" target="_blank" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
+        '<a href="https://wordreference.com' + q + '" target="_blank" style="color:#1a73e8;text-decoration:none;">📖 Abrir en WordReference ↗</a>';
+      document.getElementById('drawer').style.display = 'block';
       playKey(k, false);
     }
 
     function closeDrawer() {
-      document.getElementById('drawer').style.transform = 'translateY(110%)';
+      document.getElementById('drawer').style.display = 'none';
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
     }
 
@@ -2378,7 +2384,7 @@ def render_interactive_study_viewer(study_payload: dict):
     }, {passive:true});
     drw.addEventListener('touchmove', (e) => {
       const t0 = e.touches && e.touches.at(0);
-      if (t0 && (t0.clientY - startY) > 45) closeDrawer();
+      if (t0 && Math.abs(t0.clientY - startY) > 40) closeDrawer();
     }, {passive:true});
 
     document.getElementById('lc').addEventListener('pointerover', (e) => {
@@ -2414,6 +2420,7 @@ def render_interactive_study_viewer(study_payload: dict):
         .replace("__DICT_JSON__", dict_json)
     )
     components.html(final_html, height=620, scrolling=True)
+
 
 
 # ==============================================================================
