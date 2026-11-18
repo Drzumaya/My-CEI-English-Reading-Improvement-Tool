@@ -2899,7 +2899,8 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
-                SELECT rol, nivel_cefr, fecha_inscripcion, fecha_inicio_curso, telefono_whatsapp,
+                SELECT id, COALESCE(matricula, 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
+                       rol, nivel_cefr, fecha_inscripcion, fecha_inicio_curso, telefono_whatsapp,
                        mensualidad_base, recargo_tardio, aplicar_iva, afiliado_usuario, porcentaje_comision
                 FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;
             """, (student_user,))
@@ -2910,6 +2911,8 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
             if str(u.get("rol", "")).lower() not in ["estudiante", "student", "alumno"]:
                 return info
 
+            mat_alumno = str(u.get("matricula") or "").strip()
+            id_num_alumno = int(u.get("id") or 0)
             f_ins = u.get("fecha_inscripcion") or u.get("fecha_inicio_curso") or hoy
             f_ini = u.get("fecha_inicio_curso") or f_ins
             base = float(u.get("mensualidad_base") or 1500.0)
@@ -2924,9 +2927,10 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
             semana_en_ciclo = ((dia_en_ciclo - 1) // 7) + 1
             bloque_nivel_actual = ((ciclo_vigente - 1) % 9) + 1
 
+            ahora_utc = datetime.now(ZoneInfo("UTC"))
             cur.execute("""
                 SELECT ciclo_numero, estatus, folio_pago, monto_final, metodo_pago,
-                       referencia_comprobante, fecha_pago, validado_por
+                       referencia_comprobante, fecha_pago, validado_por, ai_score, gracia_expira_en
                 FROM tuition_payments
                 WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s))
                 ORDER BY ciclo_numero ASC;
@@ -2934,10 +2938,19 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
             rows_pay = [dict(r) for r in cur.fetchall()]
             pagos_by_ciclo = {int(r["ciclo_numero"]): r for r in rows_pay if r.get("ciclo_numero") is not None}
 
-            ciclos_pagados = {c for c, r in pagos_by_ciclo.items() if str(r.get("estatus", "")) == "Pagado"}
-            ciclos_revision = {c for c, r in pagos_by_ciclo.items() if str(r.get("estatus", "")) == "Pendiente_Revision"}
+            ciclos_pagados = set()
+            ciclos_revision = set()
+            for c_num, r_pay in pagos_by_ciclo.items():
+                st_p = str(r_pay.get("estatus", ""))
+                g_exp = r_pay.get("gracia_expira_en")
+                gracia_vigente = bool(st_p == "Gracia_72h" and g_exp and g_exp > ahora_utc)
+                if st_p in ("Pagado", "Aprobado_IA") or gracia_vigente:
+                    ciclos_pagados.add(c_num)
+                elif st_p in ("Pendiente_Revision", "Gracia_72h"):
+                    ciclos_revision.add(c_num)
 
             ciclos_vencidos = [c for c in range(1, ciclo_vigente) if c not in ciclos_pagados]
+
 
             if ciclos_vencidos:
                 ciclo_objetivo = next(iter(ciclos_vencidos))
