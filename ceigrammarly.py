@@ -4843,82 +4843,84 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 df_pkgs = pd.DataFrame(estado_pkgs)[["Paquete", "Instalada", "Última PyPI", "Estado"]]
                 st.dataframe(df_pkgs, width="stretch", hide_index=True)
 # ==============================================================================
-# PARTE 14D1 — MITAD 1 DE 2: VALIDACIÓN BANCARIA, WHATSAPP Y VACACIONES
+# PARTE 14D1: MÓDULOS FINANCIEROS SPA — COBRANZA MENSUAL, COMPROBANTES Y WHATSAPP
 # ==============================================================================
+        # 14.5 PESTAÑA COBRANZA MENSUAL E IVA
         if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
-            puede_validar_pagos = bool(is_owner or can("Gestionar_Pagos_Cobranza"))
-            if not (is_owner or puede_validar_pagos or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
+            puede_cobranza_v2 = is_owner or can("Gestionar_Pagos_Cobranza")
+            if not (is_owner or puede_cobranza_v2 or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
                 st.warning("⛔ Sin permisos financieros habilitados.")
             else:
-                tab_val, tab_ind, tab_vac = st.tabs([
-                    "📥 Comprobantes por Confirmar y WhatsApp",
-                    "👤 Cobranza Individual (9 Bloques)",
-                    "🏖️ Períodos Vacacionales (IA Activa 24/7)"
-                ])
+                if is_owner:
+                    st.markdown("##### 🎛️ Control Global de Incentivos (-7%) y Recargos (+5%)")
+                    est_glob = get_billing_global_settings_pg()
+                    c_sw1, c_sw2 = st.columns([2.4, 1.0])
+                    nuevo_glob = c_sw1.toggle(
+                        "Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)",
+                        value=est_glob,
+                        key="tgl_glob_bill"
+                    )
+                    if c_sw2.button("💾 Guardar Cambio", type="primary", width="stretch", key="btn_glob_bill"):
+                        ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
+                        if ok_g:
+                            st.success(f"✅ {msg_g}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_g}")
+                    st.caption(
+                        f"Estado guardado en base de datos: **{'🟢 ACTIVADO (Incentivo -7% / Recargo +5%)' if est_glob else '⚪ DESACTIVADO (Tarifa Base sin incentivos ni recargos)'}**"
+                    )
+                    st.divider()
 
-                with tab_val:
-                    st.markdown("##### 📥 Comprobantes Subidos por Estudiantes (Cotejo Bancario)")
-                    pendientes_list = listar_comprobantes_pendientes_pg()
-                    if not pendientes_list:
-                        st.success("✅ No hay comprobantes bancarios pendientes de confirmación en este momento.")
+                # Bandeja de Comprobantes Bancarios Informados por Estudiantes (Confirmación -> Activa Boletín)
+                if puede_cobranza_v2:
+                    pendientes_comp = listar_comprobantes_pendientes_pg()
+                    st.markdown(f"##### 🏦 Comprobantes Bancarios Pendientes de Confirmación ({len(pendientes_comp)})")
+                    if not pendientes_comp:
+                        st.caption("No hay comprobantes bancarios pendientes de revisión en este momento.")
                     else:
-                        for item_p in pendientes_list:
+                        for idx_c, comp in enumerate(pendientes_comp):
                             with st.container(border=True):
-                                c_v1, c_v2, c_v3 = st.columns([2.2, 1.4, 1.3])
-                                with c_v1:
+                                cc1, cc2, cc3 = st.columns([2.2, 1.4, 1.4])
+                                with cc1:
                                     st.markdown(
-                                        f"**🧾 Folio:** `{item_p.get('folio_pago') or 'S/F'}`  |  "
-                                        f"**👤 Estudiante:** {item_p.get('nombre_completo')} (`{item_p.get('student_user')}`)"
+                                        f"**{comp['nombre_completo']}** (`{comp['student_user']}`) — Nivel **{comp['nivel_cefr']}**\n\n"
+                                        f"Folio: `{comp['folio_pago']}` | **Bloque {comp['ciclo_numero']}** | Monto: **`${float(comp['monto_final']):,.2f} MXN`**\n\n"
+                                        f"Método: {comp['metodo_pago']} | Ref: `{comp['referencia_comprobante']}` | Reportado: {comp['fecha_reporte']}"
                                     )
-                                    st.caption(
-                                        f"Nivel **{item_p.get('nivel_cefr') or 'CEFR'}**  •  "
-                                        f"**Bloque {item_p.get('ciclo_numero')}**  •  "
-                                        f"Método: **{item_p.get('metodo_pago')}**  •  "
-                                        f"Ref: `{item_p.get('referencia_comprobante') or 'N/A'}`  •  "
-                                        f"Reportado: {item_p.get('fecha_reporte')}"
-                                    )
-                                    b64_doc = str(item_p.get("comprobante_b64") or "").strip()
-                                    mime_doc = str(item_p.get("comprobante_mime") or "").strip()
+                                with cc2:
+                                    b64_doc = str(comp.get("comprobante_b64") or "").strip()
+                                    mime_doc = str(comp.get("comprobante_mime") or "image/jpeg").strip()
                                     if b64_doc:
+                                        raw_doc = base64.b64decode(b64_doc)
                                         if "pdf" in mime_doc.lower():
                                             st.download_button(
-                                                "📄 Ver / Descargar Comprobante PDF",
-                                                data=base64.b64decode(b64_doc),
-                                                file_name=f"{item_p.get('folio_pago') or 'comprobante'}.pdf",
+                                                "📄 Ver Comprobante PDF",
+                                                data=raw_doc,
+                                                file_name=f"{comp['folio_pago']}.pdf",
                                                 mime="application/pdf",
-                                                key=f"dl_comp_{item_p['id']}"
+                                                key=f"dl_comp_pdf_{comp['id']}_{idx_c}"
                                             )
                                         else:
-                                            with st.expander("🖼️ Ver Imagen del Comprobante Bancario"):
-                                                st.image(base64.b64decode(b64_doc), width=320)
+                                            st.image(raw_doc, caption="Comprobante adjunto", width=180)
+                                    else:
+                                        st.caption("Sin archivo adjunto (solo referencia).")
+                                with cc3:
+                                    nota_val = st.text_input("Nota de cotejo bancario:", key=f"nota_bco_{comp['id']}_{idx_c}", placeholder="Ej: Transferencia verificada en estado de cuenta")
+                                    if st.button("✅ Confirmar Pago y Activar Boletín", type="primary", width="stretch", key=f"btn_ok_bco_{comp['id']}_{idx_c}"):
+                                        res_conf = confirmar_pago_bancario_pg(
+                                            student_user=comp["student_user"],
+                                            ciclo_numero=int(comp["ciclo_numero"]),
+                                            validado_por=str(st.session_state.current_user),
+                                            notas_admin=nota_val
+                                        )
+                                        if res_conf["ok"]:
+                                            st.success(res_conf["msg"])
+                                            st.rerun()
+                                        else:
+                                            st.error(res_conf["msg"])
+                    st.divider()
 
-                                with c_v2:
-                                    st.metric("Monto Reportado", f"${float(item_p.get('monto_final') or 0):,.2f} MXN")
-                                    nota_val = st.text_input(
-                                        "Nota bancaria:",
-                                        placeholder="Ej: Confirmado en BBVA",
-                                        key=f"nota_val_{item_p['id']}"
-                                    )
-
-                                with c_v3:
-                                    if puede_validar_pagos:
-                                        if st.button(
-                                            "✅ Confirmar Pago y Activar Boletín",
-                                            type="primary",
-                                            width="stretch",
-                                            key=f"btn_ok_pay_{item_p['id']}"
-                                        ):
-                                            res_ok = confirmar_pago_bancario_pg(
-                                                student_user=str(item_p["student_user"]),
-                                                ciclo_numero=int(item_p["ciclo_numero"]),
-                                                validado_por=str(st.session_state.get("current_user", "Owner")),
-                                                notas_admin=nota_val
-                                            )
-                                            if res_ok["ok"]:
-                                                st.success(res_ok["msg"])
-                                                st.rerun()
-                                            else:
-                                                st.error(res_ok["msg"])
 
                     st.divider()
                     st.markdown("##### 📲 Radar de Avisos WhatsApp (4ta Semana de Pago y 5ta Semana con Recargo)")
