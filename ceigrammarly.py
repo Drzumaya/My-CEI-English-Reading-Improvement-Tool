@@ -2155,61 +2155,54 @@ def _build_lesson_audio_b64_map(unique_words_tuple: tuple, slow_mode: bool = Fal
                 audio_map[k_w] = pair_b64
     return audio_map
 
-@st.cache_data(ttl=86400, show_spinner=False, max_entries=120)
+@@st.cache_data(ttl=86400, show_spinner=False, max_entries=120)
 def _pretranslate_words_google(unique_words_tuple: tuple) -> dict:
-    """Pre-traduce en paralelo todas las palabras únicas de la lección usando Google Translate."""
+    """Traduce en lote todas las palabras únicas de la lección al español (Google Translate + Gemini)."""
     trans_map = {}
-    if not unique_words_tuple:
+    words_list = [str(w).strip() for w in unique_words_tuple if str(w).strip()]
+    if not words_list:
         return trans_map
 
-    def _tr_one(w_item: str):
-        try:
-            es_val = GoogleTranslator(source="en", target="es").translate(w_item)
-            return w_item.lower(), str(es_val or w_item).strip()
-        except Exception:
-            return w_item.lower(), ""
-
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        for k_w, es_out in pool.map(_tr_one, unique_words_tuple):
-            if es_out:
-                trans_map[k_w] = es_out
-    return trans_map
-
-
-
-@st.cache_data(ttl=86400, show_spinner=False, max_entries=600)
-def _auto_lookup_bilingual_dict(word_clean: str) -> dict:
-    """Ejecuta búsqueda automática tipo Google Dictionary (Inglés US -> Español + IPA + Definición)."""
-    w_q = str(word_clean or "").strip().lower()
-    if not w_q:
-        return {}
-
-    es_trans = ""
-    ipa_txt = ""
-    pos_txt = ""
-    def_txt = ""
-    alt_list = []
-
-    # 1. Traducción automática al español (Google Translate endpoint gratuito)
+    # 1. Traducción en lote con GoogleTranslator (evita bloqueos por ráfaga)
     try:
-        gt_url = (
-            "https://googleapis.com"
-            + urllib.parse.quote(w_q)
-        )
-        req = urllib.request.Request(gt_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=4) as resp:
-            raw_gt = json.loads(resp.read().decode("utf-8"))
-        if isinstance(raw_gt, list) and raw_gt and isinstance(raw_gt[0], list):
-            es_trans = "".join(str(seg[0]) for seg in raw_gt[0] if seg and seg[0]).strip()
-        if isinstance(raw_gt, list) and len(raw_gt) > 1 and isinstance(raw_gt[1], list):
-            for entry in raw_gt[1][:2]:
-                if isinstance(entry, list) and len(entry) >= 2:
-                    if not pos_txt:
-                        pos_txt = str(entry[0]).capitalize()
-                    if isinstance(entry[1], list):
-                        alt_list.extend([str(x) for x in entry[1][:4]])
+        joined_q = "\n".join(words_list)
+        translated_block = GoogleTranslator(source="en", target="es").translate(joined_q)
+        if translated_block:
+            lines_es = [ln.strip() for ln in str(translated_block).splitlines()]
+            if len(lines_es) == len(words_list):
+                for w_orig, w_es in zip(words_list, lines_es):
+                    if w_es and w_es.lower() != w_orig.lower():
+                        trans_map[w_orig.lower()] = w_es
     except Exception:
         pass
+
+    # 2. Completar cualquier palabra faltante con Gemini Flash en una sola petición JSON
+    faltantes = [w for w in words_list if w.lower() not in trans_map]
+    if faltantes:
+        try:
+            gm_tr = init_gemini_client()
+            if gm_tr:
+                prompt_tr = (
+                    "Translate each English word below into natural Spanish (1 or 2 most common meanings). "
+                    "Return ONLY a valid JSON object mapping lowercase English word -> Spanish translation.\n"
+                    f"Words: {json.dumps(faltantes)}"
+                )
+                r_tr = gm_tr.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_tr,
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+                )
+                raw_tr = str(r_tr.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                parsed_tr = json.loads(raw_tr)
+                if isinstance(parsed_tr, dict):
+                    for k_e, v_s in parsed_tr.items():
+                        v_clean = str(v_s or "").strip()
+                        if v_clean:
+                            trans_map[str(k_e).strip().lower()] = v_clean
+        except Exception:
+            pass
+
+    return trans_map
 
     # 2. Fonética IPA y definición académica desde Free Dictionary API
     try:
@@ -2473,13 +2466,16 @@ def render_interactive_study_viewer(study_payload: dict):
                     function parseBtnWord(btn) {{
                         if (!btn) return null;
                         const raw = (btn.innerText || "").trim();
-                        const m = raw.match(/^([🔴🔵🟢🟡⚪])\\s*(.+)$/);
+                        if (!raw || raw.length > 32 || raw.includes("\n")) return null;
+                        if (/Lectura Clásica|Modo Estudio|Calificar|Generar|Descargar|Cerrar|Borrar|Nuevo Quiz|Evaluar|Folios|Guardar|Acceso|Salir|Buscar/i.test(raw)) return null;
+                        const m = raw.match(/^([🔴🔵🟢🟡⚪])\s*(.+)$/);
                         if (!m) return null;
-                        const clean = m[2].replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, "");
+                        const clean = m.replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, "");
                         if (!clean) return null;
                         const posMap = {{"🔴":"Verbo","🔵":"Sustantivo","🟢":"Adjetivo","🟡":"Conjunción","⚪":"Vocabulario"}};
-                        return {{ clean: clean, pos: posMap[m[1]] || "Vocabulario" }};
+                        return {{ clean: clean, pos: posMap[m] || "Vocabulario" }};
                     }}
+
 
                     doc.addEventListener("pointerover", function(e) {{
                         if (e.pointerType !== "mouse") return;
