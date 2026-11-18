@@ -2583,11 +2583,11 @@ def render_interactive_study_viewer(study_payload: dict):
                     const k = wClean.toLowerCase();
                     const loc = (win.__ceiLocalDict || {{}})[k] || {{}};
                     doc.getElementById("cei-drw-en").innerText = wClean;
-                    doc.getElementById("cei-drw-es").innerText = (loc.es && loc.es.toLowerCase() !== k) ? loc.es : "Buscando traducción...";
+                    doc.getElementById("cei-drw-es").innerText = (loc.es && loc.es.toLowerCase() !== k) ? loc.es : "Traduciendo...";
                     doc.getElementById("cei-drw-ipa").innerText = loc.ipa ? ("IPA: " + loc.ipa) : "🇺🇸 US Pronunciation";
                     doc.getElementById("cei-drw-pos").innerText = loc.pos || posRaw;
                     doc.getElementById("cei-drw-alt").innerText = loc.alt ? ("Acepciones: " + loc.alt) : "";
-                    doc.getElementById("cei-drw-def").innerText = loc.def ? ("📖 " + loc.def) : "Consultando diccionario bilingüe...";
+                    doc.getElementById("cei-drw-def").innerText = loc.def ? ("📖 " + loc.def) : "Consultando diccionario...";
                     const qEnc = encodeURIComponent(k);
                     doc.getElementById("cei-drw-links").innerHTML =
                         '<a href="https://google.com' + qEnc + '&op=translate" target="_blank" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
@@ -2602,16 +2602,16 @@ def render_interactive_study_viewer(study_payload: dict):
                         try {{
                             const r = await fetch("https://googleapis.com" + qEnc);
                             const j = await r.json();
-                            const block0 = Array.isArray(j) ? j.at(0) : null;
-                            if (Array.isArray(block0)) {{
-                                const tr = block0.map(s => (Array.isArray(s) ? String(s.at(0) || "") : "")).join("");
+                            const b0 = Array.isArray(j) ? j.at(0) : null;
+                            if (Array.isArray(b0)) {{
+                                const tr = b0.map(s => (Array.isArray(s) ? String(s.at(0) || "") : "")).join("");
                                 if (tr) doc.getElementById("cei-drw-es").innerText = tr;
                             }}
-                            const block1 = Array.isArray(j) ? j.at(1) : null;
-                            const firstPos = Array.isArray(block1) ? block1.at(0) : null;
-                            const altArr = Array.isArray(firstPos) ? firstPos.at(1) : null;
-                            if (Array.isArray(altArr)) {{
-                                doc.getElementById("cei-drw-alt").innerText = "Acepciones: " + altArr.slice(0, 4).join(", ");
+                            const b1 = Array.isArray(j) ? j.at(1) : null;
+                            const p0 = Array.isArray(b1) ? b1.at(0) : null;
+                            const alts = Array.isArray(p0) ? p0.at(1) : null;
+                            if (Array.isArray(alts)) {{
+                                doc.getElementById("cei-drw-alt").innerText = "Acepciones: " + alts.slice(0, 4).join(", ");
                             }}
                         }} catch (e) {{
                             doc.getElementById("cei-drw-es").innerText = loc.es || wClean;
@@ -2621,13 +2621,13 @@ def render_interactive_study_viewer(study_payload: dict):
                         try {{
                             const r2 = await fetch("https://dictionaryapi.dev" + qEnc);
                             const j2 = await r2.json();
-                            const item0 = Array.isArray(j2) ? j2.at(0) : null;
-                            if (item0) {{
-                                if (item0.phonetic) doc.getElementById("cei-drw-ipa").innerText = "IPA: " + item0.phonetic;
-                                const m = Array.isArray(item0.meanings) ? item0.meanings.at(0) : null;
-                                const d0 = (m && Array.isArray(m.definitions)) ? m.definitions.at(0) : null;
+                            const it0 = Array.isArray(j2) ? j2.at(0) : null;
+                            if (it0) {{
+                                if (it0.phonetic) doc.getElementById("cei-drw-ipa").innerText = "IPA: " + it0.phonetic;
+                                const m0 = Array.isArray(it0.meanings) ? it0.meanings.at(0) : null;
+                                const d0 = (m0 && Array.isArray(m0.definitions)) ? m0.definitions.at(0) : null;
                                 if (d0 && d0.definition) {{
-                                    doc.getElementById("cei-drw-def").innerText = "📖 (" + (m.partOfSpeech || "") + ") " + d0.definition;
+                                    doc.getElementById("cei-drw-def").innerText = "📖 (" + (m0.partOfSpeech || "") + ") " + d0.definition;
                                 }}
                             }}
                         }} catch (e) {{}}
@@ -2656,8 +2656,7 @@ def render_interactive_study_viewer(study_payload: dict):
                         return {{ clean: clean, pos: posMap[emojiTag] || "Vocabulario" }};
                     }}
 
-                    doc.addEventListener("pointerover", function(e) {{
-                        if (e.pointerType !== "mouse") return;
+                    doc.addEventListener("mouseover", function(e) {{
                         const info = parseBtnWord(e.target.closest("button"));
                         if (!info) return;
                         if (win.__ceiLastHover === info.clean.toLowerCase()) return;
@@ -2665,46 +2664,23 @@ def render_interactive_study_viewer(study_payload: dict):
                         win.__ceiPlayWord(info.clean, false);
                     }}, true);
 
-                    doc.addEventListener("pointerout", function(e) {{
-                        if (e.pointerType === "mouse" && e.target.closest("button")) {{
-                            win.__ceiLastHover = "";
-                        }}
-                    }}, true);
-
-                    doc.addEventListener("pointerdown", function(e) {{
-                        const btn = e.target.closest("button");
-                        const info = parseBtnWord(btn);
-                        if (!info) return;
-
-                        if (e.pointerType === "touch" || e.pointerType === "pen") {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const now = Date.now();
-                            const isDoubleTap = (win.__ceiLastTapWord === info.clean.toLowerCase() && (now - win.__ceiLastTapTime) < 420);
-                            win.__ceiLastTapWord = info.clean.toLowerCase();
-                            win.__ceiLastTapTime = now;
-                            win.__ceiPlayWord(info.clean, false);
-                            if (isDoubleTap) {{
-                                win.__ceiOpenDictionary(info.clean, info.pos);
-                            }}
-                        }}
+                    doc.addEventListener("mouseout", function(e) {{
+                        if (e.target.closest("button")) win.__ceiLastHover = "";
                     }}, true);
 
                     doc.addEventListener("click", function(e) {{
-                        const btn = e.target.closest("button");
-                        const info = parseBtnWord(btn);
+                        const info = parseBtnWord(e.target.closest("button"));
                         if (!info) return;
                         e.preventDefault();
                         e.stopPropagation();
-                    }}, true);
-
-                    doc.addEventListener("dblclick", function(e) {{
-                        const btn = e.target.closest("button");
-                        const info = parseBtnWord(btn);
-                        if (!info) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        win.__ceiOpenDictionary(info.clean, info.pos);
+                        const now = Date.now();
+                        const isDouble = (win.__ceiLastTapWord === info.clean.toLowerCase() && (now - win.__ceiLastTapTime) < 450);
+                        win.__ceiLastTapWord = info.clean.toLowerCase();
+                        win.__ceiLastTapTime = now;
+                        win.__ceiPlayWord(info.clean, false);
+                        if (isDouble) {{
+                            win.__ceiOpenDictionary(info.clean, info.pos);
+                        }}
                     }}, true);
                 }}
                 return true;
