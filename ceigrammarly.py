@@ -3267,8 +3267,14 @@ def actualizar_config_financiera_alumno_pg(
             cur.execute("""
                 ALTER TABLE users_padron
                 ADD COLUMN IF NOT EXISTS fecha_inscripcion DATE,
+                ADD COLUMN IF NOT EXISTS fecha_inicio_curso DATE,
                 ADD COLUMN IF NOT EXISTS telefono_whatsapp TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS mensualidad_base NUMERIC(10,2) DEFAULT 1500.00,
                 ADD COLUMN IF NOT EXISTS recargo_tardio NUMERIC(10,2) DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS aplicar_iva BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS afiliado_usuario TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS afiliador_id INTEGER,
+                ADD COLUMN IF NOT EXISTS porcentaje_comision NUMERIC(5,2) DEFAULT 0.0,
                 ADD COLUMN IF NOT EXISTS boletin_habilitado BOOLEAN DEFAULT TRUE;
             """)
 
@@ -3278,7 +3284,7 @@ def actualizar_config_financiera_alumno_pg(
                 cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (aff_clean,))
                 r_id = cur.fetchone()
                 if r_id:
-                    aff_id_val = int(r_id["id"]) if isinstance(r_id, dict) else int(r_id)
+                    aff_id_val = int(r_id["id"]) if isinstance(r_id, dict) else int(r_id[0])
 
             f_ins_final = fecha_inscripcion_val or fecha_inicio_val
             cur.execute("""
@@ -3310,7 +3316,6 @@ def actualizar_config_financiera_alumno_pg(
     except Exception as e:
         st.error(f"❌ Error al actualizar Supabase (`users_padron`): {e}")
         return False
-
 
 
 def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
