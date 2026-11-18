@@ -2129,7 +2129,7 @@ def _build_full_study_bundle(
     unique_words_tuple: tuple,
     base_dict_json: str,
     api_key_override: str = "",
-    cache_v: str = "v25_real_es"
+    cache_v: str = "v30_es_garantizado"
 ) -> tuple[dict, dict]:
     """Pre-calcula audios MP3 Base64 y traduce TODAS las palabras al español real."""
     words_list = [str(w).strip() for w in unique_words_tuple if str(w).strip()]
@@ -2153,19 +2153,36 @@ def _build_full_study_bundle(
             if pair["n"]:
                 audio_map[k_w] = pair
 
-    # 2. Traducción completa en lote con Gemini Flash (sobrescribe cualquier inglés sin traducir)
-    try:
-        gm_tr = init_gemini_client(api_key_override if api_key_override else None)
-        if gm_tr:
+    # 2. Localizar clave Gemini directamente desde secrets o override
+    gemini_key = str(api_key_override or "").strip()
+    if not gemini_key:
+        for k_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "API_KEY"):
+            if k_name in st.secrets and str(st.secrets[k_name]).strip():
+                gemini_key = str(st.secrets[k_name]).strip()
+                break
+        if not gemini_key:
+            for sec in st.secrets.values():
+                if isinstance(sec, dict):
+                    for k_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "API_KEY"):
+                        if k_name in sec and str(sec[k_name]).strip():
+                            gemini_key = str(sec[k_name]).strip()
+                            break
+                if gemini_key:
+                    break
+
+    # 3. Traducción y definición completa en lote con Gemini Flash
+    if gemini_key:
+        try:
+            client_direct = genai.Client(api_key=gemini_key)
             prompt_tr = (
-                "You are an English-to-Spanish bilingual dictionary. Translate EVERY English word in the JSON list below into Spanish. "
-                "Even if a word is a cognate, provide its Spanish form with proper Spanish accents/gender or primary meaning, "
-                "plus its Spanish part of speech, US IPA, 2 Spanish synonyms, and a concise definition in Spanish. "
-                "Return ONLY a valid JSON object mapping lowercase English word -> "
-                '{"es": "Traducción al español", "pos": "Categoría en español", "ipa": "/ipa/", "alt": "sinónimo 1, sinónimo 2", "def": "Definición clara en español"}.\n'
+                "Translate EVERY English word in the JSON list below into Spanish. "
+                "For every word (including cognates), provide its Spanish equivalent, Spanish part of speech, "
+                "US IPA pronunciation, 2 Spanish synonyms, and a clear definition in Spanish. "
+                "Return ONLY a valid JSON object where each key is the lowercase English word and each value is: "
+                '{"es": "Traducción al español", "pos": "Categoría en español", "ipa": "/ipa/", "alt": "sinónimo 1, sinónimo 2", "def": "Definición en español"}.\n'
                 f"Words: {json.dumps(words_list)}"
             )
-            r_tr = gm_tr.models.generate_content(
+            r_tr = client_direct.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt_tr,
                 config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
@@ -2177,50 +2194,45 @@ def _build_full_study_bundle(
                     kl = str(k_e).strip().lower()
                     if isinstance(info_obj, dict):
                         entry = merged_dict.setdefault(kl, {})
-                        if info_obj.get("es"):
-                            entry["es"] = str(info_obj["es"]).strip()
-                        if info_obj.get("pos"):
-                            entry["pos"] = str(info_obj["pos"]).strip()
-                        if info_obj.get("ipa"):
-                            entry["ipa"] = str(info_obj["ipa"]).strip()
-                        if info_obj.get("alt"):
-                            entry["alt"] = str(info_obj["alt"]).strip()
-                        if info_obj.get("def"):
-                            entry["def"] = str(info_obj["def"]).strip()
+                        for field_k in ("es", "pos", "ipa", "alt", "def"):
+                            if info_obj.get(field_k):
+                                entry[field_k] = str(info_obj[field_k]).strip()
                     elif isinstance(info_obj, str) and info_obj.strip():
                         merged_dict.setdefault(kl, {})["es"] = info_obj.strip()
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    # 3. Respaldo con GoogleTranslator paralelo para cualquier palabra cuya traducción siga igual al inglés
+    # 4. Respaldo con GoogleTranslator en bloques de 25 palabras con numeración (1. word)
     pendientes = [
         w for w in words_list
         if not merged_dict.get(w.lower(), {}).get("es")
         or str(merged_dict.get(w.lower(), {}).get("es", "")).strip().lower() == w.lower()
     ]
     if pendientes:
-        def _tr_google_one(w_item: str):
-            try:
-                res_es = GoogleTranslator(source="en", target="es").translate(f"the word {w_item}")
-                cleaned_es = re.sub(r"^(la palabra|el término|palabra)\s+", "", str(res_es or "").strip(), flags=re.IGNORECASE).strip()
-                return w_item.lower(), cleaned_es
-            except Exception:
-                return w_item.lower(), ""
-
-        with ThreadPoolExecutor(max_workers=6) as pool_g:
-            for kl, es_val in pool_g.map(_tr_google_one, pendientes):
-                if es_val and es_val.lower() != kl:
-                    merged_dict.setdefault(kl, {})["es"] = es_val
+        try:
+            for start_i in range(0, len(pendientes), 25):
+                sub_p = pendientes[start_i:start_i + 25]
+                numbered_en = "\n".join(f"{i+1}. {w}" for i, w in enumerate(sub_p))
+                tr_res = GoogleTranslator(source="en", target="es").translate(numbered_en)
+                if tr_res:
+                    for line in str(tr_res).splitlines():
+                        m_ln = re.match(r"^\s*(\d+)\.\s*(.+)$", line.strip())
+                        if m_ln:
+                            idx_m = int(m_ln.group(1)) - 1
+                            val_es = m_ln.group(2).strip()
+                            if 0 <= idx_m < len(sub_p) and val_es:
+                                merged_dict.setdefault(sub_p[idx_m].lower(), {})["es"] = val_es
+        except Exception:
+            pass
 
     return audio_map, merged_dict
 # ==============================================================================
-# PARTE 8B — MITAD 2A: PREPARACIÓN DE DATOS, ESTILOS CSS Y ESTRUCTURA HTML
+# PARTE 8B — MITAD 2A: VISOR (MÓVIL = GOOGLE NATIVO | MAC = TARJETA ABAJO)
 # ==============================================================================
 def render_interactive_study_viewer(study_payload: dict):
     """
-    Visor Multimodal adaptado a cada dispositivo:
-    - Móvil / Touch: 1 toque = Voz US | 2 toques = Abre Google Translate (vista deslizable nativa) + Tarjeta abajo.
-    - Mac / PC: Hover = Voz US | Doble clic = Tarjeta Bilingüe en la parte inferior con traducción real al español.
+    - Móvil / Touch: 1 toque = Voz US | 2 toques = Abre Google Translate nativo sin tarjeta azul superpuesta.
+    - Mac / PC: Hover = Voz US | Doble clic = Tarjeta Bilingüe en la parte inferior con traducción real en español.
     """
     if not study_payload or not study_payload.get("sentences"):
         st.warning("No se pudo estructurar el modo estudio para este texto.")
@@ -2243,7 +2255,7 @@ def render_interactive_study_viewer(study_payload: dict):
         tuple(unique_words[:95]),
         json.dumps(dictionary, ensure_ascii=False),
         api_key_override=active_k_override,
-        cache_v="v25_real_es"
+        cache_v="v30_es_garantizado"
     )
 
     pos_class = {"verb": "verb", "noun": "noun", "adjective": "adjective", "conjunction": "conjunction"}
@@ -2352,17 +2364,33 @@ def render_interactive_study_viewer(study_payload: dict):
       player.play().catch(()=>{});
     }
 
-    function openDrawer(el, isTouchDevice) {
+    function launchMobileGoogle(gtUrl) {
+      const a = document.createElement('a');
+      a.href = gtUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function handleWordAction(el, isTouchDevice) {
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
       const k = el.getAttribute('data-k') || '';
       const p = el.getAttribute('data-p') || 'other';
       const origTxt = el.innerText.trim();
       curKey = k;
-      const info = DMAP[k] || {};
       const q = encodeURIComponent(k);
       const gtUrl = 'https://google.com' + q + '&op=translate';
 
+      if (isTouchDevice) {
+        document.getElementById('drawer').style.display = 'none';
+        launchMobileGoogle(gtUrl);
+        return;
+      }
+
+      const info = DMAP[k] || {};
       document.getElementById('dEn').innerText = origTxt;
       document.getElementById('dEs').innerText = info.es || origTxt;
       document.getElementById('dIpa').innerText = info.ipa ? ('IPA: ' + info.ipa) : '🇺🇸 US Pronunciation';
@@ -2370,14 +2398,10 @@ def render_interactive_study_viewer(study_payload: dict):
       document.getElementById('dAlt').innerText = info.alt ? ('Sinónimos: ' + info.alt) : '';
       document.getElementById('dDef').innerText = info.def ? ('📖 ' + info.def) : '';
       document.getElementById('dLnk').innerHTML =
-        '<a href="' + gtUrl + '" target="cei_google_dict" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
-        '<a href="https://wordreference.com' + q + '" target="cei_wr_dict" style="color:#1a73e8;text-decoration:none;">📖 Abrir en WordReference ↗</a>';
+        '<a href="' + gtUrl + '" target="_blank" rel="noopener noreferrer" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
+        '<a href="https://wordreference.com' + q + '" target="_blank" rel="noopener noreferrer" style="color:#1a73e8;text-decoration:none;">📖 Abrir en WordReference ↗</a>';
       document.getElementById('drawer').style.display = 'block';
       playKey(k, false);
-
-      if (isTouchDevice) {
-        window.open(gtUrl, 'cei_google_dict');
-      }
     }
 
     function closeDrawer() {
@@ -2412,12 +2436,12 @@ def render_interactive_study_viewer(study_payload: dict):
       const isDbl = (lastTapK === k && (now - lastTapT) < 440);
       lastTapK = k; lastTapT = now;
       playKey(k, false);
-      if (isDbl) openDrawer(w, isTouch);
+      if (isDbl) handleWordAction(w, isTouch);
     });
     document.getElementById('lc').addEventListener('dblclick', (e) => {
       const w = e.target.closest('.wt');
       const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-      if (w) openDrawer(w, isTouch);
+      if (w && !isTouch) handleWordAction(w, false);
     });
     </script></body></html>"""
 
@@ -2428,8 +2452,6 @@ def render_interactive_study_viewer(study_payload: dict):
         .replace("__DICT_JSON__", dict_json)
     )
     components.html(final_html, height=620, scrolling=True)
-
-
 
 
 # ==============================================================================
