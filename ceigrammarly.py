@@ -3481,6 +3481,24 @@ def confirmar_pago_bancario_pg(student_user: str, ciclo_numero: int, validado_po
     except Exception as e:
         return {"ok": False, "msg": f"Error al confirmar pago: {e}"}
 
+def rechazar_comprobante_bancario_pg(student_user: str, ciclo_numero: int, validado_por: str, motivo: str) -> dict:
+    """Marca un comprobante como Rechazado para que el alumno pueda subir uno nuevo."""
+    try:
+        with pg_session() as cur:
+            cur.execute("""
+                UPDATE tuition_payments
+                SET estatus = 'Rechazado',
+                    validado_por = %s,
+                    fecha_validacion = NOW(),
+                    notas_admin = %s
+                WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s))
+                  AND ciclo_numero = %s;
+            """, (validado_por.strip(), motivo.strip(), student_user.strip(), int(ciclo_numero)))
+        return {"ok": True, "msg": f"⚠️ Comprobante de {student_user} (Bloque {ciclo_numero}) marcado como rechazado."}
+    except Exception as e:
+        return {"ok": False, "msg": f"Error al rechazar comprobante: {e}"}
+
+
 
 def guardar_vacaciones_instituto_pg(nombre_periodo: str, f_ini, f_fin) -> bool:
     try:
@@ -5071,7 +5089,11 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         else:
                                             st.caption("Sin archivo adjunto (solo referencia).")
                                     with cc3:
-                                        nota_val = st.text_input("Nota de cotejo bancario:", key=f"nota_bco_{comp['id']}_{idx_c}", placeholder="Ej: Transferencia verificada en estado de cuenta")
+                                        nota_val = st.text_input(
+                                            "Nota de cotejo bancario:",
+                                            key=f"nota_bco_{comp['id']}_{idx_c}",
+                                            placeholder="Ej: Transferencia verificada en estado de cuenta"
+                                        )
                                         if st.button("✅ Confirmar Pago y Activar Boletín", type="primary", width="stretch", key=f"btn_ok_bco_{comp['id']}_{idx_c}"):
                                             res_conf = confirmar_pago_bancario_pg(
                                                 student_user=comp["student_user"],
@@ -5084,6 +5106,33 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                                 st.rerun()
                                             else:
                                                 st.error(res_conf["msg"])
+
+                                        if st.button("❌ Rechazar Comprobante", width="stretch", key=f"btn_rej_bco_{comp['id']}_{idx_c}"):
+                                            motivo_final = nota_val.strip() or "Comprobante no legible o movimiento no reflejado en banco."
+                                            res_rej = rechazar_comprobante_bancario_pg(
+                                                student_user=comp["student_user"],
+                                                ciclo_numero=int(comp["ciclo_numero"]),
+                                                validado_por=str(st.session_state.current_user),
+                                                motivo=motivo_final
+                                            )
+                                            if res_rej["ok"]:
+                                                msg_rej_wa = (
+                                                    f"Hola {comp['nombre_completo']}, te saludamos de Career English Institute 🎓. "
+                                                    f"Revisamos tu comprobante (Folio {comp['folio_pago']}) del Bloque {comp['ciclo_numero']}, "
+                                                    f"pero no pudimos validarlo por el siguiente motivo: {motivo_final}. "
+                                                    f"Por favor ingresa a 'Mis Pagos' en la plataforma para subir nuevamente tu comprobante legible y mantener activo tu Boletín de Calificaciones."
+                                                )
+                                                tel_clean_r = _format_wa_phone(comp.get("telefono_whatsapp", ""))
+                                                wa_rej_url = (
+                                                    f"https://wa.me{tel_clean_r}?text={urllib.parse.quote(msg_rej_wa)}"
+                                                    if tel_clean_r
+                                                    else f"https://wa.me?text={urllib.parse.quote(msg_rej_wa)}"
+                                                )
+                                                st.session_state[f"wa_rej_url_{comp['id']}"] = wa_rej_url
+                                                st.warning(res_rej["msg"])
+                                                st.rerun()
+                                            else:
+                                                st.error(res_rej["msg"])
 
                         st.divider()
                         st.markdown("##### 📲 Radar de Avisos WhatsApp (4ta Semana de Pago y 5ta Semana con Recargo)")
