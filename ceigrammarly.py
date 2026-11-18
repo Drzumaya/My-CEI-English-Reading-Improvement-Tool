@@ -4149,7 +4149,15 @@ with col_exit:
 
 # --- BARRA DE COMANDO SPA (ROL-AWARE: ESTUDIANTE VS INSTITUCIONAL) ---
 es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
-es_estudiante_rol = (curr_r_clean in ["estudiante", "student", "alumno"]) and (not is_owner)
+es_admin_o_staff = bool(
+    is_owner
+    or is_faculty_desktop
+    or can("Ver_Panel_Admin")
+    or can("Gestionar_Pagos_Cobranza")
+    or can("Registrar_Usuarios")
+    or can("Gestionar_Usuarios")
+)
+es_estudiante_rol = (not es_admin_o_staff) and (not es_socio_afiliado)
 
 if "active_admin_workspace" not in st.session_state:
     st.session_state["active_admin_workspace"] = None
@@ -4157,7 +4165,6 @@ if "active_student_workspace" not in st.session_state:
     st.session_state["active_student_workspace"] = None
 
 if es_estudiante_rol:
-    # Blindaje: el estudiante jamás abre workspaces administrativos
     st.session_state["active_admin_workspace"] = None
     opciones_menu_est = [
         "💳 Mis Pagos (9 Bloques)",
@@ -4181,7 +4188,7 @@ if es_estudiante_rol:
             )
         with ce2:
             if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_student_ws"):
-                st.session_state["active_student_workspace"] = mod_est_elegido
+                st.session_state["active_student_workspace"] = st.session_state.get("sb_portal_estudiante_nav") or mod_est_elegido
                 st.rerun()
         with ce3:
             if st.session_state["active_student_workspace"]:
@@ -4191,7 +4198,7 @@ if es_estudiante_rol:
             else:
                 st.caption("🎓 Aula de Aprendizaje Activa")
 
-elif is_owner or is_faculty_desktop or es_socio_afiliado or can("Gestionar_Pagos_Cobranza"):
+elif es_admin_o_staff or es_socio_afiliado:
     st.session_state["active_student_workspace"] = None
     if es_socio_afiliado:
         opciones_menu_inst = ["🤝 Portal Socio Afiliado"]
@@ -4233,7 +4240,7 @@ elif is_owner or is_faculty_desktop or es_socio_afiliado or can("Gestionar_Pagos
             )
         with c_nav2:
             if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_workspace"):
-                st.session_state["active_admin_workspace"] = mod_elegido
+                st.session_state["active_admin_workspace"] = st.session_state.get("sb_centro_mando_inst") or mod_elegido
                 st.rerun()
         with c_nav3:
             if st.session_state["active_admin_workspace"]:
@@ -4242,7 +4249,6 @@ elif is_owner or is_faculty_desktop or es_socio_afiliado or can("Gestionar_Pagos
                     st.rerun()
             else:
                 st.caption("📚 Aula Académica Activa")
-
 
 # ==============================================================================
 # PARTE 13A1 — BLOQUE 1 DE 3: BARRA DE FOLIOS, BOLETÍN Y MIS PAGOS (FOCUS MODE)
