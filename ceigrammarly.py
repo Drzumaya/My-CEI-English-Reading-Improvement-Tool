@@ -4355,17 +4355,44 @@ if not st.session_state.get("active_admin_workspace"):
             if est_sp.get("en_vacaciones"):
                 st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
             st.markdown("#### 📤 Reportar Pago y Subir Comprobante Bancario")
-            if est_sp["ciclo_pagado"]:
-                st.success(f"✅ Tu **Bloque {est_sp['bloque_en_nivel']}/9** ya se encuentra pagado y confirmado. Tu Boletín de Calificaciones está **ACTIVO**.")
+            bloques_pend_13 = [
+                b for b in est_sp.get("bloques_9", [])
+                if "Pagado" not in str(b.get("estatus", ""))
+            ]
+            if not bloques_pend_13:
+                st.success("✅ ¡Felicidades! Todos los bloques de tu nivel están pagados. Tu Boletín de Calificaciones está **ACTIVO**.")
             else:
+                opciones_b_13 = {
+                    f"Bloque {b['bloque_num']}/9 (Ciclo #{b['ciclo_global']}) — {b['estatus']} | 4ta Sem: {b['sem4_inicio']} al {b['sem4_fin']}": b
+                    for b in bloques_pend_13
+                }
+                sel_b_lbl_13 = st.selectbox(
+                    "🎯 Selecciona el Bloque que deseas pagar:",
+                    list(opciones_b_13.keys()),
+                    key="sel_bloque_pago_13a1"
+                )
+                b_sel_13 = opciones_b_13[sel_b_lbl_13]
+                ciclo_sel_13 = int(b_sel_13["ciclo_global"])
+
+                hoy_13 = datetime.now(ZoneInfo("America/Hermosillo")).date()
+                base_13 = float(est_sp["mensualidad_base"])
+                es_venc_13 = hoy_13 >= b_sel_13["fecha_recargo"]
+                if es_venc_13:
+                    sub_13 = round(base_13 * 1.05, 2)
+                elif est_sp.get("reglas_incentivo_activas"):
+                    sub_13 = round(base_13 * 0.93, 2)
+                else:
+                    sub_13 = base_13
+                monto_sel_13 = round(sub_13 * 1.16, 2) if est_sp.get("aplicar_iva") else sub_13
+
                 col_up1, col_up2 = st.columns([1.4, 1.6])
                 with col_up1:
                     st.markdown(
                         f"- **Matrícula Oficial:** `{mat_oficial_sp}`\n"
-                        f"- **Bloque a cubrir:** Bloque `{est_sp['ciclo_a_cobrar']}`\n"
-                        f"- **Ventana 4ta semana (sin recargo):** `{est_sp['sem4_pago_inicio']}` al `{est_sp['sem4_pago_fin']}`\n"
-                        f"- **Activación de recargo (Semana 5):** `{est_sp['fecha_recargo']}`\n"
-                        f"- **Monto total a transferir:** **`${est_sp['monto_a_pagar']:,.2f} MXN`**"
+                        f"- **Bloque seleccionado:** **Bloque {b_sel_13['bloque_num']}/9** (Ciclo `#{ciclo_sel_13}`)\n"
+                        f"- **Ventana 4ta semana (sin recargo):** `{b_sel_13['sem4_inicio']}` al `{b_sel_13['sem4_fin']}`\n"
+                        f"- **Activación de recargo (Semana 5):** `{b_sel_13['fecha_recargo']}`\n"
+                        f"- **Monto total a transferir:** **`${monto_sel_13:,.2f} MXN`**"
                     )
                     metodo_p_est = st.selectbox(
                         "Método de pago:",
@@ -4379,7 +4406,7 @@ if not st.session_state.get("active_admin_workspace"):
                         type=["jpg", "jpeg", "png", "pdf"],
                         key="up_comprobante_est"
                     )
-                    if st.button("📤 Registrar Comprobante y Desbloquear Boletín", type="primary", width="stretch", key="btn_subir_comp_est"):
+                    if st.button(f"📤 Registrar Pago Bloque {b_sel_13['bloque_num']}/9 y Desbloquear Boletín", type="primary", width="stretch", key="btn_subir_comp_est"):
                         b64_comp = ""
                         mime_comp = ""
                         if archivo_comp is not None:
@@ -4398,7 +4425,8 @@ if not st.session_state.get("active_admin_workspace"):
                             metodo_pago=metodo_p_est,
                             referencia=ref_p_est,
                             comprobante_b64=b64_comp,
-                            comprobante_mime=mime_comp
+                            comprobante_mime=mime_comp,
+                            ciclo_seleccionado=ciclo_sel_13
                         )
                         if res_rep["ok"]:
                             _, wa_owner_url = build_whatsapp_aviso_pago_owner(
@@ -4423,6 +4451,7 @@ if not st.session_state.get("active_admin_workspace"):
                             type="primary",
                             width="stretch"
                         )
+
 # ==============================================================================
 # PARTE 13A1 — BLOQUE 3 DE 3 (FINAL): TABLA DE 9 BLOQUES Y BOLETÍN TIMBRADO
 # ==============================================================================
@@ -4656,17 +4685,44 @@ if st.session_state.get("active_student_workspace"):
                 st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
 
             st.markdown("#### 📤 Reportar Pago y Subir Comprobante Bancario")
-            if est_sp["ciclo_pagado"]:
-                st.success(f"✅ Tu **Bloque {est_sp['bloque_en_nivel']}/9** ya se encuentra pagado y confirmado. Tu Boletín de Calificaciones está **ACTIVO**.")
+            bloques_pendientes = [
+                b for b in est_sp.get("bloques_9", [])
+                if "Pagado" not in str(b.get("estatus", ""))
+            ]
+            if not bloques_pendientes:
+                st.success("✅ ¡Felicidades! Todos los bloques de tu nivel están pagados. Tu Boletín de Calificaciones está **ACTIVO**.")
             else:
+                opciones_bloques_pay = {
+                    f"Bloque {b['bloque_num']}/9 (Ciclo #{b['ciclo_global']}) — {b['estatus']} | Ventana 4ta Sem: {b['sem4_inicio']} al {b['sem4_fin']}": b
+                    for b in bloques_pendientes
+                }
+                sel_bloque_lbl = st.selectbox(
+                    "🎯 Selecciona el Bloque que deseas pagar:",
+                    list(opciones_bloques_pay.keys()),
+                    key="ws_est_sel_bloque_pago"
+                )
+                b_elegido = opciones_bloques_pay[sel_bloque_lbl]
+                ciclo_elegido_num = int(b_elegido["ciclo_global"])
+
+                hoy_loc_ui = datetime.now(ZoneInfo("America/Hermosillo")).date()
+                base_ui = float(est_sp["mensualidad_base"])
+                es_venc_ui = hoy_loc_ui >= b_elegido["fecha_recargo"]
+                if es_venc_ui:
+                    sub_ui = round(base_ui * 1.05, 2)
+                elif est_sp.get("reglas_incentivo_activas"):
+                    sub_ui = round(base_ui * 0.93, 2)
+                else:
+                    sub_ui = base_ui
+                monto_ui = round(sub_ui * 1.16, 2) if est_sp.get("aplicar_iva") else sub_ui
+
                 col_up1, col_up2 = st.columns([1.4, 1.6])
                 with col_up1:
                     st.markdown(
                         f"- **Matrícula Oficial:** `{mat_oficial_sp}`\n"
-                        f"- **Bloque a cubrir:** Bloque `{est_sp['ciclo_a_cobrar']}`\n"
-                        f"- **Ventana 4ta semana (sin recargo):** `{est_sp['sem4_pago_inicio']}` al `{est_sp['sem4_pago_fin']}`\n"
-                        f"- **Activación de recargo (Semana 5):** `{est_sp['fecha_recargo']}`\n"
-                        f"- **Monto total a transferir:** **`${est_sp['monto_a_pagar']:,.2f} MXN`**"
+                        f"- **Bloque seleccionado:** **Bloque {b_elegido['bloque_num']}/9** (Ciclo `#{ciclo_elegido_num}`)\n"
+                        f"- **Ventana 4ta semana (sin recargo):** `{b_elegido['sem4_inicio']}` al `{b_elegido['sem4_fin']}`\n"
+                        f"- **Activación de recargo (Semana 5):** `{b_elegido['fecha_recargo']}`\n"
+                        f"- **Monto total a transferir:** **`${monto_ui:,.2f} MXN`**"
                     )
                     metodo_p_est = st.selectbox(
                         "Método de pago:",
@@ -4680,7 +4736,7 @@ if st.session_state.get("active_student_workspace"):
                         type=["jpg", "jpeg", "png", "pdf"],
                         key="ws_est_up_comp"
                     )
-                    if st.button("📤 Registrar Comprobante y Desbloquear Boletín", type="primary", width="stretch", key="ws_est_btn_comp"):
+                    if st.button(f"📤 Registrar Pago Bloque {b_elegido['bloque_num']}/9 y Desbloquear Boletín", type="primary", width="stretch", key="ws_est_btn_comp"):
                         b64_comp, mime_comp = "", ""
                         if archivo_comp is not None:
                             raw_bytes = archivo_comp.getvalue()
@@ -4698,7 +4754,8 @@ if st.session_state.get("active_student_workspace"):
                             metodo_pago=metodo_p_est,
                             referencia=ref_p_est,
                             comprobante_b64=b64_comp,
-                            comprobante_mime=mime_comp
+                            comprobante_mime=mime_comp,
+                            ciclo_seleccionado=ciclo_elegido_num
                         )
                         if res_rep["ok"]:
                             _, wa_owner_url = build_whatsapp_aviso_pago_owner(
