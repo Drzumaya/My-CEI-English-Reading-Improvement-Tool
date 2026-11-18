@@ -3372,7 +3372,116 @@ def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
         pass
     return res
 # ==============================================================================
-# PARTE 10B3: COMPROBANTES BANCARIOS, CONFIRMACIÓN DE BOLETÍN Y VACACIONES
+# PARTE 10B3 — MITAD 1 DE 2: AUDITORÍA FORENSE CON VISIÓN IA Y MATRÍCULA OFICIAL
+# ==============================================================================
+def _analizar_comprobante_con_vision_ia(
+    comprobante_b64: str,
+    comprobante_mime: str,
+    matricula_esperada: str,
+    monto_esperado: float
+) -> dict:
+    """Audita el comprobante bancario con Gemini Vision cotejando Matrícula, monto y clave de rastreo."""
+    resultado = {
+        "score": 40,
+        "estatus_sugerido": "Gracia_72h",
+        "monto_detectado": 0.0,
+        "clave_rastreo": "",
+        "matricula_detectada": "",
+        "fecha_detectada": "",
+        "banco_emisor": "",
+        "diagnostico": "Pase provisional de 72h activado. Pendiente de cotejo visual por el administrador."
+    }
+    if not comprobante_b64:
+        return resultado
+
+    gemini_key = ""
+    for k_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "API_KEY"):
+        if k_name in st.secrets and str(st.secrets[k_name]).strip():
+            gemini_key = str(st.secrets[k_name]).strip()
+            break
+    if not gemini_key:
+        return resultado
+
+    try:
+        client_v = genai.Client(api_key=gemini_key)
+        raw_doc = base64.b64decode(comprobante_b64)
+        mime_clean = comprobante_mime if comprobante_mime else "image/jpeg"
+        prompt_audit = (
+            f"Audit this bank transfer/deposit receipt for Career English Institute. "
+            f"Expected student Matrícula: '{matricula_esperada}'. Expected amount: {monto_esperado:.2f} MXN. "
+            "Extract the fields and return ONLY a valid JSON object with exact keys: "
+            '{"monto_detectado": 0.0, "clave_rastreo": "tracking key or reference", '
+            '"matricula_detectada": "student matricula or concept text", '
+            '"fecha_detectada": "YYYY-MM-DD", "banco_emisor": "bank name", "es_comprobante_valido": true}.'
+        )
+        resp_v = client_v.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_bytes(data=raw_doc, mime_type=mime_clean),
+                prompt_audit
+            ],
+            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.0)
+        )
+        txt_v = str(resp_v.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        j_v = json.loads(txt_v)
+
+        monto_det = float(j_v.get("monto_detectado") or 0.0)
+        clave_det = str(j_v.get("clave_rastreo") or "").strip().upper()
+        mat_det = str(j_v.get("matricula_detectada") or "").strip().upper()
+        fecha_det = str(j_v.get("fecha_detectada") or "").strip()
+        banco_det = str(j_v.get("banco_emisor") or "").strip()
+        es_valido = bool(j_v.get("es_comprobante_valido", False))
+
+        score = 20 if es_valido else 0
+        notas = []
+
+        if abs(monto_det - monto_esperado) <= 2.0 and monto_det > 0:
+            score += 40
+            notas.append(f"Monto exacto (${monto_det:,.2f})")
+        elif monto_det > 0:
+            notas.append(f"Monto detectado (${monto_det:,.2f} vs esperado ${monto_esperado:,.2f})")
+
+        mat_norm = re.sub(r"[^A-Z0-9]", "", matricula_esperada.upper())
+        mat_det_norm = re.sub(r"[^A-Z0-9]", "", mat_det)
+        if mat_norm and mat_norm in mat_det_norm:
+            score += 30
+            notas.append(f"Matrícula verificada ({matricula_esperada})")
+        else:
+            notas.append(f"Concepto leído: '{mat_det or 'No visible'}'")
+
+        if len(clave_det) >= 5:
+            score += 10
+            notas.append(f"Rastreo: {clave_det}")
+
+        duplicado = False
+        if len(clave_det) >= 6:
+            with pg_session() as cur:
+                cur.execute("""
+                    SELECT 1 FROM tuition_payments
+                    WHERE clave_rastreo_unica = %s AND estatus IN ('Pagado', 'Aprobado_IA')
+                    LIMIT 1;
+                """, (clave_det,))
+                if cur.fetchone():
+                    duplicado = True
+                    score = 0
+                    notas.append("⚠️ ALERTA: Clave de rastreo ya utilizada previamente")
+
+        estatus_fin = "Aprobado_IA" if (score >= 85 and not duplicado) else "Gracia_72h"
+        resultado.update({
+            "score": score,
+            "estatus_sugerido": estatus_fin,
+            "monto_detectado": monto_det,
+            "clave_rastreo": clave_det,
+            "matricula_detectada": mat_det,
+            "fecha_detectada": fecha_det,
+            "banco_emisor": banco_det,
+            "diagnostico": " | ".join(notas) if notas else resultado["diagnostico"]
+        })
+    except Exception:
+        pass
+    return resultado
+# ==============================================================================
+# PARTE 10B3 — MITAD 2 DE 2: REGISTRO CON MATRÍCULA Y BANDEJA PRIORITARIA
 # ==============================================================================
 def reportar_comprobante_pago_estudiante_pg(
     student_user: str,
@@ -3381,100 +3490,72 @@ def reportar_comprobante_pago_estudiante_pg(
     comprobante_b64: str = "",
     comprobante_mime: str = ""
 ) -> dict:
-    """Registra el comprobante subido por el estudiante en estado Pendiente_Revision."""
+    """Audita el comprobante con Visión IA, vincula la Matrícula y desbloquea el Boletín al instante."""
     est = evaluar_estado_financiero_alumno(student_user)
     if est.get("ciclo_pagado"):
-        return {"ok": False, "msg": f"El Bloque {est['ciclo_a_cobrar']} ya figura como Pagado."}
+        return {"ok": False, "msg": f"El Bloque {est['ciclo_a_cobrar']} ya figura al corriente."}
 
     ciclo_obj = int(est["ciclo_a_cobrar"])
+    mat_alumno = str(est.get("matricula") or "").strip()
     folio_gen = f"PAY-{datetime.now(ZoneInfo('America/Hermosillo')).strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+
+    audit = _analizar_comprobante_con_vision_ia(
+        comprobante_b64=comprobante_b64,
+        comprobante_mime=comprobante_mime,
+        matricula_esperada=mat_alumno,
+        monto_esperado=float(est["monto_a_pagar"])
+    )
+    estatus_nuevo = audit["estatus_sugerido"]
+    expira_gracia = datetime.now(ZoneInfo("UTC")) + timedelta(hours=72)
+    clave_unica = audit["clave_rastreo"] or referencia.strip().upper()
 
     try:
         with pg_session() as cur:
             cur.execute("""
                 INSERT INTO tuition_payments (
-                    student_user, ciclo_numero, fecha_vencimiento,
+                    student_user, matricula_alumno, ciclo_numero, fecha_vencimiento,
                     monto_base, ajuste_tipo, monto_final, estatus,
                     folio_pago, nivel_cefr, metodo_pago, referencia_comprobante,
+                    clave_rastreo_unica, ai_score, ai_audit_json, gracia_expira_en,
                     comprobante_b64, comprobante_mime, registrado_por
-                ) VALUES (%s, %s, %s, %s, %s, %s, 'Pendiente_Revision', %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (student_user, ciclo_numero) DO UPDATE SET
-                    estatus = 'Pendiente_Revision',
+                    matricula_alumno = EXCLUDED.matricula_alumno,
+                    estatus = EXCLUDED.estatus,
                     monto_final = EXCLUDED.monto_final,
                     ajuste_tipo = EXCLUDED.ajuste_tipo,
                     folio_pago = COALESCE(tuition_payments.folio_pago, EXCLUDED.folio_pago),
                     metodo_pago = EXCLUDED.metodo_pago,
                     referencia_comprobante = EXCLUDED.referencia_comprobante,
+                    clave_rastreo_unica = EXCLUDED.clave_rastreo_unica,
+                    ai_score = EXCLUDED.ai_score,
+                    ai_audit_json = EXCLUDED.ai_audit_json,
+                    gracia_expira_en = EXCLUDED.gracia_expira_en,
                     comprobante_b64 = CASE WHEN EXCLUDED.comprobante_b64 <> '' THEN EXCLUDED.comprobante_b64 ELSE tuition_payments.comprobante_b64 END,
                     comprobante_mime = CASE WHEN EXCLUDED.comprobante_mime <> '' THEN EXCLUDED.comprobante_mime ELSE tuition_payments.comprobante_mime END,
                     fecha_pago = NOW(),
                     registrado_por = EXCLUDED.registrado_por;
             """, (
                 student_user.strip(),
+                mat_alumno,
                 ciclo_obj,
                 est["sem4_pago_fin"],
                 est["mensualidad_base"],
                 est["ajuste_label"],
                 est["monto_a_pagar"],
+                estatus_nuevo,
                 folio_gen,
                 est.get("nivel_cefr", ""),
                 metodo_pago.strip(),
                 referencia.strip(),
+                clave_unica,
+                int(audit["score"]),
+                json.dumps(audit, ensure_ascii=False),
+                expira_gracia,
                 comprobante_b64,
                 comprobante_mime,
                 student_user.strip()
             ))
-        return {
-            "ok": True,
-            "folio_pago": folio_gen,
-            "ciclo_num": ciclo_obj,
-            "monto": est["monto_a_pagar"],
-            "nivel_cefr": est.get("nivel_cefr", ""),
-            "msg": f"✅ Comprobante registrado con Folio {folio_gen}. Envía la nota por WhatsApp al Owner/Administrador para confirmar en cuenta bancaria."
-        }
-    except Exception as e:
-        return {"ok": False, "msg": f"Error al registrar comprobante: {e}"}
-
-
-def listar_comprobantes_pendientes_pg() -> list[dict]:
-    """Lista todos los comprobantes subidos por alumnos pendientes de verificación bancaria."""
-    try:
-        with pg_session(dict_rows=True) as cur:
-            cur.execute("""
-                SELECT tp.id, tp.folio_pago, tp.student_user, tp.nivel_cefr, tp.ciclo_numero,
-                       tp.monto_final, tp.metodo_pago, tp.referencia_comprobante,
-                       tp.comprobante_b64, tp.comprobante_mime, tp.estatus,
-                       TO_CHAR(tp.fecha_pago AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha_reporte,
-                       COALESCE(up.nombre_completo, tp.student_user) AS nombre_completo,
-                       COALESCE(up.telefono_whatsapp, '') AS telefono_whatsapp
-                FROM tuition_payments tp
-                LEFT JOIN users_padron up ON LOWER(TRIM(up.usuario)) = LOWER(TRIM(tp.student_user))
-                WHERE tp.estatus = 'Pendiente_Revision'
-                ORDER BY tp.fecha_pago ASC;
-            """)
-            return [dict(r) for r in cur.fetchall()]
-    except Exception:
-        return []
-
-
-def confirmar_pago_bancario_pg(student_user: str, ciclo_numero: int, validado_por: str, notas_admin: str = "") -> dict:
-    """Confirma el pago cotejado en banco, libera el Boletín de Calificaciones y calcula comisión."""
-    est = evaluar_estado_financiero_alumno(student_user)
-    try:
-        with pg_session(dict_rows=True) as cur:
-            cur.execute("""
-                UPDATE tuition_payments
-                SET estatus = 'Pagado',
-                    validado_por = %s,
-                    fecha_validacion = NOW(),
-                    notas_admin = %s
-                WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s))
-                  AND ciclo_numero = %s
-                RETURNING monto_final, folio_pago;
-            """, (validado_por.strip(), notas_admin.strip(), student_user.strip(), int(ciclo_numero)))
-            row_up = cur.fetchone()
-            monto_pag = float(row_up["monto_final"]) if row_up else float(est["monto_a_pagar"])
-            folio_ok = str(row_up["folio_pago"] or "") if row_up else ""
 
             cur.execute("""
                 UPDATE users_padron
@@ -3482,68 +3563,48 @@ def confirmar_pago_bancario_pg(student_user: str, ciclo_numero: int, validado_po
                 WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
             """, (student_user.strip(),))
 
-            afiliado = str(est.get("afiliado_usuario") or "").strip()
-            pct_com = float(est.get("porcentaje_comision") or 0.0)
-            if afiliado and pct_com > 0:
-                com_calc = round(monto_pag * (pct_com / 100.0), 2)
-                cur.execute("""
-                    INSERT INTO affiliate_commissions (
-                        affiliate_user, student_user, ciclo_numero,
-                        monto_pagado, porcentaje_aplicado, comision_ganada, estatus_pago_comision
-                    ) VALUES (%s, %s, %s, %s, %s, %s, 'Pendiente')
-                    ON CONFLICT (affiliate_user, student_user, ciclo_numero) DO UPDATE
-                    SET monto_pagado = EXCLUDED.monto_pagado,
-                        porcentaje_aplicado = EXCLUDED.porcentaje_aplicado,
-                        comision_ganada = EXCLUDED.comision_ganada;
-                """, (afiliado, student_user.strip(), int(ciclo_numero), monto_pag, pct_com, com_calc))
-
+        badge_msg = (
+            f"🟢 **Aprobación Express IA ({audit['score']}%)** — Matrícula `{mat_alumno}` verificada. ¡Tu Boletín ya está desbloqueado!"
+            if estatus_nuevo == "Aprobado_IA"
+            else f"🟡 **Pase Provisional de 72 horas activado** para Matrícula `{mat_alumno}`. ¡Ya puedes descargar tu Boletín mientras el administrador concilia el movimiento!"
+        )
         return {
             "ok": True,
-            "msg": f"✅ Pago {folio_ok} de {student_user} (Bloque {ciclo_numero}) confirmado. Boletín de Calificaciones ACTIVADO."
+            "folio_pago": folio_gen,
+            "matricula": mat_alumno,
+            "ciclo_num": ciclo_obj,
+            "monto": est["monto_a_pagar"],
+            "nivel_cefr": est.get("nivel_cefr", ""),
+            "estatus_ia": estatus_nuevo,
+            "msg": f"✅ Comprobante `{folio_gen}` registrado.\n\n{badge_msg}\n\n🔍 *Auditoría:* {audit['diagnostico']}"
         }
     except Exception as e:
-        return {"ok": False, "msg": f"Error al confirmar pago: {e}"}
+        return {"ok": False, "msg": f"Error al registrar comprobante: {e}"}
 
-def rechazar_comprobante_bancario_pg(student_user: str, ciclo_numero: int, validado_por: str, motivo: str) -> dict:
-    """Marca un comprobante como Rechazado para que el alumno pueda subir uno nuevo."""
+
+def listar_comprobantes_pendientes_pg() -> list[dict]:
+    """Lista comprobantes en Gracia_72h, Pendiente_Revision o Aprobado_IA con Matrícula Oficial."""
     try:
-        with pg_session() as cur:
+        with pg_session(dict_rows=True) as cur:
             cur.execute("""
-                UPDATE tuition_payments
-                SET estatus = 'Rechazado',
-                    validado_por = %s,
-                    fecha_validacion = NOW(),
-                    notas_admin = %s
-                WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s))
-                  AND ciclo_numero = %s;
-            """, (validado_por.strip(), motivo.strip(), student_user.strip(), int(ciclo_numero)))
-        return {"ok": True, "msg": f"⚠️ Comprobante de {student_user} (Bloque {ciclo_numero}) marcado como rechazado."}
-    except Exception as e:
-        return {"ok": False, "msg": f"Error al rechazar comprobante: {e}"}
-
-
-
-def guardar_vacaciones_instituto_pg(nombre_periodo: str, f_ini, f_fin) -> bool:
-    try:
-        with pg_session() as cur:
-            cur.execute("""
-                INSERT INTO institute_holidays (nombre_periodo, fecha_inicio, fecha_fin, activo)
-                VALUES (%s, %s, %s, TRUE);
-            """, (nombre_periodo.strip(), f_ini, f_fin))
-        load_institute_holidays_pg.clear()
-        return True
+                SELECT tp.id, tp.folio_pago, tp.student_user,
+                       COALESCE(NULLIF(tp.matricula_alumno, ''), up.matricula, 'SIN-MAT') AS matricula_alumno,
+                       tp.nivel_cefr, tp.ciclo_numero, tp.monto_final, tp.metodo_pago,
+                       tp.referencia_comprobante, tp.ai_score, tp.ai_audit_json,
+                       tp.comprobante_b64, tp.comprobante_mime, tp.estatus,
+                       TO_CHAR(tp.fecha_pago AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha_reporte,
+                       COALESCE(up.nombre_completo, tp.student_user) AS nombre_completo,
+                       COALESCE(up.telefono_whatsapp, '') AS telefono_whatsapp
+                FROM tuition_payments tp
+                LEFT JOIN users_padron up ON LOWER(TRIM(up.usuario)) = LOWER(TRIM(tp.student_user))
+                WHERE tp.estatus IN ('Pendiente_Revision', 'Gracia_72h', 'Aprobado_IA')
+                ORDER BY
+                    CASE tp.estatus WHEN 'Gracia_72h' THEN 1 WHEN 'Pendiente_Revision' THEN 2 ELSE 3 END,
+                    tp.fecha_pago ASC;
+            """)
+            return [dict(r) for r in cur.fetchall()]
     except Exception:
-        return False
-
-
-def eliminar_vacaciones_instituto_pg(holiday_id: int) -> bool:
-    try:
-        with pg_session() as cur:
-            cur.execute("UPDATE institute_holidays SET activo = FALSE WHERE id = %s;", (int(holiday_id),))
-        load_institute_holidays_pg.clear()
-        return True
-    except Exception:
-        return False
+        return []
 
 # ==============================================================================
 # PARTE 11A: INICIALIZACIÓN DE SESIÓN Y VERIFICACIÓN PÚBLICA DE CERTIFICADOS (QR)
