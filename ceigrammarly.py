@@ -2312,7 +2312,180 @@ def render_interactive_study_viewer(study_payload: dict):
                             width="stretch"
                         )
 # ==============================================================================
-# PARTE 8B — MITAD 2B-1: REPRODUCTOR BASE64, TRADUCTOR GOOGLE Y CAJÓN TÁCTIL
+# PARTE 8B — SECCIÓN 1 DE 4: CACHÉ DE AUDIO MP3 Y TRADUCCIÓN AUTOMÁTICA GOOGLE
+# ==============================================================================
+@st.cache_data(show_spinner=False, max_entries=500)
+def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
+    """Genera y cachea en memoria la pronunciación MP3 nativa (US) de una palabra."""
+    if not word_clean:
+        return None
+    try:
+        tts = gTTS(text=word_clean, lang="en", tld="com", slow=slow_mode)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
+@st.cache_data(show_spinner=False, max_entries=60)
+def _build_lesson_audio_b64_map(unique_words_tuple: tuple, slow_mode: bool = False) -> dict:
+    """Pre-sintetiza en paralelo los audios Base64 (normal y lento) para reproducción instantánea."""
+    audio_map = {}
+    if not unique_words_tuple:
+        return audio_map
+
+    def _encode_one(w_item: str):
+        mp3_norm = _synthesize_word_mp3(w_item, slow_mode=slow_mode)
+        mp3_slow = _synthesize_word_mp3(w_item, slow_mode=True)
+        b64_n = base64.b64encode(mp3_norm).decode("ascii") if mp3_norm else ""
+        b64_s = base64.b64encode(mp3_slow).decode("ascii") if mp3_slow else b64_n
+        return w_item.lower(), {"n": b64_n, "s": b64_s}
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for k_w, pair_b64 in pool.map(_encode_one, unique_words_tuple):
+            if pair_b64["n"]:
+                audio_map[k_w] = pair_b64
+    return audio_map
+
+
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=120)
+def _pretranslate_words_google(unique_words_tuple: tuple) -> dict:
+    """Traduce en lote todas las palabras únicas de la lección al español (Google Translate + Gemini)."""
+    trans_map = {}
+    words_list = [str(w).strip() for w in unique_words_tuple if str(w).strip()]
+    if not words_list:
+        return trans_map
+
+    # 1. Traducción en lote con GoogleTranslator
+    try:
+        joined_q = "\n".join(words_list)
+        translated_block = GoogleTranslator(source="en", target="es").translate(joined_q)
+        if translated_block:
+            lines_es = [ln.strip() for ln in str(translated_block).splitlines()]
+            if len(lines_es) == len(words_list):
+                for w_orig, w_es in zip(words_list, lines_es):
+                    if w_es and w_es.lower() != w_orig.lower():
+                        trans_map[w_orig.lower()] = w_es
+    except Exception:
+        pass
+
+    # 2. Completar cualquier palabra faltante con Gemini Flash en una sola petición JSON
+    faltantes = [w for w in words_list if w.lower() not in trans_map]
+    if faltantes:
+        try:
+            gm_tr = init_gemini_client()
+            if gm_tr:
+                prompt_tr = (
+                    "Translate each English word below into natural Spanish (1 or 2 most common meanings). "
+                    "Return ONLY a valid JSON object mapping lowercase English word -> Spanish translation.\n"
+                    f"Words: {json.dumps(faltantes)}"
+                )
+                r_tr = gm_tr.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_tr,
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+                )
+                raw_tr = str(r_tr.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                parsed_tr = json.loads(raw_tr)
+                if isinstance(parsed_tr, dict):
+                    for k_e, v_s in parsed_tr.items():
+                        v_clean = str(v_s or "").strip()
+                        if v_clean:
+                            trans_map[str(k_e).strip().lower()] = v_clean
+        except Exception:
+            pass
+
+    return trans_map
+# ==============================================================================
+# PARTE 8B — SECCIÓN 2 DE 4: REJILLA DE BOTONES NATIVOS Y LEYENDA GRAMATICAL
+# ==============================================================================
+def render_interactive_study_viewer(study_payload: dict):
+    """
+    Interacción Multimodal Unificada:
+    - Touch (Móvil / Tablet / TV Touch): 1er toque = Voz US | Doble toque = Cajón deslizable hacia arriba (deslizar abajo para ocultar).
+    - Desktop (Laptop / PC): Hover = Voz US | Doble clic = Búsqueda automática y Tarjeta Diccionario bilingüe.
+    """
+    if not study_payload or not study_payload.get("sentences"):
+        st.warning("No se pudo estructurar el modo estudio para este texto.")
+        return
+
+    sentences = study_payload.get("sentences", [])
+    dictionary = study_payload.get("dictionary", {})
+
+    # 1. Leyenda de colores gramaticales y control de velocidad
+    col_leg, col_spd = st.columns([2.8, 1.0])
+    with col_leg:
+        st.markdown(
+            """
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#fff;padding:9px 12px;border-radius:10px;border:1px solid #cbd5e1;font-size:12px;font-weight:700;">
+                <span style="background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:5px;border-bottom:2px solid #ef4444;">🔴 Verbo</span>
+                <span style="background:#dbeafe;color:#1e40af;padding:2px 7px;border-radius:5px;border-bottom:2px solid #3b82f6;">🔵 Sustantivo</span>
+                <span style="background:#dcfce7;color:#166534;padding:2px 7px;border-radius:5px;border-bottom:2px solid #22c55e;">🟢 Adjetivo</span>
+                <span style="background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:5px;border-bottom:2px solid #f59e0b;">🟡 Conjunción</span>
+                <span style="background:#f1f5f9;color:#334155;padding:2px 7px;border-radius:5px;">⚪ Otro</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    with col_spd:
+        velocidad_lenta = st.toggle("🐢 Voz Lenta", value=False, key="study_native_slow_tgl")
+
+    # 2. Pre-cargar mapa de audios Base64 (Normal y Lento) para respuesta instantánea 0 ms
+    unique_words = []
+    seen_w = set()
+    for sent in sentences:
+        for tok in sent.get("tokens", []):
+            wc = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", str(tok.get("w", "")).strip())
+            if wc and wc.lower() not in seen_w:
+                seen_w.add(wc.lower())
+                unique_words.append(wc)
+
+    audio_b64_map = _build_lesson_audio_b64_map(tuple(unique_words[:95]), slow_mode=velocidad_lenta)
+
+    # 3. Rejilla de Botones Nativos de Palabras
+    pos_dot = {
+        "verb": "🔴",
+        "noun": "🔵",
+        "adjective": "🟢",
+        "conjunction": "🟡",
+        "other": "⚪"
+    }
+
+    st.caption(
+        "📱 **Touch (Móvil/Tablet/TV):** 1 toque = 🔊 Voz | 2 toques = 📖 Diccionario (desliza abajo para ocultar)  •  "
+        "💻 **PC/Laptop:** Deslizar cursor = 🔊 Voz | Doble clic = 📖 Búsqueda automática"
+    )
+
+    with st.container(height=480, border=True):
+        for s_idx, sent in enumerate(sentences):
+            tokens = sent.get("tokens", [])
+            valid_tokens = []
+            for t_idx, tok in enumerate(tokens):
+                w_raw = str(tok.get("w", "")).strip()
+                w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw)
+                if w_clean:
+                    valid_tokens.append((t_idx, w_raw, w_clean, str(tok.get("pos", "other")).lower()))
+
+            if not valid_tokens:
+                continue
+
+            cols_per_row = 7
+            for start_i in range(0, len(valid_tokens), cols_per_row):
+                chunk = valid_tokens[start_i:start_i + cols_per_row]
+                cols_w = st.columns(cols_per_row)
+                for c_i, (t_idx, w_raw, w_clean, pos_k) in enumerate(chunk):
+                    badge = pos_dot.get(pos_k, "⚪")
+                    btn_label = f"{badge} {w_raw}"
+                    with cols_w[c_i]:
+                        st.button(
+                            btn_label,
+                            key=f"wbtn_{s_idx}_{t_idx}_{w_clean}",
+                            type="secondary",
+                            width="stretch"
+                        )
+# ==============================================================================
+# PARTE 8B — SECCIÓN 3 DE 4: TRADUCTOR GOOGLE, AUDIO BASE64 Y CAJÓN TÁCTIL
 # ==============================================================================
     if audio_b64_map:
         google_tr_map = _pretranslate_words_google(tuple(unique_words[:95]))
@@ -2320,7 +2493,7 @@ def render_interactive_study_viewer(study_payload: dict):
         for kw_l, es_tr in google_tr_map.items():
             if kw_l not in merged_dict:
                 merged_dict[kw_l] = {}
-            if not merged_dict[kw_l].get("es"):
+            if not merged_dict[kw_l].get("es") or merged_dict[kw_l]["es"].lower() == kw_l:
                 merged_dict[kw_l]["es"] = es_tr
 
         b64_json = json.dumps(audio_b64_map)
@@ -2388,9 +2561,9 @@ def render_interactive_study_viewer(study_payload: dict):
                     doc.body.appendChild(drw);
 
                     let startY = 0;
-                    drw.addEventListener("touchstart", (ev) => {{ startY = ev.touches.clientY; }}, {{passive: true}});
+                    drw.addEventListener("touchstart", (ev) => {{ startY = ev.touches[0].clientY; }}, {{passive: true}});
                     drw.addEventListener("touchmove", (ev) => {{
-                        const deltaY = ev.touches.clientY - startY;
+                        const deltaY = ev.touches[0].clientY - startY;
                         if (deltaY > 45) drw.style.transform = "translateY(110%)";
                     }}, {{passive: true}});
                     doc.getElementById("cei-drw-close").onclick = () => {{ drw.style.transform = "translateY(110%)"; }};
@@ -2401,7 +2574,7 @@ def render_interactive_study_viewer(study_payload: dict):
                     const k = wClean.toLowerCase();
                     const loc = (win.__ceiLocalDict || {{}})[k] || {{}};
                     doc.getElementById("cei-drw-en").innerText = wClean;
-                    doc.getElementById("cei-drw-es").innerText = loc.es || "Buscando traducción...";
+                    doc.getElementById("cei-drw-es").innerText = (loc.es && loc.es.toLowerCase() !== k) ? loc.es : "Buscando traducción...";
                     doc.getElementById("cei-drw-ipa").innerText = loc.ipa ? ("IPA: " + loc.ipa) : "🇺🇸 US Pronunciation";
                     doc.getElementById("cei-drw-pos").innerText = loc.pos || posRaw;
                     doc.getElementById("cei-drw-alt").innerText = loc.alt ? ("Acepciones: " + loc.alt) : "";
@@ -2416,7 +2589,7 @@ def render_interactive_study_viewer(study_payload: dict):
                     drw.style.transform = "translateY(0%)";
                     win.__ceiPlayWord(wClean, false);
 
-                    if (!loc.es) {{
+                    if (!loc.es || loc.es.toLowerCase() === k) {{
                         try {{
                             const r = await fetch("https://googleapis.com" + qEnc);
                             const j = await r.json();
@@ -2428,7 +2601,7 @@ def render_interactive_study_viewer(study_payload: dict):
                                 doc.getElementById("cei-drw-alt").innerText = "Acepciones: " + j[1][0][1].slice(0, 4).join(", ");
                             }}
                         }} catch (e) {{
-                            doc.getElementById("cei-drw-es").innerText = wClean;
+                            doc.getElementById("cei-drw-es").innerText = loc.es || wClean;
                         }}
                     }}
                     if (!loc.def) {{
@@ -2454,17 +2627,19 @@ def render_interactive_study_viewer(study_payload: dict):
 
                     function parseBtnWord(btn) {{
                         if (!btn) return null;
+                        if (btn.closest('[data-testid="stSidebar"]')) return null;
                         const raw = (btn.innerText || "").trim();
                         if (!raw || raw.length > 32 || raw.includes("\n")) return null;
-                        if (/Lectura Clásica|Modo Estudio|Calificar|Generar|Descargar|Cerrar|Borrar|Nuevo Quiz|Evaluar|Folios|Guardar|Acceso|Salir|Buscar/i.test(raw)) return null;
+                        if (/Lectura|Estudio|Calificar|Generar|Generate|Descargar|Cerrar|Borrar|Quiz|Evaluar|Folios|Guardar|Acceso|Salir|Buscar|Ocultar|Normal|Lento/i.test(raw)) return null;
                         const m = raw.match(/^([🔴🔵🟢🟡⚪])\s*(.+)$/);
                         if (!m) return null;
-                        const clean = m.replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, "");
+                        const emojiTag = m[1];
+                        const wordPart = m[2];
+                        const clean = wordPart.replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, "");
                         if (!clean) return null;
                         const posMap = {{"🔴":"Verbo","🔵":"Sustantivo","🟢":"Adjetivo","🟡":"Conjunción","⚪":"Vocabulario"}};
-                        return {{ clean: clean, pos: posMap[m] || "Vocabulario" }};
+                        return {{ clean: clean, pos: posMap[emojiTag] || "Vocabulario" }};
                     }}
-
 
                     doc.addEventListener("pointerover", function(e) {{
                         if (e.pointerType !== "mouse") return;
@@ -2524,7 +2699,6 @@ def render_interactive_study_viewer(study_payload: dict):
         }})()
         """
         streamlit_js_eval(js_expressions=multimodal_js, key=f"cei_mm_bridge_{len(audio_b64_map)}_{velocidad_lenta}")
-
 
 
 # ==============================================================================
