@@ -3250,7 +3250,18 @@ def registrar_pago_mensual_y_comision_pg(student_user: str, registrado_por: str)
     except Exception as e:
         return {"ok": False, "msg": f"Error al registrar pago: {e}"}
 
-def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, mensualidad_val: float, aplicar_iva_val: bool, afiliado_user: str, pct_comision: float) -> bool:
+
+def actualizar_config_financiera_alumno_pg(
+    student_user: str,
+    fecha_inicio_val,
+    mensualidad_val: float,
+    aplicar_iva_val: bool,
+    afiliado_user: str,
+    pct_comision: float,
+    fecha_inscripcion_val=None,
+    telefono_whatsapp_val: str = "",
+    recargo_tardio_val: float = 0.0
+) -> bool:
     try:
         with pg_session() as cur:
             aff_clean = afiliado_user.strip()
@@ -3258,19 +3269,24 @@ def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, 
             if aff_clean:
                 cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (aff_clean,))
                 r_id = cur.fetchone()
-                aff_id_val = int(r_id) if r_id else None
+                aff_id_val = int(r_id[0]) if r_id else None
 
+            f_ins_final = fecha_inscripcion_val or fecha_inicio_val
             cur.execute("""
                 UPDATE users_padron
-                SET fecha_inicio_curso = %s,
+                SET fecha_inscripcion = %s,
+                    fecha_inicio_curso = %s,
+                    telefono_whatsapp = %s,
                     mensualidad_base = %s,
+                    recargo_tardio = %s,
                     aplicar_iva = %s,
                     afiliado_usuario = %s,
                     afiliador_id = %s,
                     porcentaje_comision = %s
                 WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
             """, (
-                fecha_inicio_val, float(mensualidad_val), bool(aplicar_iva_val),
+                f_ins_final, fecha_inicio_val, str(telefono_whatsapp_val or "").strip(),
+                float(mensualidad_val), float(recargo_tardio_val or 0.0), bool(aplicar_iva_val),
                 aff_clean, aff_id_val, float(pct_comision), student_user.strip()
             ))
         load_padron_records.clear()
@@ -3278,12 +3294,14 @@ def actualizar_config_financiera_alumno_pg(student_user: str, fecha_inicio_val, 
     except Exception:
         return False
 
+
 def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
     res = {"students": [], "commissions": [], "total_ganado": 0.0, "total_pendiente": 0.0, "total_pagado": 0.0}
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
-                SELECT usuario, nivel_cefr AS nivel, fecha_inicio_curso, mensualidad_base, porcentaje_comision, estatus
+                SELECT usuario, nivel_cefr AS nivel, fecha_inscripcion, fecha_inicio_curso,
+                       mensualidad_base, porcentaje_comision, estatus
                 FROM users_padron
                 WHERE LOWER(TRIM(afiliado_usuario)) = LOWER(TRIM(%s))
                 ORDER BY usuario ASC;
@@ -3307,6 +3325,7 @@ def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
     except Exception:
         pass
     return res
+
 # ==============================================================================
 # PARTE 11A: INICIALIZACIÓN DE SESIÓN Y VERIFICACIÓN PÚBLICA DE CERTIFICADOS (QR)
 # ==============================================================================
@@ -4316,25 +4335,40 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             else:
                 permisos_disponibles = PERMISOS_LISTA if (is_owner or can("Editar_Permisos")) else ["Basico"]
                 default_perm_idx = permisos_disponibles.index("Basico") if "Basico" in permisos_disponibles else 0
+                hoy_hermosillo = datetime.now(ZoneInfo("America/Hermosillo")).date()
 
-                col_form_reg, col_tabla_reg = st.columns([1.2, 2.0])
+                col_form_reg, col_tabla_reg = st.columns([1.25, 2.0])
                 with col_form_reg:
                     st.markdown("#### ➕ Formulario de Inscripción")
                     records_afiliadores = load_padron_records()
-                    opciones_afiliadores = {"Sin afiliador (Inscripción directa)": None}
+                    opciones_afiliadores = {"Sin afiliador (Inscripción directa)": (None, "")}
                     for r_aff in records_afiliadores:
                         if r_aff.get("ID"):
                             etiqueta_aff = f"ID #{r_aff['ID']} — {r_aff['Matricula']} ({r_aff['Usuario']})"
-                            opciones_afiliadores[etiqueta_aff] = int(r_aff["ID"])
+                            opciones_afiliadores[etiqueta_aff] = (int(r_aff["ID"]), str(r_aff["Usuario"]).strip())
 
                     with st.form("form_registro_estudiante", clear_on_submit=True):
                         reg_usuario = st.text_input("👤 Nombre Completo / Usuario:", placeholder="Ej: Carlos Mendoza")
                         reg_clave = st.text_input("🔑 Clave de Acceso asignada:", placeholder="Ej: CEI-2026-05")
+                        reg_whatsapp = st.text_input("📱 Teléfono WhatsApp (10 dígitos o +52):", placeholder="Ej: 6331234567")
+
                         c_r1, c_r2 = st.columns(2)
                         with c_r1:
                             reg_rol = st.selectbox("Rol:", ROLES_LISTA, index=0)
                         with c_r2:
                             reg_nivel = st.selectbox("Nivel CEFR:", ["A1", "A2", "B1", "B2", "C1", "C2"], index=2)
+
+                        c_f1, c_f2 = st.columns(2)
+                        with c_f1:
+                            reg_fecha_inscripcion = st.date_input("📝 Fecha de Inscripción:", value=hoy_hermosillo)
+                        with c_f2:
+                            reg_fecha_inicio = st.date_input("🎓 Fecha de Inicio de Clases:", value=hoy_hermosillo)
+
+                        c_m1, c_m2 = st.columns(2)
+                        with c_m1:
+                            reg_mensualidad = st.number_input("💵 Mensualidad ($ MXN):", min_value=0.0, value=1500.0, step=100.0)
+                        with c_m2:
+                            reg_recargo = st.number_input("⚠️ Recargo Sem. 5 ($ MXN):", min_value=0.0, value=150.0, step=50.0)
 
                         reg_grado = st.selectbox("🎓 Nivel Académico:", GRADOS_ACADEMICOS, index=1)
                         reg_permiso = st.selectbox("🛡️ Perfil de Permiso:", permisos_disponibles, index=default_perm_idx)
@@ -4343,7 +4377,8 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             list(opciones_afiliadores.keys()),
                             index=0
                         )
-                        reg_afiliador_id = opciones_afiliadores[reg_afiliador_label]
+                        reg_afiliador_id, reg_afiliador_user = opciones_afiliadores[reg_afiliador_label]
+                        reg_pago_inicial_ok = st.checkbox("✅ Suscripción / Bloque 1 Pagado al inscribir", value=True)
 
                         if st.form_submit_button("💾 Guardar Inscripción", type="primary", width="stretch"):
                             if reg_usuario.strip() and reg_clave.strip():
@@ -4366,12 +4401,32 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                             estatus="Activo",
                                             afiliador_id=reg_afiliador_id
                                         )
-                                        st.success(f"✅ {reg_usuario.strip()} inscrito con Matrícula Oficial **{matricula_nueva}**.")
+                                        actualizar_config_financiera_alumno_pg(
+                                            student_user=reg_usuario.strip(),
+                                            fecha_inicio_val=reg_fecha_inicio,
+                                            mensualidad_val=float(reg_mensualidad),
+                                            aplicar_iva_val=False,
+                                            afiliado_user=reg_afiliador_user,
+                                            pct_comision=10.0 if reg_afiliador_user else 0.0,
+                                            fecha_inscripcion_val=reg_fecha_inscripcion,
+                                            telefono_whatsapp_val=reg_whatsapp.strip(),
+                                            recargo_tardio_val=float(reg_recargo)
+                                        )
+                                        if reg_pago_inicial_ok and reg_rol.lower() in ["estudiante", "student", "alumno"]:
+                                            registrar_pago_mensual_y_comision_pg(
+                                                student_user=reg_usuario.strip(),
+                                                registrado_por=str(st.session_state.get("current_user", "Admin"))
+                                            )
+                                        st.success(
+                                            f"✅ {reg_usuario.strip()} inscrito con Matrícula **{matricula_nueva}** "
+                                            f"(Inscripción: {reg_fecha_inscripcion} | Inicio Clases: {reg_fecha_inicio})."
+                                        )
                                         st.rerun()
                                 except Exception as e:
                                     st.error(f"Error al registrar en Supabase: {e}")
                             else:
                                 st.warning("⚠️ Completa tanto el usuario como la clave.")
+
 # ==============================================================================
 # PARTE 14B2: TABLA DE REGISTROS ACTIVOS, EDICIÓN Y ASIGNACIÓN DE AFILIADOS
 # ==============================================================================
