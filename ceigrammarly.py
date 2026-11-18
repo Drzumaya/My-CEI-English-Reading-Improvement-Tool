@@ -2108,7 +2108,7 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B: VISOR MULTIMODAL (TOUCH + HOVER/DBLCLICK) Y DICCIONARIO AUTOMÁTICO
+# PARTE 8B: VISOR INTERACTIVO DE ESTUDIO — 100% NATIVO (MAC + TOUCH + GOOGLE)
 # ==============================================================================
 @st.cache_data(show_spinner=False, max_entries=500)
 def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
@@ -2124,114 +2124,98 @@ def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | No
         return None
 
 
-@st.cache_data(show_spinner=False, max_entries=60)
-def _build_lesson_audio_b64_map(unique_words_tuple: tuple, slow_mode: bool = False) -> dict:
-    """Pre-sintetiza en paralelo los audios Base64 (normal y lento) para reproducción instantánea."""
-    audio_map = {}
-    if not unique_words_tuple:
-        return audio_map
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=300)
+def _lookup_word_full_bilingual(word_clean: str) -> dict:
+    """Obtiene traducción real al español (Google Translate + Gemini) e IPA/definición."""
+    w_q = str(word_clean or "").strip()
+    k_low = w_q.lower()
+    if not k_low:
+        return {}
 
-    def _encode_one(w_item: str):
-        mp3_norm = _synthesize_word_mp3(w_item, slow_mode=slow_mode)
-        mp3_slow = _synthesize_word_mp3(w_item, slow_mode=True)
-        b64_n = base64.b64encode(mp3_norm).decode("ascii") if mp3_norm else ""
-        b64_s = base64.b64encode(mp3_slow).decode("ascii") if mp3_slow else b64_n
-        return w_item.lower(), {"n": b64_n, "s": b64_s}
+    es_trans = ""
+    ipa_txt = ""
+    pos_txt = ""
+    def_txt = ""
+    alt_txt = ""
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for k_w, pair_b64 in pool.map(_encode_one, unique_words_tuple):
-            if pair_b64["n"]:
-                audio_map[k_w] = pair_b64
-    return audio_map
-
-@st.cache_data(ttl=86400, show_spinner=False, max_entries=120)
-def _pretranslate_words_google(unique_words_tuple: tuple) -> dict:
-    """Traduce en lote todas las palabras únicas de la lección al español (Google Translate + Gemini)."""
-    trans_map = {}
-    words_list = [str(w).strip() for w in unique_words_tuple if str(w).strip()]
-    if not words_list:
-        return trans_map
-
-    # 1. Traducción en lote con GoogleTranslator (evita bloqueos por ráfaga)
+    # 1. Google Translator directo por palabra
     try:
-        joined_q = "\n".join(words_list)
-        translated_block = GoogleTranslator(source="en", target="es").translate(joined_q)
-        if translated_block:
-            lines_es = [ln.strip() for ln in str(translated_block).splitlines()]
-            if len(lines_es) == len(words_list):
-                for w_orig, w_es in zip(words_list, lines_es):
-                    if w_es and w_es.lower() != w_orig.lower():
-                        trans_map[w_orig.lower()] = w_es
+        tr_out = GoogleTranslator(source="en", target="es").translate(k_low)
+        if tr_out and str(tr_out).strip().lower() != k_low:
+            es_trans = str(tr_out).strip()
     except Exception:
         pass
 
-    # 2. Completar cualquier palabra faltante con Gemini Flash en una sola petición JSON
-    faltantes = [w for w in words_list if w.lower() not in trans_map]
-    if faltantes:
-        try:
-            gm_tr = init_gemini_client()
-            if gm_tr:
-                prompt_tr = (
-                    "Translate each English word below into natural Spanish (1 or 2 most common meanings). "
-                    "Return ONLY a valid JSON object mapping lowercase English word -> Spanish translation.\n"
-                    f"Words: {json.dumps(faltantes)}"
-                )
-                r_tr = gm_tr.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt_tr,
-                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-                )
-                raw_tr = str(r_tr.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                parsed_tr = json.loads(raw_tr)
-                if isinstance(parsed_tr, dict):
-                    for k_e, v_s in parsed_tr.items():
-                        v_clean = str(v_s or "").strip()
-                        if v_clean:
-                            trans_map[str(k_e).strip().lower()] = v_clean
-        except Exception:
-            pass
-
-    return trans_map
-
-    # 2. Fonética IPA y definición académica desde Free Dictionary API
+    # 2. Free Dictionary API (Fonética IPA + Definición en inglés)
     try:
-        fd_url = "https://dictionaryapi.dev" + urllib.parse.quote(w_q)
+        fd_url = "https://dictionaryapi.dev" + urllib.parse.quote(k_low)
         req_fd = urllib.request.Request(fd_url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req_fd, timeout=4) as resp_fd:
             fd_data = json.loads(resp_fd.read().decode("utf-8"))
         if isinstance(fd_data, list) and fd_data:
-            first_item = fd_data[0]
-            ipa_txt = str(first_item.get("phonetic") or "").strip()
+            first_it = fd_data[0]
+            ipa_txt = str(first_it.get("phonetic") or "").strip()
             if not ipa_txt:
-                for ph in first_item.get("phonetics") or []:
+                for ph in first_it.get("phonetics") or []:
                     if ph.get("text"):
                         ipa_txt = str(ph["text"]).strip()
                         break
-            meanings = first_item.get("meanings") or []
+            meanings = first_it.get("meanings") or []
             if meanings:
-                if not pos_txt:
-                    pos_txt = str(meanings[0].get("partOfSpeech") or "").capitalize()
+                pos_txt = str(meanings[0].get("partOfSpeech") or "").capitalize()
                 defs = meanings[0].get("definitions") or []
                 if defs:
                     def_txt = str(defs[0].get("definition") or "").strip()
     except Exception:
         pass
 
+    # 3. Respaldo / enriquecimiento con Gemini Flash si falta traducción o definición
+    if not es_trans or es_trans.lower() == k_low or not def_txt:
+        try:
+            gm_w = init_gemini_client()
+            if gm_w:
+                prompt_w = (
+                    f"Analyze the English word '{w_q}' for a Spanish-speaking student. "
+                    "Return ONLY a valid JSON object with keys: "
+                    '{"es": "accurate Spanish translation (1-3 words)", '
+                    '"pos": "part of speech in Spanish", '
+                    '"ipa": "US IPA transcription", '
+                    '"alt": "2 or 3 Spanish synonyms", '
+                    '"def": "brief clear definition in Spanish"}'
+                )
+                r_w = gm_w.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_w,
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+                )
+                raw_w = str(r_w.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                j_w = json.loads(raw_w)
+                if isinstance(j_w, dict):
+                    if j_w.get("es"):
+                        es_trans = str(j_w["es"]).strip()
+                    if not pos_txt and j_w.get("pos"):
+                        pos_txt = str(j_w["pos"]).strip()
+                    if not ipa_txt and j_w.get("ipa"):
+                        ipa_txt = str(j_w["ipa"]).strip()
+                    if j_w.get("alt"):
+                        alt_txt = str(j_w["alt"]).strip()
+                    if j_w.get("def"):
+                        def_txt = str(j_w["def"]).strip()
+        except Exception:
+            pass
+
     return {
         "es": es_trans or w_q,
-        "ipa": ipa_txt,
         "pos": pos_txt,
-        "def": def_txt,
-        "alt": ", ".join(dict.fromkeys(alt_list))
+        "ipa": ipa_txt,
+        "alt": alt_txt,
+        "def": def_txt
     }
-# ==============================================================================
-# PARTE 8B — MITAD 2A: REJILLA DE BOTONES NATIVOS Y PRECARGA DE AUDIO
-# ==============================================================================
 def render_interactive_study_viewer(study_payload: dict):
     """
-    Interacción Multimodal Unificada:
-    - Touch (Móvil / Tablet / TV Touch): 1er toque = Voz US | Doble toque = Cajón deslizable hacia arriba (deslizar abajo para ocultar).
-    - Desktop (Laptop / PC): Hover = Voz US | Doble clic = Búsqueda automática y Tarjeta Diccionario bilingüe.
+    Visor 100% Nativo de Streamlit (inmune a sandbox/CORS en MacBook Pro, iOS y Android):
+    - 1er clic / toque en palabra: reproduce pronunciación US y muestra traducción rápida.
+    - 2do clic / toque en la misma palabra (o botón 'Diccionario'): abre ficha completa bilingüe.
     """
     if not study_payload or not study_payload.get("sentences"):
         st.warning("No se pudo estructurar el modo estudio para este texto.")
@@ -2240,7 +2224,7 @@ def render_interactive_study_viewer(study_payload: dict):
     sentences = study_payload.get("sentences", [])
     dictionary = study_payload.get("dictionary", {})
 
-    # 1. Leyenda de colores gramaticales y control de velocidad
+    # 1. Leyenda de colores y control de velocidad
     col_leg, col_spd = st.columns([2.8, 1.0])
     with col_leg:
         st.markdown(
@@ -2258,17 +2242,62 @@ def render_interactive_study_viewer(study_payload: dict):
     with col_spd:
         velocidad_lenta = st.toggle("🐢 Voz Lenta", value=False, key="study_native_slow_tgl")
 
-    # 2. Pre-cargar mapa de audios Base64 (Normal y Lento) para respuesta instantánea 0 ms
-    unique_words = []
-    seen_w = set()
-    for sent in sentences:
-        for tok in sent.get("tokens", []):
-            wc = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", str(tok.get("w", "")).strip())
-            if wc and wc.lower() not in seen_w:
-                seen_w.add(wc.lower())
-                unique_words.append(wc)
+    active_w = str(st.session_state.get("active_study_word", "")).strip()
+    active_p = str(st.session_state.get("active_study_pos", "other")).strip().lower()
+    active_s = str(st.session_state.get("active_study_sentence", "")).strip()
+    show_full_dict = bool(st.session_state.get("active_study_full_dict", False))
 
-    audio_b64_map = _build_lesson_audio_b64_map(tuple(unique_words[:95]), slow_mode=velocidad_lenta)
+    # 2. Panel Superior de Audio + Diccionario Bilingüe
+    if active_w:
+        k_low = active_w.lower()
+        info_loc = dictionary.get(k_low) or {}
+        info_web = _lookup_word_full_bilingual(active_w)
+
+        traduccion_es = (
+            info_loc.get("es")
+            if (info_loc.get("es") and str(info_loc.get("es")).strip().lower() != k_low)
+            else info_web.get("es", active_w)
+        )
+        ipa_final = info_loc.get("ipa") or info_web.get("ipa") or ""
+        pos_final = info_loc.get("pos") or info_web.get("pos") or active_p.capitalize()
+        alt_final = info_loc.get("alt") or info_web.get("alt") or ""
+        def_final = info_loc.get("def") or info_web.get("def") or ""
+
+        with st.container(border=True):
+            top_c1, top_c2, top_c3 = st.columns([2.5, 1.3, 0.9])
+            with top_c1:
+                st.markdown(f"#### 🇺🇸 **{active_w}**  ➔  🇪🇸 **{traduccion_es}**")
+                if ipa_final:
+                    st.caption(f"Categoría: **{pos_final}**  |  Fonética (IPA): `{ipa_final}`")
+                else:
+                    st.caption(f"Categoría: **{pos_final}**")
+            with top_c2:
+                lbl_dic = "📖 Ocultar Detalle" if show_full_dict else "📖 Ver Definición"
+                if st.button(lbl_dic, key="btn_toggle_full_dict_card", width="stretch"):
+                    st.session_state["active_study_full_dict"] = not show_full_dict
+                    st.rerun()
+            with top_c3:
+                if st.button("✖ Cerrar", key="btn_close_study_card", width="stretch"):
+                    st.session_state["active_study_word"] = ""
+                    st.session_state["active_study_full_dict"] = False
+                    st.rerun()
+
+            mp3_word = _synthesize_word_mp3(active_w, slow_mode=velocidad_lenta)
+            if mp3_word:
+                st.audio(mp3_word, format="audio/mp3", autoplay=True)
+
+            if show_full_dict:
+                if alt_final:
+                    st.markdown(f"**Sinónimos / Acepciones:** {alt_final}")
+                if def_final:
+                    st.info(f"📖 **Definición:** {def_final}")
+                if active_s:
+                    st.caption(f"💬 *\"{active_s}\"*")
+                q_url = urllib.parse.quote(k_low)
+                st.markdown(
+                    f"🔗 [Abrir en Google Translate ↗](https://google.com{q_url}&op=translate)  |  "
+                    f"[Abrir en WordReference ↗](https://wordreference.com{q_url})"
+                )
 
     # 3. Rejilla de Botones Nativos de Palabras
     pos_dot = {
@@ -2279,14 +2308,11 @@ def render_interactive_study_viewer(study_payload: dict):
         "other": "⚪"
     }
 
-    st.caption(
-        "📱 **Touch (Móvil/Tablet/TV):** 1 toque = 🔊 Voz | 2 toques = 📖 Diccionario (desliza abajo para ocultar)  •  "
-        "💻 **PC/Laptop:** Deslizar cursor = 🔊 Voz | Doble clic = 📖 Búsqueda automática"
-    )
-
-    with st.container(height=480, border=True):
+    st.caption("👆 **1er toque / clic:** Escucha pronunciación (US) y traducción rápida  •  **2do toque / clic:** Despliega definición completa")
+    with st.container(height=470, border=True):
         for s_idx, sent in enumerate(sentences):
             tokens = sent.get("tokens", [])
+            full_s = str(sent.get("full_sentence", "")).strip()
             valid_tokens = []
             for t_idx, tok in enumerate(tokens):
                 w_raw = str(tok.get("w", "")).strip()
@@ -2302,15 +2328,25 @@ def render_interactive_study_viewer(study_payload: dict):
                 chunk = valid_tokens[start_i:start_i + cols_per_row]
                 cols_w = st.columns(cols_per_row)
                 for c_i, (t_idx, w_raw, w_clean, pos_k) in enumerate(chunk):
+                    is_sel = bool(active_w and w_clean.lower() == active_w.lower())
                     badge = pos_dot.get(pos_k, "⚪")
                     btn_label = f"{badge} {w_raw}"
                     with cols_w[c_i]:
-                        st.button(
+                        if st.button(
                             btn_label,
                             key=f"wbtn_{s_idx}_{t_idx}_{w_clean}",
-                            type="secondary",
+                            type="primary" if is_sel else "secondary",
                             width="stretch"
-                        )
+                        ):
+                            if is_sel:
+                                st.session_state["active_study_full_dict"] = not show_full_dict
+                            else:
+                                st.session_state["active_study_word"] = w_clean
+                                st.session_state["active_study_pos"] = pos_k
+                                st.session_state["active_study_sentence"] = full_s
+                                st.session_state["active_study_full_dict"] = False
+                            st.rerun()
+
 # ==============================================================================
 # PARTE 8B — SECCIÓN 1 DE 4: CACHÉ DE AUDIO MP3 Y TRADUCCIÓN AUTOMÁTICA GOOGLE
 # ==============================================================================
