@@ -2731,6 +2731,16 @@ def ensure_financial_v2_schema() -> bool:
                 ADD COLUMN IF NOT EXISTS fecha_validacion TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS notas_admin TEXT DEFAULT '';
             """)
+            
+            cur.execute("""
+                ALTER TABLE tuition_payments
+                ADD COLUMN IF NOT EXISTS matricula_alumno TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS clave_rastreo_unica TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS ai_score INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS ai_audit_json TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS gracia_expira_en TIMESTAMPTZ;
+            """)
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS institute_holidays (
                     id SERIAL PRIMARY KEY,
