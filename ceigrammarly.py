@@ -2144,7 +2144,7 @@ def _build_lesson_audio_b64_map(unique_words_tuple: tuple, slow_mode: bool = Fal
                 audio_map[k_w] = pair_b64
     return audio_map
 
-@@st.cache_data(ttl=86400, show_spinner=False, max_entries=120)
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=120)
 def _pretranslate_words_google(unique_words_tuple: tuple) -> dict:
     """Traduce en lote todas las palabras únicas de la lección al español (Google Translate + Gemini)."""
     trans_map = {}
