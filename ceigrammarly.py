@@ -4872,93 +4872,97 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     )
                     st.divider()
 
-                # Bandeja de Comprobantes Bancarios Informados por Estudiantes (Confirmación -> Activa Boletín)
-                if puede_cobranza_v2:
-                    pendientes_comp = listar_comprobantes_pendientes_pg()
-                    st.markdown(f"##### 🏦 Comprobantes Bancarios Pendientes de Confirmación ({len(pendientes_comp)})")
-                    if not pendientes_comp:
-                        st.caption("No hay comprobantes bancarios pendientes de revisión en este momento.")
-                    else:
-                        for idx_c, comp in enumerate(pendientes_comp):
-                            with st.container(border=True):
-                                cc1, cc2, cc3 = st.columns([2.2, 1.4, 1.4])
-                                with cc1:
-                                    st.markdown(
-                                        f"**{comp['nombre_completo']}** (`{comp['student_user']}`) — Nivel **{comp['nivel_cefr']}**\n\n"
-                                        f"Folio: `{comp['folio_pago']}` | **Bloque {comp['ciclo_numero']}** | Monto: **`${float(comp['monto_final']):,.2f} MXN`**\n\n"
-                                        f"Método: {comp['metodo_pago']} | Ref: `{comp['referencia_comprobante']}` | Reportado: {comp['fecha_reporte']}"
-                                    )
-                                with cc2:
-                                    b64_doc = str(comp.get("comprobante_b64") or "").strip()
-                                    mime_doc = str(comp.get("comprobante_mime") or "image/jpeg").strip()
-                                    if b64_doc:
-                                        raw_doc = base64.b64decode(b64_doc)
-                                        if "pdf" in mime_doc.lower():
-                                            st.download_button(
-                                                "📄 Ver Comprobante PDF",
-                                                data=raw_doc,
-                                                file_name=f"{comp['folio_pago']}.pdf",
-                                                mime="application/pdf",
-                                                key=f"dl_comp_pdf_{comp['id']}_{idx_c}"
-                                            )
-                                        else:
-                                            st.image(raw_doc, caption="Comprobante adjunto", width=180)
-                                    else:
-                                        st.caption("Sin archivo adjunto (solo referencia).")
-                                with cc3:
-                                    nota_val = st.text_input("Nota de cotejo bancario:", key=f"nota_bco_{comp['id']}_{idx_c}", placeholder="Ej: Transferencia verificada en estado de cuenta")
-                                    if st.button("✅ Confirmar Pago y Activar Boletín", type="primary", width="stretch", key=f"btn_ok_bco_{comp['id']}_{idx_c}"):
-                                        res_conf = confirmar_pago_bancario_pg(
-                                            student_user=comp["student_user"],
-                                            ciclo_numero=int(comp["ciclo_numero"]),
-                                            validado_por=str(st.session_state.current_user),
-                                            notas_admin=nota_val
-                                        )
-                                        if res_conf["ok"]:
-                                            st.success(res_conf["msg"])
-                                            st.rerun()
-                                        else:
-                                            st.error(res_conf["msg"])
-                    st.divider()
-                    st.markdown("##### 📲 Radar de Avisos WhatsApp (4ta Semana de Pago y 5ta Semana con Recargo)")
-                    padron_radar = load_padron_records()
-                    alumnos_radar = [r for r in padron_radar if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
-                    avisos_encontrados = 0
-                    for r_al in alumnos_radar:
-                        u_al = str(r_al.get("Usuario") or "").strip()
-                        nom_al = str(r_al.get("Nombre_Completo") or u_al).strip()
-                        est_r = evaluar_estado_financiero_alumno(u_al)
-                        es_sem4 = (int(est_r.get("semana_ciclo") or 1) == 4 and not est_r.get("ciclo_pagado"))
-                        es_mora = (int(est_r.get("dias_retraso") or 0) > 0)
-                        if es_sem4 or es_mora:
-                            avisos_encontrados += 1
-                            _, wa_link_est = build_whatsapp_recordatorio_estudiante(
-                                est_r,
-                                nombre_alumno=nom_al,
-                                telefono_alumno=est_r.get("telefono_whatsapp", "")
-                            )
-                            etq_badge = "🔴 Semana 5+ (Recargo Activo)" if es_mora else "🟡 4ta Semana (Ventana de Pago)"
-                            with st.container(border=True):
-                                rw1, rw2 = st.columns([2.6, 1.2])
-                                with rw1:
-                                    st.markdown(
-                                        f"**{etq_badge}** — **{nom_al}** (`{u_al}`)  |  "
-                                        f"Bloque **{est_r['ciclo_a_cobrar']}**  |  Monto: **${est_r['monto_a_pagar']:,.2f} MXN**"
-                                    )
-                                    st.caption(
-                                        f"Ventana 4ta Sem: {est_r['sem4_pago_inicio']} al {est_r['sem4_pago_fin']}  •  "
-                                        f"Recargo desde: {est_r['fecha_recargo']}  •  "
-                                        f"Boletín: {'✅ Activo' if est_r['descarga_permitida'] else '🔒 Pausado'}"
-                                    )
-                                with rw2:
-                                    st.link_button(
-                                        "📲 Enviar Aviso WhatsApp",
-                                        url=wa_link_est,
-                                        width="stretch"
-                                    )
-                    if avisos_encontrados == 0:
-                        st.info("🟢 Todos los estudiantes se encuentran al corriente en semanas 1 a 3.")
+                tab_val, tab_vac, tab_ind = st.tabs([
+                    "🏦 Comprobantes y Avisos WhatsApp",
+                    "🏖️ Vacaciones del Instituto",
+                    "👤 Expediente y Tarifa por Alumno"
+                ])
 
+                with tab_val:
+                    if puede_cobranza_v2:
+                        pendientes_comp = listar_comprobantes_pendientes_pg()
+                        st.markdown(f"##### 🏦 Comprobantes Bancarios Pendientes de Confirmación ({len(pendientes_comp)})")
+                        if not pendientes_comp:
+                            st.caption("No hay comprobantes bancarios pendientes de revisión en este momento.")
+                        else:
+                            for idx_c, comp in enumerate(pendientes_comp):
+                                with st.container(border=True):
+                                    cc1, cc2, cc3 = st.columns([2.2, 1.4, 1.4])
+                                    with cc1:
+                                        st.markdown(
+                                            f"**{comp['nombre_completo']}** (`{comp['student_user']}`) — Nivel **{comp['nivel_cefr']}**\n\n"
+                                            f"Folio: `{comp['folio_pago']}` | **Bloque {comp['ciclo_numero']}** | Monto: **`${float(comp['monto_final']):,.2f} MXN`**\n\n"
+                                            f"Método: {comp['metodo_pago']} | Ref: `{comp['referencia_comprobante']}` | Reportado: {comp['fecha_reporte']}"
+                                        )
+                                    with cc2:
+                                        b64_doc = str(comp.get("comprobante_b64") or "").strip()
+                                        mime_doc = str(comp.get("comprobante_mime") or "image/jpeg").strip()
+                                        if b64_doc:
+                                            raw_doc = base64.b64decode(b64_doc)
+                                            if "pdf" in mime_doc.lower():
+                                                st.download_button(
+                                                    "📄 Ver Comprobante PDF",
+                                                    data=raw_doc,
+                                                    file_name=f"{comp['folio_pago']}.pdf",
+                                                    mime="application/pdf",
+                                                    key=f"dl_comp_pdf_{comp['id']}_{idx_c}"
+                                                )
+                                            else:
+                                                st.image(raw_doc, caption="Comprobante adjunto", width=180)
+                                        else:
+                                            st.caption("Sin archivo adjunto (solo referencia).")
+                                    with cc3:
+                                        nota_val = st.text_input("Nota de cotejo bancario:", key=f"nota_bco_{comp['id']}_{idx_c}", placeholder="Ej: Transferencia verificada en estado de cuenta")
+                                        if st.button("✅ Confirmar Pago y Activar Boletín", type="primary", width="stretch", key=f"btn_ok_bco_{comp['id']}_{idx_c}"):
+                                            res_conf = confirmar_pago_bancario_pg(
+                                                student_user=comp["student_user"],
+                                                ciclo_numero=int(comp["ciclo_numero"]),
+                                                validado_por=str(st.session_state.current_user),
+                                                notas_admin=nota_val
+                                            )
+                                            if res_conf["ok"]:
+                                                st.success(res_conf["msg"])
+                                                st.rerun()
+                                            else:
+                                                st.error(res_conf["msg"])
+
+                        st.divider()
+                        st.markdown("##### 📲 Radar de Avisos WhatsApp (4ta Semana de Pago y 5ta Semana con Recargo)")
+                        padron_radar = load_padron_records()
+                        alumnos_radar = [r for r in padron_radar if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
+                        avisos_encontrados = 0
+                        for r_al in alumnos_radar:
+                            u_al = str(r_al.get("Usuario") or "").strip()
+                            nom_al = str(r_al.get("Nombre_Completo") or u_al).strip()
+                            est_r = evaluar_estado_financiero_alumno(u_al)
+                            es_sem4 = (int(est_r.get("semana_ciclo") or 1) == 4 and not est_r.get("ciclo_pagado"))
+                            es_mora = (int(est_r.get("dias_retraso") or 0) > 0)
+                            if es_sem4 or es_mora:
+                                avisos_encontrados += 1
+                                _, wa_link_est = build_whatsapp_recordatorio_estudiante(
+                                    est_r,
+                                    nombre_alumno=nom_al,
+                                    telefono_alumno=est_r.get("telefono_whatsapp", "")
+                                )
+                                etq_badge = "🔴 Semana 5+ (Recargo Activo)" if es_mora else "🟡 4ta Semana (Ventana de Pago)"
+                                with st.container(border=True):
+                                    rw1, rw2 = st.columns([2.6, 1.2])
+                                    with rw1:
+                                        st.markdown(
+                                            f"**{etq_badge}** — **{nom_al}** (`{u_al}`)  |  "
+                                            f"Bloque **{est_r['ciclo_a_cobrar']}**  |  Monto: **${est_r['monto_a_pagar']:,.2f} MXN**"
+                                        )
+                                        st.caption(
+                                            f"Ventana 4ta Sem: {est_r['sem4_pago_inicio']} al {est_r['sem4_pago_fin']}  •  "
+                                            f"Recargo desde: {est_r['fecha_recargo']}  •  "
+                                            f"Boletín: {'✅ Activo' if est_r['descarga_permitida'] else '🔒 Pausado'}"
+                                        )
+                                    with rw2:
+                                        st.link_button("📲 Enviar Aviso WhatsApp", url=wa_link_est, width="stretch")
+                        if avisos_encontrados == 0:
+                            st.info("🟢 Todos los estudiantes se encuentran al corriente en semanas 1 a 3.")
+                    else:
+                        st.info("Tu perfil no tiene habilitado el permiso `Gestionar_Pagos_Cobranza`.")
                 with tab_vac:
                     st.markdown("##### 🏖️ Calendario de Vacaciones del Instituto")
                     st.info(
@@ -4984,24 +4988,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             st.rerun()
 
                 with tab_ind:
-                    if is_owner:
-                        st.markdown("##### 🎛️ Control Global de Incentivos (-7%) y Recargos (+5%)")
-                        est_glob = get_billing_global_settings_pg()
-                        c_sw1, c_sw2 = st.columns([2.4, 1.0])
-                        nuevo_glob = c_sw1.toggle(
-                            "Activar Incentivo (-7% hasta Sem. 4) y Recargo (+5% mes siguiente)",
-                            value=est_glob,
-                            key="tgl_glob_bill"
-                        )
-                        if c_sw2.button("💾 Guardar Cambio", type="primary", width="stretch", key="btn_glob_bill"):
-                            ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
-                            if ok_g:
-                                st.success(f"✅ {msg_g}")
-                                st.rerun()
-                            else:
-                                st.error(f"❌ {msg_g}")
-                        st.divider()
-
                     padron_fin = load_padron_records()
                     estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
                     afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
@@ -5094,6 +5080,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 for b in estado_f["bloques_9"]
                             ])
                             st.dataframe(df_b9, width="stretch", hide_index=True)
+
 # ==============================================================================
 # PARTE 14D2: ESTADOS FINANCIEROS CONSOLIDADOS, ALTA Y PORTAL SOCIO AFILIADO
 # ==============================================================================
