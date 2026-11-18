@@ -4602,6 +4602,248 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
 
 st.divider()
 # ==============================================================================
+# PARTE 14E — SECCIÓN 1 DE 3: PORTAL EXCLUSIVO DEL ESTUDIANTE (MIS PAGOS)
+# ==============================================================================
+if st.session_state.get("active_student_workspace"):
+    vista_est_sel = st.session_state["active_student_workspace"]
+    alumno_actual_ws = str(st.session_state.get("current_user") or "").strip()
+
+    with st.container(border=True):
+        if vista_est_sel == "💳 Mis Pagos (9 Bloques)":
+            st.subheader("💳 Mis Pagos Mensuales (9 Bloques de 4 Semanas) y Comprobantes")
+            est_sp = evaluar_estado_financiero_alumno(alumno_actual_ws)
+            mat_oficial_sp = str(est_sp.get("matricula") or "").strip()
+
+            st.info(
+                f"🆔 **Matrícula Oficial:** `{mat_oficial_sp}` *(inclúyela en el concepto de tu transferencia para desbloqueo automático)*\n\n"
+                "🎓 **Beneficios de tu Membresía Activa:** Tu pago puntual mantiene habilitada las **24 horas del día** "
+                "(incluso durante los recesos vacacionales de clases) la plataforma inteligente para generar lecciones y avanzar en tu aprendizaje, "
+                "además de permitirte **descargar tu Boletín Oficial de Calificaciones** en cualquier momento para mantenerte informado de tu avance."
+            )
+
+            sp1, sp2, sp3, sp4 = st.columns(4)
+            sp1.metric("📝 Inscripción / Inicio", f"{est_sp['fecha_inicio']}", delta=f"Inscrito: {est_sp['fecha_inscripcion']}")
+            sp2.metric("📅 Bloque Nivel", f"Bloque {est_sp['bloque_en_nivel']}/9", delta=f"Semana {est_sp['semana_ciclo']}/4")
+            sp3.metric("🟡 4ta Sem. Pago", f"{est_sp['sem4_pago_inicio']}", delta=f"Hasta {est_sp['sem4_pago_fin']}")
+            sp4.metric(
+                "📄 Boletín Calificaciones",
+                "✅ Activo" if est_sp["descarga_permitida"] else "🔒 Pausado (Sem. 5+)",
+                delta=f"Recargo desde {est_sp['fecha_recargo']}"
+            )
+
+            if est_sp.get("en_vacaciones"):
+                st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
+
+            st.markdown("#### 📤 Reportar Pago y Subir Comprobante Bancario")
+            if est_sp["ciclo_pagado"]:
+                st.success(f"✅ Tu **Bloque {est_sp['bloque_en_nivel']}/9** ya se encuentra pagado y confirmado. Tu Boletín de Calificaciones está **ACTIVO**.")
+            else:
+                col_up1, col_up2 = st.columns([1.4, 1.6])
+                with col_up1:
+                    st.markdown(
+                        f"- **Matrícula Oficial:** `{mat_oficial_sp}`\n"
+                        f"- **Bloque a cubrir:** Bloque `{est_sp['ciclo_a_cobrar']}`\n"
+                        f"- **Ventana 4ta semana (sin recargo):** `{est_sp['sem4_pago_inicio']}` al `{est_sp['sem4_pago_fin']}`\n"
+                        f"- **Activación de recargo (Semana 5):** `{est_sp['fecha_recargo']}`\n"
+                        f"- **Monto total a transferir:** **`${est_sp['monto_a_pagar']:,.2f} MXN`**"
+                    )
+                    metodo_p_est = st.selectbox(
+                        "Método de pago:",
+                        ["Transferencia Bancaria (SPEI)", "Depósito en Ventanilla / Practicaja", "Pago en Efectivo en Instituto"],
+                        key="ws_est_metodo_pago"
+                    )
+                    ref_p_est = st.text_input("Número de referencia / rastreo bancario:", placeholder="Ej: SPEI-8492014", key="ws_est_ref_pago")
+                with col_up2:
+                    archivo_comp = st.file_uploader(
+                        "📎 Adjuntar Comprobante de Pago (Imagen JPG/PNG o PDF):",
+                        type=["jpg", "jpeg", "png", "pdf"],
+                        key="ws_est_up_comp"
+                    )
+                    if st.button("📤 Registrar Comprobante y Desbloquear Boletín", type="primary", width="stretch", key="ws_est_btn_comp"):
+                        b64_comp, mime_comp = "", ""
+                        if archivo_comp is not None:
+                            raw_bytes = archivo_comp.getvalue()
+                            mime_comp = str(archivo_comp.type or "image/jpeg")
+                            if "image" in mime_comp.lower():
+                                try:
+                                    raw_bytes = compress_bytes_image(raw_bytes, max_side=1100, quality=78)
+                                    mime_comp = "image/jpeg"
+                                except Exception:
+                                    pass
+                            b64_comp = base64.b64encode(raw_bytes).decode("ascii")
+
+                        res_rep = reportar_comprobante_pago_estudiante_pg(
+                            student_user=alumno_actual_ws,
+                            metodo_pago=metodo_p_est,
+                            referencia=ref_p_est,
+                            comprobante_b64=b64_comp,
+                            comprobante_mime=mime_comp
+                        )
+                        if res_rep["ok"]:
+                            _, wa_owner_url = build_whatsapp_aviso_pago_owner(
+                                nombre_alumno=f"{alumno_actual_ws} (Matrícula: {mat_oficial_sp})",
+                                usuario_alumno=alumno_actual_ws,
+                                nivel_cefr=res_rep.get("nivel_cefr", est_sp.get("nivel_cefr", "")),
+                                folio_pago=res_rep["folio_pago"],
+                                ciclo_num=res_rep["ciclo_num"],
+                                monto_pagado=res_rep["monto"],
+                                referencia=ref_p_est
+                            )
+                            st.session_state["last_wa_owner_url"] = wa_owner_url
+                            st.session_state["last_folio_reportado"] = res_rep["folio_pago"]
+                            st.success(res_rep["msg"])
+                        else:
+                            st.error(res_rep["msg"])
+
+                    if st.session_state.get("last_wa_owner_url"):
+                        st.link_button(
+                            f"📲 Enviar Nota Informativa por WhatsApp al Owner / Admin (Folio {st.session_state.get('last_folio_reportado', '')})",
+                            url=st.session_state["last_wa_owner_url"],
+                            type="primary",
+                            width="stretch"
+                        )
+# ==============================================================================
+# PARTE 14E — SECCIÓN 2 DE 3: TABLA 9 BLOQUES Y MIS CALIFICACIONES Y BOLETÍN
+# ==============================================================================
+            if est_sp.get("bloques_9"):
+                st.markdown("#### 🗓️ Calendario Completo del Nivel (9 Bloques de 4 Semanas = 36 Semanas)")
+                df_sp9 = pd.DataFrame([
+                    {
+                        "Bloque": f"Bloque {b['bloque_num']}/9",
+                        "Inicio Bloque": str(b["inicio_bloque"]),
+                        "Fin Bloque": str(b["fin_bloque"]),
+                        "4ta Semana (Pago Sin Recargo)": f"{b['sem4_inicio']} al {b['sem4_fin']}",
+                        "Recargo / Sig. Bloque": str(b["fecha_recargo"]),
+                        "Actividad / Vacaciones (IA 24/7)": b["vacaciones"],
+                        "Estatus": b["estatus"]
+                    }
+                    for b in est_sp["bloques_9"]
+                ])
+                st.dataframe(df_sp9, width="stretch", hide_index=True)
+
+        elif vista_est_sel == "📊 Mis Calificaciones y Boletín":
+            st.subheader(f"📊 Mis Calificaciones y Boletín Oficial — {alumno_actual_ws}")
+            gb_data = fetch_student_gradebook_pg(alumno_actual_ws)
+            lista_topicos_disp = ["Vista General"] + [t["Grammar Topic"] for t in gb_data["topic_summary"]]
+            col_f_top, col_f_pdf = st.columns([2.1, 1.4])
+            with col_f_top:
+                topico_sel_ws = st.selectbox(
+                    f"🎯 Filtrar por Grammar Topic (Nivel CEFR {gb_data['nivel_cefr']}):",
+                    lista_topicos_disp,
+                    key="ws_est_filtro_topico"
+                )
+            with col_f_pdf:
+                st.write("")
+                fin_al = evaluar_estado_financiero_alumno(alumno_actual_ws)
+                d_ret = int(fin_al.get("dias_retraso", 0))
+                if fin_al["descarga_permitida"]:
+                    pdf_bol_bytes, timbre_bol = create_official_gradebook_pdf(alumno_actual_ws, gb_data, topico_sel_ws)
+                    st.download_button(
+                        label=f"📥 Descargar Boletín Timbrado ({timbre_bol['folio_boletin']})",
+                        data=pdf_bol_bytes,
+                        file_name=f"{timbre_bol['folio_boletin']}_{gb_data['matricula']}_{alumno_actual_ws.replace(' ', '_')}.pdf",
+                        mime="application/pdf",
+                        type="primary",
+                        width="stretch",
+                        key="ws_est_dl_bol"
+                    )
+                    st.caption(f"🛡️ Timbrado: `{timbre_bol['folio_boletin']}` | {fin_al['mensaje_estado']}")
+                else:
+                    st.error(f"🔒 Descarga pausada por atraso de {d_ret} días en Bloque {fin_al['ciclo_a_cobrar']}.")
+                    if st.button("💳 Ir a Subir Comprobante", type="primary", width="stretch", key="ws_est_go_pay"):
+                        st.session_state["active_student_workspace"] = "💳 Mis Pagos (9 Bloques)"
+                        st.rerun()
+
+            if topico_sel_ws == "Vista General":
+                prom_v, recs_f, temas_f = gb_data["overall_avg"], gb_data["records"], gb_data["topic_summary"]
+            else:
+                t_inf = next((t for t in gb_data["topic_summary"] if t["Grammar Topic"] == topico_sel_ws), {})
+                prom_v = t_inf.get("Dominio (%)", 0.0)
+                recs_f = [r for r in gb_data["records"] if r["Grammar_Topic"] == topico_sel_ws]
+                temas_f = [t_inf] if t_inf else []
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("🏆 Promedio General", f"{gb_data['overall_avg']}%")
+            m2.metric("🎯 Promedio Vista", f"{prom_v}%")
+            m3.metric("📝 Escrito / 🎙️ Oral", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
+            m4.metric("📚 Lecciones Evaluadas", len(recs_f))
+            if temas_f:
+                st.bar_chart(pd.DataFrame(temas_f).set_index("Grammar Topic")[["Dominio (%)"]], height=240)
+            if recs_f:
+                st.dataframe(pd.DataFrame(recs_f), width="stretch", hide_index=True)
+# ==============================================================================
+# PARTE 14E — SECCIÓN 3 DE 3 (FINAL): MIS LECCIONES, AUDIOS Y CIERRE FOCUS MODE
+# ==============================================================================
+        elif vista_est_sel == "📚 Mis Lecciones y Folios":
+            st.subheader(f"📚 Mis Lecciones y Folios Guardados — {alumno_actual_ws}")
+            regs_all = load_lessons_history_pg()
+            mis_lecciones = [
+                r for r in regs_all
+                if str(r.get("Usuario") or "").strip().lower() == alumno_actual_ws.lower()
+            ]
+            if not mis_lecciones:
+                st.info("Aún no tienes lecciones guardadas. Presiona **✖️ CERRAR** arriba para generar tu primera lección con IA.")
+            else:
+                for idx_l, row_l in enumerate(mis_lecciones):
+                    fol_l = str(row_l.get("Folio") or "S/F").strip()
+                    with st.container(border=True):
+                        cl1, cl2 = st.columns([2.8, 1.2])
+                        with cl1:
+                            st.markdown(f"**📘 {row_l.get('Tema', 'Lección CEFR')}** — Folio `{fol_l}`")
+                            st.caption(
+                                f"Nivel: **{row_l.get('Nivel_CEFR', '')}** | Fecha: {row_l.get('Fecha_de_subida', '')} | "
+                                f"Mejor Quiz: `{row_l.get('Mejor_Calificacion_PDF') or 'Pendiente'}`"
+                            )
+                        with cl2:
+                            if st.button("📖 Abrir Lección", type="primary", width="stretch", key=f"ws_open_lec_{fol_l}_{idx_l}"):
+                                st.session_state.generated_text = str(row_l.get("Texto", ""))
+                                st.session_state.current_folio = fol_l
+                                st.session_state.selected_cefr = normalize_cefr(row_l.get("Nivel_CEFR", "B1"))
+                                st.session_state.selected_academic_grade = str(row_l.get("Grado_Academico", "Licenciatura / Universidad"))
+                                st.session_state.study_mode_active = False
+                                st.session_state["active_student_workspace"] = None
+                                st.rerun()
+
+        elif vista_est_sel == "🎧 Mis Audios y Pronunciación":
+            st.subheader(f"🎧 Mis Audios y Práctica de Pronunciación — {alumno_actual_ws}")
+            regs_all_a = load_lessons_history_pg()
+            mis_audios = [
+                r for r in regs_all_a
+                if str(r.get("Usuario") or "").strip().lower() == alumno_actual_ws.lower() and str(r.get("Texto") or "").strip()
+            ]
+            if not mis_audios:
+                st.info("Aún no tienes lecciones con audio generado. Presiona **✖️ CERRAR** arriba para crear una lección.")
+            else:
+                mapa_aud = {
+                    f"{r.get('Folio', 'S/F')} — {r.get('Tema', 'Lección')} ({r.get('Nivel_CEFR', '')})": r
+                    for r in mis_audios
+                }
+                sel_aud_lbl = st.selectbox("Selecciona una lección para escuchar su audio estadounidense (US):", list(mapa_aud.keys()), key="ws_est_sel_audio")
+                row_aud = mapa_aud[sel_aud_lbl]
+                texto_aud_raw = str(row_aud.get("Texto") or "")
+                clean_tts_aud = re.split(r"\bBibliography\b", texto_aud_raw.replace("*", "").replace("#", ""), maxsplit=1)
+                mp3_lesson_bytes = _synthesize_word_mp3(clean_tts_aud[:2800], slow_mode=False)
+                if mp3_lesson_bytes:
+                    st.audio(mp3_lesson_bytes, format="audio/mp3")
+                if st.button("🧠 Abrir en Modo Estudio Interactivo (Pronunciación Palabra por Palabra)", type="primary", width="stretch", key="ws_est_go_study"):
+                    st.session_state.generated_text = texto_aud_raw
+                    st.session_state.current_folio = str(row_aud.get("Folio") or "")
+                    st.session_state.selected_cefr = normalize_cefr(row_aud.get("Nivel_CEFR", "B1"))
+                    st.session_state.study_mode_active = True
+                    st.session_state["active_student_workspace"] = None
+                    st.rerun()
+
+    st.divider()
+    st.markdown(
+        "<div style='text-align: center; color: #777; font-size: 13px; margin-top: 20px;'>"
+        "📍 <b>" + str(institute_address) + "</b><br>"
+        "© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    st.stop()
+
+# ==============================================================================
 # PARTE 14: CENTRO DE MANDO SPA — CERTIFICADOS (EMISIÓN Y VISTA PREVIA)
 # ==============================================================================
 if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("active_admin_workspace"):
