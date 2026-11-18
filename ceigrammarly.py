@@ -4920,9 +4920,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         else:
                                             st.error(res_conf["msg"])
                     st.divider()
-
-
-                    st.divider()
                     st.markdown("##### 📲 Radar de Avisos WhatsApp (4ta Semana de Pago y 5ta Semana con Recargo)")
                     padron_radar = load_padron_records()
                     alumnos_radar = [r for r in padron_radar if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
@@ -5097,7 +5094,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 for b in estado_f["bloques_9"]
                             ])
                             st.dataframe(df_b9, width="stretch", hide_index=True)
-
 # ==============================================================================
 # PARTE 14D2: ESTADOS FINANCIEROS CONSOLIDADOS, ALTA Y PORTAL SOCIO AFILIADO
 # ==============================================================================
