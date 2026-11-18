@@ -2108,7 +2108,7 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B — MITAD 1 DE 2: AUDIO BASE64 Y TRADUCTOR REAL GOOGLE SERVER-SIDE
+# PARTE 8B — MITAD 1 DE 2: AUDIO BASE64 Y TRADUCTOR REAL INGLÉS -> ESPAÑOL
 # ==============================================================================
 @st.cache_data(show_spinner=False, max_entries=500)
 def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
@@ -2124,36 +2124,71 @@ def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | No
         return None
 
 
-def _fetch_google_translate_server(word_en: str) -> tuple[str, str]:
-    """Consulta directamente el endpoint de Google Translate desde Python (cero CORS)."""
-    w_q = str(word_en or "").strip()
-    if not w_q:
-        return "", ""
-    try:
-        url = (
-            "https://googleapis.com"
-            + urllib.parse.quote(w_q)
-        )
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        tr_main = ""
-        alts = []
-        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
-            tr_main = "".join(str(seg[0]) for seg in data[0] if isinstance(seg, list) and len(seg) > 0 and seg[0]).strip()
-        if isinstance(data, list) and len(data) > 1 and isinstance(data[1], list):
-            for grp in data[1][:2]:
-                if isinstance(grp, list) and len(grp) > 1 and isinstance(grp[1], list):
-                    alts.extend(str(x) for x in grp[1][:3])
-        if tr_main and tr_main.lower() != w_q.lower():
-            return tr_main, ", ".join(dict.fromkeys(alts))
-    except Exception:
-        pass
-    try:
-        fallback_es = GoogleTranslator(source="en", target="es").translate(w_q)
-        return str(fallback_es or "").strip(), ""
-    except Exception:
-        return "", ""
+def _translate_batch_to_spanish(words_list: list[str], api_key_override: str = "") -> dict:
+    """Traduce al español real todas las palabras únicas usando Gemini Flash + GoogleTranslator."""
+    result_map = {}
+    if not words_list:
+        return result_map
+
+    # 1. Localizar clave Gemini
+    gemini_key = str(api_key_override or "").strip()
+    if not gemini_key:
+        for k_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "API_KEY"):
+            if k_name in st.secrets and str(st.secrets[k_name]).strip():
+                gemini_key = str(st.secrets[k_name]).strip()
+                break
+
+    # 2. Diccionario bilingüe completo con Gemini Flash (en bloques de 45 palabras)
+    if gemini_key:
+        try:
+            client_g = genai.Client(api_key=gemini_key)
+            for i in range(0, len(words_list), 45):
+                chunk_w = words_list[i:i + 45]
+                prompt_tr = (
+                    "Translate EVERY English word in this list into natural Spanish for a Mexican/Latin American student. "
+                    "Return ONLY a valid JSON object mapping each lowercase English word to an object with: "
+                    '{"es": "traducción al español", "pos": "categoría gramatical en español", '
+                    '"ipa": "/transcripción IPA/", "alt": "2 sinónimos en español", "def": "definición breve en español"}.\n'
+                    f"Words: {json.dumps(chunk_w)}"
+                )
+                resp = client_g.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_tr,
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+                )
+                txt = str(resp.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                data_j = json.loads(txt)
+                if isinstance(data_j, dict):
+                    for k_en, val_obj in data_j.items():
+                        kl = str(k_en).strip().lower()
+                        if isinstance(val_obj, dict):
+                            entry = result_map.setdefault(kl, {})
+                            for fk in ("es", "pos", "ipa", "alt", "def"):
+                                if val_obj.get(fk):
+                                    entry[fk] = str(val_obj[fk]).strip()
+                        elif isinstance(val_obj, str) and val_obj.strip():
+                            result_map.setdefault(kl, {})["es"] = val_obj.strip()
+        except Exception:
+            pass
+
+    # 3. Respaldo directo con GoogleTranslator para cualquier palabra faltante
+    missing = [w for w in words_list if not result_map.get(w.lower(), {}).get("es")]
+    if missing:
+        try:
+            for i in range(0, len(missing), 20):
+                sub = missing[i:i + 20]
+                block_en = " ||| ".join(sub)
+                block_es = GoogleTranslator(source="en", target="es").translate(block_en)
+                if block_es:
+                    parts_es = [p.strip() for p in str(block_es).split("|||")]
+                    if len(parts_es) == len(sub):
+                        for w_en, w_es in zip(sub, parts_es):
+                            if w_es:
+                                result_map.setdefault(w_en.lower(), {})["es"] = w_es
+        except Exception:
+            pass
+
+    return result_map
 
 
 @st.cache_data(ttl=86400, show_spinner=False, max_entries=60)
@@ -2161,9 +2196,9 @@ def _build_full_study_bundle(
     unique_words_tuple: tuple,
     base_dict_json: str,
     api_key_override: str = "",
-    cache_v: str = "v40_google_api_server"
+    cache_v: str = "v60_final_es_audio"
 ) -> tuple[dict, dict]:
-    """Pre-calcula audios MP3 Base64 y traduce TODAS las palabras con Google Translate + Gemini."""
+    """Pre-calcula audios Base64 y traducciones reales al español."""
     words_list = [str(w).strip() for w in unique_words_tuple if str(w).strip()]
     base_dict = json.loads(base_dict_json) if base_dict_json else {}
     merged_dict = {str(k).lower(): (dict(v) if isinstance(v, dict) else {}) for k, v in base_dict.items()}
@@ -2172,186 +2207,30 @@ def _build_full_study_bundle(
     if not words_list:
         return audio_map, merged_dict
 
-    # 1. Síntesis paralela de audio Base64 (Normal y Lento) + Traducción Google Server-Side
-    def _process_word_item(w_item: str):
+    # 1. Traducir todas las palabras al español real
+    tr_dict = _translate_batch_to_spanish(words_list, api_key_override=api_key_override)
+    for kl, info_d in tr_dict.items():
+        cur = merged_dict.setdefault(kl, {})
+        for fk, fv in info_d.items():
+            if fv:
+                cur[fk] = fv
+
+    # 2. Sintetizar audio MP3 Base64 (Normal y Lento) con concurrencia controlada para evitar rate-limit
+    def _gen_audio_pair(w_item: str):
         mp3_n = _synthesize_word_mp3(w_item, slow_mode=False)
         mp3_s = _synthesize_word_mp3(w_item, slow_mode=True)
         b_n = base64.b64encode(mp3_n).decode("ascii") if mp3_n else ""
         b_s = base64.b64encode(mp3_s).decode("ascii") if mp3_s else b_n
-        tr_es, alts_es = _fetch_google_translate_server(w_item)
-        return w_item.lower(), {"n": b_n, "s": b_s}, tr_es, alts_es
+        return w_item.lower(), {"n": b_n, "s": b_s}
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        for k_w, pair, tr_es, alts_es in pool.map(_process_word_item, words_list):
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for k_w, pair in pool.map(_gen_audio_pair, words_list):
             if pair["n"]:
                 audio_map[k_w] = pair
-            entry = merged_dict.setdefault(k_w, {})
-            if tr_es:
-                entry["es"] = tr_es
-            if alts_es and not entry.get("alt"):
-                entry["alt"] = alts_es
-
-    # 2. Enriquecimiento opcional con Gemini Flash (IPA, categoría gramatical y definición en español)
-    gemini_key = str(api_key_override or "").strip()
-    if not gemini_key:
-        for k_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "API_KEY"):
-            if k_name in st.secrets and str(st.secrets[k_name]).strip():
-                gemini_key = str(st.secrets[k_name]).strip()
-                break
-
-    if gemini_key:
-        try:
-            client_direct = genai.Client(api_key=gemini_key)
-            prompt_tr = (
-                "For each English word below, return ONLY a valid JSON object mapping lowercase English word -> "
-                '{"es": "Spanish translation", "pos": "Categoría en español", "ipa": "/ipa/", "def": "Definición breve en español"}.\n'
-                f"Words: {json.dumps(words_list)}"
-            )
-            r_tr = client_direct.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt_tr,
-                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-            )
-            raw_tr = str(r_tr.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-            parsed_tr = json.loads(raw_tr)
-            if isinstance(parsed_tr, dict):
-                for k_e, info_obj in parsed_tr.items():
-                    kl = str(k_e).strip().lower()
-                    if isinstance(info_obj, dict):
-                        entry = merged_dict.setdefault(kl, {})
-                        if info_obj.get("es") and (not entry.get("es") or entry["es"].lower() == kl):
-                            entry["es"] = str(info_obj["es"]).strip()
-                        for fk in ("pos", "ipa", "def"):
-                            if info_obj.get(fk):
-                                entry[fk] = str(info_obj[fk]).strip()
-        except Exception:
-            pass
 
     return audio_map, merged_dict
 
-# ==============================================================================
-# PARTE 8B — MITAD 2A: VISOR (MÓVIL = SELECCIÓN NATIVA + CAJÓN | MAC = ABAJO)
-# ==============================================================================
-def render_interactive_study_viewer(study_payload: dict):
-    """
-    - Móvil / Touch: 1 toque = Voz US | 2 toques = Selecciona la palabra para el menú nativo 'Traducir' del teléfono + cajón inferior deslizable sin abrir pestañas completas.
-    - Mac / PC: Hover = Voz US | Doble clic = Tarjeta Bilingüe abajo con traducción real en español.
-    """
-    if not study_payload or not study_payload.get("sentences"):
-        st.warning("No se pudo estructurar el modo estudio para este texto.")
-        return
 
-    sentences = study_payload.get("sentences", [])
-    dictionary = study_payload.get("dictionary", {})
-
-    unique_words = []
-    seen_w = set()
-    for sent in sentences:
-        for tok in sent.get("tokens", []):
-            wc = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", str(tok.get("w", "")).strip())
-            if wc and wc.lower() not in seen_w:
-                seen_w.add(wc.lower())
-                unique_words.append(wc)
-
-    active_k_override = str(st.session_state.get("custom_api_key", "")).strip()
-    audio_map, merged_dict = _build_full_study_bundle(
-        tuple(unique_words[:95]),
-        json.dumps(dictionary, ensure_ascii=False),
-        api_key_override=active_k_override,
-        cache_v="v40_google_api_server"
-    )
-
-    pos_class = {"verb": "verb", "noun": "noun", "adjective": "adjective", "conjunction": "conjunction"}
-    blocks_html = []
-    for sent in sentences:
-        tokens = sent.get("tokens", [])
-        full_s_attr = html_lib.escape(str(sent.get("full_sentence", "")).strip(), quote=True)
-        spans = []
-        for tok in tokens:
-            w_raw = str(tok.get("w", ""))
-            w_esc = html_lib.escape(w_raw)
-            p_raw = str(tok.get("pos", "other")).lower()
-            p_cls = pos_class.get(p_raw, "other")
-            w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw).lower()
-            if w_clean:
-                w_attr = html_lib.escape(w_clean, quote=True)
-                spans.append(
-                    f'<span class="wt {p_cls}" data-k="{w_attr}" data-p="{p_cls}" data-s="{full_s_attr}">{w_esc}</span>'
-                )
-            else:
-                spans.append(f"<span>{w_esc}</span>")
-        box_cls = "tbox" if sent.get("is_title") else "sbox"
-        blocks_html.append(f'<div class="{box_cls}">{" ".join(spans)}</div>')
-
-    lesson_html = "".join(blocks_html)
-    audio_json = json.dumps(audio_map).replace("</", "<\\/")
-    dict_json = json.dumps(merged_dict, ensure_ascii=False).replace("</", "<\\/")
-
-    viewer_html = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:10px;background:#f8fafc;color:#1e293b}
-    .tb{display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;align-items:center;
-        background:#fff;padding:8px 12px;border-radius:10px;border:1px solid #cbd5e1;
-        margin-bottom:8px;font-size:12px;font-weight:700;position:sticky;top:0;z-index:100}
-    .bg{padding:2px 7px;border-radius:5px}
-    .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
-    .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
-    .adjective{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}
-    .conjunction{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}
-    .other{background:#f1f5f9;color:#334155}
-    .tbox{background:#1a2a44;color:#fff;padding:12px 16px;border-radius:10px;margin-bottom:10px;font-size:17px;font-weight:700}
-    .tbox .wt{color:#1e293b;font-size:15px}
-    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:10px;
-          border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:transform .1s}
-    @media (pointer: fine) { .wt { user-select: none; -webkit-user-select: none; } }
-    @media (pointer: coarse) { .wt { user-select: text; -webkit-user-select: text; } }
-    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
-    #drawer{position:sticky;bottom:0;z-index:999;background:#fff;border:2px solid #1a73e8;
-            border-radius:14px;box-shadow:0 -8px 26px rgba(26,115,232,.30);padding:10px 14px 14px 14px;
-            margin-top:10px;display:none}
-    .dhead{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;color:#fff;
-           margin:-10px -14px 10px -14px;padding:8px 14px;border-radius:11px 11px 0 0;font-size:12px;font-weight:800}
-    .dbtn{border:none;border-radius:6px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px;background:rgba(255,255,255,.22);color:#fff}
-    .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    </style></head><body>
-    <div class="tb">
-      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
-           <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
-           <span class="bg other">Otros</span></div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="color:#475569;font-size:11px;">📱 1 toque: 🔊 | 2 toques: 📖  •  💻 Hover: 🔊 | 2 clics: 📖</span>
-        <button type="button" id="spdBtn" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;font-weight:700;cursor:pointer;">1.0x</button>
-      </div>
-    </div>
-
-    <div id="lc">__LESSON_HTML__</div>
-
-    <div id="drawer">
-      <div class="dhead">
-        <span>🌐 DICCIONARIO BILINGÜE — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
-        <div>
-          <button type="button" class="dbtn" id="btnN">🔊 Normal</button>
-          <button type="button" class="dbtn" id="btnS">🐢 Lento</button>
-          <button type="button" class="dbtn" id="btnC">✖ Cerrar</button>
-        </div>
-      </div>
-      <div class="dgrid">
-        <div style="background:#f8fafc;padding:9px;border-radius:9px;border:1px solid #e2e8f0;">
-          <div style="font-size:10px;color:#64748b;font-weight:700;">ENGLISH (US)</div>
-          <div id="dEn" style="font-size:20px;font-weight:800;color:#0f172a;"></div>
-          <div id="dIpa" style="font-size:12px;color:#475569;margin-top:2px;"></div>
-          <div id="dPos" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:3px;"></div>
-        </div>
-        <div style="background:#eff6ff;padding:9px;border-radius:9px;border:1px solid #bfdbfe;">
-          <div style="font-size:10px;color:#1e40af;font-weight:700;">ESPAÑOL (TRADUCCIÓN)</div>
-          <div id="dEs" style="font-size:20px;font-weight:800;color:#1a73e8;"></div>
-          <div id="dAlt" style="font-size:12px;color:#334155;margin-top:3px;"></div>
-        </div>
-      </div>
-      <div id="dDef" style="margin-top:8px;font-size:12px;color:#334155;background:#f8fafc;padding:7px 10px;border-radius:8px;"></div>
-      <div id="dLnk" style="margin-top:8px;font-size:12px;font-weight:700;display:flex;gap:14px;flex-wrap:wrap;"></div>
-    </div>
     <script>
     const AMAP = __AUDIO_JSON__;
     const DMAP = __DICT_JSON__;
@@ -2359,14 +2238,28 @@ def render_interactive_study_viewer(study_payload: dict):
     const player = new Audio();
     let slowMode = false, curKey = "", lastHover = "", lastTapK = "", lastTapT = 0;
 
-    function playKey(k, forceSlow) {
+    function speakFallbackUS(wordText, isSlow) {
+      try {
+        if (!('speechSynthesis' in window) || !wordText) return;
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(String(wordText));
+        u.lang = 'en-US';
+        u.rate = isSlow ? 0.68 : 0.98;
+        window.speechSynthesis.speak(u);
+      } catch (e) {}
+    }
+
+    function playKey(k, forceSlow, rawWord) {
+      const isSlow = Boolean(forceSlow || slowMode);
       const item = AMAP[k];
-      if (!item) return;
-      const b64 = (forceSlow || slowMode) ? item.s : item.n;
-      if (!b64) return;
-      player.pause();
-      player.src = "data:audio/mp3;base64," + b64;
-      player.play().catch(()=>{});
+      const b64 = item ? (isSlow ? item.s : item.n) : "";
+      if (b64) {
+        player.pause();
+        player.src = "data:audio/mp3;base64," + b64;
+        player.play().catch(() => speakFallbackUS(rawWord || k, isSlow));
+      } else {
+        speakFallbackUS(rawWord || k, isSlow);
+      }
     }
 
     function selectWordNode(el) {
@@ -2391,13 +2284,14 @@ def render_interactive_study_viewer(study_payload: dict):
       if (isTouchDevice) {
         document.getElementById('drawer').style.display = 'none';
         selectWordNode(el);
-        playKey(k, false);
+        playKey(k, false, origTxt);
         return;
       }
 
       const info = DMAP[k] || {};
-      const q = encodeURIComponent(k);
+      const q = encodeURIComponent(k || origTxt);
       const gtUrl = 'https://google.com' + q + '&op=translate';
+      const wrUrl = 'https://wordreference.com' + q;
 
       document.getElementById('dEn').innerText = origTxt;
       document.getElementById('dEs').innerText = info.es || origTxt;
@@ -2406,13 +2300,12 @@ def render_interactive_study_viewer(study_payload: dict):
       document.getElementById('dAlt').innerText = info.alt ? ('Sinónimos: ' + info.alt) : '';
       document.getElementById('dDef').innerText = info.def ? ('📖 ' + info.def) : '';
       document.getElementById('dLnk').innerHTML =
-        '<a href="' + gtUrl + '" target="_blank" rel="noopener noreferrer" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
-        '<a href="https://wordreference.com' + q + '" target="_blank" rel="noopener noreferrer" style="color:#1a73e8;text-decoration:none;">📖 Abrir en WordReference ↗</a>';
+        '<a href="' + gtUrl + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="color:#0f766e;text-decoration:underline;cursor:pointer;">🌐 Abrir en Google Translate ↗</a>' +
+        '<a href="' + wrUrl + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="color:#1a73e8;text-decoration:underline;cursor:pointer;">📖 Abrir en WordReference ↗</a>';
 
       document.getElementById('drawer').style.display = 'block';
-      playKey(k, false);
+      playKey(k, false, origTxt);
     }
-
 
     function closeDrawer() {
       document.getElementById('drawer').style.display = 'none';
@@ -2424,8 +2317,8 @@ def render_interactive_study_viewer(study_payload: dict):
       slowMode = !slowMode;
       document.getElementById('spdBtn').innerText = slowMode ? '0.75x' : '1.0x';
     };
-    document.getElementById('btnN').onclick = () => playKey(curKey, false);
-    document.getElementById('btnS').onclick = () => playKey(curKey, true);
+    document.getElementById('btnN').onclick = () => playKey(curKey, false, curKey);
+    document.getElementById('btnS').onclick = () => playKey(curKey, true, curKey);
     document.getElementById('btnC').onclick = closeDrawer;
 
     document.getElementById('lc').addEventListener('pointerover', (e) => {
@@ -2433,7 +2326,8 @@ def render_interactive_study_viewer(study_payload: dict):
       const w = e.target.closest('.wt');
       if (!w) return;
       const k = w.getAttribute('data-k') || '';
-      if (k && lastHover !== k) { lastHover = k; playKey(k, false); }
+      const txt = w.innerText.trim();
+      if (k && lastHover !== k) { lastHover = k; playKey(k, false, txt); }
     });
     document.getElementById('lc').addEventListener('pointerout', (e) => {
       if (e.pointerType === 'mouse' && e.target.closest('.wt')) lastHover = '';
@@ -2442,17 +2336,18 @@ def render_interactive_study_viewer(study_payload: dict):
       const w = e.target.closest('.wt');
       if (!w) { closeDrawer(); return; }
       const k = w.getAttribute('data-k') || '';
+      const txt = w.innerText.trim();
       const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
       const now = Date.now();
       const isDbl = (lastTapK === k && (now - lastTapT) < 440);
       lastTapK = k; lastTapT = now;
-      playKey(k, false);
+      playKey(k, false, txt);
       if (isDbl) openDrawer(w, isTouch);
     });
     document.getElementById('lc').addEventListener('dblclick', (e) => {
       const w = e.target.closest('.wt');
       const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-      if (w) openDrawer(w, isTouch);
+      if (w && !isTouch) openDrawer(w, false);
     });
     </script></body></html>"""
 
@@ -2463,7 +2358,6 @@ def render_interactive_study_viewer(study_payload: dict):
         .replace("__DICT_JSON__", dict_json)
     )
     components.html(final_html, height=620, scrolling=True)
-
 
 
 # ==============================================================================
