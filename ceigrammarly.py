@@ -3488,14 +3488,35 @@ def reportar_comprobante_pago_estudiante_pg(
     metodo_pago: str,
     referencia: str,
     comprobante_b64: str = "",
-    comprobante_mime: str = ""
+    comprobante_mime: str = "",
+    ciclo_seleccionado: int | None = None
 ) -> dict:
     """Audita el comprobante con Visión IA, vincula la Matrícula y desbloquea el Boletín al instante."""
     est = evaluar_estado_financiero_alumno(student_user)
-    if est.get("ciclo_pagado"):
-        return {"ok": False, "msg": f"El Bloque {est['ciclo_a_cobrar']} ya figura al corriente."}
+    ciclo_obj = int(ciclo_seleccionado) if ciclo_seleccionado else int(est["ciclo_a_cobrar"])
 
-    ciclo_obj = int(est["ciclo_a_cobrar"])
+    # Buscar fechas y monto exacto del bloque seleccionado
+    b_match = next((b for b in est.get("bloques_9", []) if int(b["ciclo_global"]) == ciclo_obj), None)
+    if b_match and "Pagado" in str(b_match.get("estatus", "")):
+        return {"ok": False, "msg": f"El Bloque {ciclo_obj} ya se encuentra pagado."}
+
+    f_venc_obj = b_match["sem4_fin"] if b_match else est["sem4_pago_fin"]
+    base_mto = float(est["mensualidad_base"])
+    con_iva = bool(est.get("aplicar_iva"))
+    hoy_loc = datetime.now(ZoneInfo("America/Hermosillo")).date()
+    es_vencido_sel = bool(b_match and hoy_loc >= b_match["fecha_recargo"])
+
+    if es_vencido_sel:
+        ajuste_lbl_sel = f"Recargo Moratorio Bloque {ciclo_obj} (Semana 5+)"
+        sub_sel = round(base_mto * 1.05, 2)
+    elif est.get("reglas_incentivo_activas"):
+        ajuste_lbl_sel = f"Incentivo Pago Puntual Bloque {ciclo_obj} (-7%)"
+        sub_sel = round(base_mto * 0.93, 2)
+    else:
+        ajuste_lbl_sel = f"Mensualidad Bloque {ciclo_obj}"
+        sub_sel = base_mto
+
+    monto_esperado_sel = round(sub_sel * 1.16, 2) if con_iva else sub_sel
     mat_alumno = str(est.get("matricula") or "").strip()
     folio_gen = f"PAY-{datetime.now(ZoneInfo('America/Hermosillo')).strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
 
@@ -3503,7 +3524,7 @@ def reportar_comprobante_pago_estudiante_pg(
         comprobante_b64=comprobante_b64,
         comprobante_mime=comprobante_mime,
         matricula_esperada=mat_alumno,
-        monto_esperado=float(est["monto_a_pagar"])
+        monto_esperado=monto_esperado_sel
     )
     estatus_nuevo = audit["estatus_sugerido"]
     expira_gracia = datetime.now(ZoneInfo("UTC")) + timedelta(hours=72)
@@ -3539,10 +3560,10 @@ def reportar_comprobante_pago_estudiante_pg(
                 student_user.strip(),
                 mat_alumno,
                 ciclo_obj,
-                est["sem4_pago_fin"],
-                est["mensualidad_base"],
-                est["ajuste_label"],
-                est["monto_a_pagar"],
+                f_venc_obj,
+                base_mto,
+                ajuste_lbl_sel,
+                monto_esperado_sel,
                 estatus_nuevo,
                 folio_gen,
                 est.get("nivel_cefr", ""),
@@ -3564,16 +3585,16 @@ def reportar_comprobante_pago_estudiante_pg(
             """, (student_user.strip(),))
 
         badge_msg = (
-            f"🟢 **Aprobación Express IA ({audit['score']}%)** — Matrícula `{mat_alumno}` verificada. ¡Tu Boletín ya está desbloqueado!"
+            f"🟢 **Aprobación Express IA ({audit['score']}%)** — Matrícula `{mat_alumno}` verificada para **Bloque {ciclo_obj}**. ¡Tu Boletín ya está desbloqueado!"
             if estatus_nuevo == "Aprobado_IA"
-            else f"🟡 **Pase Provisional de 72 horas activado** para Matrícula `{mat_alumno}`. ¡Ya puedes descargar tu Boletín mientras el administrador concilia el movimiento!"
+            else f"🟡 **Pase Provisional de 72 horas activado** para Matrícula `{mat_alumno}` (**Bloque {ciclo_obj}**). ¡Ya puedes descargar tu Boletín mientras el administrador concilia el movimiento!"
         )
         return {
             "ok": True,
             "folio_pago": folio_gen,
             "matricula": mat_alumno,
             "ciclo_num": ciclo_obj,
-            "monto": est["monto_a_pagar"],
+            "monto": monto_esperado_sel,
             "nivel_cefr": est.get("nivel_cefr", ""),
             "estatus_ia": estatus_nuevo,
             "msg": f"✅ Comprobante `{folio_gen}` registrado.\n\n{badge_msg}\n\n🔍 *Auditoría:* {audit['diagnostico']}"
