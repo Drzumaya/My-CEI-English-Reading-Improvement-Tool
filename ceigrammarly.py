@@ -163,7 +163,8 @@ CAPABILITY_COLS = [
     "Reuso_Ilimitado_Folios",
     "Editar_Fecha_Inicio_Curso",
     "Gestionar_Comisiones_Afiliados",
-    "Gestionar_IVA_Mensualidad"
+    "Gestionar_IVA_Mensualidad",
+    "Gestionar_Pagos_Cobranza"
 ]
 
 DEFAULT_PERMISSIONS_MATRIX = {
@@ -180,7 +181,8 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Reuso_Ilimitado_Folios": True,
         "Editar_Fecha_Inicio_Curso": False,
         "Gestionar_Comisiones_Afiliados": False,
-        "Gestionar_IVA_Mensualidad": False
+        "Gestionar_IVA_Mensualidad": False,
+        "Gestionar_Pagos_Cobranza": False
     },
     "Certificador": {
         "Ver_Panel_Admin": True,
@@ -2698,14 +2700,162 @@ def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool,
     except Exception as e:
         return False, f"Error en base de datos: {e}"
 # ==============================================================================
-# PARTE 10A: EVALUACIÓN FINANCIERA INDIVIDUAL (CICLOS DE 28 DÍAS E IVA)
+# PARTE 10A — MITAD 1 DE 2: ESQUEMA V2, VACACIONES Y MENSAJES WHATSAPP
+# ==============================================================================
+@st.cache_resource(show_spinner=False)
+def ensure_financial_v2_schema() -> bool:
+    """Amplía users_padron y tuition_payments, y crea institute_holidays sin afectar datos."""
+    try:
+        with pg_session() as cur:
+            cur.execute("""
+                ALTER TABLE users_padron
+                ADD COLUMN IF NOT EXISTS fecha_inscripcion DATE,
+                ADD COLUMN IF NOT EXISTS telefono_whatsapp TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS recargo_tardio NUMERIC(10,2) DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS boletin_habilitado BOOLEAN DEFAULT TRUE;
+            """)
+            cur.execute("""
+                UPDATE users_padron
+                SET fecha_inscripcion = COALESCE(fecha_inscripcion, fecha_inicio_curso, CURRENT_DATE)
+                WHERE fecha_inscripcion IS NULL;
+            """)
+            cur.execute("""
+                ALTER TABLE tuition_payments
+                ADD COLUMN IF NOT EXISTS folio_pago TEXT,
+                ADD COLUMN IF NOT EXISTS nivel_cefr TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS metodo_pago TEXT DEFAULT 'Transferencia Bancaria',
+                ADD COLUMN IF NOT EXISTS referencia_comprobante TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS comprobante_b64 TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS comprobante_mime TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS validado_por TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS fecha_validacion TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS notas_admin TEXT DEFAULT '';
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS institute_holidays (
+                    id SERIAL PRIMARY KEY,
+                    nombre_periodo TEXT NOT NULL,
+                    fecha_inicio DATE NOT NULL,
+                    fecha_fin DATE NOT NULL,
+                    activo BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            """)
+        return True
+    except Exception:
+        return False
+
+
+ensure_financial_v2_schema()
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def load_institute_holidays_pg() -> list[dict]:
+    """Obtiene los períodos vacacionales activos del instituto."""
+    try:
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                SELECT id, nombre_periodo, fecha_inicio, fecha_fin, activo
+                FROM institute_holidays
+                WHERE activo = TRUE
+                ORDER BY fecha_inicio ASC;
+            """)
+            return [dict(r) for r in cur.fetchall()]
+    except Exception:
+        return []
+
+
+def _format_wa_phone(raw_phone: str, default_cc: str = "52") -> str:
+    digits = re.sub(r"\D+", "", str(raw_phone or ""))
+    if not digits:
+        return ""
+    if len(digits) == 10:
+        return default_cc + digits
+    return digits
+
+
+def build_whatsapp_recordatorio_estudiante(est_info: dict, nombre_alumno: str, telefono_alumno: str) -> tuple[str, str]:
+    """Genera el texto y la URL de WhatsApp para recordar al estudiante su 4ta semana de pago o recargo."""
+    ciclo_n = est_info.get("ciclo_a_cobrar", 1)
+    sem4_ini = est_info.get("sem4_pago_inicio") or est_info.get("ventana_pago_inicio")
+    sem4_fin = est_info.get("sem4_pago_fin") or est_info.get("ventana_pago_fin")
+    f_recargo = est_info.get("fecha_recargo")
+    monto = float(est_info.get("monto_a_pagar") or 0.0)
+    es_moratorio = int(est_info.get("dias_retraso") or 0) > 0
+    en_vacaciones = bool(est_info.get("en_vacaciones"))
+
+    nota_vac = (
+        " Te recordamos que, aun durante el receso vacacional de clases, tu plataforma inteligente con IA "
+        "permanece 100% activa las 24 horas para que sigas generando lecciones y avanzando en tu aprendizaje."
+        if en_vacaciones
+        else " Tu membresía mantiene activa 24/7 nuestra plataforma inteligente con IA para seguir generando lecciones y avanzando en tu aprendizaje."
+    )
+
+    if es_moratorio:
+        msg = (
+            f"Hola {nombre_alumno}, te saludamos de Career English Institute 🎓. "
+            f"Te informamos que el Bloque {ciclo_n} de 9 ha entrado en Semana 5 con recargo activo "
+            f"(monto actualizado: ${monto:,.2f} MXN).{nota_vac} "
+            f"Recuerda que mantener tu pago al día te permite descargar tu Boletín Oficial de Calificaciones "
+            f"para mantenerte informado de tu avance académico. Puedes subir tu comprobante directamente en la plataforma."
+        )
+    else:
+        msg = (
+            f"Hola {nombre_alumno}, te saludamos de Career English Institute 🎓. "
+            f"Has llegado a tu 4ta semana calendario (del {sem4_ini} al {sem4_fin}), período habilitado "
+            f"para registrar sin recargo el pago de tu Bloque {ciclo_n} de 9 por ${monto:,.2f} MXN "
+            f"(el recargo se activa a partir del {f_recargo}).{nota_vac} "
+            f"Además, tu pago puntual te permite descargar tu Boletín Oficial de Calificaciones para mantenerte informado de tu avance."
+        )
+
+    phone_clean = _format_wa_phone(telefono_alumno)
+    wa_url = (
+        f"https://wa.me{phone_clean}?text={urllib.parse.quote(msg)}"
+        if phone_clean
+        else f"https://wa.me?text={urllib.parse.quote(msg)}"
+    )
+    return msg, wa_url
+
+
+def build_whatsapp_aviso_pago_owner(
+    nombre_alumno: str,
+    usuario_alumno: str,
+    nivel_cefr: str,
+    folio_pago: str,
+    ciclo_num: int,
+    monto_pagado: float,
+    referencia: str,
+    telefono_owner: str = ""
+) -> tuple[str, str]:
+    """Genera la nota informativa vía WhatsApp para el Owner o Administrador autorizado."""
+    msg = (
+        f"Hola, soy {nombre_alumno} (Usuario: {usuario_alumno} | Nivel {nivel_cefr}). "
+        f"Acabo de registrar en la plataforma mi comprobante de pago con Folio {folio_pago} "
+        f"correspondiente al Bloque {ciclo_num} de 9 por ${monto_pagado:,.2f} MXN "
+        f"(Referencia: {referencia or 'Adjunta en comprobante'}). "
+        f"Te invito amablemente a verificar el comprobante contra el registro en la cuenta bancaria "
+        f"para confirmar mi pago y mantener activo mi Boletín de Calificaciones. ¡Muchas gracias!"
+    )
+    phone_clean = _format_wa_phone(telefono_owner)
+    wa_url = (
+        f"https://wa.me{phone_clean}?text={urllib.parse.quote(msg)}"
+        if phone_clean
+        else f"https://wa.me?text={urllib.parse.quote(msg)}"
+    )
+    return msg, wa_url
+# ==============================================================================
+# PARTE 10A — MITAD 2A: EVALUACIÓN FINANCIERA DE 9 BLOQUES (PARTE 1)
 # ==============================================================================
 def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     hoy = datetime.now(ZoneInfo("America/Hermosillo")).date()
     reglas_activas = get_billing_global_settings_pg()
+    holidays = load_institute_holidays_pg()
 
     info = {
+        "fecha_inscripcion": hoy,
         "fecha_inicio": hoy,
+        "telefono_whatsapp": "",
+        "nivel_cefr": "A1",
         "mensualidad_base": 1500.00,
         "aplicar_iva": False,
         "subtotal_ajustado": 1500.00,
@@ -2715,10 +2865,19 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
         "porcentaje_comision": 0.0,
         "ciclo_actual": 1,
         "ciclo_a_cobrar": 1,
+        "bloque_en_nivel": 1,
         "semana_ciclo": 1,
         "ventana_pago_inicio": hoy,
         "ventana_pago_fin": hoy + timedelta(days=27),
-        "ajuste_label": "Tarifa Base (Incentivos/Recargos desactivados)",
+        "sem4_pago_inicio": hoy + timedelta(days=21),
+        "sem4_pago_fin": hoy + timedelta(days=27),
+        "fecha_recargo": hoy + timedelta(days=28),
+        "en_vacaciones": False,
+        "nombre_vacaciones": "",
+        "bloques_9": [],
+        "pagos_historial": [],
+        "tiene_pago_en_revision": False,
+        "ajuste_label": "Tarifa Base",
         "ajuste_monto": 0.00,
         "monto_a_pagar": 1500.00,
         "ciclo_pagado": False,
@@ -2730,7 +2889,8 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
-                SELECT rol, fecha_inicio_curso, mensualidad_base, aplicar_iva, afiliado_usuario, porcentaje_comision
+                SELECT rol, nivel_cefr, fecha_inscripcion, fecha_inicio_curso, telefono_whatsapp,
+                       mensualidad_base, recargo_tardio, aplicar_iva, afiliado_usuario, porcentaje_comision
                 FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;
             """, (student_user,))
             u = cur.fetchone()
@@ -2740,20 +2900,32 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
             if str(u.get("rol", "")).lower() not in ["estudiante", "student", "alumno"]:
                 return info
 
-            f_ini = u.get("fecha_inicio_curso") or hoy
+            f_ins = u.get("fecha_inscripcion") or u.get("fecha_inicio_curso") or hoy
+            f_ini = u.get("fecha_inicio_curso") or f_ins
             base = float(u.get("mensualidad_base") or 1500.0)
+            recargo_fijo = float(u.get("recargo_tardio") or 0.0)
             con_iva = bool(u.get("aplicar_iva") or False)
+            nivel_al = str(u.get("nivel_cefr") or "A1").strip()
+            tel_wa = str(u.get("telefono_whatsapp") or "").strip()
 
             dias_transcurridos = max(0, (hoy - f_ini).days)
             ciclo_vigente = (dias_transcurridos // 28) + 1
             dia_en_ciclo = (dias_transcurridos % 28) + 1
             semana_en_ciclo = ((dia_en_ciclo - 1) // 7) + 1
+            bloque_nivel_actual = ((ciclo_vigente - 1) % 9) + 1
 
             cur.execute("""
-                SELECT ciclo_numero FROM tuition_payments
-                WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s)) AND estatus = 'Pagado';
+                SELECT ciclo_numero, estatus, folio_pago, monto_final, metodo_pago,
+                       referencia_comprobante, fecha_pago, validado_por
+                FROM tuition_payments
+                WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s))
+                ORDER BY ciclo_numero ASC;
             """, (student_user,))
-            ciclos_pagados = {int(r["ciclo_numero"]) for r in cur.fetchall() if r.get("ciclo_numero") is not None}
+            rows_pay = [dict(r) for r in cur.fetchall()]
+            pagos_by_ciclo = {int(r["ciclo_numero"]): r for r in rows_pay if r.get("ciclo_numero") is not None}
+
+            ciclos_pagados = {c for c, r in pagos_by_ciclo.items() if str(r.get("estatus", "")) == "Pagado"}
+            ciclos_revision = {c for c, r in pagos_by_ciclo.items() if str(r.get("estatus", "")) == "Pendiente_Revision"}
 
             ciclos_vencidos = [c for c in range(1, ciclo_vigente) if c not in ciclos_pagados]
 
@@ -2761,32 +2933,101 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
                 ciclo_objetivo = next(iter(ciclos_vencidos))
                 es_moratorio = True
                 esta_pagado = False
+            elif ciclo_vigente in ciclos_pagados and semana_en_ciclo == 4 and (ciclo_vigente + 1) not in ciclos_pagados:
+                ciclo_objetivo = ciclo_vigente + 1
+                es_moratorio = False
+                esta_pagado = False
             else:
                 ciclo_objetivo = ciclo_vigente
                 es_moratorio = False
                 esta_pagado = ciclo_vigente in ciclos_pagados
 
             inicio_ciclo_obj = f_ini + timedelta(days=(ciclo_objetivo - 1) * 28)
-            fin_sem4_obj = inicio_ciclo_obj + timedelta(days=27)
-            dias_retraso_calc = max(0, (hoy - fin_sem4_obj).days) if es_moratorio else 0
+            if ciclo_objetivo > 1 and ciclo_objetivo == ciclo_vigente + 1:
+                sem4_ini_obj = f_ini + timedelta(days=(ciclo_vigente - 1) * 28 + 21)
+                sem4_fin_obj = f_ini + timedelta(days=(ciclo_vigente - 1) * 28 + 27)
+                fecha_recargo_obj = f_ini + timedelta(days=ciclo_vigente * 28)
+            else:
+                sem4_ini_obj = inicio_ciclo_obj + timedelta(days=21)
+                sem4_fin_obj = inicio_ciclo_obj + timedelta(days=27)
+                fecha_recargo_obj = inicio_ciclo_obj + timedelta(days=28)
 
-            if not reglas_activas:
-                ajuste_lbl = "Mensualidad Estándar (Incentivos/Recargos desactivados)"
+            dias_retraso_calc = max(0, (hoy - (inicio_ciclo_obj + timedelta(days=27))).days) if es_moratorio else 0
+
+            en_vac = False
+            nom_vac = ""
+            for h in holidays:
+                if h["fecha_inicio"] <= hoy <= h["fecha_fin"]:
+                    en_vac = True
+                    nom_vac = str(h["nombre_periodo"])
+                    break
+# ==============================================================================
+# PARTE 10A — MITAD 2B (FINAL): PROYECCIÓN DE 9 BLOQUES Y VIGENCIA DEL BOLETÍN
+# ==============================================================================
+            base_bloque_nivel = ((ciclo_vigente - 1) // 9) * 9
+            bloques_9_list = []
+            for b_idx in range(1, 10):
+                c_abs = base_bloque_nivel + b_idx
+                b_ini = f_ini + timedelta(days=(c_abs - 1) * 28)
+                b_fin = b_ini + timedelta(days=27)
+                b_sem4_ini = b_ini + timedelta(days=21)
+                b_sem4_fin = b_fin
+                b_recargo = b_ini + timedelta(days=28)
+
+                vac_names = [
+                    str(h["nombre_periodo"]) for h in holidays
+                    if not (b_fin < h["fecha_inicio"] or b_ini > h["fecha_fin"])
+                ]
+
+                if c_abs in ciclos_pagados:
+                    b_status = "✅ Pagado (Boletín Activo)"
+                elif c_abs in ciclos_revision:
+                    b_status = "⏳ Comprobante en Revisión Bancaria"
+                elif c_abs < ciclo_vigente:
+                    b_status = "🔴 Vencido — Recargo Activo (Sem. 5+)"
+                elif c_abs == ciclo_vigente and semana_en_ciclo == 4:
+                    b_status = "🟡 4ta Semana — Ventana de Pago Abierta"
+                elif c_abs == ciclo_vigente:
+                    b_status = f"🟢 Cursando (Semana {semana_en_ciclo}/4)"
+                else:
+                    b_status = "⚪ Programado"
+
+                bloques_9_list.append({
+                    "bloque_num": b_idx,
+                    "ciclo_global": c_abs,
+                    "inicio_bloque": b_ini,
+                    "fin_bloque": b_fin,
+                    "sem4_inicio": b_sem4_ini,
+                    "sem4_fin": b_sem4_fin,
+                    "fecha_recargo": b_recargo,
+                    "vacaciones": ", ".join(vac_names) if vac_names else "Clases Regulares",
+                    "estatus": b_status
+                })
+
+            if not reglas_activas and not es_moratorio:
+                ajuste_lbl = "Mensualidad Estándar"
                 ajuste_mto = 0.0
             elif es_moratorio:
-                ajuste_lbl = f"Recargo Moratorio Mes {ciclo_objetivo} Vencido (+5%)"
-                ajuste_mto = round(base * 0.05, 2)
-            else:
-                ajuste_lbl = f"Incentivo Pago en Tiempo Sem. {semana_en_ciclo}/4 (-7%)"
+                rec_calc = recargo_fijo if recargo_fijo > 0 else round(base * 0.05, 2)
+                ajuste_lbl = f"Recargo Moratorio Bloque {ciclo_objetivo} (Semana 5+)"
+                ajuste_mto = round(rec_calc, 2)
+            elif reglas_activas:
+                ajuste_lbl = f"Incentivo Pago Puntual Sem. {semana_en_ciclo}/4 (-7%)"
                 ajuste_mto = round(-base * 0.07, 2)
+            else:
+                ajuste_lbl = "Mensualidad Sin Recargo (4ta Semana)"
+                ajuste_mto = 0.0
 
             subtotal_mes = round(base + ajuste_mto, 2)
             iva_mto = round(subtotal_mes * 0.16, 2) if con_iva else 0.0
             monto_calc = round(subtotal_mes + iva_mto, 2)
-            bloqueado = es_moratorio
+            boletin_activo = not es_moratorio
 
             info.update({
+                "fecha_inscripcion": f_ins,
                 "fecha_inicio": f_ini,
+                "telefono_whatsapp": tel_wa,
+                "nivel_cefr": nivel_al,
                 "mensualidad_base": base,
                 "aplicar_iva": con_iva,
                 "subtotal_ajustado": subtotal_mes,
@@ -2796,27 +3037,38 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
                 "porcentaje_comision": float(u.get("porcentaje_comision") or 0.0),
                 "ciclo_actual": ciclo_objetivo,
                 "ciclo_a_cobrar": ciclo_objetivo,
+                "bloque_en_nivel": bloque_nivel_actual,
                 "semana_ciclo": semana_en_ciclo,
                 "ventana_pago_inicio": inicio_ciclo_obj,
-                "ventana_pago_fin": fin_sem4_obj,
+                "ventana_pago_fin": sem4_fin_obj,
+                "sem4_pago_inicio": sem4_ini_obj,
+                "sem4_pago_fin": sem4_fin_obj,
+                "fecha_recargo": fecha_recargo_obj,
+                "en_vacaciones": en_vac,
+                "nombre_vacaciones": nom_vac,
+                "bloques_9": bloques_9_list,
+                "pagos_historial": rows_pay,
+                "tiene_pago_en_revision": bool(ciclos_revision),
                 "ajuste_label": ajuste_lbl,
                 "ajuste_monto": ajuste_mto,
                 "monto_a_pagar": monto_calc,
                 "ciclo_pagado": esta_pagado,
-                "descarga_permitida": not bloqueado,
+                "descarga_permitida": boletin_activo,
                 "dias_retraso": dias_retraso_calc,
                 "mensaje_estado": (
-                    f"✅ Mes/Ciclo {ciclo_vigente} Pagado (Al corriente)" if esta_pagado
+                    f"✅ Bloque {bloque_nivel_actual}/9 Pagado (Boletín de Calificaciones Activo)"
+                    if esta_pagado
                     else (
-                        f"⛔ Descarga bloqueada: Mes {ciclo_objetivo} vencido ({dias_retraso_calc} {'día' if dias_retraso_calc == 1 else 'días'} de retraso — Recargo +5%: ${monto_calc:,.2f})"
-                        if bloqueado
-                        else f"⏳ Mes {ciclo_vigente} — Sem. {semana_en_ciclo}/4 ({ajuste_lbl}: ${monto_calc:,.2f})"
+                        f"⛔ Semana 5+ sin pago: Bloque {ciclo_objetivo} vencido ({dias_retraso_calc} días — Recargo activo: ${monto_calc:,.2f}). Boletín pausado hasta confirmar pago."
+                        if es_moratorio
+                        else f"⏳ Bloque {bloque_nivel_actual}/9 — Semana {semana_en_ciclo}/4 ({ajuste_lbl}: ${monto_calc:,.2f})"
                     )
                 )
             })
     except Exception:
         pass
     return info
+
 # ==============================================================================
 # PARTE 10B1: BALANCE FINANCIERO GLOBAL OPTIMIZADO (SIN CONSULTAS N+1)
 # ==============================================================================
