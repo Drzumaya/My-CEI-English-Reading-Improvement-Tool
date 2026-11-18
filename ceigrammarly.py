@@ -2569,6 +2569,9 @@ def render_interactive_study_viewer(study_payload: dict):
                     doc.getElementById("cei-drw-close").onclick = () => {{ drw.style.transform = "translateY(110%)"; }};
                     return drw;
                 }};
+# ==============================================================================
+# PARTE 8B — SECCIÓN 4 DE 4 (FINAL): BÚSQUEDA BILINGÜE Y EVENTOS MULTIMODALES
+# ==============================================================================
                 win.__ceiOpenDictionary = async function(wClean, posRaw) {{
                     const drw = win.__ceiEnsureDrawer();
                     const k = wClean.toLowerCase();
@@ -2593,12 +2596,16 @@ def render_interactive_study_viewer(study_payload: dict):
                         try {{
                             const r = await fetch("https://googleapis.com" + qEnc);
                             const j = await r.json();
-                            if (Array.isArray(j) && Array.isArray(j[0])) {{
-                                const tr = j[0].map(s => (Array.isArray(s) ? s[0] : "")).join("");
+                            const block0 = Array.isArray(j) ? j.at(0) : null;
+                            if (Array.isArray(block0)) {{
+                                const tr = block0.map(s => (Array.isArray(s) ? String(s.at(0) || "") : "")).join("");
                                 if (tr) doc.getElementById("cei-drw-es").innerText = tr;
                             }}
-                            if (Array.isArray(j) && Array.isArray(j[1]) && j[1][0] && Array.isArray(j[1][0][1])) {{
-                                doc.getElementById("cei-drw-alt").innerText = "Acepciones: " + j[1][0][1].slice(0, 4).join(", ");
+                            const block1 = Array.isArray(j) ? j.at(1) : null;
+                            const firstPos = Array.isArray(block1) ? block1.at(0) : null;
+                            const altArr = Array.isArray(firstPos) ? firstPos.at(1) : null;
+                            if (Array.isArray(altArr)) {{
+                                doc.getElementById("cei-drw-alt").innerText = "Acepciones: " + altArr.slice(0, 4).join(", ");
                             }}
                         }} catch (e) {{
                             doc.getElementById("cei-drw-es").innerText = loc.es || wClean;
@@ -2608,11 +2615,13 @@ def render_interactive_study_viewer(study_payload: dict):
                         try {{
                             const r2 = await fetch("https://dictionaryapi.dev" + qEnc);
                             const j2 = await r2.json();
-                            if (Array.isArray(j2) && j2[0]) {{
-                                if (j2[0].phonetic) doc.getElementById("cei-drw-ipa").innerText = "IPA: " + j2[0].phonetic;
-                                const m = (j2[0].meanings || [])[0];
-                                if (m && m.definitions && m.definitions[0]) {{
-                                    doc.getElementById("cei-drw-def").innerText = "📖 (" + (m.partOfSpeech || "") + ") " + m.definitions[0].definition;
+                            const item0 = Array.isArray(j2) ? j2.at(0) : null;
+                            if (item0) {{
+                                if (item0.phonetic) doc.getElementById("cei-drw-ipa").innerText = "IPA: " + item0.phonetic;
+                                const m = Array.isArray(item0.meanings) ? item0.meanings.at(0) : null;
+                                const d0 = (m && Array.isArray(m.definitions)) ? m.definitions.at(0) : null;
+                                if (d0 && d0.definition) {{
+                                    doc.getElementById("cei-drw-def").innerText = "📖 (" + (m.partOfSpeech || "") + ") " + d0.definition;
                                 }}
                             }}
                         }} catch (e) {{}}
@@ -2631,10 +2640,10 @@ def render_interactive_study_viewer(study_payload: dict):
                         const raw = (btn.innerText || "").trim();
                         if (!raw || raw.length > 32 || raw.includes("\n")) return null;
                         if (/Lectura|Estudio|Calificar|Generar|Generate|Descargar|Cerrar|Borrar|Quiz|Evaluar|Folios|Guardar|Acceso|Salir|Buscar|Ocultar|Normal|Lento/i.test(raw)) return null;
-                        const m = raw.match(/^([🔴🔵🟢🟡⚪])\s*(.+)$/);
+                        const m = raw.match(/^([🔴🔵🟢🟡⚪])\\s*(.+)$/);
                         if (!m) return null;
-                        const emojiTag = m[1];
-                        const wordPart = m[2];
+                        const emojiTag = String(m.at(1) || "");
+                        const wordPart = String(m.at(2) || "");
                         const clean = wordPart.replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, "");
                         if (!clean) return null;
                         const posMap = {{"🔴":"Verbo","🔵":"Sustantivo","🟢":"Adjetivo","🟡":"Conjunción","⚪":"Vocabulario"}};
@@ -2699,6 +2708,7 @@ def render_interactive_study_viewer(study_payload: dict):
         }})()
         """
         streamlit_js_eval(js_expressions=multimodal_js, key=f"cei_mm_bridge_{len(audio_b64_map)}_{velocidad_lenta}")
+
 
 
 # ==============================================================================
