@@ -2229,8 +2229,6 @@ def _build_full_study_bundle(
                 audio_map[k_w] = pair
 
     return audio_map, merged_dict
-
-
     <script>
     const AMAP = __AUDIO_JSON__;
     const DMAP = __DICT_JSON__;
