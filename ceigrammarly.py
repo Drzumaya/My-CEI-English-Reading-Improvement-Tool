@@ -2561,14 +2561,20 @@ def render_interactive_study_viewer(study_payload: dict):
                     doc.body.appendChild(drw);
 
                     let startY = 0;
-                    drw.addEventListener("touchstart", (ev) => {{ startY = ev.touches[0].clientY; }}, {{passive: true}});
+                    drw.addEventListener("touchstart", (ev) => {{
+                        const t0 = ev.touches && ev.touches.at(0);
+                        if (t0) startY = t0.clientY;
+                    }}, {{passive: true}});
                     drw.addEventListener("touchmove", (ev) => {{
-                        const deltaY = ev.touches[0].clientY - startY;
+                        const t0 = ev.touches && ev.touches.at(0);
+                        if (!t0) return;
+                        const deltaY = t0.clientY - startY;
                         if (deltaY > 45) drw.style.transform = "translateY(110%)";
                     }}, {{passive: true}});
                     doc.getElementById("cei-drw-close").onclick = () => {{ drw.style.transform = "translateY(110%)"; }};
                     return drw;
                 }};
+
 # ==============================================================================
 # PARTE 8B — SECCIÓN 4 DE 4 (FINAL): BÚSQUEDA BILINGÜE Y EVENTOS MULTIMODALES
 # ==============================================================================
