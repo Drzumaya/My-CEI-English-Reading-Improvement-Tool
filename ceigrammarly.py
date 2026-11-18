@@ -2155,6 +2155,27 @@ def _build_lesson_audio_b64_map(unique_words_tuple: tuple, slow_mode: bool = Fal
                 audio_map[k_w] = pair_b64
     return audio_map
 
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=120)
+def _pretranslate_words_google(unique_words_tuple: tuple) -> dict:
+    """Pre-traduce en paralelo todas las palabras únicas de la lección usando Google Translate."""
+    trans_map = {}
+    if not unique_words_tuple:
+        return trans_map
+
+    def _tr_one(w_item: str):
+        try:
+            es_val = GoogleTranslator(source="en", target="es").translate(w_item)
+            return w_item.lower(), str(es_val or w_item).strip()
+        except Exception:
+            return w_item.lower(), ""
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for k_w, es_out in pool.map(_tr_one, unique_words_tuple):
+            if es_out:
+                trans_map[k_w] = es_out
+    return trans_map
+
+
 
 @st.cache_data(ttl=86400, show_spinner=False, max_entries=600)
 def _auto_lookup_bilingual_dict(word_clean: str) -> dict:
@@ -2309,11 +2330,19 @@ def render_interactive_study_viewer(study_payload: dict):
                             width="stretch"
                         )
 # ==============================================================================
-# PARTE 8B — MITAD 2B-1: REPRODUCTOR BASE64 Y CAJÓN DESLIZABLE TÁCTIL
+# PARTE 8B — MITAD 2B-1: REPRODUCTOR BASE64, TRADUCTOR GOOGLE Y CAJÓN TÁCTIL
 # ==============================================================================
     if audio_b64_map:
+        google_tr_map = _pretranslate_words_google(tuple(unique_words[:95]))
+        merged_dict = {k.lower(): (dict(v) if isinstance(v, dict) else {}) for k, v in dictionary.items()}
+        for kw_l, es_tr in google_tr_map.items():
+            if kw_l not in merged_dict:
+                merged_dict[kw_l] = {}
+            if not merged_dict[kw_l].get("es"):
+                merged_dict[kw_l]["es"] = es_tr
+
         b64_json = json.dumps(audio_b64_map)
-        dict_json = json.dumps({k.lower(): v for k, v in dictionary.items()})
+        dict_json = json.dumps(merged_dict)
         multimodal_js = f"""
         (() => {{
             try {{
@@ -2410,13 +2439,15 @@ def render_interactive_study_viewer(study_payload: dict):
                             const r = await fetch("https://googleapis.com" + qEnc);
                             const j = await r.json();
                             if (Array.isArray(j) && Array.isArray(j[0])) {{
-                                const tr = j[0].map(s => s[0]).join("");
+                                const tr = j[0].map(s => (Array.isArray(s) ? s[0] : "")).join("");
                                 if (tr) doc.getElementById("cei-drw-es").innerText = tr;
                             }}
                             if (Array.isArray(j) && Array.isArray(j[1]) && j[1][0] && Array.isArray(j[1][0][1])) {{
                                 doc.getElementById("cei-drw-alt").innerText = "Acepciones: " + j[1][0][1].slice(0, 4).join(", ");
                             }}
-                        }} catch (e) {{}}
+                        }} catch (e) {{
+                            doc.getElementById("cei-drw-es").innerText = wClean;
+                        }}
                     }}
                     if (!loc.def) {{
                         try {{
