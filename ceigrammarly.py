@@ -4076,13 +4076,16 @@ if is_owner or is_faculty_desktop or es_socio_afiliado:
                     st.session_state["active_admin_workspace"] = None
                     st.rerun()
 # ==============================================================================
-# PARTE 13A1: BUSCADOR DE FOLIOS Y BOLETÍN TIMBRADO EN TIEMPO REAL
+# ==============================================================================
+# PARTE 13A1: BUSCADOR DE FOLIOS, BOLETÍN TIMBRADO Y MIS PAGOS (1 CLIC)
 # ==============================================================================
 if "show_gradebook_panel" not in st.session_state:
     st.session_state.show_gradebook_panel = False
+if "show_student_payments_panel" not in st.session_state:
+    st.session_state.show_student_payments_panel = False
 
 with st.container(border=True):
-    col_f1, col_f2, col_f3, col_f4 = st.columns([2.1, 1.1, 1.5, 2.0])
+    col_f1, col_f2, col_f3, col_f_pay, col_f4 = st.columns([1.9, 1.0, 1.25, 1.25, 1.6])
     with col_f1:
         folio_input = st.text_input(
             "🔍 Buscador de Folio Académico:",
@@ -4091,15 +4094,145 @@ with st.container(border=True):
             label_visibility="collapsed"
         )
     with col_f2:
-        buscar_folio_btn = st.button("🔍 Buscar Folio", width="stretch")
+        buscar_folio_btn = st.button("🔍 Buscar", width="stretch")
     with col_f3:
         if st.button("📊 Calificaciones", type="primary", width="stretch", key="btn_toggle_gradebook"):
             st.session_state.show_gradebook_panel = not st.session_state.show_gradebook_panel
+            if st.session_state.show_gradebook_panel:
+                st.session_state.show_student_payments_panel = False
+    with col_f_pay:
+        if st.button("💳 Mis Pagos", type="secondary", width="stretch", key="btn_toggle_student_pay"):
+            st.session_state.show_student_payments_panel = not st.session_state.show_student_payments_panel
+            if st.session_state.show_student_payments_panel:
+                st.session_state.show_gradebook_panel = False
     with col_f4:
         if st.session_state.current_folio and st.session_state.generated_text:
-            st.info(f"📄 **Folio:** `{st.session_state.current_folio}` | 📅 `{st.session_state.current_creation_date}`")
+            st.info(f"📄 `{st.session_state.current_folio}` | `{st.session_state.current_creation_date}`")
         else:
-            st.caption("Busca un Folio o consulta tu Boletín en Tiempo Real.")
+            st.caption("Consulta tu Boletín o Calendario de Pagos en 1 clic.")
+
+if st.session_state.show_student_payments_panel:
+    with st.container(border=True):
+        st.subheader("💳 Calendario de Pagos Mensuales (9 Bloques de 4 Semanas) y Comprobantes")
+
+        if is_owner or can("Gestionar_Pagos_Cobranza") or can("Ver_Panel_Admin"):
+            padron_sp = load_padron_records()
+            opciones_sp = {
+                f"{r.get('Matricula', '')} — {r.get('Usuario', '')} (CEFR {r.get('Nivel', '')})": str(r.get("Usuario", "")).strip()
+                for r in padron_sp if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"] and str(r.get("Usuario", "")).strip()
+            }
+            if opciones_sp:
+                sel_sp_lbl = st.selectbox("🔎 Seleccionar Estudiante (Vista Propietario / Admin):", list(opciones_sp.keys()), key="sel_sp_student_view")
+                alumno_pay_obj = opciones_sp[sel_sp_lbl]
+            else:
+                alumno_pay_obj = st.session_state.current_user
+        else:
+            alumno_pay_obj = st.session_state.current_user
+
+        est_sp = evaluar_estado_financiero_alumno(alumno_pay_obj)
+
+        st.info(
+            "🎓 **Beneficios de tu Membresía Activa:** Tu pago puntual mantiene habilitada las **24 horas del día** "
+            "(incluso durante los recesos vacacionales de clases) la plataforma inteligente para generar lecciones y avanzar en tu aprendizaje, "
+            "además de permitirte **descargar tu Boletín Oficial de Calificaciones** en cualquier momento para mantenerte informado de tu avance."
+        )
+
+        sp1, sp2, sp3, sp4 = st.columns(4)
+        sp1.metric("📝 Inscripción / Inicio", f"{est_sp['fecha_inicio']}", delta=f"Inscrito: {est_sp['fecha_inscripcion']}")
+        sp2.metric("📅 Bloque Nivel", f"Bloque {est_sp['bloque_en_nivel']}/9", delta=f"Semana {est_sp['semana_ciclo']}/4")
+        sp3.metric("🟡 4ta Sem. Pago", f"{est_sp['sem4_pago_inicio']}", delta=f"Hasta {est_sp['sem4_pago_fin']}")
+        sp4.metric(
+            "📄 Boletín Calificaciones",
+            "✅ Activo" if est_sp["descarga_permitida"] else "🔒 Pausado (Sem. 5+)",
+            delta=f"Recargo desde {est_sp['fecha_recargo']}"
+        )
+
+        if est_sp.get("en_vacaciones"):
+            st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
+        st.markdown("#### 📤 Reportar Pago y Subir Comprobante Bancario")
+        if est_sp["ciclo_pagado"]:
+            st.success(f"✅ Tu **Bloque {est_sp['bloque_en_nivel']}/9** ya se encuentra pagado y confirmado. Tu Boletín de Calificaciones está **ACTIVO**.")
+        else:
+            col_up1, col_up2 = st.columns([1.4, 1.6])
+            with col_up1:
+                st.markdown(
+                    f"- **Bloque a cubrir:** Bloque `{est_sp['ciclo_a_cobrar']}`\n"
+                    f"- **Ventana 4ta semana (sin recargo):** `{est_sp['sem4_pago_inicio']}` al `{est_sp['sem4_pago_fin']}`\n"
+                    f"- **Activación de recargo (Semana 5):** `{est_sp['fecha_recargo']}`\n"
+                    f"- **Monto total a transferir:** **`${est_sp['monto_a_pagar']:,.2f} MXN`**"
+                )
+                metodo_p_est = st.selectbox(
+                    "Método de pago:",
+                    ["Transferencia Bancaria (SPEI)", "Depósito en Ventanilla / Practicaja", "Pago en Efectivo en Instituto"],
+                    key="sel_metodo_pago_est"
+                )
+                ref_p_est = st.text_input("Número de referencia / rastreo bancario:", placeholder="Ej: SPEI-8492014", key="inp_ref_pago_est")
+            with col_up2:
+                archivo_comp = st.file_uploader(
+                    "📎 Adjuntar Comprobante de Pago (Imagen JPG/PNG o PDF):",
+                    type=["jpg", "jpeg", "png", "pdf"],
+                    key="up_comprobante_est"
+                )
+                if st.button("📤 Registrar Comprobante y Generar Aviso WhatsApp", type="primary", width="stretch", key="btn_subir_comp_est"):
+                    b64_comp = ""
+                    mime_comp = ""
+                    if archivo_comp is not None:
+                        raw_bytes = archivo_comp.getvalue()
+                        mime_comp = str(archivo_comp.type or "image/jpeg")
+                        if "image" in mime_comp.lower():
+                            try:
+                                raw_bytes = compress_bytes_image(raw_bytes, max_side=1100, quality=78)
+                                mime_comp = "image/jpeg"
+                            except Exception:
+                                pass
+                        b64_comp = base64.b64encode(raw_bytes).decode("ascii")
+
+                    res_rep = reportar_comprobante_pago_estudiante_pg(
+                        student_user=alumno_pay_obj,
+                        metodo_pago=metodo_p_est,
+                        referencia=ref_p_est,
+                        comprobante_b64=b64_comp,
+                        comprobante_mime=mime_comp
+                    )
+                    if res_rep["ok"]:
+                        _, wa_owner_url = build_whatsapp_aviso_pago_owner(
+                            nombre_alumno=alumno_pay_obj,
+                            usuario_alumno=alumno_pay_obj,
+                            nivel_cefr=res_rep.get("nivel_cefr", est_sp.get("nivel_cefr", "")),
+                            folio_pago=res_rep["folio_pago"],
+                            ciclo_num=res_rep["ciclo_num"],
+                            monto_pagado=res_rep["monto"],
+                            referencia=ref_p_est
+                        )
+                        st.session_state["last_wa_owner_url"] = wa_owner_url
+                        st.session_state["last_folio_reportado"] = res_rep["folio_pago"]
+                        st.success(res_rep["msg"])
+                    else:
+                        st.error(res_rep["msg"])
+
+                if st.session_state.get("last_wa_owner_url"):
+                    st.link_button(
+                        f"📲 Enviar Nota Informativa por WhatsApp al Owner / Admin (Folio {st.session_state.get('last_folio_reportado', '')})",
+                        url=st.session_state["last_wa_owner_url"],
+                        type="primary",
+                        width="stretch"
+                    )
+
+        if est_sp.get("bloques_9"):
+            st.markdown("#### 🗓️ Calendario Completo del Nivel (9 Bloques de 4 Semanas = 36 Semanas)")
+            df_sp9 = pd.DataFrame([
+                {
+                    "Bloque": f"Bloque {b['bloque_num']}/9",
+                    "Inicio Bloque": str(b["inicio_bloque"]),
+                    "Fin Bloque": str(b["fin_bloque"]),
+                    "4ta Semana (Pago Sin Recargo)": f"{b['sem4_inicio']} al {b['sem4_fin']}",
+                    "Recargo / Sig. Bloque": str(b["fecha_recargo"]),
+                    "Actividad / Vacaciones (IA 24/7)": b["vacaciones"],
+                    "Estatus": b["estatus"]
+                }
+                for b in est_sp["bloques_9"]
+            ])
+            st.dataframe(df_sp9, width="stretch", hide_index=True)
 
 if st.session_state.show_gradebook_panel:
     with st.container(border=True):
@@ -4170,18 +4303,21 @@ if st.session_state.show_gradebook_panel:
                 if not fin_alumno["descarga_permitida"] and is_owner:
                     st.warning(
                         f"⚠️ **Vista de Propietario:** El estudiante tiene **{d_ret} {'día' if d_ret == 1 else 'días'} de retraso** "
-                        f"en el Mes/Ciclo {fin_alumno['ciclo_a_cobrar']} (Para el alumno este boletín está **🔒 BLOQUEADO** — Adeudo: `${fin_alumno['monto_a_pagar']:,.2f} MXN`)."
+                        f"en el Bloque {fin_alumno['ciclo_a_cobrar']} (Para el alumno este boletín está **🔒 BLOQUEADO** — Adeudo: `${fin_alumno['monto_a_pagar']:,.2f} MXN`)."
                     )
                 else:
                     st.caption(f"🛡️ Timbrado: `{timbre_bol['folio_boletin']}` | {fin_alumno['mensaje_estado']}")
             else:
                 st.error(
-                    f"🔒 **Descarga de Boletín Suspendida — {d_ret} {'día' if d_ret == 1 else 'días'} de retraso**\n\n"
-                    f"Tu **Mes/Ciclo {fin_alumno['ciclo_a_cobrar']}** venció el `{fin_alumno['ventana_pago_fin']}`.\n"
-                    f"• **Días de retraso acumulados:** **{d_ret} {'día' if d_ret == 1 else 'días'}**\n"
+                    f"🔒 **Descarga de Boletín Pausada — {d_ret} {'día' if d_ret == 1 else 'días'} de retraso (Semana 5+)**\n\n"
+                    f"Tu **Bloque {fin_alumno['ciclo_a_cobrar']}** venció el `{fin_alumno['sem4_pago_fin']}`.\n"
                     f"• **Total a cubrir ({fin_alumno['ajuste_label']}):** `${fin_alumno['monto_a_pagar']:,.2f} MXN`\n\n"
-                    f"Realiza tu pago mensual para desbloquear la descarga oficial."
+                    f"Sube tu comprobante de pago para que el Owner/Administrador confirme el ingreso y reactive tu boletín."
                 )
+                if st.button("💳 Ir a Subir Comprobante de Pago", type="primary", width="stretch", key="btn_go_pay_from_bol"):
+                    st.session_state.show_gradebook_panel = False
+                    st.session_state.show_student_payments_panel = True
+                    st.rerun()
 # ==============================================================================
 # PARTE 13A2: MÉTRICAS DEL BOLETÍN Y RECUPERACIÓN DIRECTA DE FOLIOS
 # ==============================================================================
