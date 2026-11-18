@@ -2108,7 +2108,7 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B: VISOR MULTIMODAL DEFINITIVO (TOUCH + HOVER/DBLCLICK + GOOGLE)
+# PARTE 8B — MITAD 1 DE 2: AUDIO BASE64 Y TRADUCTOR REAL INGLÉS -> ESPAÑOL
 # ==============================================================================
 @st.cache_data(show_spinner=False, max_entries=500)
 def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
@@ -2129,9 +2129,9 @@ def _build_full_study_bundle(
     unique_words_tuple: tuple,
     base_dict_json: str,
     api_key_override: str = "",
-    cache_v: str = "v20_google_real"
+    cache_v: str = "v25_real_es"
 ) -> tuple[dict, dict]:
-    """Pre-calcula audios MP3 Base64 (normal/lento) y traducciones reales al español con Google + Gemini."""
+    """Pre-calcula audios MP3 Base64 y traduce TODAS las palabras al español real."""
     words_list = [str(w).strip() for w in unique_words_tuple if str(w).strip()]
     base_dict = json.loads(base_dict_json) if base_dict_json else {}
     merged_dict = {str(k).lower(): (dict(v) if isinstance(v, dict) else {}) for k, v in base_dict.items()}
@@ -2153,32 +2153,16 @@ def _build_full_study_bundle(
             if pair["n"]:
                 audio_map[k_w] = pair
 
-    # 2. Traducción real en lote con Google Translator (inglés -> español)
-    try:
-        chunk_size = 30
-        for idx_c in range(0, len(words_list), chunk_size):
-            sub_w = words_list[idx_c:idx_c + chunk_size]
-            joined_en = "\n".join(sub_w)
-            tr_block = GoogleTranslator(source="en", target="es").translate(joined_en)
-            if tr_block:
-                tr_lines = [ln.strip() for ln in str(tr_block).splitlines()]
-                if len(tr_lines) == len(sub_w):
-                    for w_en, w_es in zip(sub_w, tr_lines):
-                        kl = w_en.lower()
-                        if w_es and w_es.lower() != kl:
-                            merged_dict.setdefault(kl, {})["es"] = w_es
-    except Exception:
-        pass
-
-    # 3. Enriquecimiento lexicográfico completo en español con Gemini Flash
+    # 2. Traducción completa en lote con Gemini Flash (sobrescribe cualquier inglés sin traducir)
     try:
         gm_tr = init_gemini_client(api_key_override if api_key_override else None)
         if gm_tr:
             prompt_tr = (
-                "Translate and define each English word below into natural Spanish for a language student. "
-                "Return ONLY a valid JSON object where each key is the lowercase English word and each value is: "
-                '{"es": "Spanish translation (1-3 words)", "pos": "Categoría gramatical en español", '
-                '"ipa": "US IPA", "alt": "2 sinónimos en español", "def": "definición breve en español"}.\n'
+                "You are an English-to-Spanish bilingual dictionary. Translate EVERY English word in the JSON list below into Spanish. "
+                "Even if a word is a cognate, provide its Spanish form with proper Spanish accents/gender or primary meaning, "
+                "plus its Spanish part of speech, US IPA, 2 Spanish synonyms, and a concise definition in Spanish. "
+                "Return ONLY a valid JSON object mapping lowercase English word -> "
+                '{"es": "Traducción al español", "pos": "Categoría en español", "ipa": "/ipa/", "alt": "sinónimo 1, sinónimo 2", "def": "Definición clara en español"}.\n'
                 f"Words: {json.dumps(words_list)}"
             )
             r_tr = gm_tr.models.generate_content(
@@ -2192,14 +2176,41 @@ def _build_full_study_bundle(
                 for k_e, info_obj in parsed_tr.items():
                     kl = str(k_e).strip().lower()
                     if isinstance(info_obj, dict):
-                        cur_entry = merged_dict.setdefault(kl, {})
-                        for k2, v2 in info_obj.items():
-                            if v2 and (not cur_entry.get(k2) or str(cur_entry.get(k2)).lower() == kl):
-                                cur_entry[k2] = str(v2).strip()
+                        entry = merged_dict.setdefault(kl, {})
+                        if info_obj.get("es"):
+                            entry["es"] = str(info_obj["es"]).strip()
+                        if info_obj.get("pos"):
+                            entry["pos"] = str(info_obj["pos"]).strip()
+                        if info_obj.get("ipa"):
+                            entry["ipa"] = str(info_obj["ipa"]).strip()
+                        if info_obj.get("alt"):
+                            entry["alt"] = str(info_obj["alt"]).strip()
+                        if info_obj.get("def"):
+                            entry["def"] = str(info_obj["def"]).strip()
                     elif isinstance(info_obj, str) and info_obj.strip():
                         merged_dict.setdefault(kl, {})["es"] = info_obj.strip()
     except Exception:
         pass
+
+    # 3. Respaldo con GoogleTranslator paralelo para cualquier palabra cuya traducción siga igual al inglés
+    pendientes = [
+        w for w in words_list
+        if not merged_dict.get(w.lower(), {}).get("es")
+        or str(merged_dict.get(w.lower(), {}).get("es", "")).strip().lower() == w.lower()
+    ]
+    if pendientes:
+        def _tr_google_one(w_item: str):
+            try:
+                res_es = GoogleTranslator(source="en", target="es").translate(f"the word {w_item}")
+                cleaned_es = re.sub(r"^(la palabra|el término|palabra)\s+", "", str(res_es or "").strip(), flags=re.IGNORECASE).strip()
+                return w_item.lower(), cleaned_es
+            except Exception:
+                return w_item.lower(), ""
+
+        with ThreadPoolExecutor(max_workers=6) as pool_g:
+            for kl, es_val in pool_g.map(_tr_google_one, pendientes):
+                if es_val and es_val.lower() != kl:
+                    merged_dict.setdefault(kl, {})["es"] = es_val
 
     return audio_map, merged_dict
 # ==============================================================================
@@ -2207,9 +2218,9 @@ def _build_full_study_bundle(
 # ==============================================================================
 def render_interactive_study_viewer(study_payload: dict):
     """
-    Visor Multimodal (Móvil / Tablet / TV Touch + MacBook Pro / PC):
-    - Móvil/Touch: 1 toque = Voz US | 2 toques = Panel Google Dictionary arriba + enlace directo a Google Translate.
-    - Mac/PC: Hover = Voz US | Doble clic = Panel Google Dictionary bilingüe con traducción real en español.
+    Visor Multimodal adaptado a cada dispositivo:
+    - Móvil / Touch: 1 toque = Voz US | 2 toques = Abre Google Translate (vista deslizable nativa) + Tarjeta abajo.
+    - Mac / PC: Hover = Voz US | Doble clic = Tarjeta Bilingüe en la parte inferior con traducción real al español.
     """
     if not study_payload or not study_payload.get("sentences"):
         st.warning("No se pudo estructurar el modo estudio para este texto.")
@@ -2232,7 +2243,7 @@ def render_interactive_study_viewer(study_payload: dict):
         tuple(unique_words[:95]),
         json.dumps(dictionary, ensure_ascii=False),
         api_key_override=active_k_override,
-        cache_v="v20_google_real"
+        cache_v="v25_real_es"
     )
 
     pos_class = {"verb": "verb", "noun": "noun", "adjective": "adjective", "conjunction": "conjunction"}
@@ -2279,9 +2290,9 @@ def render_interactive_study_viewer(study_payload: dict):
           border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
     .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:transform .1s}
     .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
-    #drawer{position:sticky;top:46px;z-index:999;background:#fff;border:2px solid #1a73e8;
-            border-radius:14px;box-shadow:0 10px 28px rgba(26,115,232,.32);padding:10px 14px 14px 14px;
-            margin-bottom:10px;display:none}
+    #drawer{position:sticky;bottom:0;z-index:999;background:#fff;border:2px solid #1a73e8;
+            border-radius:14px;box-shadow:0 -8px 26px rgba(26,115,232,.30);padding:10px 14px 14px 14px;
+            margin-top:10px;display:none}
     .dhead{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;color:#fff;
            margin:-10px -14px 10px -14px;padding:8px 14px;border-radius:11px 11px 0 0;font-size:12px;font-weight:800}
     .dbtn{border:none;border-radius:6px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px;background:rgba(255,255,255,.22);color:#fff}
@@ -2292,14 +2303,16 @@ def render_interactive_study_viewer(study_payload: dict):
            <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
            <span class="bg other">Otros</span></div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="color:#475569;font-size:11px;">📱 1 toque: 🔊 | 2 toques: 📖  •  💻 Hover: 🔊 | 2 clics: 📖</span>
+        <span style="color:#475569;font-size:11px;">📱 1 toque: 🔊 | 2 toques: 🌐 Google  •  💻 Hover: 🔊 | 2 clics: 📖</span>
         <button type="button" id="spdBtn" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;font-weight:700;cursor:pointer;">1.0x</button>
       </div>
     </div>
 
+    <div id="lc">__LESSON_HTML__</div>
+
     <div id="drawer">
       <div class="dhead">
-        <span>🌐 GOOGLE DICTIONARY — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
+        <span>🌐 DICCIONARIO BILINGÜE — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
         <div>
           <button type="button" class="dbtn" id="btnN">🔊 Normal</button>
           <button type="button" class="dbtn" id="btnS">🐢 Lento</button>
@@ -2322,8 +2335,6 @@ def render_interactive_study_viewer(study_payload: dict):
       <div id="dDef" style="margin-top:8px;font-size:12px;color:#334155;background:#f8fafc;padding:7px 10px;border-radius:8px;"></div>
       <div id="dLnk" style="margin-top:8px;font-size:12px;font-weight:700;display:flex;gap:14px;flex-wrap:wrap;"></div>
     </div>
-
-    <div id="lc">__LESSON_HTML__</div>
     <script>
     const AMAP = __AUDIO_JSON__;
     const DMAP = __DICT_JSON__;
@@ -2341,7 +2352,7 @@ def render_interactive_study_viewer(study_payload: dict):
       player.play().catch(()=>{});
     }
 
-    function openDrawer(el) {
+    function openDrawer(el, isTouchDevice) {
       document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
       el.classList.add('act');
       const k = el.getAttribute('data-k') || '';
@@ -2349,18 +2360,24 @@ def render_interactive_study_viewer(study_payload: dict):
       const origTxt = el.innerText.trim();
       curKey = k;
       const info = DMAP[k] || {};
+      const q = encodeURIComponent(k);
+      const gtUrl = 'https://google.com' + q + '&op=translate';
+
       document.getElementById('dEn').innerText = origTxt;
       document.getElementById('dEs').innerText = info.es || origTxt;
       document.getElementById('dIpa').innerText = info.ipa ? ('IPA: ' + info.ipa) : '🇺🇸 US Pronunciation';
       document.getElementById('dPos').innerText = info.pos || POS_L[p] || 'Vocabulario';
       document.getElementById('dAlt').innerText = info.alt ? ('Sinónimos: ' + info.alt) : '';
       document.getElementById('dDef').innerText = info.def ? ('📖 ' + info.def) : '';
-      const q = encodeURIComponent(k);
       document.getElementById('dLnk').innerHTML =
-        '<a href="https://google.com' + q + '&op=translate" target="_blank" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
-        '<a href="https://wordreference.com' + q + '" target="_blank" style="color:#1a73e8;text-decoration:none;">📖 Abrir en WordReference ↗</a>';
+        '<a href="' + gtUrl + '" target="cei_google_dict" style="color:#0f766e;text-decoration:none;">🌐 Abrir en Google Translate ↗</a>' +
+        '<a href="https://wordreference.com' + q + '" target="cei_wr_dict" style="color:#1a73e8;text-decoration:none;">📖 Abrir en WordReference ↗</a>';
       document.getElementById('drawer').style.display = 'block';
       playKey(k, false);
+
+      if (isTouchDevice) {
+        window.open(gtUrl, 'cei_google_dict');
+      }
     }
 
     function closeDrawer() {
@@ -2376,17 +2393,6 @@ def render_interactive_study_viewer(study_payload: dict):
     document.getElementById('btnS').onclick = () => playKey(curKey, true);
     document.getElementById('btnC').onclick = closeDrawer;
 
-    const drw = document.getElementById('drawer');
-    let startY = 0;
-    drw.addEventListener('touchstart', (e) => {
-      const t0 = e.touches && e.touches.at(0);
-      if (t0) startY = t0.clientY;
-    }, {passive:true});
-    drw.addEventListener('touchmove', (e) => {
-      const t0 = e.touches && e.touches.at(0);
-      if (t0 && Math.abs(t0.clientY - startY) > 40) closeDrawer();
-    }, {passive:true});
-
     document.getElementById('lc').addEventListener('pointerover', (e) => {
       if (e.pointerType !== 'mouse') return;
       const w = e.target.closest('.wt');
@@ -2401,15 +2407,17 @@ def render_interactive_study_viewer(study_payload: dict):
       const w = e.target.closest('.wt');
       if (!w) { closeDrawer(); return; }
       const k = w.getAttribute('data-k') || '';
+      const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
       const now = Date.now();
-      const isDbl = (lastTapK === k && (now - lastTapT) < 420);
+      const isDbl = (lastTapK === k && (now - lastTapT) < 440);
       lastTapK = k; lastTapT = now;
       playKey(k, false);
-      if (isDbl) openDrawer(w);
+      if (isDbl) openDrawer(w, isTouch);
     });
     document.getElementById('lc').addEventListener('dblclick', (e) => {
       const w = e.target.closest('.wt');
-      if (w) openDrawer(w);
+      const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      if (w) openDrawer(w, isTouch);
     });
     </script></body></html>"""
 
@@ -2420,6 +2428,7 @@ def render_interactive_study_viewer(study_payload: dict):
         .replace("__DICT_JSON__", dict_json)
     )
     components.html(final_html, height=620, scrolling=True)
+
 
 
 
