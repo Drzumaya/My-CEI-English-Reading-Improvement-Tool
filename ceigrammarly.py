@@ -2148,11 +2148,11 @@ def _build_full_study_bundle(unique_words_tuple: tuple, base_dict_json: str) -> 
             if pair["n"]:
                 audio_map[k_w] = pair
 
-    # 2. Traducción en lote con GoogleTranslator + enriquecimiento con Gemini Flash
+    # 2. Enriquecimiento lexicográfico completo en español (traducción + sinónimos + definición)
     faltantes = [
         w for w in words_list
-        if not merged_dict.get(w.lower(), {}).get("es")
-        or str(merged_dict.get(w.lower(), {}).get("es", "")).strip().lower() == w.lower()
+        if not merged_dict.get(w.lower(), {}).get("def")
+        or not merged_dict.get(w.lower(), {}).get("es")
     ]
 
     if faltantes:
