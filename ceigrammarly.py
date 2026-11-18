@@ -3264,12 +3264,21 @@ def actualizar_config_financiera_alumno_pg(
 ) -> bool:
     try:
         with pg_session() as cur:
-            aff_clean = afiliado_user.strip()
+            cur.execute("""
+                ALTER TABLE users_padron
+                ADD COLUMN IF NOT EXISTS fecha_inscripcion DATE,
+                ADD COLUMN IF NOT EXISTS telefono_whatsapp TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS recargo_tardio NUMERIC(10,2) DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS boletin_habilitado BOOLEAN DEFAULT TRUE;
+            """)
+
+            aff_clean = str(afiliado_user or "").strip()
             aff_id_val = None
             if aff_clean:
                 cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (aff_clean,))
                 r_id = cur.fetchone()
-                aff_id_val = int(r_id[0]) if r_id else None
+                if r_id:
+                    aff_id_val = int(r_id["id"]) if isinstance(r_id, dict) else int(r_id)
 
             f_ins_final = fecha_inscripcion_val or fecha_inicio_val
             cur.execute("""
@@ -3285,14 +3294,23 @@ def actualizar_config_financiera_alumno_pg(
                     porcentaje_comision = %s
                 WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
             """, (
-                f_ins_final, fecha_inicio_val, str(telefono_whatsapp_val or "").strip(),
-                float(mensualidad_val), float(recargo_tardio_val or 0.0), bool(aplicar_iva_val),
-                aff_clean, aff_id_val, float(pct_comision), student_user.strip()
+                f_ins_final,
+                fecha_inicio_val,
+                str(telefono_whatsapp_val or "").strip(),
+                float(mensualidad_val),
+                float(recargo_tardio_val or 0.0),
+                bool(aplicar_iva_val),
+                aff_clean,
+                aff_id_val,
+                float(pct_comision),
+                student_user.strip()
             ))
         load_padron_records.clear()
         return True
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Error al actualizar Supabase (`users_padron`): {e}")
         return False
+
 
 
 def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
