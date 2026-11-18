@@ -3325,6 +3325,161 @@ def fetch_affiliate_dashboard_pg(affiliate_user: str) -> dict:
     except Exception:
         pass
     return res
+# ==============================================================================
+# PARTE 10B3: COMPROBANTES BANCARIOS, CONFIRMACIÓN DE BOLETÍN Y VACACIONES
+# ==============================================================================
+def reportar_comprobante_pago_estudiante_pg(
+    student_user: str,
+    metodo_pago: str,
+    referencia: str,
+    comprobante_b64: str = "",
+    comprobante_mime: str = ""
+) -> dict:
+    """Registra el comprobante subido por el estudiante en estado Pendiente_Revision."""
+    est = evaluar_estado_financiero_alumno(student_user)
+    if est.get("ciclo_pagado"):
+        return {"ok": False, "msg": f"El Bloque {est['ciclo_a_cobrar']} ya figura como Pagado."}
+
+    ciclo_obj = int(est["ciclo_a_cobrar"])
+    folio_gen = f"PAY-{datetime.now(ZoneInfo('America/Hermosillo')).strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+
+    try:
+        with pg_session() as cur:
+            cur.execute("""
+                INSERT INTO tuition_payments (
+                    student_user, ciclo_numero, fecha_vencimiento,
+                    monto_base, ajuste_tipo, monto_final, estatus,
+                    folio_pago, nivel_cefr, metodo_pago, referencia_comprobante,
+                    comprobante_b64, comprobante_mime, registrado_por
+                ) VALUES (%s, %s, %s, %s, %s, %s, 'Pendiente_Revision', %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (student_user, ciclo_numero) DO UPDATE SET
+                    estatus = 'Pendiente_Revision',
+                    monto_final = EXCLUDED.monto_final,
+                    ajuste_tipo = EXCLUDED.ajuste_tipo,
+                    folio_pago = COALESCE(tuition_payments.folio_pago, EXCLUDED.folio_pago),
+                    metodo_pago = EXCLUDED.metodo_pago,
+                    referencia_comprobante = EXCLUDED.referencia_comprobante,
+                    comprobante_b64 = CASE WHEN EXCLUDED.comprobante_b64 <> '' THEN EXCLUDED.comprobante_b64 ELSE tuition_payments.comprobante_b64 END,
+                    comprobante_mime = CASE WHEN EXCLUDED.comprobante_mime <> '' THEN EXCLUDED.comprobante_mime ELSE tuition_payments.comprobante_mime END,
+                    fecha_pago = NOW(),
+                    registrado_por = EXCLUDED.registrado_por;
+            """, (
+                student_user.strip(),
+                ciclo_obj,
+                est["sem4_pago_fin"],
+                est["mensualidad_base"],
+                est["ajuste_label"],
+                est["monto_a_pagar"],
+                folio_gen,
+                est.get("nivel_cefr", ""),
+                metodo_pago.strip(),
+                referencia.strip(),
+                comprobante_b64,
+                comprobante_mime,
+                student_user.strip()
+            ))
+        return {
+            "ok": True,
+            "folio_pago": folio_gen,
+            "ciclo_num": ciclo_obj,
+            "monto": est["monto_a_pagar"],
+            "nivel_cefr": est.get("nivel_cefr", ""),
+            "msg": f"✅ Comprobante registrado con Folio {folio_gen}. Envía la nota por WhatsApp al Owner/Administrador para confirmar en cuenta bancaria."
+        }
+    except Exception as e:
+        return {"ok": False, "msg": f"Error al registrar comprobante: {e}"}
+
+
+def listar_comprobantes_pendientes_pg() -> list[dict]:
+    """Lista todos los comprobantes subidos por alumnos pendientes de verificación bancaria."""
+    try:
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                SELECT tp.id, tp.folio_pago, tp.student_user, tp.nivel_cefr, tp.ciclo_numero,
+                       tp.monto_final, tp.metodo_pago, tp.referencia_comprobante,
+                       tp.comprobante_b64, tp.comprobante_mime, tp.estatus,
+                       TO_CHAR(tp.fecha_pago AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha_reporte,
+                       COALESCE(up.nombre_completo, tp.student_user) AS nombre_completo,
+                       COALESCE(up.telefono_whatsapp, '') AS telefono_whatsapp
+                FROM tuition_payments tp
+                LEFT JOIN users_padron up ON LOWER(TRIM(up.usuario)) = LOWER(TRIM(tp.student_user))
+                WHERE tp.estatus = 'Pendiente_Revision'
+                ORDER BY tp.fecha_pago ASC;
+            """)
+            return [dict(r) for r in cur.fetchall()]
+    except Exception:
+        return []
+
+
+def confirmar_pago_bancario_pg(student_user: str, ciclo_numero: int, validado_por: str, notas_admin: str = "") -> dict:
+    """Confirma el pago cotejado en banco, libera el Boletín de Calificaciones y calcula comisión."""
+    est = evaluar_estado_financiero_alumno(student_user)
+    try:
+        with pg_session(dict_rows=True) as cur:
+            cur.execute("""
+                UPDATE tuition_payments
+                SET estatus = 'Pagado',
+                    validado_por = %s,
+                    fecha_validacion = NOW(),
+                    notas_admin = %s
+                WHERE LOWER(TRIM(student_user)) = LOWER(TRIM(%s))
+                  AND ciclo_numero = %s
+                RETURNING monto_final, folio_pago;
+            """, (validado_por.strip(), notas_admin.strip(), student_user.strip(), int(ciclo_numero)))
+            row_up = cur.fetchone()
+            monto_pag = float(row_up["monto_final"]) if row_up else float(est["monto_a_pagar"])
+            folio_ok = str(row_up["folio_pago"] or "") if row_up else ""
+
+            cur.execute("""
+                UPDATE users_padron
+                SET boletin_habilitado = TRUE
+                WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
+            """, (student_user.strip(),))
+
+            afiliado = str(est.get("afiliado_usuario") or "").strip()
+            pct_com = float(est.get("porcentaje_comision") or 0.0)
+            if afiliado and pct_com > 0:
+                com_calc = round(monto_pag * (pct_com / 100.0), 2)
+                cur.execute("""
+                    INSERT INTO affiliate_commissions (
+                        affiliate_user, student_user, ciclo_numero,
+                        monto_pagado, porcentaje_aplicado, comision_ganada, estatus_pago_comision
+                    ) VALUES (%s, %s, %s, %s, %s, %s, 'Pendiente')
+                    ON CONFLICT (affiliate_user, student_user, ciclo_numero) DO UPDATE
+                    SET monto_pagado = EXCLUDED.monto_pagado,
+                        porcentaje_aplicado = EXCLUDED.porcentaje_aplicado,
+                        comision_ganada = EXCLUDED.comision_ganada;
+                """, (afiliado, student_user.strip(), int(ciclo_numero), monto_pag, pct_com, com_calc))
+
+        return {
+            "ok": True,
+            "msg": f"✅ Pago {folio_ok} de {student_user} (Bloque {ciclo_numero}) confirmado. Boletín de Calificaciones ACTIVADO."
+        }
+    except Exception as e:
+        return {"ok": False, "msg": f"Error al confirmar pago: {e}"}
+
+
+def guardar_vacaciones_instituto_pg(nombre_periodo: str, f_ini, f_fin) -> bool:
+    try:
+        with pg_session() as cur:
+            cur.execute("""
+                INSERT INTO institute_holidays (nombre_periodo, fecha_inicio, fecha_fin, activo)
+                VALUES (%s, %s, %s, TRUE);
+            """, (nombre_periodo.strip(), f_ini, f_fin))
+        load_institute_holidays_pg.clear()
+        return True
+    except Exception:
+        return False
+
+
+def eliminar_vacaciones_instituto_pg(holiday_id: int) -> bool:
+    try:
+        with pg_session() as cur:
+            cur.execute("UPDATE institute_holidays SET activo = FALSE WHERE id = %s;", (int(holiday_id),))
+        load_institute_holidays_pg.clear()
+        return True
+    except Exception:
+        return False
 
 # ==============================================================================
 # PARTE 11A: INICIALIZACIÓN DE SESIÓN Y VERIFICACIÓN PÚBLICA DE CERTIFICADOS (QR)
