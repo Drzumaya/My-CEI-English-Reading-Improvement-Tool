@@ -5150,9 +5150,10 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 with st.container(border=True):
                                     cc1, cc2, cc3 = st.columns([2.2, 1.4, 1.4])
                                     with cc1:
+                                        etq_ia = "🟢 Aprobado Express IA" if comp.get("estatus") == "Aprobado_IA" else "🟡 Pase Provisional 72h"
                                         st.markdown(
-                                            f"**{comp['nombre_completo']}** (`{comp['student_user']}`) — Nivel **{comp['nivel_cefr']}**\n\n"
-                                            f"Folio: `{comp['folio_pago']}` | **Bloque {comp['ciclo_numero']}** | Monto: **`${float(comp['monto_final']):,.2f} MXN`**\n\n"
+                                            f"**{comp['nombre_completo']}** (`{comp['student_user']}`) — **Matrícula: `{comp.get('matricula_alumno', 'SIN-MAT')}`** | Nivel **{comp['nivel_cefr']}**\n\n"
+                                            f"Folio: `{comp['folio_pago']}` | **Bloque {comp['ciclo_numero']}** | Monto: **`${float(comp['monto_final']):,.2f} MXN`** | {etq_ia} ({int(comp.get('ai_score') or 0)}%)\n\n"
                                             f"Método: {comp['metodo_pago']} | Ref: `{comp['referencia_comprobante']}` | Reportado: {comp['fecha_reporte']}"
                                         )
                                     with cc2:
