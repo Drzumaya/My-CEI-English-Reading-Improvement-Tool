@@ -2108,7 +2108,7 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B — MITAD 1 DE 2: AUDIO BASE64 Y TRADUCTOR REAL INGLÉS -> ESPAÑOL
+# PARTE 8B — SECCIÓN 1 DE 4: CACHÉ DE AUDIO MP3 Y TRADUCCIÓN REAL EN ESPAÑOL
 # ==============================================================================
 @st.cache_data(show_spinner=False, max_entries=500)
 def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
@@ -2130,7 +2130,6 @@ def _translate_batch_to_spanish(words_list: list[str], api_key_override: str = "
     if not words_list:
         return result_map
 
-    # 1. Localizar clave Gemini
     gemini_key = str(api_key_override or "").strip()
     if not gemini_key:
         for k_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "API_KEY"):
@@ -2138,7 +2137,6 @@ def _translate_batch_to_spanish(words_list: list[str], api_key_override: str = "
                 gemini_key = str(st.secrets[k_name]).strip()
                 break
 
-    # 2. Diccionario bilingüe completo con Gemini Flash (en bloques de 45 palabras)
     if gemini_key:
         try:
             client_g = genai.Client(api_key=gemini_key)
@@ -2171,7 +2169,6 @@ def _translate_batch_to_spanish(words_list: list[str], api_key_override: str = "
         except Exception:
             pass
 
-    # 3. Respaldo directo con GoogleTranslator para cualquier palabra faltante
     missing = [w for w in words_list if not result_map.get(w.lower(), {}).get("es")]
     if missing:
         try:
@@ -2189,8 +2186,9 @@ def _translate_batch_to_spanish(words_list: list[str], api_key_override: str = "
             pass
 
     return result_map
-
-
+# ==============================================================================
+# PARTE 8B — SECCIÓN 2 DE 4: PAQUETE EN CACHÉ Y PREPARACIÓN DE TOKENS HTML
+# ==============================================================================
 @st.cache_data(ttl=86400, show_spinner=False, max_entries=60)
 def _build_full_study_bundle(
     unique_words_tuple: tuple,
@@ -2215,7 +2213,7 @@ def _build_full_study_bundle(
             if fv:
                 cur[fk] = fv
 
-    # 2. Sintetizar audio MP3 Base64 (Normal y Lento) con concurrencia controlada para evitar rate-limit
+    # 2. Sintetizar audio MP3 Base64 (Normal y Lento) con concurrencia controlada
     def _gen_audio_pair(w_item: str):
         mp3_n = _synthesize_word_mp3(w_item, slow_mode=False)
         mp3_s = _synthesize_word_mp3(w_item, slow_mode=True)
@@ -2229,6 +2227,127 @@ def _build_full_study_bundle(
                 audio_map[k_w] = pair
 
     return audio_map, merged_dict
+
+
+def render_interactive_study_viewer(study_payload: dict):
+    """
+    - Móvil / Touch: 1 toque = Voz US | 2 toques = Selecciona la palabra para diccionario nativo del teléfono (sin abrir tarjeta azul).
+    - Mac / PC: Hover = Voz US | Doble clic = Tarjeta Bilingüe en la parte inferior con traducción real en español.
+    """
+    if not study_payload or not study_payload.get("sentences"):
+        st.warning("No se pudo estructurar el modo estudio para este texto.")
+        return
+
+    sentences = study_payload.get("sentences", [])
+    dictionary = study_payload.get("dictionary", {})
+
+    unique_words = []
+    seen_w = set()
+    for sent in sentences:
+        for tok in sent.get("tokens", []):
+            wc = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", str(tok.get("w", "")).strip())
+            if wc and wc.lower() not in seen_w:
+                seen_w.add(wc.lower())
+                unique_words.append(wc)
+
+    active_k_override = str(st.session_state.get("custom_api_key", "")).strip()
+    audio_map, merged_dict = _build_full_study_bundle(
+        tuple(unique_words),
+        json.dumps(dictionary, ensure_ascii=False),
+        api_key_override=active_k_override,
+        cache_v="v60_final_es_audio"
+    )
+
+    pos_class = {"verb": "verb", "noun": "noun", "adjective": "adjective", "conjunction": "conjunction"}
+    blocks_html = []
+    for sent in sentences:
+        tokens = sent.get("tokens", [])
+        full_s_attr = html_lib.escape(str(sent.get("full_sentence", "")).strip(), quote=True)
+        spans = []
+        for tok in tokens:
+            w_raw = str(tok.get("w", ""))
+            w_esc = html_lib.escape(w_raw)
+            p_raw = str(tok.get("pos", "other")).lower()
+            p_cls = pos_class.get(p_raw, "other")
+            w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw).lower()
+            if w_clean:
+                w_attr = html_lib.escape(w_clean, quote=True)
+                spans.append(
+                    f'<span class="wt {p_cls}" data-k="{w_attr}" data-p="{p_cls}" data-s="{full_s_attr}">{w_esc}</span>'
+                )
+            else:
+                spans.append(f"<span>{w_esc}</span>")
+        box_cls = "tbox" if sent.get("is_title") else "sbox"
+        blocks_html.append(f'<div class="{box_cls}">{" ".join(spans)}</div>')
+
+    lesson_html = "".join(blocks_html)
+    audio_json = json.dumps(audio_map).replace("</", "<\\/")
+    dict_json = json.dumps(merged_dict, ensure_ascii=False).replace("</", "<\\/")
+    viewer_html = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:10px;background:#f8fafc;color:#1e293b}
+    .tb{display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;align-items:center;
+        background:#fff;padding:8px 12px;border-radius:10px;border:1px solid #cbd5e1;
+        margin-bottom:8px;font-size:12px;font-weight:700;position:sticky;top:0;z-index:100}
+    .bg{padding:2px 7px;border-radius:5px}
+    .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
+    .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
+    .adjective{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}
+    .conjunction{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}
+    .other{background:#f1f5f9;color:#334155}
+    .tbox{background:#1a2a44;color:#fff;padding:12px 16px;border-radius:10px;margin-bottom:10px;font-size:17px;font-weight:700}
+    .tbox .wt{color:#1e293b;font-size:15px}
+    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:10px;
+          border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;transition:transform .1s}
+    @media (pointer: fine) { .wt { user-select: none; -webkit-user-select: none; } }
+    @media (pointer: coarse) { .wt { user-select: text; -webkit-user-select: text; } }
+    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
+    #drawer{position:sticky;bottom:0;z-index:999;background:#fff;border:2px solid #1a73e8;
+            border-radius:14px;box-shadow:0 -8px 26px rgba(26,115,232,.30);padding:10px 14px 14px 14px;
+            margin-top:10px;display:none}
+    .dhead{display:flex;justify-content:space-between;align-items:center;background:#1a73e8;color:#fff;
+           margin:-10px -14px 10px -14px;padding:8px 14px;border-radius:11px 11px 0 0;font-size:12px;font-weight:800}
+    .dbtn{border:none;border-radius:6px;padding:4px 9px;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px;background:rgba(255,255,255,.22);color:#fff}
+    .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    </style></head><body>
+    <div class="tb">
+      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
+           <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
+           <span class="bg other">Otros</span></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="color:#475569;font-size:11px;">📱 1 toque: 🔊 | 2 toques: 📖  •  💻 Hover: 🔊 | 2 clics: 📖</span>
+        <button type="button" id="spdBtn" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;font-weight:700;cursor:pointer;">1.0x</button>
+      </div>
+    </div>
+
+    <div id="lc">__LESSON_HTML__</div>
+
+    <div id="drawer">
+      <div class="dhead">
+        <span>🌐 DICCIONARIO BILINGÜE — 🇺🇸 INGLÉS (US) ➔ 🇪🇸 ESPAÑOL</span>
+        <div>
+          <button type="button" class="dbtn" id="btnN">🔊 Normal</button>
+          <button type="button" class="dbtn" id="btnS">🐢 Lento</button>
+          <button type="button" class="dbtn" id="btnC">✖ Cerrar</button>
+        </div>
+      </div>
+      <div class="dgrid">
+        <div style="background:#f8fafc;padding:9px;border-radius:9px;border:1px solid #e2e8f0;">
+          <div style="font-size:10px;color:#64748b;font-weight:700;">ENGLISH (US)</div>
+          <div id="dEn" style="font-size:20px;font-weight:800;color:#0f172a;"></div>
+          <div id="dIpa" style="font-size:12px;color:#475569;margin-top:2px;"></div>
+          <div id="dPos" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:3px;"></div>
+        </div>
+        <div style="background:#eff6ff;padding:9px;border-radius:9px;border:1px solid #bfdbfe;">
+          <div style="font-size:10px;color:#1e40af;font-weight:700;">ESPAÑOL (TRADUCCIÓN)</div>
+          <div id="dEs" style="font-size:20px;font-weight:800;color:#1a73e8;"></div>
+          <div id="dAlt" style="font-size:12px;color:#334155;margin-top:3px;"></div>
+        </div>
+      </div>
+      <div id="dDef" style="margin-top:8px;font-size:12px;color:#334155;background:#f8fafc;padding:7px 10px;border-radius:8px;"></div>
+      <div id="dLnk" style="margin-top:8px;font-size:12px;font-weight:700;display:flex;gap:14px;flex-wrap:wrap;"></div>
+    </div>
     <script>
     const AMAP = __AUDIO_JSON__;
     const DMAP = __DICT_JSON__;
