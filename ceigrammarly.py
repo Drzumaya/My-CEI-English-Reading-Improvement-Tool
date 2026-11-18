@@ -2108,7 +2108,7 @@ def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, as
 
     return ctx_en, per_en, asu_apa
 # ==============================================================================
-# PARTE 8B: VISOR INTERACTIVO DE ESTUDIO — 100% NATIVO (MAC + TOUCH + GOOGLE)
+# PARTE 8B: VISOR MULTIMODAL DEFINITIVO (TOUCH + HOVER/DBLCLICK + GOOGLE DICT)
 # ==============================================================================
 @st.cache_data(show_spinner=False, max_entries=500)
 def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | None:
@@ -2124,98 +2124,86 @@ def _synthesize_word_mp3(word_clean: str, slow_mode: bool = False) -> bytes | No
         return None
 
 
-@st.cache_data(ttl=86400, show_spinner=False, max_entries=300)
-def _lookup_word_full_bilingual(word_clean: str) -> dict:
-    """Obtiene traducción real al español (Google Translate + Gemini) e IPA/definición."""
-    w_q = str(word_clean or "").strip()
-    k_low = w_q.lower()
-    if not k_low:
-        return {}
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=60)
+def _build_full_study_bundle(unique_words_tuple: tuple, base_dict_json: str) -> tuple[dict, dict]:
+    """Pre-calcula en paralelo audios MP3 Base64 (normal/lento) y traducciones reales al español."""
+    words_list = [str(w).strip() for w in unique_words_tuple if str(w).strip()]
+    base_dict = json.loads(base_dict_json) if base_dict_json else {}
+    merged_dict = {str(k).lower(): (dict(v) if isinstance(v, dict) else {}) for k, v in base_dict.items()}
+    audio_map = {}
 
-    es_trans = ""
-    ipa_txt = ""
-    pos_txt = ""
-    def_txt = ""
-    alt_txt = ""
+    if not words_list:
+        return audio_map, merged_dict
 
-    # 1. Google Translator directo por palabra
-    try:
-        tr_out = GoogleTranslator(source="en", target="es").translate(k_low)
-        if tr_out and str(tr_out).strip().lower() != k_low:
-            es_trans = str(tr_out).strip()
-    except Exception:
-        pass
+    # 1. Síntesis paralela de audio Base64 (Normal y Lento)
+    def _gen_audio_pair(w_item: str):
+        mp3_n = _synthesize_word_mp3(w_item, slow_mode=False)
+        mp3_s = _synthesize_word_mp3(w_item, slow_mode=True)
+        b_n = base64.b64encode(mp3_n).decode("ascii") if mp3_n else ""
+        b_s = base64.b64encode(mp3_s).decode("ascii") if mp3_s else b_n
+        return w_item.lower(), {"n": b_n, "s": b_s}
 
-    # 2. Free Dictionary API (Fonética IPA + Definición en inglés)
-    try:
-        fd_url = "https://dictionaryapi.dev" + urllib.parse.quote(k_low)
-        req_fd = urllib.request.Request(fd_url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req_fd, timeout=4) as resp_fd:
-            fd_data = json.loads(resp_fd.read().decode("utf-8"))
-        if isinstance(fd_data, list) and fd_data:
-            first_it = fd_data[0]
-            ipa_txt = str(first_it.get("phonetic") or "").strip()
-            if not ipa_txt:
-                for ph in first_it.get("phonetics") or []:
-                    if ph.get("text"):
-                        ipa_txt = str(ph["text"]).strip()
-                        break
-            meanings = first_it.get("meanings") or []
-            if meanings:
-                pos_txt = str(meanings[0].get("partOfSpeech") or "").capitalize()
-                defs = meanings[0].get("definitions") or []
-                if defs:
-                    def_txt = str(defs[0].get("definition") or "").strip()
-    except Exception:
-        pass
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for k_w, pair in pool.map(_gen_audio_pair, words_list):
+            if pair["n"]:
+                audio_map[k_w] = pair
 
-    # 3. Respaldo / enriquecimiento con Gemini Flash si falta traducción o definición
-    if not es_trans or es_trans.lower() == k_low or not def_txt:
+    # 2. Traducción en lote con GoogleTranslator + enriquecimiento con Gemini Flash
+    faltantes = [
+        w for w in words_list
+        if not merged_dict.get(w.lower(), {}).get("es")
+        or str(merged_dict.get(w.lower(), {}).get("es", "")).strip().lower() == w.lower()
+    ]
+
+    if faltantes:
         try:
-            gm_w = init_gemini_client()
-            if gm_w:
-                prompt_w = (
-                    f"Analyze the English word '{w_q}' for a Spanish-speaking student. "
-                    "Return ONLY a valid JSON object with keys: "
-                    '{"es": "accurate Spanish translation (1-3 words)", '
-                    '"pos": "part of speech in Spanish", '
-                    '"ipa": "US IPA transcription", '
-                    '"alt": "2 or 3 Spanish synonyms", '
-                    '"def": "brief clear definition in Spanish"}'
+            gm_tr = init_gemini_client()
+            if gm_tr:
+                prompt_tr = (
+                    "For each English word below, provide its accurate Spanish translation, part of speech in Spanish, "
+                    "US IPA pronunciation, 2 Spanish synonyms/meanings, and a brief clear definition in Spanish. "
+                    "Return ONLY a valid JSON object where each key is the lowercase English word and each value is "
+                    '{"es": "...", "pos": "...", "ipa": "...", "alt": "...", "def": "..."}.\n'
+                    f"Words: {json.dumps(faltantes)}"
                 )
-                r_w = gm_w.models.generate_content(
+                r_tr = gm_tr.models.generate_content(
                     model="gemini-2.5-flash",
-                    contents=prompt_w,
+                    contents=prompt_tr,
                     config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
                 )
-                raw_w = str(r_w.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                j_w = json.loads(raw_w)
-                if isinstance(j_w, dict):
-                    if j_w.get("es"):
-                        es_trans = str(j_w["es"]).strip()
-                    if not pos_txt and j_w.get("pos"):
-                        pos_txt = str(j_w["pos"]).strip()
-                    if not ipa_txt and j_w.get("ipa"):
-                        ipa_txt = str(j_w["ipa"]).strip()
-                    if j_w.get("alt"):
-                        alt_txt = str(j_w["alt"]).strip()
-                    if j_w.get("def"):
-                        def_txt = str(j_w["def"]).strip()
+                raw_tr = str(r_tr.text or "").strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                parsed_tr = json.loads(raw_tr)
+                if isinstance(parsed_tr, dict):
+                    for k_e, info_obj in parsed_tr.items():
+                        kl = str(k_e).strip().lower()
+                        if isinstance(info_obj, dict):
+                            merged_dict.setdefault(kl, {}).update({k2: v2 for k2, v2 in info_obj.items() if v2})
+                        elif isinstance(info_obj, str) and info_obj.strip():
+                            merged_dict.setdefault(kl, {})["es"] = info_obj.strip()
         except Exception:
             pass
 
-    return {
-        "es": es_trans or w_q,
-        "pos": pos_txt,
-        "ipa": ipa_txt,
-        "alt": alt_txt,
-        "def": def_txt
-    }
+    # Respaldo puntual con GoogleTranslator para cualquier palabra aún pendiente
+    for w_rem in words_list:
+        kl = w_rem.lower()
+        cur_es = str(merged_dict.get(kl, {}).get("es", "")).strip()
+        if not cur_es or cur_es.lower() == kl:
+            try:
+                tr_single = GoogleTranslator(source="en", target="es").translate(w_rem)
+                if tr_single and str(tr_single).strip().lower() != kl:
+                    merged_dict.setdefault(kl, {})["es"] = str(tr_single).strip()
+            except Exception:
+                pass
+
+    return audio_map, merged_dict
+# ==============================================================================
+# PARTE 8B — MITAD 2A: PREPARACIÓN DE DATOS, ESTILOS CSS Y ESTRUCTURA HTML
+# ==============================================================================
 def render_interactive_study_viewer(study_payload: dict):
     """
-    Visor 100% Nativo de Streamlit (inmune a sandbox/CORS en MacBook Pro, iOS y Android):
-    - 1er clic / toque en palabra: reproduce pronunciación US y muestra traducción rápida.
-    - 2do clic / toque en la misma palabra (o botón 'Diccionario'): abre ficha completa bilingüe.
+    Visor Multimodal Autocontenido (cero CORS, cero window.parent):
+    - Touch (Móvil / Tablet / TV Touch): 1 toque = Voz US | 2 toques = Cajón deslizable (deslizar abajo para ocultar).
+    - Desktop (MacBook Pro / PC): Hover = Voz US | Doble clic = Diccionario Bilingüe completo.
     """
     if not study_payload or not study_payload.get("sentences"):
         st.warning("No se pudo estructurar el modo estudio para este texto.")
@@ -2224,130 +2212,208 @@ def render_interactive_study_viewer(study_payload: dict):
     sentences = study_payload.get("sentences", [])
     dictionary = study_payload.get("dictionary", {})
 
-    # 1. Leyenda de colores y control de velocidad
-    col_leg, col_spd = st.columns([2.8, 1.0])
-    with col_leg:
-        st.markdown(
-            """
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#fff;padding:9px 12px;border-radius:10px;border:1px solid #cbd5e1;font-size:12px;font-weight:700;">
-                <span style="background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:5px;border-bottom:2px solid #ef4444;">🔴 Verbo</span>
-                <span style="background:#dbeafe;color:#1e40af;padding:2px 7px;border-radius:5px;border-bottom:2px solid #3b82f6;">🔵 Sustantivo</span>
-                <span style="background:#dcfce7;color:#166534;padding:2px 7px;border-radius:5px;border-bottom:2px solid #22c55e;">🟢 Adjetivo</span>
-                <span style="background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:5px;border-bottom:2px solid #f59e0b;">🟡 Conjunción</span>
-                <span style="background:#f1f5f9;color:#334155;padding:2px 7px;border-radius:5px;">⚪ Otro</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    with col_spd:
-        velocidad_lenta = st.toggle("🐢 Voz Lenta", value=False, key="study_native_slow_tgl")
+    unique_words = []
+    seen_w = set()
+    for sent in sentences:
+        for tok in sent.get("tokens", []):
+            wc = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", str(tok.get("w", "")).strip())
+            if wc and wc.lower() not in seen_w:
+                seen_w.add(wc.lower())
+                unique_words.append(wc)
 
-    active_w = str(st.session_state.get("active_study_word", "")).strip()
-    active_p = str(st.session_state.get("active_study_pos", "other")).strip().lower()
-    active_s = str(st.session_state.get("active_study_sentence", "")).strip()
-    show_full_dict = bool(st.session_state.get("active_study_full_dict", False))
+    audio_map, merged_dict = _build_full_study_bundle(
+        tuple(unique_words[:95]),
+        json.dumps(dictionary, ensure_ascii=False)
+    )
 
-    # 2. Panel Superior de Audio + Diccionario Bilingüe
-    if active_w:
-        k_low = active_w.lower()
-        info_loc = dictionary.get(k_low) or {}
-        info_web = _lookup_word_full_bilingual(active_w)
-
-        traduccion_es = (
-            info_loc.get("es")
-            if (info_loc.get("es") and str(info_loc.get("es")).strip().lower() != k_low)
-            else info_web.get("es", active_w)
-        )
-        ipa_final = info_loc.get("ipa") or info_web.get("ipa") or ""
-        pos_final = info_loc.get("pos") or info_web.get("pos") or active_p.capitalize()
-        alt_final = info_loc.get("alt") or info_web.get("alt") or ""
-        def_final = info_loc.get("def") or info_web.get("def") or ""
-
-        with st.container(border=True):
-            top_c1, top_c2, top_c3 = st.columns([2.5, 1.3, 0.9])
-            with top_c1:
-                st.markdown(f"#### 🇺🇸 **{active_w}**  ➔  🇪🇸 **{traduccion_es}**")
-                if ipa_final:
-                    st.caption(f"Categoría: **{pos_final}**  |  Fonética (IPA): `{ipa_final}`")
-                else:
-                    st.caption(f"Categoría: **{pos_final}**")
-            with top_c2:
-                lbl_dic = "📖 Ocultar Detalle" if show_full_dict else "📖 Ver Definición"
-                if st.button(lbl_dic, key="btn_toggle_full_dict_card", width="stretch"):
-                    st.session_state["active_study_full_dict"] = not show_full_dict
-                    st.rerun()
-            with top_c3:
-                if st.button("✖ Cerrar", key="btn_close_study_card", width="stretch"):
-                    st.session_state["active_study_word"] = ""
-                    st.session_state["active_study_full_dict"] = False
-                    st.rerun()
-
-            mp3_word = _synthesize_word_mp3(active_w, slow_mode=velocidad_lenta)
-            if mp3_word:
-                st.audio(mp3_word, format="audio/mp3", autoplay=True)
-
-            if show_full_dict:
-                if alt_final:
-                    st.markdown(f"**Sinónimos / Acepciones:** {alt_final}")
-                if def_final:
-                    st.info(f"📖 **Definición:** {def_final}")
-                if active_s:
-                    st.caption(f"💬 *\"{active_s}\"*")
-                q_url = urllib.parse.quote(k_low)
-                st.markdown(
-                    f"🔗 [Abrir en Google Translate ↗](https://google.com{q_url}&op=translate)  |  "
-                    f"[Abrir en WordReference ↗](https://wordreference.com{q_url})"
+    pos_class = {"verb": "verb", "noun": "noun", "adjective": "adjective", "conjunction": "conjunction"}
+    blocks_html = []
+    for sent in sentences:
+        tokens = sent.get("tokens", [])
+        full_s_attr = html_lib.escape(str(sent.get("full_sentence", "")).strip(), quote=True)
+        spans = []
+        for tok in tokens:
+            w_raw = str(tok.get("w", ""))
+            w_esc = html_lib.escape(w_raw)
+            p_raw = str(tok.get("pos", "other")).lower()
+            p_cls = pos_class.get(p_raw, "other")
+            w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw).lower()
+            if w_clean:
+                w_attr = html_lib.escape(w_clean, quote=True)
+                spans.append(
+                    f'<span class="wt {p_cls}" data-k="{w_attr}" data-p="{p_cls}" data-s="{full_s_attr}">{w_esc}</span>'
                 )
+            else:
+                spans.append(f"<span>{w_esc}</span>")
+        box_cls = "tbox" if sent.get("is_title") else "sbox"
+        blocks_html.append(f'<div class="{box_cls}">{" ".join(spans)}</div>')
 
-    # 3. Rejilla de Botones Nativos de Palabras
-    pos_dot = {
-        "verb": "🔴",
-        "noun": "🔵",
-        "adjective": "🟢",
-        "conjunction": "🟡",
-        "other": "⚪"
+    lesson_html = "".join(blocks_html)
+    audio_json = json.dumps(audio_map).replace("</", "<\\/")
+    dict_json = json.dumps(merged_dict, ensure_ascii=False).replace("</", "<\\/")
+
+    viewer_html = """<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:10px;background:#f8fafc;color:#1e293b;overflow-x:hidden}
+    .tb{display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;align-items:center;
+        background:#fff;padding:9px 12px;border-radius:10px;border:1px solid #cbd5e1;
+        margin-bottom:10px;font-size:12px;font-weight:700;position:sticky;top:0;z-index:50}
+    .bg{padding:2px 7px;border-radius:5px}
+    .verb{background:#fee2e2;color:#991b1b;border-bottom:2px solid #ef4444}
+    .noun{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
+    .adjective{background:#dcfce7;color:#166534;border-bottom:2px solid #22c55e}
+    .conjunction{background:#fef3c7;color:#92400e;border-bottom:2px solid #f59e0b}
+    .other{background:#f1f5f9;color:#334155}
+    .tbox{background:#1a2a44;color:#fff;padding:12px 16px;border-radius:10px;margin-bottom:10px;font-size:17px;font-weight:700}
+    .tbox .wt{color:#1e293b;font-size:15px}
+    .sbox{background:#fff;border-left:4px solid #1a2a44;padding:10px 14px;margin-bottom:10px;
+          border-radius:8px;line-height:2.05;font-size:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+    .wt{display:inline-block;padding:1px 6px;margin:2px;border-radius:5px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:transform .1s}
+    .wt:hover,.act{outline:2px solid #1a73e8;background:#e8f0fe !important;color:#174ea6 !important;transform:translateY(-1px)}
+    #drawer{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#fff;border-top:3px solid #1a73e8;
+            border-radius:18px 18px 0 0;box-shadow:0 -10px 28px rgba(15,23,42,.28);padding:10px 16px 18px 16px;
+            transform:translateY(110%);transition:transform .26s cubic-bezier(.22,1,.36,1);max-height:78vh;overflow-y:auto}
+    .handle{width:46px;height:5px;background:#cbd5e1;border-radius:99px;margin:0 auto 8px auto}
+    .dhead{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:10px}
+    .dbtn{border:none;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px}
+    .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    </style></head><body>
+    <div class="tb">
+      <div><span class="bg verb">Verbos</span> <span class="bg noun">Sustantivos</span>
+           <span class="bg adjective">Adjetivos</span> <span class="bg conjunction">Conjunciones</span>
+           <span class="bg other">Otros</span></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="color:#475569;font-size:11px;">📱 1 toque: 🔊 | 2 toques: 📖  •  💻 Hover: 🔊 | 2 clics: 📖</span>
+        <button type="button" id="spdBtn" style="border:1px solid #cbd5e1;background:#fff;border-radius:6px;padding:4px 8px;font-weight:700;cursor:pointer;">1.0x</button>
+      </div>
+    </div>
+
+    <div id="lc">__LESSON_HTML__</div>
+
+    <div id="drawer">
+      <div class="handle"></div>
+      <div class="dhead">
+        <span style="font-size:12px;font-weight:800;color:#1a73e8;">🌐 DICCIONARIO INGLÉS (US) ➔ ESPAÑOL (Desliza abajo para ocultar)</span>
+        <div>
+          <button type="button" class="dbtn" style="background:#1a73e8;color:#fff;" id="btnN">🔊 Normal</button>
+          <button type="button" class="dbtn" style="background:#0f766e;color:#fff;" id="btnS">🐢 Lento</button>
+          <button type="button" class="dbtn" style="background:#f1f5f9;color:#334155;" id="btnC">⬇ Ocultar</button>
+        </div>
+      </div>
+      <div class="dgrid">
+        <div style="background:#f8fafc;padding:10px;border-radius:10px;border:1px solid #e2e8f0;">
+          <div style="font-size:11px;color:#64748b;font-weight:700;">ENGLISH (US)</div>
+          <div id="dEn" style="font-size:21px;font-weight:800;color:#0f172a;"></div>
+          <div id="dIpa" style="font-size:13px;color:#475569;margin-top:2px;"></div>
+          <div id="dPos" style="font-size:12px;color:#1a73e8;font-weight:700;margin-top:4px;"></div>
+        </div>
+        <div style="background:#eff6ff;padding:10px;border-radius:10px;border:1px solid #bfdbfe;">
+          <div style="font-size:11px;color:#1e40af;font-weight:700;">ESPAÑOL (TRADUCCIÓN)</div>
+          <div id="dEs" style="font-size:21px;font-weight:800;color:#1a73e8;"></div>
+          <div id="dAlt" style="font-size:12px;color:#334155;margin-top:4px;"></div>
+        </div>
+      </div>
+      <div id="dDef" style="margin-top:8px;font-size:13px;color:#334155;background:#f8fafc;padding:8px 10px;border-radius:8px;"></div>
+      <div id="dCtx" style="margin-top:6px;font-size:12px;color:#64748b;font-style:italic;"></div>
+      <div id="dLnk" style="margin-top:8px;font-size:12px;font-weight:700;display:flex;gap:14px;"></div>
+    </div>
+    <script>
+    const AMAP = __AUDIO_JSON__;
+    const DMAP = __DICT_JSON__;
+    const POS_L = {verb:"Verbo",noun:"Sustantivo",adjective:"Adjetivo",conjunction:"Conjunción",other:"Vocabulario"};
+    const player = new Audio();
+    let slowMode = false, curKey = "", lastHover = "", lastTapK = "", lastTapT = 0;
+
+    function playKey(k, forceSlow) {
+      const item = AMAP[k];
+      if (!item) return;
+      const b64 = (forceSlow || slowMode) ? item.s : item.n;
+      if (!b64) return;
+      player.pause();
+      player.src = "data:audio/mp3;base64," + b64;
+      player.play().catch(()=>{});
     }
 
-    st.caption("👆 **1er toque / clic:** Escucha pronunciación (US) y traducción rápida  •  **2do toque / clic:** Despliega definición completa")
-    with st.container(height=470, border=True):
-        for s_idx, sent in enumerate(sentences):
-            tokens = sent.get("tokens", [])
-            full_s = str(sent.get("full_sentence", "")).strip()
-            valid_tokens = []
-            for t_idx, tok in enumerate(tokens):
-                w_raw = str(tok.get("w", "")).strip()
-                w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw)
-                if w_clean:
-                    valid_tokens.append((t_idx, w_raw, w_clean, str(tok.get("pos", "other")).lower()))
+    function openDrawer(el) {
+      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+      el.classList.add('act');
+      const k = el.getAttribute('data-k') || '';
+      const p = el.getAttribute('data-p') || 'other';
+      const s = el.getAttribute('data-s') || '';
+      curKey = k;
+      const info = DMAP[k] || {};
+      document.getElementById('dEn').innerText = el.innerText.trim();
+      document.getElementById('dEs').innerText = info.es || el.innerText.trim();
+      document.getElementById('dIpa').innerText = info.ipa ? ('IPA: ' + info.ipa) : '🇺🇸 US Pronunciation';
+      document.getElementById('dPos').innerText = info.pos || POS_L[p] || 'Vocabulario';
+      document.getElementById('dAlt').innerText = info.alt ? ('Sinónimos: ' + info.alt) : '';
+      document.getElementById('dDef').innerText = info.def ? ('📖 ' + info.def) : '';
+      document.getElementById('dCtx').innerText = s ? ('💬 "' + s + '"') : '';
+      const q = encodeURIComponent(k);
+      document.getElementById('dLnk').innerHTML =
+        '<a href="https://google.com' + q + '&op=translate" target="_blank" style="color:#0f766e;text-decoration:none;">🌐 Google Translate ↗</a>' +
+        '<a href="https://wordreference.com' + q + '" target="_blank" style="color:#1a73e8;text-decoration:none;">📖 WordReference ↗</a>';
+      document.getElementById('drawer').style.transform = 'translateY(0%)';
+      playKey(k, false);
+    }
 
-            if not valid_tokens:
-                continue
+    function closeDrawer() {
+      document.getElementById('drawer').style.transform = 'translateY(110%)';
+      document.querySelectorAll('.act').forEach(x=>x.classList.remove('act'));
+    }
 
-            cols_per_row = 7
-            for start_i in range(0, len(valid_tokens), cols_per_row):
-                chunk = valid_tokens[start_i:start_i + cols_per_row]
-                cols_w = st.columns(cols_per_row)
-                for c_i, (t_idx, w_raw, w_clean, pos_k) in enumerate(chunk):
-                    is_sel = bool(active_w and w_clean.lower() == active_w.lower())
-                    badge = pos_dot.get(pos_k, "⚪")
-                    btn_label = f"{badge} {w_raw}"
-                    with cols_w[c_i]:
-                        if st.button(
-                            btn_label,
-                            key=f"wbtn_{s_idx}_{t_idx}_{w_clean}",
-                            type="primary" if is_sel else "secondary",
-                            width="stretch"
-                        ):
-                            if is_sel:
-                                st.session_state["active_study_full_dict"] = not show_full_dict
-                            else:
-                                st.session_state["active_study_word"] = w_clean
-                                st.session_state["active_study_pos"] = pos_k
-                                st.session_state["active_study_sentence"] = full_s
-                                st.session_state["active_study_full_dict"] = False
-                            st.rerun()
+    document.getElementById('spdBtn').onclick = () => {
+      slowMode = !slowMode;
+      document.getElementById('spdBtn').innerText = slowMode ? '0.75x' : '1.0x';
+    };
+    document.getElementById('btnN').onclick = () => playKey(curKey, false);
+    document.getElementById('btnS').onclick = () => playKey(curKey, true);
+    document.getElementById('btnC').onclick = closeDrawer;
 
+    const drw = document.getElementById('drawer');
+    let startY = 0;
+    drw.addEventListener('touchstart', (e) => {
+      const t0 = e.touches && e.touches.at(0);
+      if (t0) startY = t0.clientY;
+    }, {passive:true});
+    drw.addEventListener('touchmove', (e) => {
+      const t0 = e.touches && e.touches.at(0);
+      if (t0 && (t0.clientY - startY) > 45) closeDrawer();
+    }, {passive:true});
 
+    document.getElementById('lc').addEventListener('pointerover', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      const w = e.target.closest('.wt');
+      if (!w) return;
+      const k = w.getAttribute('data-k') || '';
+      if (k && lastHover !== k) { lastHover = k; playKey(k, false); }
+    });
+    document.getElementById('lc').addEventListener('pointerout', (e) => {
+      if (e.pointerType === 'mouse' && e.target.closest('.wt')) lastHover = '';
+    });
+    document.getElementById('lc').addEventListener('click', (e) => {
+      const w = e.target.closest('.wt');
+      if (!w) { closeDrawer(); return; }
+      const k = w.getAttribute('data-k') || '';
+      const now = Date.now();
+      const isDbl = (lastTapK === k && (now - lastTapT) < 420);
+      lastTapK = k; lastTapT = now;
+      playKey(k, false);
+      if (isDbl) openDrawer(w);
+    });
+    document.getElementById('lc').addEventListener('dblclick', (e) => {
+      const w = e.target.closest('.wt');
+      if (w) openDrawer(w);
+    });
+    </script></body></html>"""
+
+    final_html = (
+        viewer_html
+        .replace("__LESSON_HTML__", lesson_html)
+        .replace("__AUDIO_JSON__", audio_json)
+        .replace("__DICT_JSON__", dict_json)
+    )
+    components.html(final_html, height=620, scrolling=True)
 
 
 # ==============================================================================
