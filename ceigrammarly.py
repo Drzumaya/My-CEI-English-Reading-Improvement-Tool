@@ -2094,17 +2094,6 @@ def _fast_translate_to_en(txt: str) -> str:
     except Exception:
         return clean_t
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def _fast_translate_to_es(txt: str) -> str:
-    clean_t = str(txt or "").strip()
-    if not clean_t:
-        return ""
-    try:
-        tr = GoogleTranslator(source="en", target="es").translate(clean_t)
-        return str(tr or clean_t).strip()
-    except Exception:
-        return clean_t
-
 def normalizar_entradas_apa(client_obj, contexto_raw: str, personas_raw: str, asunto_raw: str) -> tuple[str, str, str]:
     ctx_en = _fast_translate_to_en(contexto_raw) or str(contexto_raw or "").strip()
     per_en = _fast_translate_to_en(personas_raw) or str(personas_raw or "").strip()
