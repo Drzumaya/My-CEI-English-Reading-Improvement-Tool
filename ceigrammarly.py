@@ -7068,12 +7068,8 @@ if col_lesson_left is not None:
                             st.info(ev_w["feedback"])
                             if ev_w.get("apa7_corrected"):
                                 st.caption(f"📖 **Sugerencia APA 7:** {ev_w['apa7_corrected']}")
-        elif stage_now == "WRITING":
-            hdr_w1, hdr_w2 = st.columns([2.4, 1.3])
-            with hdr_w1:
-                st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")
-            # ... (todo su contenido a 12 espacios) ...
-
+                        else:
+                            st.error(ev_w["feedback"])
 # ==============================================================================
 # PARTE 16 — BLOQUE B2 (FINAL): 1. READING & COMPREHENSION + QUIZ (30%)
 # ==============================================================================
