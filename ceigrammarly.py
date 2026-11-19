@@ -7727,243 +7727,237 @@ if has_lesson_now and stage_5_now == "SPEAKING":
             st.caption(ev_prev.get("phonetic_feedback", ""))
 
 # ==============================================================================
-# PARTE 18: DESCARGA DE AUDIO/PDF Y EVALUACIÓN ORAL CON IA (PANEL DERECHO)
+# PARTE 18: DESCARGA DE AUDIO MP3, EVALUACIÓN ORAL Y PDF OFICIAL INTEGRADO
 # ==============================================================================
-        if student_audio is not None:
-            safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
-            try:
-                import static_ffmpeg
-                static_ffmpeg.add_paths()
-                from pydub import AudioSegment
+has_lesson_p18 = bool(str(st.session_state.get("generated_text") or "").strip())
+stage_5_p18 = st.session_state.get("active_stage_5", "READING")
 
-                wav_buf = io.BytesIO(student_audio.getvalue())
-                audio_seg = AudioSegment.from_file(wav_buf, format="wav")
-                mp3_buf = io.BytesIO()
-                audio_seg.export(mp3_buf, format="mp3", bitrate="128k")
-                mp3_data = mp3_buf.getvalue()
-                dl_mime = "audio/mp3"
-            except Exception:
-                mp3_data = student_audio.getvalue()
-                safe_rec_name = safe_rec_name.replace(".mp3", ".wav")
-                dl_mime = "audio/wav"
+if has_lesson_p18 and stage_5_p18 == "READING" and st.session_state.get("split_speaking_open"):
+    aud_grabado = locals().get("student_audio")
+    if aud_grabado is not None:
+        safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
+        try:
+            import static_ffmpeg
+            static_ffmpeg.add_paths()
+            from pydub import AudioSegment
 
-            st.download_button(
-                label="📥 Descargar Audio Grabado (MP3)",
-                data=mp3_data,
-                file_name=safe_rec_name,
-                mime=dl_mime,
-                type="primary",
-                width="stretch"
-            )
+            wav_buf = io.BytesIO(aud_grabado.getvalue())
+            audio_seg = AudioSegment.from_file(wav_buf, format="wav")
+            mp3_buf = io.BytesIO()
+            audio_seg.export(mp3_buf, format="mp3", bitrate="128k")
+            mp3_data = mp3_buf.getvalue()
+            dl_mime = "audio/mp3"
+        except Exception:
+            mp3_data = aud_grabado.getvalue()
+            safe_rec_name = safe_rec_name.replace(".mp3", ".wav")
+            dl_mime = "audio/wav"
 
-        if st.session_state.get("generated_text"):
-            nota_actual_pdf = st.session_state.get("best_stored_score") or st.session_state.get("quiz_score")
-            pdf_bytes = create_lesson_pdf(
-                st.session_state.generated_text.replace("*", ""),
-                quiz_items=st.session_state.quiz_data,
-                user_ans=st.session_state.quiz_user_answers,
-                score=nota_actual_pdf,
-                speaking_eval=st.session_state.get("speaking_eval_result")
-            )
-            st.download_button(
-                label=f"📥 Descargar PDF Oficial ({st.session_state.current_folio or 'Lección'})",
-                data=pdf_bytes,
-                file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
-                mime="application/pdf",
-                width="stretch",
-                key="btn_dl_pdf_sidebar_right"
-            )
-        else:
-            st.button("📥 Descargar PDF Oficial", disabled=True, width="stretch", key="btn_dl_pdf_disabled")
+        st.download_button(
+            label="📥 Descargar Audio Grabado (MP3)",
+            data=mp3_data,
+            file_name=safe_rec_name,
+            mime=dl_mime,
+            type="secondary",
+            width="stretch",
+            key="btn_dl_recorded_mp3_p18"
+        )
 
-        if student_audio is not None:
-            if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
-                if not st.session_state.generated_text:
-                    st.warning("⚠️ Primero genera o carga una lección para comparar tu lectura.")
-                else:
-                    with st.spinner("🎙️ Analizando fonética, entonación y gramática oral..."):
-                        try:
-                            eval_res = evaluar_pronunciacion_ia(
-                                audio_bytes=student_audio.getvalue(),
-                                mime_type="audio/wav",
-                                texto_objetivo=st.session_state.generated_text,
-                                gramatica_obj=gramatica_b1,
-                                nivel_cefr=st.session_state.selected_cefr,
-                                grado_acad=st.session_state.selected_academic_grade
-                            )
-                            st.session_state["speaking_eval_result"] = eval_res
-                            if st.session_state.current_folio and "score_percent" in eval_res:
-                                save_best_speaking_pg(st.session_state.current_folio, int(eval_res["score_percent"]))
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error en evaluación oral: {e}")
-
-        if st.session_state.get("speaking_eval_result"):
-            ev = st.session_state["speaking_eval_result"]
-            with st.container(border=True):
-                st.markdown(f"#### 🎯 Evaluación Oral: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
+    if st.session_state.get("speaking_eval_result"):
+        ev = st.session_state["speaking_eval_result"]
+        with st.container(border=True):
+            st.markdown(f"#### 🎯 Evaluación Oral Detallada: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
+            if ev.get("transcription"):
                 st.caption(f"🗣️ **Transcripción detectada:** *\"{ev.get('transcription', '')}\"*")
-                st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
-                st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
-                st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
-                tips = ev.get("actionable_tips", [])
-                if tips:
-                    st.markdown("**💡 Recomendaciones de Mejora:**")
-                    for t in tips:
-                        st.markdown(f"- {t}")
+            st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
+            st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
+            st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
+            tips = ev.get("actionable_tips", [])
+            if tips:
+                st.markdown("**💡 Recomendaciones de Mejora:**")
+                for t in tips:
+                    st.markdown(f"- {t}")
+
+if has_lesson_p18 and stage_5_p18 != "PORTAL":
+    st.divider()
+    nota_actual_pdf = st.session_state.get("best_stored_score") or st.session_state.get("quiz_score")
+    pdf_bytes = create_lesson_pdf(
+        st.session_state.generated_text.replace("*", ""),
+        quiz_items=st.session_state.quiz_data,
+        user_ans=st.session_state.quiz_user_answers,
+        score=nota_actual_pdf,
+        speaking_eval=st.session_state.get("speaking_eval_result")
+    )
+    st.download_button(
+        label=f"📥 Descargar PDF Oficial de la Lección ({st.session_state.current_folio or 'Lección'})",
+        data=pdf_bytes,
+        file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
+        mime="application/pdf",
+        type="primary",
+        width="stretch",
+        key="btn_dl_pdf_official_stage"
+    )
 
 # ==============================================================================
 # PARTE 18A — MITAD 1 DE 2: HISTORIAL DE FOLIOS CON VIDEO Y RESUMEN APA 7
 # ==============================================================================
-        st.divider()
-        if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
-            st.session_state.show_saved_audios = not st.session_state.show_saved_audios
+if has_lesson_p18 and stage_5_p18 != "PORTAL":
+    st.divider()
+    if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch", key="btn_toggle_folios_hist_p18a"):
+        st.session_state.show_saved_audios = not st.session_state.show_saved_audios
 
-        if st.session_state.show_saved_audios:
-            with st.container(height=360, border=True):
-                st.markdown("**Historial de Folios y Calificaciones (Supabase):**")
-                try:
-                    records = load_lessons_history_pg()
-                    if not records:
-                        st.info("Aún no hay registros guardados en Supabase.")
+    if st.session_state.show_saved_audios:
+        with st.container(height=360, border=True):
+            st.markdown("**Historial de Folios y Calificaciones (Supabase):**")
+            try:
+                records = load_lessons_history_pg()
+                if not records:
+                    st.info("Aún no hay registros guardados en Supabase.")
+                else:
+                    df = pd.DataFrame(records)
+
+                    if has_faculty_access or is_owner:
+                        padron_regs = load_padron_records()
+                        inscritos_padron = [
+                            str(r.get("Usuario", "")).strip()
+                            for r in padron_regs if str(r.get("Usuario", "")).strip()
+                        ]
+                        usuarios_en_folios = [
+                            str(u).strip() for u in df["Usuario"].dropna().unique().tolist() if str(u).strip()
+                        ]
+                        lista_inscritos = sorted(list(set(inscritos_padron + usuarios_en_folios)))
+
+                        alumno_filtro = st.selectbox(
+                            "👤 Filtrar por Estudiante / Inscrito:",
+                            ["Todos los inscritos"] + lista_inscritos,
+                            key="sel_filtro_inscrito_historial"
+                        )
+                        if alumno_filtro != "Todos los inscritos":
+                            df = df[df["Usuario"].astype(str).str.strip().str.lower() == alumno_filtro.lower()]
                     else:
-                        df = pd.DataFrame(records)
+                        df = df[df["Usuario"].astype(str).str.strip().str.lower() == usuario.strip().lower()]
 
-                        if has_faculty_access or is_owner:
-                            padron_regs = load_padron_records()
-                            inscritos_padron = [
-                                str(r.get("Usuario", "")).strip()
-                                for r in padron_regs if str(r.get("Usuario", "")).strip()
-                            ]
-                            usuarios_en_folios = [
-                                str(u).strip() for u in df["Usuario"].dropna().unique().tolist() if str(u).strip()
-                            ]
-                            lista_inscritos = sorted(list(set(inscritos_padron + usuarios_en_folios)))
+                    if df.empty:
+                        st.warning("No se encontraron folios registrados para este usuario.")
+                    else:
+                        limite_ver = 10 if ((has_faculty_access or is_owner) and alumno_filtro != "Todos los inscritos") else 5
+                        for idx_h, row in df.head(limite_ver).iterrows():
+                            folio_item = str(row.get("Folio", "S/F")).strip()
+                            st.caption(f"🔖 **{folio_item}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
+                            st.caption(f"📘 *{row.get('Tema', '')}*")
 
-                            alumno_filtro = st.selectbox(
-                                "👤 Filtrar por Estudiante / Inscrito:",
-                                ["Todos los inscritos"] + lista_inscritos,
-                                key="sel_filtro_inscrito_historial"
-                            )
-                            if alumno_filtro != "Todos los inscritos":
-                                df = df[df["Usuario"].astype(str).str.strip().str.lower() == alumno_filtro.lower()]
-                        else:
-                            df = df[df["Usuario"].astype(str).str.strip().str.lower() == usuario.strip().lower()]
+                            mejor_nota_row = str(row.get("Mejor_Calificacion_PDF") or "").strip()
+                            speaking_row = row.get("Speaking_Score")
+                            vid_sc_row = float(row.get("Video_Score") or 0)
+                            sum_sc_row = float(row.get("Summary_Score") or 0)
 
-                        if df.empty:
-                            st.warning("No se encontraron folios registrados para este usuario.")
-                        else:
-                            limite_ver = 10 if ((has_faculty_access or is_owner) and alumno_filtro != "Todos los inscritos") else 5
-                            for idx_h, row in df.head(limite_ver).iterrows():
-                                folio_item = str(row.get("Folio", "S/F")).strip()
-                                st.caption(f"🔖 **{folio_item}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
-                                st.caption(f"📘 *{row.get('Tema', '')}*")
+                            badges_notas = []
+                            if mejor_nota_row:
+                                badges_notas.append(f"📝 Quiz: `{mejor_nota_row}`")
+                            if speaking_row is not None and float(speaking_row) > 0:
+                                badges_notas.append(f"🎙️ Oral: `{int(float(speaking_row))}%`")
+                            if vid_sc_row > 0:
+                                badges_notas.append(f"🎬 Video: `{round(vid_sc_row, 1)}%`")
+                            if sum_sc_row > 0:
+                                badges_notas.append(f"✍️ Resumen: `{round(sum_sc_row, 1)}%`")
+                            if badges_notas:
+                                st.caption(" | ".join(badges_notas))
 
-                                mejor_nota_row = str(row.get("Mejor_Calificacion_PDF") or "").strip()
-                                speaking_row = row.get("Speaking_Score")
-                                vid_sc_row = float(row.get("Video_Score") or 0)
-                                sum_sc_row = float(row.get("Summary_Score") or 0)
-
-                                badges_notas = []
-                                if mejor_nota_row:
-                                    badges_notas.append(f"📝 Quiz: `{mejor_nota_row}`")
-                                if speaking_row is not None and float(speaking_row) > 0:
-                                    badges_notas.append(f"🎙️ Oral: `{int(float(speaking_row))}%`")
-                                if vid_sc_row > 0:
-                                    badges_notas.append(f"🎬 Video: `{round(vid_sc_row, 1)}%`")
-                                if sum_sc_row > 0:
-                                    badges_notas.append(f"✍️ Resumen: `{round(sum_sc_row, 1)}%`")
-                                if badges_notas:
-                                    st.caption(" | ".join(badges_notas))
 # ==============================================================================
 # PARTE 18A — MITAD 2 DE 2 (FINAL): CARGAR FOLIO, BORRAR TODO Y PIE DE PÁGINA
 # ==============================================================================
-                                if st.button(f"📖 Cargar Lección ({folio_item})", key=f"load_fol_{folio_item}_{idx_h}", width="stretch"):
-                                    row_full_h = fetch_lesson_by_folio(folio_item) or {}
-                                    st.session_state.generated_text = str(row.get("Texto", ""))
-                                    st.session_state.current_folio = folio_item
-                                    st.session_state.selected_cefr = normalize_cefr(row.get("Nivel_CEFR", "B1"))
-                                    st.session_state.selected_academic_grade = str(row.get("Grado_Academico", "Licenciatura / Universidad"))
-                                    st.session_state.study_mode_active = False
-                                    st.session_state.quiz_graded = False
-                                    st.session_state.quiz_score = None
-                                    st.session_state.quiz_user_answers = {}
-                                    st.session_state.image_bytes = None
-                                    st.session_state.current_motivational_quote = None
-                                    st.session_state.speaking_eval_result = row.get("Speaking_Eval")
-                                    st.session_state["best_stored_score"] = mejor_nota_row
+                            if st.button(f"📖 Cargar Lección ({folio_item})", key=f"load_fol_{folio_item}_{idx_h}", width="stretch"):
+                                row_full_h = fetch_lesson_by_folio(folio_item) or {}
+                                st.session_state.generated_text = str(row.get("Texto", ""))
+                                st.session_state.current_folio = folio_item
+                                st.session_state.selected_cefr = normalize_cefr(row.get("Nivel_CEFR", "B1"))
+                                st.session_state.selected_academic_grade = str(row.get("Grado_Academico", "Licenciatura / Universidad"))
+                                st.session_state.study_mode_active = False
+                                st.session_state.quiz_graded = False
+                                st.session_state.quiz_score = None
+                                st.session_state.quiz_user_answers = {}
+                                st.session_state.image_bytes = None
+                                st.session_state.current_motivational_quote = None
+                                st.session_state.speaking_eval_result = row.get("Speaking_Eval")
+                                st.session_state["best_stored_score"] = mejor_nota_row
+                                st.session_state["active_stage_5"] = "READING"
+                                st.session_state["split_speaking_open"] = False
+                                st.session_state["split_writing_open"] = False
+                                st.session_state["show_lesson_creator"] = False
 
-                                    v_u_h = str(row_full_h.get("Video_URL") or "").strip()
-                                    if v_u_h:
-                                        st.session_state["current_lesson_video"] = {
-                                            "url": v_u_h,
-                                            "title": str(row_full_h.get("Video_Title") or "Educational Video"),
-                                            "channel": str(row_full_h.get("Video_Channel") or "YouTube"),
-                                            "duration_sec": int(row_full_h.get("Video_Duration_Sec") or 240),
-                                            "duration_min": round(int(row_full_h.get("Video_Duration_Sec") or 240) / 60.0, 2)
-                                        }
-                                    else:
-                                        st.session_state["current_lesson_video"] = None
+                                v_u_h = str(row_full_h.get("Video_URL") or "").strip()
+                                if v_u_h:
+                                    st.session_state["current_lesson_video"] = {
+                                        "url": v_u_h,
+                                        "title": str(row_full_h.get("Video_Title") or "Educational Video"),
+                                        "channel": str(row_full_h.get("Video_Channel") or "YouTube"),
+                                        "duration_sec": int(row_full_h.get("Video_Duration_Sec") or 240),
+                                        "duration_min": round(int(row_full_h.get("Video_Duration_Sec") or 240) / 60.0, 2)
+                                    }
+                                else:
+                                    st.session_state["current_lesson_video"] = None
 
-                                    st.session_state["video_watched_sec"] = int(row_full_h.get("Video_Watched_Sec") or 0)
-                                    st.session_state["video_score_100"] = float(row_full_h.get("Video_Score") or 0.0)
-                                    st.session_state["video_summary_draft"] = str(row_full_h.get("Summary_Text") or "")
-                                    st.session_state["video_apa7_draft"] = str(row_full_h.get("APA7_Reference") or "")
-                                    st.session_state["summary_score_100"] = float(row_full_h.get("Summary_Score") or 0.0)
-                                    st.session_state["summary_eval_result"] = row_full_h.get("Summary_Eval")
+                                st.session_state["video_watched_sec"] = int(row_full_h.get("Video_Watched_Sec") or 0)
+                                st.session_state["video_score_100"] = float(row_full_h.get("Video_Score") or 0.0)
+                                st.session_state["video_summary_draft"] = str(row_full_h.get("Summary_Text") or "")
+                                st.session_state["video_apa7_draft"] = str(row_full_h.get("APA7_Reference") or "")
+                                st.session_state["summary_score_100"] = float(row_full_h.get("Summary_Score") or 0.0)
+                                st.session_state["summary_eval_result"] = row_full_h.get("Summary_Eval")
 
-                                    raw_qz = row.get("Quiz_JSON")
-                                    if isinstance(raw_qz, list):
-                                        st.session_state.quiz_data = raw_qz
-                                    elif isinstance(raw_qz, dict):
-                                        st.session_state.quiz_data = raw_qz.get("questions")
-                                    elif isinstance(raw_qz, str) and raw_qz.strip():
-                                        try:
-                                            qz_obj = json.loads(raw_qz)
-                                            st.session_state.quiz_data = qz_obj if isinstance(qz_obj, list) else qz_obj.get("questions")
-                                        except Exception:
-                                            st.session_state.quiz_data = None
-                                    else:
+                                raw_qz = row.get("Quiz_JSON")
+                                if isinstance(raw_qz, list):
+                                    st.session_state.quiz_data = raw_qz
+                                elif isinstance(raw_qz, dict):
+                                    st.session_state.quiz_data = raw_qz.get("questions")
+                                elif isinstance(raw_qz, str) and raw_qz.strip():
+                                    try:
+                                        qz_obj = json.loads(raw_qz)
+                                        st.session_state.quiz_data = qz_obj if isinstance(qz_obj, list) else qz_obj.get("questions")
+                                    except Exception:
                                         st.session_state.quiz_data = None
-                                    st.rerun()
+                                else:
+                                    st.session_state.quiz_data = None
+                                st.rerun()
 
-                                st.divider()
-                except Exception as e:
-                    st.error(f"Error al cargar historial desde Supabase: {e}")
+                            st.divider()
+            except Exception as e:
+                st.error(f"Error al cargar historial desde Supabase: {e}")
 
-        st.divider()
+    st.divider()
 
-        if st.button("🗑️ Borrar Todo", type="secondary", width="stretch"):
-            st.session_state.generated_text = ""
-            st.session_state.study_mode_active = False
-            st.session_state.image_bytes = None
-            st.session_state.current_lesson_image = None
-            st.session_state.current_motivational_quote = None
-            st.session_state.last_img_error = None
-            st.session_state.audio_bytes = None
-            st.session_state.quiz_audio_bytes = None
-            st.session_state.speaking_eval_result = None
-            st.session_state.show_saved_audios = False
-            st.session_state.quiz_data = None
-            st.session_state.quiz_graded = False
-            st.session_state.quiz_score = None
-            st.session_state.quiz_user_answers = {}
-            st.session_state.current_folio = ""
-            st.session_state.current_pdf_link = ""
-            st.session_state.current_creation_date = ""
-            st.session_state.url_folio_checked = False
-            st.session_state["best_stored_score"] = ""
-            st.session_state["current_lesson_video"] = None
-            st.session_state["video_watched_sec"] = 0
-            st.session_state["video_score_100"] = 0.0
-            st.session_state["video_watch_started_ts"] = None
-            st.session_state["video_summary_draft"] = ""
-            st.session_state["video_apa7_draft"] = ""
-            st.session_state["summary_score_100"] = 0.0
-            st.session_state["summary_eval_result"] = None
-            st.query_params.clear()
-            st.session_state.sidebar_state = "expanded"
-            st.rerun()
+    if st.button("🗑️ Borrar Todo", type="secondary", width="stretch", key="btn_clear_all_stage"):
+        st.session_state.generated_text = ""
+        st.session_state.study_mode_active = False
+        st.session_state.image_bytes = None
+        st.session_state.current_lesson_image = None
+        st.session_state.current_motivational_quote = None
+        st.session_state.last_img_error = None
+        st.session_state.audio_bytes = None
+        st.session_state.quiz_audio_bytes = None
+        st.session_state.speaking_eval_result = None
+        st.session_state.show_saved_audios = False
+        st.session_state.quiz_data = None
+        st.session_state.quiz_graded = False
+        st.session_state.quiz_score = None
+        st.session_state.quiz_user_answers = {}
+        st.session_state.current_folio = ""
+        st.session_state.current_pdf_link = ""
+        st.session_state.current_creation_date = ""
+        st.session_state.url_folio_checked = False
+        st.session_state["best_stored_score"] = ""
+        st.session_state["current_lesson_video"] = None
+        st.session_state["video_watched_sec"] = 0
+        st.session_state["video_score_100"] = 0.0
+        st.session_state["video_watch_started_ts"] = None
+        st.session_state["video_summary_draft"] = ""
+        st.session_state["video_apa7_draft"] = ""
+        st.session_state["summary_score_100"] = 0.0
+        st.session_state["summary_eval_result"] = None
+        st.session_state["active_stage_5"] = "READING"
+        st.session_state["split_speaking_open"] = False
+        st.session_state["split_writing_open"] = False
+        st.session_state["show_lesson_creator"] = False
+        st.query_params.clear()
+        st.rerun()
 
 # --- 18. PIE DE PÁGINA INSTITUCIONAL ---
 st.divider()
