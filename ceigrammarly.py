@@ -7008,10 +7008,9 @@ with col_lesson_left:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17 — BLOQUE 1A DE 2: REPRODUCTOR FLOTANTE SIMULTÁNEO (PEQUEÑO / MEDIANO)
+# PARTE 17 — BLOQUE 1A: REPRODUCTOR FLOTANTE SIMULTÁNEO (PEQUEÑO / MEDIANO)
 # ==============================================================================
 def _render_floating_pip_video(v_info: dict):
-    """Renderiza una ventana flotante fija (Pequeña o Mediana) para ver el video mientras se escribe."""
     v_url = str(v_info.get("url") or "").strip()
     m_id = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", v_url)
     if not m_id:
@@ -7020,70 +7019,27 @@ def _render_floating_pip_video(v_info: dict):
     titulo_v = str(v_info.get("title") or "Educational Video").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")[:65]
     embed_src = f"https://youtube-nocookie.com{vid_id}?rel=0&modestbranding=1"
 
-    pip_html = f"""
-    <div id="ceiPipBox" style="
-        position: fixed;
-        bottom: 18px;
-        left: 18px;
-        width: 440px;
-        max-width: 92vw;
-        background: #111827;
-        color: #f9fafb;
-        border: 2px solid #2563eb;
-        border-radius: 12px;
-        box-shadow: 0 12px 32px rgba(0,0,0,0.45);
-        z-index: 999999;
-        overflow: hidden;
-        font-family: sans-serif;
-    ">
-        <div style="
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 7px 10px;
-            background: #1e3a8a;
-            font-size: 12px;
-            font-weight: bold;
-            gap: 6px;
-        ">
-            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px;">
-                🎬 {titulo_v}
-            </span>
-            <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                <button onclick="setPipSize(330, 186)" title="Tamaño Pequeño" style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Pequeño</button>
-                <button onclick="setPipSize(480, 270)" title="Tamaño Mediano" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Mediano</button>
-                <button onclick="togglePipMin()" id="btnPipMin" title="Minimizar/Restaurar" style="background:#4b5563;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">—</button>
-            </div>
-        </div>
-        <div id="ceiPipBody" style="width: 100%; height: 248px; background: #000;">
-            <iframe id="ceiPipFrame" width="100%" height="100%" src="{embed_src}"
-                frameborder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowfullscreen>
-            </iframe>
-        </div>
-    </div>
-    <script>
-        function setPipSize(w, h) {{
-            const box = document.getElementById('ceiPipBox');
-            const body = document.getElementById('ceiPipBody');
-            if (box && body) {{
-                body.style.display = 'block';
-                box.style.width = w + 'px';
-                box.style.height = h + 'px';
-            }}
-        }}
-        function togglePipMin() {{
-            const body = document.getElementById('ceiPipBody');
-            const btn = document.getElementById('btnPipMin');
-            if (body) {{
-                const hidden = body.style.display === 'none';
-                body.style.display = hidden ? 'block' : 'none';
-                if (btn) btn.innerText = hidden ? '—' : '▢';
-            }}
-        }}
-    </script>
-    """
+    pip_html = "".join([
+        '<div id="ceiPipBox" style="position:fixed;bottom:18px;left:18px;width:440px;max-width:92vw;',
+        'background:#111827;color:#f9fafb;border:2px solid #2563eb;border-radius:12px;',
+        'box-shadow:0 12px 32px rgba(0,0,0,0.45);z-index:999999;overflow:hidden;font-family:sans-serif;">',
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;',
+        'background:#1e3a8a;font-size:12px;font-weight:bold;gap:6px;">',
+        f'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px;">🎬 {titulo_v}</span>',
+        '<div style="display:flex;gap:4px;flex-shrink:0;">',
+        '<button onclick="setPipSize(330,186)" style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Pequeño</button>',
+        '<button onclick="setPipSize(480,270)" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Mediano</button>',
+        '<button onclick="togglePipMin()" id="btnPipMin" style="background:#4b5563;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">—</button>',
+        '</div></div>',
+        '<div id="ceiPipBody" style="width:100%;height:248px;background:#000;">',
+        f'<iframe id="ceiPipFrame" width="100%" height="100%" src="{embed_src}" frameborder="0" ',
+        'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
+        '</div></div>',
+        '<script>',
+        'function setPipSize(w,h){const b=document.getElementById("ceiPipBox"),d=document.getElementById("ceiPipBody");if(b&&d){d.style.display="block";b.style.width=w+"px";b.style.height=h+"px";}}',
+        'function togglePipMin(){const d=document.getElementById("ceiPipBody"),btn=document.getElementById("btnPipMin");if(d){const h=d.style.display==="none";d.style.display=h?"block":"none";if(btn)btn.innerText=h?"—":"▢";}}',
+        '</script>'
+    ])
     components.html(pip_html, height=0, width=0)
 
 
@@ -7137,7 +7093,6 @@ if col_tools_right is not None:
                     vid_data["alternatives"] = alts_list
                     st.session_state["current_lesson_video"] = vid_data
 
-            # TARJETA DE CONTROL DEL REPRODUCTOR FLOTANTE SIMULTÁNEO (PEQUEÑO / MEDIANO)
             if vid_data and vid_data.get("url"):
                 dur_total_sec = max(60, int(vid_data.get("duration_sec") or 300))
                 dur_total_min = round(dur_total_sec / 60.0, 2)
@@ -7190,7 +7145,7 @@ if col_tools_right is not None:
                 if st.session_state["pip_video_visible"]:
                     _render_floating_pip_video(vid_data)
 # ==============================================================================
-# PARTE 17 — BLOQUE 1B DE 2: CATÁLOGO ESCROLABLE (12-20 VIDEOS) TIPO YOUTUBE
+# PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) TIPO YOUTUBE
 # ==============================================================================
             st.markdown(f"**📚 Catálogo de Videos: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
             with st.container(height=255, border=True):
@@ -7289,6 +7244,7 @@ if col_tools_right is not None:
         else:
             with st.container(height=160, border=True):
                 st.caption("🎬 El catálogo escrolable y el reproductor flotante simultáneo aparecerán aquí al generar o cargar un Folio.")
+
 
 
 # ==============================================================================
