@@ -1997,6 +1997,131 @@ def generar_pdf_certificado(
 
     return bytes(pdf.output())
 # ==============================================================================
+# PARTE 7B2: MOTORES DE IA CON GEMINI (TEXTO, QUIZ, PRONUNCIACIÓN Y VIDEO)
+# ==============================================================================
+def generar_con_maxima_potencia(client_obj, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
+    gm = client_obj or init_gemini_client()
+    if not gm:
+        raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
+
+    modelos_preferidos = [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3.1-pro-preview",
+        "gemini-2.0-flash"
+    ]
+    excluidos = ("embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria")
+    try:
+        for m in gm.models.list():
+            m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
+            metodos = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
+            if "gemini" in m_name and not any(ex in m_name for ex in excluidos):
+                if not metodos or "generateContent" in metodos:
+                    if m_name not in modelos_preferidos:
+                        modelos_preferidos.append(m_name)
+    except Exception:
+        pass
+
+    ultimo_error = None
+    for modelo in modelos_preferidos:
+        try:
+            cfg_kwargs = {"temperature": 0.65}
+            if instruccion_sistema:
+                cfg_kwargs["system_instruction"] = instruccion_sistema
+            if as_json:
+                cfg_kwargs["response_mime_type"] = "application/json"
+            config = types.GenerateContentConfig(**cfg_kwargs)
+            respuesta = gm.models.generate_content(
+                model=modelo,
+                contents=prompt_contenido,
+                config=config
+            )
+            if respuesta and respuesta.text:
+                return respuesta.text, modelo
+        except Exception as e:
+            ultimo_error = e
+            continue
+
+    if ultimo_error:
+        raise ultimo_error
+    raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
+
+
+def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None, client_obj=None):
+    gm = client_obj or init_gemini_client()
+    evitar_txt = ("IMPORTANT: Create COMPLETELY DIFFERENT questions from: " + str(evitar_preguntas) + "\n") if evitar_preguntas else ""
+    prompt_quiz = (
+        f"Based on this CEFR Level {nivel_cefr} English lesson tailored for {grado_acad} students, "
+        f"create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr} and {grado_acad} cognitive level, "
+        f"evaluating comprehension and target grammar ({tema_gramatical}).\n"
+        f"{evitar_txt}"
+        f"LESSON TEXT:\n{texto_leccion}\n"
+        "RETURN ONLY A VALID JSON ARRAY WITH THIS EXACT SCHEMA:\n"
+        '[{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}]'
+    )
+    raw_resp, _ = generar_con_maxima_potencia(
+        gm,
+        prompt_quiz,
+        instruccion_sistema="Output strictly a valid JSON array only.",
+        as_json=True
+    )
+    cleaned = raw_resp.strip()
+    if cleaned.startswith("```"):
+        cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
+    return json.loads(cleaned.strip())
+
+
+def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
+    gm_client = init_gemini_client()
+    if not gm_client:
+        raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
+
+    prompt_eval = f"""
+    Listen carefully to the student's audio reading the target lesson below (CEFR {nivel_cefr}, Academic Level: {grado_acad}, Target Grammar: {gramatica_obj}).
+
+    Target text:
+    {texto_objetivo[:2500]}
+
+    Evaluate pronunciation, articulation, fluency, prosody, and grammatical accuracy.
+    Respond in Spanish for the feedback fields, keeping the detected transcription in English.
+    Return ONLY a valid JSON object with these exact keys:
+    {{
+      "score_percent": 88,
+      "cefr_performance": "B1 Solid / Proficient",
+      "transcription": "Exact English words spoken by the student",
+      "phonetic_feedback": "Análisis claro en español sobre pronunciación de vocales, consonantes y acentuación.",
+      "fluency_prosody": "Evaluación en español de ritmo, pausas y entonación natural.",
+      "grammar_accuracy": "Evaluación en español sobre la correcta pronunciación y uso de las estructuras objetivo.",
+      "actionable_tips": [
+        "Consejo práctico 1 con ejemplos de palabras del texto",
+        "Consejo práctico 2"
+      ]
+    }}
+    """
+
+    ultimo_error = ""
+    for modelo_oral in ["gemini-3.1-pro-preview", "gemini-2.5-flash"]:
+        try:
+            response = gm_client.models.generate_content(
+                model=modelo_oral,
+                contents=[
+                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                    prompt_eval
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2
+                )
+            )
+            raw_json = str(response.text or "").strip()
+            raw_json = raw_json.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            return json.loads(raw_json)
+        except Exception as e_mod:
+            ultimo_error = f"{modelo_oral}: {e_mod}"
+
+    raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
+
+# ==============================================================================
 # PARTE 7B2: MOTOR DE VIDEO EDUCATIVO Y EVALUADOR DE RESUMEN (120-125 PALABRAS) + APA 7
 # ==============================================================================
 def _parse_iso8601_duration(iso_dur: str) -> int:
