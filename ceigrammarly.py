@@ -2700,7 +2700,7 @@ def set_billing_global_settings_pg(activo: bool, usuario_op: str) -> tuple[bool,
     except Exception as e:
         return False, f"Error en base de datos: {e}"
 # ==============================================================================
-# PARTE 10A — MITAD 1 DE 2: ESQUEMA V2, VACACIONES Y MENSAJES WHATSAPP
+# PARTE 10A — MITAD 1: ESQUEMA V2, VACACIONES Y MENSAJES WHATSAPP
 # ==============================================================================
 @st.cache_resource(show_spinner=False)
 def ensure_financial_v2_schema() -> bool:
@@ -2729,18 +2729,13 @@ def ensure_financial_v2_schema() -> bool:
                 ADD COLUMN IF NOT EXISTS comprobante_mime TEXT DEFAULT '',
                 ADD COLUMN IF NOT EXISTS validado_por TEXT DEFAULT '',
                 ADD COLUMN IF NOT EXISTS fecha_validacion TIMESTAMPTZ,
-                ADD COLUMN IF NOT EXISTS notas_admin TEXT DEFAULT '';
-            """)
-            
-            cur.execute("""
-                ALTER TABLE tuition_payments
+                ADD COLUMN IF NOT EXISTS notas_admin TEXT DEFAULT '',
                 ADD COLUMN IF NOT EXISTS matricula_alumno TEXT DEFAULT '',
                 ADD COLUMN IF NOT EXISTS clave_rastreo_unica TEXT DEFAULT '',
                 ADD COLUMN IF NOT EXISTS ai_score INTEGER DEFAULT 0,
                 ADD COLUMN IF NOT EXISTS ai_audit_json TEXT DEFAULT '',
                 ADD COLUMN IF NOT EXISTS gracia_expira_en TIMESTAMPTZ;
             """)
-
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS institute_holidays (
                     id SERIAL PRIMARY KEY,
@@ -2761,16 +2756,17 @@ ensure_financial_v2_schema()
 
 @st.cache_data(ttl=120, show_spinner=False)
 def load_institute_holidays_pg() -> list[dict]:
-    """Obtiene los períodos vacacionales activos del instituto."""
+    """Obtiene los períodos vacacionales activos ordenados cronológicamente por fecha."""
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
                 SELECT id, nombre_periodo, fecha_inicio, fecha_fin, activo
                 FROM institute_holidays
                 WHERE activo = TRUE
-                ORDER BY fecha_inicio ASC;
+                ORDER BY fecha_inicio ASC, fecha_fin ASC, id ASC;
             """)
-            return [dict(r) for r in cur.fetchall()]
+            rows = [dict(r) for r in cur.fetchall()]
+            return sorted(rows, key=lambda x: (x["fecha_inicio"], x["fecha_fin"], x["id"]))
     except Exception:
         return []
 
@@ -2840,7 +2836,7 @@ def build_whatsapp_aviso_pago_owner(
     """Genera la nota informativa vía WhatsApp para el Owner o Administrador autorizado."""
     msg = (
         f"Hola, soy {nombre_alumno} (Usuario: {usuario_alumno} | Nivel {nivel_cefr}). "
-        f"Acabo de registrar en la plataforma mi comprobante de pago con Folio {folio_pago} "
+        f"Acabo de informar en la plataforma mi comprobante de pago con Folio {folio_pago} "
         f"correspondiente al Bloque {ciclo_num} de 9 por ${monto_pagado:,.2f} MXN "
         f"(Referencia: {referencia or 'Adjunta en comprobante'}). "
         f"Te invito amablemente a verificar el comprobante contra el registro en la cuenta bancaria "
@@ -2854,7 +2850,7 @@ def build_whatsapp_aviso_pago_owner(
     )
     return msg, wa_url
 # ==============================================================================
-# PARTE 10A — MITAD 2A: EVALUACIÓN FINANCIERA DE 9 BLOQUES (PARTE 1)
+# PARTE 10A — MITAD 2A: EVALUACIÓN FINANCIERA DE 9 BLOQUES Y MATRÍCULA (PARTE 1)
 # ==============================================================================
 def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     hoy = datetime.now(ZoneInfo("America/Hermosillo")).date()
@@ -2862,6 +2858,8 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     holidays = load_institute_holidays_pg()
 
     info = {
+        "matricula": "",
+        "student_id_num": 0,
         "fecha_inscripcion": hoy,
         "fecha_inicio": hoy,
         "telefono_whatsapp": "",
@@ -2899,7 +2897,7 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
-                SELECT id, COALESCE(matricula, 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
+                SELECT id, COALESCE(NULLIF(TRIM(matricula), ''), 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
                        rol, nivel_cefr, fecha_inscripcion, fecha_inicio_curso, telefono_whatsapp,
                        mensualidad_base, recargo_tardio, aplicar_iva, afiliado_usuario, porcentaje_comision
                 FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;
@@ -2908,11 +2906,14 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
             if not u:
                 return info
 
+            mat_alumno = str(u.get("matricula") or "").strip()
+            id_num_alumno = int(u.get("id") or 0)
+            info["matricula"] = mat_alumno
+            info["student_id_num"] = id_num_alumno
+
             if str(u.get("rol", "")).lower() not in ["estudiante", "student", "alumno"]:
                 return info
 
-            mat_alumno = str(u.get("matricula") or "").strip()
-            id_num_alumno = int(u.get("id") or 0)
             f_ins = u.get("fecha_inscripcion") or u.get("fecha_inicio_curso") or hoy
             f_ini = u.get("fecha_inicio_curso") or f_ins
             base = float(u.get("mensualidad_base") or 1500.0)
@@ -2951,7 +2952,6 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
 
             ciclos_vencidos = [c for c in range(1, ciclo_vigente) if c not in ciclos_pagados]
 
-
             if ciclos_vencidos:
                 ciclo_objetivo = next(iter(ciclos_vencidos))
                 es_moratorio = True
@@ -2985,7 +2985,7 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
                     nom_vac = str(h["nombre_periodo"])
                     break
 # ==============================================================================
-# PARTE 10A — MITAD 2B (FINAL): PROYECCIÓN DE 9 BLOQUES Y VIGENCIA DEL BOLETÍN
+# PARTE 10A — MITAD 2B: PROYECCIÓN DE 9 BLOQUES Y MATRÍCULA EN INFO.UPDATE
 # ==============================================================================
             base_bloque_nivel = ((ciclo_vigente - 1) // 9) * 9
             bloques_9_list = []
@@ -3003,9 +3003,9 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
                 ]
 
                 if c_abs in ciclos_pagados:
-                    b_status = "✅ Pagado (Boletín Activo)"
+                    b_status = "✅ Pagado / Verificado (Boletín Activo)"
                 elif c_abs in ciclos_revision:
-                    b_status = "⏳ Comprobante en Revisión Bancaria"
+                    b_status = "⏳ En Revisión Bancaria"
                 elif c_abs < ciclo_vigente:
                     b_status = "🔴 Vencido — Recargo Activo (Sem. 5+)"
                 elif c_abs == ciclo_vigente and semana_en_ciclo == 4:
@@ -3047,6 +3047,8 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
             boletin_activo = not es_moratorio
 
             info.update({
+                "matricula": mat_alumno,
+                "student_id_num": id_num_alumno,
                 "fecha_inscripcion": f_ins,
                 "fecha_inicio": f_ini,
                 "telefono_whatsapp": tel_wa,
@@ -3091,6 +3093,7 @@ def evaluar_estado_financiero_alumno(student_user: str) -> dict:
     except Exception:
         pass
     return info
+
 
 # ==============================================================================
 # PARTE 10B1: BALANCE FINANCIERO GLOBAL OPTIMIZADO (SIN CONSULTAS N+1)
