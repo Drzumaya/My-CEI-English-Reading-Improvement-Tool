@@ -6288,7 +6288,7 @@ with col_lesson_left:
                                 for idx_q, q_item in enumerate(st.session_state.quiz_data, start=1):
                                     lineas_audio.append(f"Question {idx_q}: {q_item['question']}")
                                     for opt_txt in q_item["options"]:
-                                        lineas_audio.append(opt_txt)
+                                        lineas_audio.append(opt_txt) 
                                     if st.session_state.quiz_graded:
                                         lineas_audio.append(f"Correct answer: {q_item['answer']}.")
 
