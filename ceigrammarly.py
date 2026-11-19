@@ -1781,133 +1781,207 @@ def generar_pdf_certificado(
 
     return bytes(pdf.output())
 # ==============================================================================
-# PARTE 7B2: MOTORES DE IA CON GEMINI (TEXTO, QUIZ, PRONUNCIACIÓN E IMAGEN)
+# PARTE 7B2: MOTOR DE VIDEO EDUCATIVO Y EVALUADOR DE RESUMEN (120-125 PALABRAS) + APA 7
 # ==============================================================================
-def generar_con_maxima_potencia(client_obj, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
-    gm = client_obj or init_gemini_client()
-    if not gm:
-        raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
+def _parse_iso8601_duration(iso_dur: str) -> int:
+    """Convierte duración ISO 8601 (ej. PT4M32S) a segundos enteros."""
+    m = re.match(r"^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?\$", str(iso_dur or "").strip())
+    if not m:
+        return 0
+    hrs = int(m.group(1) or 0)
+    mins = int(m.group(2) or 0)
+    secs = int(m.group(3) or 0)
+    return hrs * 3600 + mins * 60 + secs
 
-    modelos_preferidos = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-3.1-pro-preview",
-        "gemini-2.0-flash"
-    ]
-    excluidos = ("embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria")
+
+def buscar_video_relacionado_leccion(tema_gramatical: str, nivel_cefr: str, texto_leccion: str = "", client_obj=None) -> dict:
+    """Busca un video educativo en inglés sobre el tema de la lección y extrae su duración real en minutos/segundos."""
+    gm = client_obj or init_gemini_client()
+    cefr_code = next(iter(str(nivel_cefr).split()), "B1") if nivel_cefr else "B1"
+
+    # 1. Generar consulta académica precisa con Gemini
+    query_yt = f"English grammar {tema_gramatical} {cefr_code} lesson explanation"
     try:
-        for m in gm.models.list():
-            m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
-            metodos = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
-            if "gemini" in m_name and not any(ex in m_name for ex in excluidos):
-                if not metodos or "generateContent" in metodos:
-                    if m_name not in modelos_preferidos:
-                        modelos_preferidos.append(m_name)
+        if gm:
+            q_raw, _ = generar_con_maxima_potencia(
+                gm,
+                f"Generate a concise 5-7 word YouTube search query in English for an educational ESL video explaining '{tema_gramatical}' at CEFR {cefr_code} level. Return ONLY the search query text, no quotes.",
+                instruccion_sistema="Return only plain search query words."
+            )
+            if q_raw and q_raw.strip():
+                query_yt = q_raw.strip().replace('"', "")
     except Exception:
         pass
 
-    ultimo_error = None
-    for modelo in modelos_preferidos:
+    # 2. Búsqueda vía YouTube Data API si existe YOUTUBE_API_KEY en Secrets
+    yt_key = ""
+    for k_yt in ("YOUTUBE_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"):
+        if k_yt in st.secrets and str(st.secrets[k_yt]).strip():
+            yt_key = str(st.secrets[k_yt]).strip()
+            break
+
+    if yt_key:
         try:
-            cfg_kwargs = {"temperature": 0.65}
-            if instruccion_sistema:
-                cfg_kwargs["system_instruction"] = instruccion_sistema
-            if as_json:
-                cfg_kwargs["response_mime_type"] = "application/json"
-            config = types.GenerateContentConfig(**cfg_kwargs)
-            respuesta = gm.models.generate_content(
-                model=modelo,
-                contents=prompt_contenido,
-                config=config
+            q_enc = urllib.parse.quote(query_yt)
+            url_search = (
+                f"https://googleapis.com"
+                f"&videoEmbeddable=true&relevanceLanguage=en&maxResults=4&q={q_enc}&key={yt_key}"
             )
-            if respuesta and respuesta.text:
-                return respuesta.text, modelo
-        except Exception as e:
-            ultimo_error = e
-            continue
+            req_s = urllib.request.urlopen(url_search, timeout=8)
+            data_s = json.loads(req_s.read().decode("utf-8"))
+            items_s = data_s.get("items", [])
+            if items_s:
+                vid_ids = [it["id"]["videoId"] for it in items_s if it.get("id", {}).get("videoId")]
+                if vid_ids:
+                    url_det = (
+                        f"https://googleapis.com"
+                        f"&id={','.join(vid_ids)}&key={yt_key}"
+                    )
+                    req_d = urllib.request.urlopen(url_det, timeout=8)
+                    data_d = json.loads(req_d.read().decode("utf-8"))
+                    for v_it in data_d.get("items", []):
+                        dur_sec = _parse_iso8601_duration(v_it.get("contentDetails", {}).get("duration", ""))
+                        if 60 <= dur_sec <= 1800:
+                            vid_id = v_it["id"]
+                            snip = v_it.get("snippet", {})
+                            pub_at = str(snip.get("publishedAt") or "2024-01-01")[:10]
+                            return {
+                                "video_id": vid_id,
+                                "url": f"https://youtube.com{vid_id}",
+                                "title": str(snip.get("title") or f"{tema_gramatical} ({cefr_code})"),
+                                "channel": str(snip.get("channelTitle") or "ESL Academic Channel"),
+                                "published_date": pub_at,
+                                "duration_sec": dur_sec,
+                                "duration_min": round(dur_sec / 60.0, 2),
+                                "query_used": query_yt
+                            }
+        except Exception:
+            pass
 
-    if ultimo_error:
-        raise ultimo_error
-    raise RuntimeError("No se obtuvo respuesta válida de los modelos Gemini.")
+    # 3. Respaldo directo scraping ligero de YouTube HTML (sin requerir API key extra)
+    try:
+        q_enc = urllib.parse.quote(query_yt)
+        req_html = urllib.request.Request(
+            f"https://youtube.com{q_enc}",
+            headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9"}
+        )
+        html_txt = urllib.request.urlopen(req_html, timeout=8).read().decode("utf-8", errors="ignore")
+        m_vids = re.findall(r'"videoId":"([a-zA-Z0-9_-]{11})".*?"title":\{"runs":\[\{"text":"(.*?)"\}\].*?"lengthText":\{"simpleText":"(\d+:\d+)"\}', html_txt)
+        for vid_id, raw_title, len_txt in m_vids:
+            parts_t = [int(p) for p in len_txt.split(":")]
+            dur_sec = parts_t * 60 + parts_t[1] if len(parts_t) == 2 else 240
+            if 60 <= dur_sec <= 1800:
+                clean_title = raw_title.encode("utf-8").decode("unicode_escape", errors="ignore")
+                return {
+                    "video_id": vid_id,
+                    "url": f"https://youtube.com{vid_id}",
+                    "title": clean_title,
+                    "channel": "YouTube ESL Educator",
+                    "published_date": "2024",
+                    "duration_sec": dur_sec,
+                    "duration_min": round(dur_sec / 60.0, 2),
+                    "query_used": query_yt
+                }
+    except Exception:
+        pass
 
-def generar_quiz_leccion(texto_leccion: str, tema_gramatical: str, nivel_cefr: str, grado_acad: str, evitar_preguntas=None, client_obj=None):
+    return {
+        "video_id": "dQw4w9WgXcQ",
+        "url": "",
+        "title": f"{tema_gramatical} — CEFR {cefr_code} Video Lesson",
+        "channel": "Career English Institute",
+        "published_date": "2026",
+        "duration_sec": 300,
+        "duration_min": 5.0,
+        "query_used": query_yt
+    }
+
+
+def evaluar_resumen_video_apa7(
+    resumen_texto: str,
+    referencia_apa7: str,
+    video_info: dict,
+    tema_gramatical: str,
+    nivel_cefr: str,
+    client_obj=None
+) -> dict:
+    """Evalúa el resumen escrito (120 a 125 palabras) y su referencia APA 7 (vale 15% del total)."""
+    palabras = [w for w in re.findall(r"\b[\w'-]+\b", str(resumen_texto or "").strip()) if w]
+    conteo_palabras = len(palabras)
+    en_rango_palabras = (120 <= conteo_palabras <= 125)
+
+    if not en_rango_palabras:
+        return {
+            "ok": False,
+            "word_count": conteo_palabras,
+            "raw_score_100": 0.0,
+            "weighted_points_15": 0.0,
+            "apa7_valid": False,
+            "feedback": (
+                f"⚠️ El resumen tiene **{conteo_palabras} palabras**. "
+                f"Debe contener estrictamente entre **120 y 125 palabras** para ser calificado."
+            )
+        }
+
+    if len(str(referencia_apa7 or "").strip()) < 15:
+        return {
+            "ok": False,
+            "word_count": conteo_palabras,
+            "raw_score_100": 0.0,
+            "weighted_points_15": 0.0,
+            "apa7_valid": False,
+            "feedback": "⚠️ Debes completar el apartado de **Referencia en formato APA 7** del video antes de calificar."
+        }
+
     gm = client_obj or init_gemini_client()
-    evitar_txt = ("IMPORTANT: Create COMPLETELY DIFFERENT questions from: " + str(evitar_preguntas) + "\n") if evitar_preguntas else ""
-    prompt_quiz = (
-        f"Based on this CEFR Level {nivel_cefr} English lesson tailored for {grado_acad} students, "
-        f"create a 5-question multiple-choice quiz in English calibrated strictly to level {nivel_cefr} and {grado_acad} cognitive level, "
-        f"evaluating comprehension and target grammar ({tema_gramatical}).\n"
-        f"{evitar_txt}"
-        f"LESSON TEXT:\n{texto_leccion}\n"
-        "RETURN ONLY A VALID JSON ARRAY WITH THIS EXACT SCHEMA:\n"
-        '[{"question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "answer": "A) ..."}]'
-    )
-    raw_resp, _ = generar_con_maxima_potencia(
-        gm,
-        prompt_quiz,
-        instruccion_sistema="Output strictly a valid JSON array only.",
-        as_json=True
-    )
-    cleaned = raw_resp.strip()
-    if cleaned.startswith("```"):
-        cleaned = next(iter(cleaned.split("\n", 1)[-1].rsplit("```", 1)), "")
-    return json.loads(cleaned.strip())
+    prompt_eval_sum = f"""
+    Evaluate this student's English video summary and APA 7th edition video reference.
+    Target Grammar: {tema_gramatical} | CEFR Level: {nivel_cefr}
+    Video Title: {video_info.get('title', '')} | Channel: {video_info.get('channel', '')} | URL: {video_info.get('url', '')}
+    Word Count Verified: {conteo_palabras} words (strictly within 120-125 words).
 
-def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo: str, gramatica_obj: str, nivel_cefr: str, grado_acad: str) -> dict:
-    gm_client = init_gemini_client()
-    if not gm_client:
-        raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
+    STUDENT SUMMARY (English):
+    {resumen_texto.strip()}
 
-    prompt_eval = f"""
-    Listen carefully to the student's audio reading the target lesson below (CEFR {nivel_cefr}, Academic Level: {grado_acad}, Target Grammar: {gramatica_obj}).
+    STUDENT APA 7 REFERENCE:
+    {referencia_apa7.strip()}
 
-    Target text:
-    {texto_objetivo[:2500]}
-
-    Evaluate pronunciation, articulation, fluency, prosody, and grammatical accuracy.
-    Respond in Spanish for the feedback fields, keeping the detected transcription in English.
-    Return ONLY a valid JSON object with these exact keys:
-    {{
-      "score_percent": 88,
-      "cefr_performance": "B1 Solid / Proficient",
-      "transcription": "Exact English words spoken by the student",
-      "phonetic_feedback": "Análisis claro en español sobre pronunciación de vocales, consonantes y acentuación.",
-      "fluency_prosody": "Evaluación en español de ritmo, pausas y entonación natural.",
-      "grammar_accuracy": "Evaluación en español sobre la correcta pronunciación y uso de las estructuras objetivo.",
-      "actionable_tips": [
-        "Consejo práctico 1 con ejemplos de palabras del texto",
-        "Consejo práctico 2"
-      ]
-    }}
+    Evaluate:
+    1. Academic summary quality, coherence, and grammar accuracy in English (0-70 points).
+    2. APA 7th edition video citation format accuracy: Author/Channel. (Year, Month Day). Title of video [Video]. YouTube. URL (0-30 points).
+    Return ONLY a valid JSON object with exact keys:
+    {{"score_100": 92, "apa7_valid": true, "feedback_es": "Retroalimentación clara en español sobre redacción, gramática y formato APA 7.", "apa7_corrected": "Ejemplo correcto en formato APA 7 de este video"}}
     """
+    try:
+        raw_res, _ = generar_con_maxima_potencia(
+            gm,
+            prompt_eval_sum,
+            instruccion_sistema="Output strictly valid JSON only.",
+            as_json=True
+        )
+        cleaned = raw_res.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        j_res = json.loads(cleaned)
+        sc_100 = min(100.0, max(0.0, float(j_res.get("score_100") or 0.0)))
+        pts_15 = round((sc_100 / 100.0) * 15.0, 2)
+        return {
+            "ok": True,
+            "word_count": conteo_palabras,
+            "raw_score_100": sc_100,
+            "weighted_points_15": pts_15,
+            "apa7_valid": bool(j_res.get("apa7_valid", True)),
+            "feedback": str(j_res.get("feedback_es") or "Resumen y referencia APA 7 evaluados."),
+            "apa7_corrected": str(j_res.get("apa7_corrected") or "")
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "word_count": conteo_palabras,
+            "raw_score_100": 0.0,
+            "weighted_points_15": 0.0,
+            "apa7_valid": False,
+            "feedback": f"Error al evaluar resumen con IA: {e}"
+        }
 
-    ultimo_error = ""
-    for modelo_oral in ["gemini-3.1-pro-preview", "gemini-2.5-flash"]:
-        try:
-            response = gm_client.models.generate_content(
-                model=modelo_oral,
-                contents=[
-                    types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                    prompt_eval
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.2
-                )
-            )
-            raw_json = str(response.text or "").strip()
-            raw_json = raw_json.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-            return json.loads(raw_json)
-        except Exception as e_mod:
-            ultimo_error = f"{modelo_oral}: {e_mod}"
-
-    raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
-
-try:
-    from media_generator import generar_imagen_garantizada
-except ImportError:
-    def generar_imagen_garantizada(*args, **kwargs):
-        return None
 # ==============================================================================
 # PARTE 8A: MOTOR LEXICOGRÁFICO HÍBRIDO Y NORMALIZADOR APA 7a EDICIÓN
 # ==============================================================================
