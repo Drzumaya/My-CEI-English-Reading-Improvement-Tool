@@ -6967,7 +6967,6 @@ if has_lesson_p18 and stage_5_p18 == "READING":
                         st.markdown(f"- {t}")
 
     # BOTONES DE AUDIO DEL QUIZ (DEBAJO DEL QUIZ Y ARRIBA DEL PDF OFICIAL)
-            if st.session_state.get("generated_text") and st.session_state.quiz_data is not None and st.session_state.get("active_stage_5", "READING") == "READING":
     if st.session_state.quiz_data:
         st.divider()
         st.markdown("#### 🎧 Audio de Comprensión del Quiz (Inglés)")
@@ -7062,3 +7061,4 @@ footer_html = (
     "</div>"
 )
 st.markdown(footer_html, unsafe_allow_html=True)
+
