@@ -4827,7 +4827,7 @@ else:
 
 
 # ==============================================================================
-# PARTE 13A1 — BLOQUE 1 DE 3: BARRA DE FOLIOS, BOLETÍN Y MIS PAGOS (FOCUS MODE)
+# PARTE 13A1 — BLOQUE 1 DE 3: BARRA DE FOLIOS EXCLUSIVA EN BOTÓN 1 (FOCUS MODE)
 # ==============================================================================
 if st.session_state.get("active_stage_5") == "PORTAL":
     if es_admin_o_staff or es_socio_afiliado:
@@ -4858,14 +4858,11 @@ folio_input = ""
 buscar_folio_btn = False
 
 if not st.session_state.get("active_admin_workspace") and st.session_state.get("active_stage_5", "READING") == "READING":
-    if "show_gradebook_panel" not in st.session_state:
-        st.session_state.show_gradebook_panel = False
-    if "show_student_payments_panel" not in st.session_state:
-        st.session_state.show_student_payments_panel = False
-
+    st.session_state.show_gradebook_panel = False
+    st.session_state.show_student_payments_panel = False
 
     with st.container(border=True):
-        col_f1, col_f2, col_f3, col_f_pay, col_f4 = st.columns([1.9, 1.0, 1.25, 1.25, 1.6])
+        col_f1, col_f2, col_f4 = st.columns([2.4, 1.0, 2.0])
         with col_f1:
             folio_input = st.text_input(
                 "🔍 Buscador de Folio Académico:",
@@ -4875,61 +4872,12 @@ if not st.session_state.get("active_admin_workspace") and st.session_state.get("
             )
         with col_f2:
             buscar_folio_btn = st.button("🔍 Buscar", width="stretch")
-        with col_f3:
-            if st.button("📊 Calificaciones", type="primary", width="stretch", key="btn_toggle_gradebook"):
-                st.session_state.show_gradebook_panel = not st.session_state.show_gradebook_panel
-                if st.session_state.show_gradebook_panel:
-                    st.session_state.show_student_payments_panel = False
-        with col_f_pay:
-            if st.button("💳 Mis Pagos", type="secondary", width="stretch", key="btn_toggle_student_pay"):
-                st.session_state.show_student_payments_panel = not st.session_state.show_student_payments_panel
-                if st.session_state.show_student_payments_panel:
-                    st.session_state.show_gradebook_panel = False
         with col_f4:
             if st.session_state.current_folio and st.session_state.generated_text:
                 st.info(f"📄 `{st.session_state.current_folio}` | `{st.session_state.current_creation_date}`")
             else:
-                st.caption("Consulta tu Boletín o Calendario de Pagos en 1 clic.")
+                st.caption("🔍 Ingresa un Folio académico para cargar su lección.")
 
-    if st.session_state.show_student_payments_panel:
-        with st.container(border=True):
-            st.subheader("💳 Calendario de Pagos Mensuales (9 Bloques de 4 Semanas) y Comprobantes")
-
-            es_est_actual_sp = (curr_r_clean in ["estudiante", "student", "alumno"]) and (not is_owner)
-            if (is_owner or can("Gestionar_Pagos_Cobranza") or can("Ver_Panel_Admin")) and (not es_est_actual_sp):
-
-                padron_sp = load_padron_records()
-                opciones_sp = {
-                    f"{r.get('Matricula', '')} — {r.get('Usuario', '')} (CEFR {r.get('Nivel', '')})": str(r.get("Usuario", "")).strip()
-                    for r in padron_sp if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"] and str(r.get("Usuario", "")).strip()
-                }
-                if opciones_sp:
-                    sel_sp_lbl = st.selectbox("🔎 Seleccionar Estudiante (Vista Propietario / Admin):", list(opciones_sp.keys()), key="sel_sp_student_view")
-                    alumno_pay_obj = opciones_sp[sel_sp_lbl]
-                else:
-                    alumno_pay_obj = st.session_state.current_user
-            else:
-                alumno_pay_obj = st.session_state.current_user
-
-            est_sp = evaluar_estado_financiero_alumno(alumno_pay_obj)
-            mat_oficial_sp = str(est_sp.get("matricula") or "").strip()
-
-            st.info(
-                f"🆔 **Matrícula Oficial:** `{mat_oficial_sp}` *(inclúyela en el concepto de tu transferencia para desbloqueo automático)*\n\n"
-                "🎓 **Beneficios de tu Membresía Activa:** Tu pago puntual mantiene habilitada las **24 horas del día** "
-                "(incluso durante los recesos vacacionales de clases) la plataforma inteligente para generar lecciones y avanzar en tu aprendizaje, "
-                "además de permitirte **descargar tu Boletín Oficial de Calificaciones** en cualquier momento para mantenerte informado de tu avance."
-            )
-
-            sp1, sp2, sp3, sp4 = st.columns(4)
-            sp1.metric("📝 Inscripción / Inicio", f"{est_sp['fecha_inicio']}", delta=f"Inscrito: {est_sp['fecha_inscripcion']}")
-            sp2.metric("📅 Bloque Nivel", f"Bloque {est_sp['bloque_en_nivel']}/9", delta=f"Semana {est_sp['semana_ciclo']}/4")
-            sp3.metric("🟡 4ta Sem. Pago", f"{est_sp['sem4_pago_inicio']}", delta=f"Hasta {est_sp['sem4_pago_fin']}")
-            sp4.metric(
-                "📄 Boletín Calificaciones",
-                "✅ Activo" if est_sp["descarga_permitida"] else "🔒 Pausado (Sem. 5+)",
-                delta=f"Recargo desde {est_sp['fecha_recargo']}"
-            )
 # ==============================================================================
 # PARTE 13A1 — BLOQUE 2 DE 3: INFORMAR PAGO, VISIÓN IA Y WHATSAPP (ESTUDIANTE)
 # ==============================================================================
