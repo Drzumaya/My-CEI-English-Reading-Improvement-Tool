@@ -4642,13 +4642,15 @@ with col_logo:
         )
 
 with col_title:
-    cefr_badge = next(iter(str(cefr_level).split()), "B1") if cefr_level else "B1"
+    cefr_raw = st.session_state.get("selected_cefr") or "B1"
+    cefr_badge = next(iter(str(cefr_raw).split()), "B1")
     st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE — GLOBAL PEDAGOGICAL SUITE")
     st.title("🎓 CEI ENGLISH LEARNING PLATFORM")
     st.caption(
         f"**CEFR Level {cefr_badge} Integrated Competency Framework**  |  "
         "Author: Jacob Zumaya Prianti  |  APA 7th Ed. Academic Standard"
     )
+)
 
 with col_qr:
     if is_owner and (not is_mobile):
