@@ -18,8 +18,8 @@ import time
 import subprocess
 import sys
 import urllib.parse
+import urllib.request
 from zoneinfo import ZoneInfo
-
 from deep_translator import GoogleTranslator
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -50,7 +50,7 @@ except ImportError:
 
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
-    page_title="CEFR Academic Grammar & Discourse System - Career English Institute",
+    page_title="CEI ENGLISH LEARNING PLATFORM — Career English Institute",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
