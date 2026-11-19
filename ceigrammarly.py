@@ -4521,6 +4521,7 @@ cefr_options = list(CEFR_MAP.values())
 
 # --- VALORES SEGUROS POR DEFECTO CUANDO LA BARRA IZQUIERDA ESTÁ OCULTA AL ENTRAR ---
 generar_btn = False
+usuario = str(st.session_state.get("current_user") or "Usuario").strip()
 cefr_level = st.session_state.get("selected_cefr") or "B1 (Intermediate)"
 gramatica_b1 = st.session_state.get("selected_grammar") or "General English Grammar"
 
@@ -4856,7 +4857,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
 folio_input = ""
 buscar_folio_btn = False
 
-if not st.session_state.get("active_admin_workspace"):
+if not st.session_state.get("active_admin_workspace") and st.session_state.get("active_stage_5", "READING") == "READING":
     if "show_gradebook_panel" not in st.session_state:
         st.session_state.show_gradebook_panel = False
     if "show_student_payments_panel" not in st.session_state:
