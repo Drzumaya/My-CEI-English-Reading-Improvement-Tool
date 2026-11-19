@@ -4519,6 +4519,11 @@ is_faculty_desktop = is_owner or (can("Ver_Panel_Admin") and (not is_mobile))
 has_faculty_access = is_owner or can("Reuso_Ilimitado_Folios") or (curr_r_clean in ["teacher", "docente"])
 cefr_options = list(CEFR_MAP.values())
 
+# --- VALORES SEGUROS POR DEFECTO CUANDO LA BARRA IZQUIERDA ESTÁ OCULTA AL ENTRAR ---
+generar_btn = False
+cefr_level = st.session_state.get("selected_cefr") or "B1 (Intermediate)"
+gramatica_b1 = st.session_state.get("selected_grammar") or "General English Grammar"
+
 # --- BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS) ---
 if st.session_state.get("show_lesson_creator") or bool(str(st.session_state.get("generated_text") or "").strip()):
     with st.sidebar:
