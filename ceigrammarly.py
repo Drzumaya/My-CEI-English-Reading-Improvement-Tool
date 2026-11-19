@@ -7009,73 +7009,7 @@ with col_lesson_left:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17 — BLOQUE 1A-1: VENTANA FLOTANTE DESLIZABLE Y REDIMENSIONABLE (25%)
-# ==============================================================================
-def _render_floating_pip_video(v_info: dict):
-    v_url = str(v_info.get("url") or "").strip()
-    m_id = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", v_url)
-    if not m_id:
-        return
-    vid_id = m_id.group(1)
-    titulo_v = (
-        str(v_info.get("title") or "Educational Video")
-        .replace("[", "(")
-        .replace("]", ")")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-        .replace("`", "'")[:65]
-    )
-    embed_src = f"https://youtube.com{vid_id}?playsinline=1&rel=0"
-
-    pip_js = "".join([
-        '<script>',
-        '(function(){',
-        'const doc = window.parent.document;',
-        'let box = doc.getElementById("ceiPipBox");',
-        'if(!box){',
-        '  box = doc.createElement("div");',
-        '  box.id = "ceiPipBox";',
-        '  box.style.cssText = "position:fixed;bottom:22px;left:22px;width:440px;height:285px;min-width:280px;min-height:190px;max-width:94vw;max-height:85vh;resize:both;background:#0f172a;color:#f8fafc;border:2px solid #2563eb;border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,0.55);z-index:999999;display:flex;flex-direction:column;overflow:hidden;font-family:sans-serif;";',
-        '  doc.body.appendChild(box);',
-        '}',
-        'box.style.display = "flex";',
-        f'box.innerHTML = `<div id="ceiPipHeader" title="Arrastra para mover por toda la pantalla" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#1e3a8a;font-size:12px;font-weight:bold;gap:6px;cursor:move;user-select:none;flex-shrink:0;">',
-        f'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;">✥ {titulo_v}</span>',
-        '<div style="display:flex;gap:4px;flex-shrink:0;">',
-        '<button id="btnPipSm" style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Pequeño</button>',
-        '<button id="btnPipMd" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Mediano</button>',
-        '<button id="btnPipMin" style="background:#475569;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">—</button>',
-        '<button id="btnPipClose" style="background:#dc2626;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">✕</button>',
-        '</div></div>',
-        '<div id="ceiPipBody" style="flex:1;width:100%;height:100%;background:#000;position:relative;">',
-        f'<iframe width="100%" height="100%" src="{embed_src}" frameborder="0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="display:block;"></iframe>',
-        '</div>',
-        '<div style="font-size:10px;color:#94a3b8;background:#0f172a;padding:2px 8px;text-align:right;flex-shrink:0;">Arrastra barra superior ✥ o esquina inferior ◢</div>`;',
-        'const headerEl = doc.getElementById("ceiPipHeader");',
-        'const bodyEl = doc.getElementById("ceiPipBody");',
-        'let isDragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;',
-        'headerEl.onmousedown = function(e){',
-        '  if(e.target.tagName === "BUTTON") return;',
-        '  isDragging = true;',
-        '  const rect = box.getBoundingClientRect();',
-        '  box.style.bottom = "auto"; box.style.right = "auto";',
-        '  box.style.left = rect.left + "px"; box.style.top = rect.top + "px";',
-        '  startX = e.clientX; startY = e.clientY; origLeft = rect.left; origTop = rect.top;',
-        '  doc.onmousemove = function(ev){ if(!isDragging) return; box.style.left = (origLeft + ev.clientX - startX) + "px"; box.style.top = (origTop + ev.clientY - startY) + "px"; };',
-        '  doc.onmouseup = function(){ isDragging = false; doc.onmousemove = null; doc.onmouseup = null; };',
-        '};',
-        'doc.getElementById("btnPipSm").onclick = ()=>{ bodyEl.style.display="block"; box.style.width="320px"; box.style.height="215px"; };',
-        'doc.getElementById("btnPipMd").onclick = ()=>{ bodyEl.style.display="block"; box.style.width="480px"; box.style.height="310px"; };',
-        'doc.getElementById("btnPipMin").onclick = ()=>{ const h = bodyEl.style.display==="none"; bodyEl.style.display = h ? "block" : "none"; box.style.height = h ? "285px" : "38px"; doc.getElementById("btnPipMin").innerText = h ? "—" : "▢"; };',
-        'doc.getElementById("btnPipClose").onclick = ()=>{ box.remove(); };',
-        '})();',
-        '</script>'
-    ])
-    components.html(pip_js, height=0, width=0)
-# ==============================================================================
-# PARTE 17 — BLOQUE 1A-2: CONTROL DE VIDEO ACTIVO Y MEDIDOR DE MINUTOS (25%)
+# PARTE 17 — BLOQUE 1A: REPRODUCTOR NATIVO CON TAMAÑO PEQUEÑO / MEDIANO (25%)
 # ==============================================================================
 if col_tools_right is not None:
     with col_tools_right:
@@ -7084,8 +7018,8 @@ if col_tools_right is not None:
         if st.session_state.get("generated_text"):
             if "video_catalog_limit" not in st.session_state:
                 st.session_state["video_catalog_limit"] = 12
-            if "pip_video_visible" not in st.session_state:
-                st.session_state["pip_video_visible"] = True
+            if "video_player_size" not in st.session_state:
+                st.session_state["video_player_size"] = "Mediano"
 
             topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
             titulo_catalogo = (
@@ -7127,6 +7061,7 @@ if col_tools_right is not None:
                     vid_data["alternatives"] = alts_list
                     st.session_state["current_lesson_video"] = vid_data
 
+            # REPRODUCTOR ACTIVO EN PANTALLA CON TAMAÑO PEQUEÑO / MEDIANO Y MEDIDOR (25%)
             if vid_data and vid_data.get("url"):
                 dur_total_sec = max(60, int(vid_data.get("duration_sec") or 300))
                 dur_total_min = round(dur_total_sec / 60.0, 2)
@@ -7142,21 +7077,39 @@ if col_tools_right is not None:
                         f"Acreditado (25%): **`{pts_video_25} / 25.0 pts`** (`{round(v_score_now, 1)}%`)"
                     )
 
-                    c_pip1, c_pip2, c_pip3 = st.columns(3)
-                    with c_pip1:
-                        lbl_pip = "🙈 Ocultar Flotante" if st.session_state["pip_video_visible"] else "🪟 Mostrar Flotante"
-                        if st.button(lbl_pip, key="btn_toggle_pip_box", width="stretch"):
-                            st.session_state["pip_video_visible"] = not st.session_state["pip_video_visible"]
-                            if st.session_state["pip_video_visible"] and not st.session_state.get("video_watch_started_ts"):
-                                st.session_state["video_watch_started_ts"] = time.time()
+                    # Selector de tamaño Pequeño / Mediano / Ocultar
+                    sz1, sz2, sz3 = st.columns(3)
+                    with sz1:
+                        if st.button("🔹 Pequeño", key="btn_sz_small", width="stretch"):
+                            st.session_state["video_player_size"] = "Pequeño"
                             st.rerun()
-                    with c_pip2:
+                    with sz2:
+                        if st.button("🔸 Mediano", key="btn_sz_med", width="stretch"):
+                            st.session_state["video_player_size"] = "Mediano"
+                            st.rerun()
+                    with sz3:
+                        if st.button("🙈 Ocultar Video", key="btn_sz_hide", width="stretch"):
+                            st.session_state["video_player_size"] = "Oculto"
+                            st.rerun()
+
+                    modo_tam = st.session_state.get("video_player_size", "Mediano")
+                    if modo_tam == "Pequeño":
+                        c_vid_sm, _ = st.columns([1.15, 1.0])
+                        with c_vid_sm:
+                            st.video(vid_data["url"])
+                    elif modo_tam == "Mediano":
+                        st.video(vid_data["url"])
+                    else:
+                        st.info("🙈 Video oculto. Pulsa **🔹 Pequeño** o **🔸 Mediano** para volver a verlo.")
+
+                    # Botones del medidor de minutos (25%)
+                    c_tm1, c_tm2 = st.columns(2)
+                    with c_tm1:
                         if st.button("▶️ Iniciar Tiempo", key="btn_start_vid_timer", width="stretch"):
                             st.session_state["video_watch_started_ts"] = time.time()
-                            st.session_state["pip_video_visible"] = True
-                            st.toast("⏱️ Cronómetro iniciado. Mira el video flotante mientras escribes tu resumen.")
-                    with c_pip3:
-                        if st.button("✅ Acreditar Minutos", type="primary", key="btn_stop_vid_timer", width="stretch"):
+                            st.toast("⏱️ Cronómetro iniciado. Mira el video mientras escribes tu resumen.")
+                    with c_tm2:
+                        if st.button("✅ Acreditar Minutos (25%)", type="primary", key="btn_stop_vid_timer", width="stretch"):
                             t_ini_v = st.session_state.get("video_watch_started_ts")
                             if t_ini_v:
                                 transcurrido = int(time.time() - float(t_ini_v))
@@ -7177,11 +7130,6 @@ if col_tools_right is not None:
                             st.success(f"✅ Acreditados {round(nuevo_watched / 60.0, 2)} min ({round((nuevo_v_score/100.0)*25.0, 2)} / 25 pts).")
                             st.rerun()
 
-                if st.session_state["pip_video_visible"]:
-                    _render_floating_pip_video(vid_data)
-                else:
-                    components.html('<script>const b=window.parent.document.getElementById("ceiPipBox");if(b)b.remove();</script>', height=0, width=0)
-# ==============================================================================
 # PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) SIN SALIDA EXTERNA
 # ==============================================================================
             st.markdown(f"**📚 Catálogo de Videos: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
