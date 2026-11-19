@@ -6888,32 +6888,35 @@ if col_lesson_left is not None:
             hdr_s1, hdr_s2 = st.columns([2.4, 1.3])
             with hdr_s1:
                 st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
-        with hdr_s2:
-            if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_spk"):
-                st.session_state["active_skill_stage"] = "READING"
-                st.rerun()
+            with hdr_s2:
+                if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_spk"):
+                    st.session_state["active_stage_5"] = "READING"
+                    st.session_state["active_skill_stage"] = "READING"
+                    st.rerun()
 
-        with st.container(border=True):
-            st.markdown("#### 🎧 Audio Modelo de Pronunciación (Inglés)")
-            if st.session_state.audio_bytes:
-                st.audio(st.session_state.audio_bytes, format="audio/mp3")
-            else:
-                st.caption("Audio modelo disponible al generar o cargar una lección.")
-            st.info("💡 Escucha la pronunciación modelo y luego graba tu voz en el panel derecho (**🎙️ 3. ALPHABETICAL & SPEAKING SKILLS**) para recibir tu evaluación fonética y gramatical con IA.")
-            if st.session_state.get("speaking_eval_result"):
-                ev_c = st.session_state["speaking_eval_result"]
-                st.success(f"🏆 **Última Evaluación Oral:** {ev_c.get('score_percent', 0)}% ({ev_c.get('cefr_performance', '')})")
-                st.write(f"**🔤 Fonética:** {ev_c.get('phonetic_feedback', '')}")
-                st.write(f"**🎵 Fluidez:** {ev_c.get('fluency_prosody', '')}")
-                st.write(f"**📐 Gramática Oral:** {ev_c.get('grammar_accuracy', '')}")
+            with st.container(border=True):
+                st.markdown("#### 🎧 Audio Modelo de Pronunciación (Inglés)")
+                if st.session_state.audio_bytes:
+                    st.audio(st.session_state.audio_bytes, format="audio/mp3")
+                else:
+                    st.caption("Audio modelo disponible al generar o cargar una lección.")
+                st.info("💡 Escucha la pronunciación modelo y luego graba tu voz en el panel derecho (**🎙️ 3. ALPHABETICAL & SPEAKING SKILLS**) para obtener tu calificación fonética y gramatical con IA.")
+                if st.session_state.get("speaking_eval_result"):
+                    ev_c = st.session_state["speaking_eval_result"]
+                    st.success(f"🏆 **Última Evaluación Oral:** {ev_c.get('score_percent', 0)}% ({ev_c.get('cefr_performance', '')})")
+                    st.write(f"**🔤 Fonética:** {ev_c.get('phonetic_feedback', '')}")
+                    st.write(f"**🎵 Fluidez:** {ev_c.get('fluency_prosody', '')}")
+                    st.write(f"**📐 Gramática Oral:** {ev_c.get('grammar_accuracy', '')}")
 
         elif stage_now == "WRITING":
             hdr_w1, hdr_w2 = st.columns([2.4, 1.3])
             with hdr_w1:
-                st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")        with hdr_w2:
-            if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_wrt"):
-                st.session_state["active_skill_stage"] = "READING"
-                st.rerun()
+                st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")
+            with hdr_w2:
+                if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_wrt"):
+                    st.session_state["active_stage_5"] = "READING"
+                    st.session_state["active_skill_stage"] = "READING"
+                    st.rerun()
 
         with st.container(border=True):
             s_sc_c = float(st.session_state.get("summary_score_100") or 0.0)
