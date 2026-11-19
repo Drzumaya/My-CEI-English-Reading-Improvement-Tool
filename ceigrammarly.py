@@ -4640,10 +4640,21 @@ with col_logo:
 
 with col_title:
     cefr_badge = next(iter(str(cefr_level).split()), "B1") if cefr_level else "B1"
-    st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE")
-    st.title(f"🎓 CEFR {cefr_badge} ACADEMIC GRAMMAR & DISCOURSE SYSTEM")
-    st.caption("Author: Jacob Zumaya Prianti | Applied Linguistics & Proficiency Assessment | APA Style")
-
+    st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE — GLOBAL PEDAGOGICAL SUITE")
+    st.title("🎓 CEI ENGLISH LEARNING PLATFORM")
+    st.caption(
+        f"**CEFR Level {cefr_badge} Integrated Competency Framework**  |  "
+        "Author: Jacob Zumaya Prianti  |  APA 7th Ed. Academic Standard"
+    )
+    st.markdown(
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">'
+        '<span style="background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;">📖 1. READING &amp; COMPREHENSION (30%)</span>'
+        '<span style="background:#f0fdf4;color:#14532d;border:1px solid #bbf7d0;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;">🎬 2. VIEWING &amp; LISTENING (25%)</span>'
+        '<span style="background:#fefce8;color:#713f12;border:1px solid #fde047;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;">🎙️ 3. ALPHABETICAL &amp; SPEAKING (25%)</span>'
+        '<span style="background:#faf5ff;color:#581c87;border:1px solid #e9d5ff;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;">✍️ 4. WRITING SKILL (20%)</span>'
+        '</div>',
+        unsafe_allow_html=True
+    )
 with col_qr:
     if is_owner and (not is_mobile):
         show_qr_now = bool(st.session_state.get("show_qr", False))
