@@ -4522,8 +4522,6 @@ cefr_options = list(CEFR_MAP.values())
 # --- BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS) ---
 if st.session_state.get("show_lesson_creator") or bool(str(st.session_state.get("generated_text") or "").strip()):
     with st.sidebar:
-
-    else:
         st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
     st.caption(f"📍 {institute_address}")
     st.success(
