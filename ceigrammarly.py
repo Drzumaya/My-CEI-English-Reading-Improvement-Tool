@@ -6892,410 +6892,546 @@ with col_lesson_left:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17: COLUMNA DERECHA — CONTEXTO VISUAL Y AUDIO MODELO
+# PARTE 17 — BLOQUE 1 DE 2: VIDEO EDUCATIVO Y MEDIDOR DE MINUTOS (25%)
 # ==============================================================================
-with col_tools_right:
-    st.subheader(f"🖼️ Visual Context & Quote ({st.session_state.selected_academic_grade})")
-    if st.session_state.get("generated_text"):
-        col_vis_in, col_vis_btn = st.columns([2.6, 1.4])
-        with col_vis_in:
-            custom_img_prompt = st.text_input(
-                "🎨 Descripción personalizada de la escena (Opcional - Español/English):",
-                placeholder="Ej: Una oficina con libros, el investigador y el padre sentados hablando...",
-                key="input_custom_visual_prompt",
-                label_visibility="collapsed"
-            )
+if col_tools_right is not None:
+    with col_tools_right:
+        st.subheader(f"🎬 Educational Video & APA 7 Summary ({st.session_state.selected_cefr})")
 
-        with col_vis_btn:
-            if st.button("✨ Imagen y Frase", key="btn_regen_visual", width="stretch"):
-                with st.spinner("🎨 Generando imagen temática y frase célebre..."):
-                    try:
-                        client_vis = init_gemini_client()
-                        instruccion_usuario = (
-                            f"USER CUSTOM VISUAL REQUEST (Translate to English and prioritize this exact setting/characters): {custom_img_prompt.strip()}"
-                            if custom_img_prompt.strip()
-                            else "Create a fresh, different visual scene angle based on the lesson."
-                        )
-                        prompt_nueva_escena = f"""
-                        Read the English lesson below and write a vivid visual scene description (45-55 words) for an educational illustration:
-                        {instruccion_usuario}
-                        1. SETTING & FURNITURE: Describe the physical background, furniture, and atmosphere in warm detail.
-                        2. CHARACTERS & ACTION: Describe the characters interacting naturally in that setting.
-
-                        LESSON:
-                        {st.session_state.generated_text[:2500]}
-                        """
-                        nueva_desc, _ = generar_con_maxima_potencia(client_vis, prompt_nueva_escena)
-                        st.session_state.image_bytes = generar_imagen_garantizada(
-                            client_vis,
-                            nueva_desc,
-                            f"Folio {st.session_state.current_folio or 'Lesson'}",
-                            st.session_state.selected_cefr,
-                            st.session_state.selected_academic_grade
-                        )
+        if st.session_state.get("generated_text"):
+            col_v_in, col_v_btn = st.columns([2.5, 1.5])
+            with col_v_in:
+                custom_yt_url = st.text_input(
+                    "🔗 Pegar enlace de YouTube alternativo (Opcional):",
+                    placeholder="https://youtube.com...",
+                    key="input_custom_yt_url",
+                    label_visibility="collapsed"
+                )
+            with col_v_btn:
+                if st.button("🔄 Buscar / Usar Video", key="btn_refresh_lesson_video", width="stretch"):
+                    with st.spinner("🎬 Vinculando video educativo..."):
+                        if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
+                            m_id = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
+                            vid_id_c = m_id.group(1) if m_id else ""
+                            vid_obj_new = {
+                                "video_id": vid_id_c,
+                                "url": custom_yt_url.strip(),
+                                "title": f"Selected Lesson Video ({st.session_state.selected_cefr})",
+                                "channel": "YouTube Academic Resource",
+                                "published_date": "2026",
+                                "duration_sec": 300,
+                                "duration_min": 5.0
+                            }
+                        else:
+                            vid_obj_new = buscar_video_relacionado_leccion(
+                                gramatica_b1,
+                                st.session_state.selected_cefr,
+                                st.session_state.generated_text
+                            )
+                        st.session_state["current_lesson_video"] = vid_obj_new
+                        st.session_state["video_watched_sec"] = 0
+                        st.session_state["video_score_100"] = 0.0
+                        st.session_state["video_watch_started_ts"] = None
+                        if st.session_state.current_folio and vid_obj_new:
+                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
                         st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al generar imagen: {e}")
 
-    bottom_container = st.container(height=280, border=True)
-    with bottom_container:
-        if st.session_state.get("last_img_error"):
-            with st.expander("ℹ️ Detalle técnico del motor de imagen"):
-                st.caption(st.session_state["last_img_error"])
+            vid_data = st.session_state.get("current_lesson_video")
+            if not vid_data or not vid_data.get("url"):
+                vid_data = buscar_video_relacionado_leccion(
+                    gramatica_b1,
+                    st.session_state.selected_cefr,
+                    st.session_state.generated_text
+                )
+                st.session_state["current_lesson_video"] = vid_data
+                if st.session_state.current_folio and vid_data.get("url"):
+                    save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_data)
 
-        if st.session_state.get("image_bytes"):
-            st.image(st.session_state.image_bytes, width="stretch")
-        elif st.session_state.get("generated_text"):
-            fallback_img = generar_imagen_garantizada(
-                None,
-                st.session_state.generated_text[:120],
-                f"Folio {st.session_state.current_folio}",
-                st.session_state.selected_cefr,
-                st.session_state.selected_academic_grade
-            )
-            if fallback_img:
-                st.session_state.image_bytes = fallback_img
-                st.image(fallback_img, width="stretch")
+            if vid_data and vid_data.get("url"):
+                st.video(vid_data["url"])
+                dur_total_sec = max(60, int(vid_data.get("duration_sec") or 300))
+                dur_total_min = round(dur_total_sec / 60.0, 2)
+                watched_sec_now = int(st.session_state.get("video_watched_sec") or 0)
+                v_score_now = float(st.session_state.get("video_score_100") or 0.0)
+                pts_video_25 = round((v_score_now / 100.0) * 25.0, 2)
+
+                st.caption(
+                    f"📺 **{vid_data.get('title', 'Lesson Video')}** | Canal: *{vid_data.get('channel', 'YouTube')}* | "
+                    f"⏱️ Duración: **`{dur_total_min} min`** (`{dur_total_sec} seg`)"
+                )
+
+                # Medidor de Minutos de Visualización (Equivale al 25% de la calificación total)
+                with st.container(border=True):
+                    st.markdown(f"**⏱️ Medidor de Visualización del Video (Valor: 25% = `{pts_video_25} / 25.0 pts`)**")
+                    vm1, vm2 = st.columns(2)
+                    vm1.metric("Duración Total", f"{dur_total_min} min")
+                    vm2.metric("Tiempo Acreditado", f"{round(watched_sec_now / 60.0, 2)} min ({round(v_score_now, 1)}%)")
+
+                    c_tm1, c_tm2 = st.columns(2)
+                    with c_tm1:
+                        if st.button("▶️ Iniciar Cronómetro", key="btn_start_vid_timer", width="stretch"):
+                            st.session_state["video_watch_started_ts"] = time.time()
+                            st.toast("⏱️ Cronómetro de video iniciado. Mira el video completo y luego registra tus minutos.")
+                    with c_tm2:
+                        if st.button("✅ Registrar Minutos Vistos", type="primary", key="btn_stop_vid_timer", width="stretch"):
+                            t_ini_v = st.session_state.get("video_watch_started_ts")
+                            if t_ini_v:
+                                transcurrido = int(time.time() - float(t_ini_v))
+                                nuevo_watched = min(dur_total_sec, max(watched_sec_now, transcurrido))
+                                st.session_state["video_watch_started_ts"] = None
+                            else:
+                                nuevo_watched = dur_total_sec
+
+                            nuevo_v_score = min(100.0, round((nuevo_watched / float(dur_total_sec)) * 100.0, 1))
+                            st.session_state["video_watched_sec"] = nuevo_watched
+                            st.session_state["video_score_100"] = nuevo_v_score
+                            if st.session_state.current_folio:
+                                save_video_and_summary_pg(
+                                    folio_code=st.session_state.current_folio,
+                                    watched_sec=nuevo_watched,
+                                    video_score_100=nuevo_v_score
+                                )
+                            st.success(f"✅ Visualización registrada: {round(nuevo_watched / 60.0, 2)} min ({round((nuevo_v_score/100.0)*25.0, 2)} / 25 pts).")
+                            st.rerun()
             else:
-                st.caption("Imagen ilustrativa no disponible.")
+                st.info("🎬 No se encontró enlace directo automático; pega una URL de YouTube arriba y pulsa **🔄 Buscar / Usar Video**.")
         else:
-            st.caption("La imagen ilustrativa aparecerá aquí / The illustrative image will appear here.")
+            with st.container(height=160, border=True):
+                st.caption("🎬 El video educativo relacionado con la lección aparecerá aquí al generar o cargar un Folio.")
+# ==============================================================================
+# PARTE 17 — BLOQUE 2 DE 2: RESUMEN (120-125 PALABRAS) + APA 7 (15%) Y AUDIO
+# ==============================================================================
+        if st.session_state.get("generated_text"):
+            with st.container(border=True):
+                s_score_now = float(st.session_state.get("summary_score_100") or 0.0)
+                pts_sum_15 = round((s_score_now / 100.0) * 15.0, 2)
+                st.markdown(f"**✍️ Resumen Escrito (120–125 palabras) y Cita APA 7 (Valor: 15% = `{pts_sum_15} / 15.0 pts`)**")
 
-    if st.session_state.get("current_motivational_quote"):
-        mq = st.session_state["current_motivational_quote"]
-        st.info(
-            f"✨ ***“{mq.get('quote_en', '')}”*** — **{mq.get('author', '')}**\n\n"
-            f"🇲🇽 *{mq.get('quote_es', '')}*\n\n"
-            f"🎯 **Reflection:** {mq.get('reflection', '')}"
-        )
+                resumen_input = st.text_area(
+                    "Write your English summary of the video (strictly 120 to 125 words):",
+                    value=st.session_state.get("video_summary_draft", ""),
+                    height=135,
+                    placeholder="Write an academic summary in English of what you watched in the video (between 120 and 125 words)...",
+                    key="txt_video_summary_apa7"
+                )
+                palabras_actuales = len([w for w in re.findall(r"\b[\w'-]+\b", resumen_input.strip()) if w])
+                if 120 <= palabras_actuales <= 125:
+                    st.success(f"✅ Conteo exacto: **{palabras_actuales} palabras** (dentro del rango permitido de 120 a 125).")
+                else:
+                    st.warning(f"📏 Conteo actual: **{palabras_actuales} palabras** *(debe tener entre 120 y 125 palabras)*.")
 
-    st.divider()
-    st.subheader("🎧 1. Model Pronunciation")
-    if st.session_state.audio_bytes:
-        st.audio(st.session_state.audio_bytes, format="audio/mp3")
-        safe_audio_name = f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
-        st.download_button(
-            label="📥 Descargar Audio (MP3)",
-            data=st.session_state.audio_bytes,
-            file_name=safe_audio_name,
-            mime="audio/mp3",
-            width="stretch"
-        )
-    else:
-        st.caption("Audio available after generating lesson.")
+                vid_ref_info = st.session_state.get("current_lesson_video") or {}
+                ej_apa7 = (
+                    f"{vid_ref_info.get('channel', 'Author/Channel')}. ({str(vid_ref_info.get('published_date', '2026'))[:4]}). "
+                    f"{vid_ref_info.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_info.get('url', 'https://youtube.com...')}"
+                )
+                apa7_input = st.text_area(
+                    "📚 Referencia Bibliográfica del Video en Formato APA 7:",
+                    value=st.session_state.get("video_apa7_draft", ""),
+                    height=75,
+                    placeholder=f"Ejemplo APA 7:\n{ej_apa7}",
+                    key="txt_video_apa7_citation"
+                )
+
+                if st.button("📝 Calificar Resumen y Cita APA 7 (15%)", type="primary", width="stretch", key="btn_eval_video_summary"):
+                    with st.spinner("Evaluando resumen (120-125 palabras) y formato APA 7 con IA..."):
+                        ev_sum = evaluar_resumen_video_apa7(
+                            resumen_texto=resumen_input,
+                            referencia_apa7=apa7_input,
+                            video_info=vid_ref_info,
+                            tema_gramatical=gramatica_b1,
+                            nivel_cefr=st.session_state.selected_cefr
+                        )
+                        st.session_state["video_summary_draft"] = resumen_input
+                        st.session_state["video_apa7_draft"] = apa7_input
+                        if ev_sum["ok"]:
+                            st.session_state["summary_score_100"] = ev_sum["raw_score_100"]
+                            st.session_state["summary_eval_result"] = ev_sum
+                            if st.session_state.current_folio:
+                                save_video_and_summary_pg(
+                                    folio_code=st.session_state.current_folio,
+                                    summary_text=resumen_input,
+                                    apa7_reference=apa7_input,
+                                    summary_score_100=ev_sum["raw_score_100"],
+                                    summary_eval_dict=ev_sum
+                                )
+                            st.success(f"🏆 Calificación Resumen + APA 7: **{ev_sum['raw_score_100']}%** (`{ev_sum['weighted_points_15']} / 15.0 pts`).")
+                            st.info(ev_sum["feedback"])
+                            if ev_sum.get("apa7_corrected"):
+                                st.caption(f"📖 **Sugerencia APA 7:** {ev_sum['apa7_corrected']}")
+                        else:
+                            st.error(ev_sum["feedback"])
+
+        st.divider()
+        st.subheader("🎧 1. Model Pronunciation")
+        if st.session_state.audio_bytes:
+            st.audio(st.session_state.audio_bytes, format="audio/mp3")
+            safe_audio_name = f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
+            st.download_button(
+                label="📥 Descargar Audio (MP3)",
+                data=st.session_state.audio_bytes,
+                file_name=safe_audio_name,
+                mime="audio/mp3",
+                width="stretch"
+            )
+        else:
+            st.caption("Audio available after generating lesson.")
+
 # ==============================================================================
 # PARTE 17A: GRABADORA DE AUDIO Y VIDEO EN NAVEGADOR
 # ==============================================================================
-    st.divider()
-    st.subheader("🎙️ 2. Speaking & Video Practice")
-    tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
+        st.divider()
+        st.subheader("🎙️ 2. Speaking & Video Practice (25%)")
+        tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
 
-    with tab_rec_audio:
-        student_audio = st.audio_input("Graba tu voz leyendo el texto:")
+        with tab_rec_audio:
+            student_audio = st.audio_input("Graba tu voz leyendo el texto:")
 
-    with tab_rec_video:
-        st.caption("Activa tu cámara, graba tu lectura y descárgala:")
-        safe_base_filename = f"CEI_Video_{st.session_state.current_folio or usuario.replace(' ', '_')}"
-        video_recorder_html = f"""
-        <div style="font-family: sans-serif; text-align: center; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fafafa;">
-            <video id="preview" width="100%" height="175" autoplay muted playsinline style="border-radius: 8px; background: #000; object-fit: cover;"></video>
-            <div style="margin-top: 8px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
-                <button id="btnStartCam" style="background:#0d6efd; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">📷 Activar Cámara</button>
-                <button id="btnRec" disabled style="background:#dc3545; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏺️ Grabar</button>
-                <button id="btnStop" disabled style="background:#6c757d; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏹️ Detener</button>
+        with tab_rec_video:
+            st.caption("Activa tu cámara, graba tu lectura y descárgala:")
+            safe_base_filename = f"CEI_Video_{st.session_state.current_folio or usuario.replace(' ', '_')}"
+            video_recorder_html = f"""
+            <div style="font-family: sans-serif; text-align: center; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fafafa;">
+                <video id="preview" width="100%" height="175" autoplay muted playsinline style="border-radius: 8px; background: #000; object-fit: cover;"></video>
+                <div style="margin-top: 8px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
+                    <button id="btnStartCam" style="background:#0d6efd; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">📷 Activar Cámara</button>
+                    <button id="btnRec" disabled style="background:#dc3545; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏺️ Grabar</button>
+                    <button id="btnStop" disabled style="background:#6c757d; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏹️ Detener</button>
+                </div>
+                <p id="statusTxt" style="font-size: 12px; color: #555; margin: 6px 0;">Presiona "Activar Cámara" para iniciar</p>
+                <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video</a>
             </div>
-            <p id="statusTxt" style="font-size: 12px; color: #555; margin: 6px 0;">Presiona "Activar Cámara" para iniciar</p>
-            <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video</a>
-        </div>
 
-        <script>
-        let stream = null;
-        let mediaRecorder = null;
-        let recordedChunks = [];
-        let activeMime = '';
+            <script>
+            let stream = null;
+            let mediaRecorder = null;
+            let recordedChunks = [];
+            let activeMime = '';
 
-        const preview = document.getElementById('preview');
-        const btnStartCam = document.getElementById('btnStartCam');
-        const btnRec = document.getElementById('btnRec');
-        const btnStop = document.getElementById('btnStop');
-        const statusTxt = document.getElementById('statusTxt');
-        const downloadLink = document.getElementById('downloadLink');
+            const preview = document.getElementById('preview');
+            const btnStartCam = document.getElementById('btnStartCam');
+            const btnRec = document.getElementById('btnRec');
+            const btnStop = document.getElementById('btnStop');
+            const statusTxt = document.getElementById('statusTxt');
+            const downloadLink = document.getElementById('downloadLink');
 
-        function getSupportedVideoMimeType() {{
-            const types = [
-                'video/mp4;codecs=avc1,mp4a.40.2',
-                'video/mp4;codecs=h264,aac',
-                'video/mp4',
-                'video/webm;codecs=vp9,opus',
-                'video/webm;codecs=h264',
-                'video/webm'
-            ];
-            for (const t of types) {{
-                if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) return t;
+            function getSupportedVideoMimeType() {{
+                const types = [
+                    'video/mp4;codecs=avc1,mp4a.40.2',
+                    'video/mp4;codecs=h264,aac',
+                    'video/mp4',
+                    'video/webm;codecs=vp9,opus',
+                    'video/webm;codecs=h264',
+                    'video/webm'
+                ];
+                for (const t of types) {{
+                    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) return t;
+                }}
+                return '';
             }}
-            return '';
-        }}
 
-        btnStartCam.onclick = async () => {{
-            try {{
-                stream = await navigator.mediaDevices.getUserMedia({{ video: true, audio: true }});
-                preview.srcObject = stream;
-                preview.muted = true;
-                preview.controls = false;
-                btnRec.disabled = false;
-                btnStartCam.disabled = true;
-                statusTxt.innerText = "Cámara activa. Listo para grabar.";
-            }} catch (err) {{
-                statusTxt.innerText = "⚠️ Permiso de cámara/micrófono denegado o bloqueado por el navegador.";
-            }}
-        }};
-
-        btnRec.onclick = () => {{
-            recordedChunks = [];
-            downloadLink.style.display = 'none';
-            activeMime = getSupportedVideoMimeType();
-            const options = activeMime ? {{ mimeType: activeMime }} : {{}};
-            mediaRecorder = new MediaRecorder(stream, options);
-
-            mediaRecorder.ondataavailable = (e) => {{
-                if (e.data.size > 0) recordedChunks.push(e.data);
+            btnStartCam.onclick = async () => {{
+                try {{
+                    stream = await navigator.mediaDevices.getUserMedia({{ video: true, audio: true }});
+                    preview.srcObject = stream;
+                    preview.muted = true;
+                    preview.controls = false;
+                    btnRec.disabled = false;
+                    btnStartCam.disabled = true;
+                    statusTxt.innerText = "Cámara activa. Listo para grabar.";
+                }} catch (err) {{
+                    statusTxt.innerText = "⚠️ Permiso de cámara/micrófono denegado o bloqueado por el navegador.";
+                }}
             }};
 
-            mediaRecorder.onstop = () => {{
-                const finalMime = activeMime || 'video/webm';
-                const ext = finalMime.includes('mp4') ? 'mp4' : 'webm';
-                const blob = new Blob(recordedChunks, {{ type: finalMime }});
-                const url = URL.createObjectURL(blob);
+            btnRec.onclick = () => {{
+                recordedChunks = [];
+                downloadLink.style.display = 'none';
+                activeMime = getSupportedVideoMimeType();
+                const options = activeMime ? {{ mimeType: activeMime }} : {{}};
+                mediaRecorder = new MediaRecorder(stream, options);
 
-                preview.srcObject = null;
-                preview.src = url;
-                preview.muted = false;
-                preview.controls = true;
+                mediaRecorder.ondataavailable = (e) => {{
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                }};
 
-                downloadLink.href = url;
-                downloadLink.download = "{safe_base_filename}." + ext;
-                downloadLink.innerText = "📥 Descargar Video (" + ext.toUpperCase() + ")";
-                downloadLink.style.display = 'inline-block';
-                statusTxt.innerText = "✅ Video grabado. Haz clic abajo para descargarlo.";
+                mediaRecorder.onstop = () => {{
+                    const finalMime = activeMime || 'video/webm';
+                    const ext = finalMime.includes('mp4') ? 'mp4' : 'webm';
+                    const blob = new Blob(recordedChunks, {{ type: finalMime }});
+                    const url = URL.createObjectURL(blob);
 
-                stream.getTracks().forEach(track => track.stop());
-                btnStartCam.disabled = false;
-                btnStartCam.innerText = "🔄 Grabar Otro";
+                    preview.srcObject = null;
+                    preview.src = url;
+                    preview.muted = false;
+                    preview.controls = true;
+
+                    downloadLink.href = url;
+                    downloadLink.download = "{safe_base_filename}." + ext;
+                    downloadLink.innerText = "📥 Descargar Video (" + ext.toUpperCase() + ")";
+                    downloadLink.style.display = 'inline-block';
+                    statusTxt.innerText = "✅ Video grabado. Haz clic abajo para descargarlo.";
+
+                    stream.getTracks().forEach(track => track.stop());
+                    btnStartCam.disabled = false;
+                    btnStartCam.innerText = "🔄 Grabar Otro";
+                }};
+
+                mediaRecorder.start();
+                btnRec.disabled = true;
+                btnStop.disabled = false;
+                statusTxt.innerText = "🔴 Grabando lectura...";
             }};
 
-            mediaRecorder.start();
-            btnRec.disabled = true;
-            btnStop.disabled = false;
-            statusTxt.innerText = "🔴 Grabando lectura...";
-        }};
+            btnStop.onclick = () => {{
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {{
+                    mediaRecorder.stop();
+                }}
+                btnStop.disabled = true;
+            }};
+            </script>
+            """
+            components.html(video_recorder_html, height=320)
+            st.write("")
 
-        btnStop.onclick = () => {{
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {{
-                mediaRecorder.stop();
-            }}
-            btnStop.disabled = true;
-        }};
-        </script>
-        """
-        components.html(video_recorder_html, height=320)
-        st.write("")
 # ==============================================================================
-# PARTE 18: DESCARGA DE AUDIO/PDF Y EVALUACIÓN ORAL CON IA
+# PARTE 18: DESCARGA DE AUDIO/PDF Y EVALUACIÓN ORAL CON IA (PANEL DERECHO)
 # ==============================================================================
-    if student_audio is not None:
-        safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
-        try:
-            import static_ffmpeg
-            static_ffmpeg.add_paths()
-            from pydub import AudioSegment
-
-            wav_buf = io.BytesIO(student_audio.getvalue())
-            audio_seg = AudioSegment.from_file(wav_buf, format="wav")
-            mp3_buf = io.BytesIO()
-            audio_seg.export(mp3_buf, format="mp3", bitrate="128k")
-            mp3_data = mp3_buf.getvalue()
-            dl_mime = "audio/mp3"
-        except Exception:
-            mp3_data = student_audio.getvalue()
-            safe_rec_name = safe_rec_name.replace(".mp3", ".wav")
-            dl_mime = "audio/wav"
-
-        st.download_button(
-            label="📥 Descargar Audio Grabado (MP3)",
-            data=mp3_data,
-            file_name=safe_rec_name,
-            mime=dl_mime,
-            type="primary",
-            width="stretch"
-        )
-
-    if st.session_state.get("generated_text"):
-        nota_actual_pdf = st.session_state.get("best_stored_score") or st.session_state.get("quiz_score")
-        pdf_bytes = create_lesson_pdf(
-            st.session_state.generated_text.replace("*", ""),
-            quiz_items=st.session_state.quiz_data,
-            user_ans=st.session_state.quiz_user_answers,
-            score=nota_actual_pdf,
-            speaking_eval=st.session_state.get("speaking_eval_result")
-        )
-        st.download_button(
-            label=f"📥 Descargar PDF Oficial ({st.session_state.current_folio or 'Lección'})",
-            data=pdf_bytes,
-            file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
-            mime="application/pdf",
-            width="stretch",
-            key="btn_dl_pdf_sidebar_right"
-        )
-    else:
-        st.button("📥 Descargar PDF Oficial", disabled=True, width="stretch", key="btn_dl_pdf_disabled")
-
-    if student_audio is not None:
-        if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
-            if not st.session_state.generated_text:
-                st.warning("⚠️ Primero genera o carga una lección para comparar tu lectura.")
-            else:
-                with st.spinner("🎙️ Analizando fonética, entonación y gramática oral..."):
-                    try:
-                        eval_res = evaluar_pronunciacion_ia(
-                            audio_bytes=student_audio.getvalue(),
-                            mime_type="audio/wav",
-                            texto_objetivo=st.session_state.generated_text,
-                            gramatica_obj=gramatica_b1,
-                            nivel_cefr=st.session_state.selected_cefr,
-                            grado_acad=st.session_state.selected_academic_grade
-                        )
-                        st.session_state["speaking_eval_result"] = eval_res
-                        if st.session_state.current_folio and "score_percent" in eval_res:
-                            save_best_speaking_pg(st.session_state.current_folio, int(eval_res["score_percent"]))
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error en evaluación oral: {e}")
-
-    if st.session_state.get("speaking_eval_result"):
-        ev = st.session_state["speaking_eval_result"]
-        with st.container(border=True):
-            st.markdown(f"#### 🎯 Evaluación Oral: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
-            st.caption(f"🗣️ **Transcripción detectada:** *\"{ev.get('transcription', '')}\"*")
-            st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
-            st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
-            st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
-            tips = ev.get("actionable_tips", [])
-            if tips:
-                st.markdown("**💡 Recomendaciones de Mejora:**")
-                for t in tips:
-                    st.markdown(f"- {t}")
-# ==============================================================================
-# PARTE 18A (FINAL): HISTORIAL DE FOLIOS, BORRAR TODO Y PIE DE PÁGINA
-# ==============================================================================
-    st.divider()
-    if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
-        st.session_state.show_saved_audios = not st.session_state.show_saved_audios
-
-    if st.session_state.show_saved_audios:
-        with st.container(height=360, border=True):
-            st.markdown("**Historial de Folios y Calificaciones (Supabase):**")
+        if student_audio is not None:
+            safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
             try:
-                records = load_lessons_history_pg()
-                if not records:
-                    st.info("Aún no hay registros guardados en Supabase.")
+                import static_ffmpeg
+                static_ffmpeg.add_paths()
+                from pydub import AudioSegment
+
+                wav_buf = io.BytesIO(student_audio.getvalue())
+                audio_seg = AudioSegment.from_file(wav_buf, format="wav")
+                mp3_buf = io.BytesIO()
+                audio_seg.export(mp3_buf, format="mp3", bitrate="128k")
+                mp3_data = mp3_buf.getvalue()
+                dl_mime = "audio/mp3"
+            except Exception:
+                mp3_data = student_audio.getvalue()
+                safe_rec_name = safe_rec_name.replace(".mp3", ".wav")
+                dl_mime = "audio/wav"
+
+            st.download_button(
+                label="📥 Descargar Audio Grabado (MP3)",
+                data=mp3_data,
+                file_name=safe_rec_name,
+                mime=dl_mime,
+                type="primary",
+                width="stretch"
+            )
+
+        if st.session_state.get("generated_text"):
+            nota_actual_pdf = st.session_state.get("best_stored_score") or st.session_state.get("quiz_score")
+            pdf_bytes = create_lesson_pdf(
+                st.session_state.generated_text.replace("*", ""),
+                quiz_items=st.session_state.quiz_data,
+                user_ans=st.session_state.quiz_user_answers,
+                score=nota_actual_pdf,
+                speaking_eval=st.session_state.get("speaking_eval_result")
+            )
+            st.download_button(
+                label=f"📥 Descargar PDF Oficial ({st.session_state.current_folio or 'Lección'})",
+                data=pdf_bytes,
+                file_name=f"{st.session_state.current_folio or 'CEI_Lesson'}_{usuario.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                width="stretch",
+                key="btn_dl_pdf_sidebar_right"
+            )
+        else:
+            st.button("📥 Descargar PDF Oficial", disabled=True, width="stretch", key="btn_dl_pdf_disabled")
+
+        if student_audio is not None:
+            if st.button("🧠 Evaluar Pronunciación y Gramática Oral con IA", type="secondary", width="stretch"):
+                if not st.session_state.generated_text:
+                    st.warning("⚠️ Primero genera o carga una lección para comparar tu lectura.")
                 else:
-                    df = pd.DataFrame(records)
+                    with st.spinner("🎙️ Analizando fonética, entonación y gramática oral..."):
+                        try:
+                            eval_res = evaluar_pronunciacion_ia(
+                                audio_bytes=student_audio.getvalue(),
+                                mime_type="audio/wav",
+                                texto_objetivo=st.session_state.generated_text,
+                                gramatica_obj=gramatica_b1,
+                                nivel_cefr=st.session_state.selected_cefr,
+                                grado_acad=st.session_state.selected_academic_grade
+                            )
+                            st.session_state["speaking_eval_result"] = eval_res
+                            if st.session_state.current_folio and "score_percent" in eval_res:
+                                save_best_speaking_pg(st.session_state.current_folio, int(eval_res["score_percent"]))
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error en evaluación oral: {e}")
 
-                    if has_faculty_access or is_owner:
-                        padron_regs = load_padron_records()
-                        inscritos_padron = [
-                            str(r.get("Usuario", "")).strip()
-                            for r in padron_regs if str(r.get("Usuario", "")).strip()
-                        ]
-                        usuarios_en_folios = [
-                            str(u).strip() for u in df["Usuario"].dropna().unique().tolist() if str(u).strip()
-                        ]
-                        lista_inscritos = sorted(list(set(inscritos_padron + usuarios_en_folios)))
+        if st.session_state.get("speaking_eval_result"):
+            ev = st.session_state["speaking_eval_result"]
+            with st.container(border=True):
+                st.markdown(f"#### 🎯 Evaluación Oral: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
+                st.caption(f"🗣️ **Transcripción detectada:** *\"{ev.get('transcription', '')}\"*")
+                st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
+                st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
+                st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
+                tips = ev.get("actionable_tips", [])
+                if tips:
+                    st.markdown("**💡 Recomendaciones de Mejora:**")
+                    for t in tips:
+                        st.markdown(f"- {t}")
 
-                        alumno_filtro = st.selectbox(
-                            "👤 Filtrar por Estudiante / Inscrito:",
-                            ["Todos los inscritos"] + lista_inscritos,
-                            key="sel_filtro_inscrito_historial"
-                        )
-                        if alumno_filtro != "Todos los inscritos":
-                            df = df[df["Usuario"].astype(str).str.strip().str.lower() == alumno_filtro.lower()]
+# ==============================================================================
+# PARTE 18A — MITAD 1 DE 2: HISTORIAL DE FOLIOS CON VIDEO Y RESUMEN APA 7
+# ==============================================================================
+        st.divider()
+        if st.button("📂 Ver Folios y Calificaciones Guardadas", width="stretch"):
+            st.session_state.show_saved_audios = not st.session_state.show_saved_audios
+
+        if st.session_state.show_saved_audios:
+            with st.container(height=360, border=True):
+                st.markdown("**Historial de Folios y Calificaciones (Supabase):**")
+                try:
+                    records = load_lessons_history_pg()
+                    if not records:
+                        st.info("Aún no hay registros guardados en Supabase.")
                     else:
-                        df = df[df["Usuario"].astype(str).str.strip().str.lower() == usuario.strip().lower()]
+                        df = pd.DataFrame(records)
 
-                    if df.empty:
-                        st.warning("No se encontraron folios registrados para este usuario.")
-                    else:
-                        limite_ver = 10 if ((has_faculty_access or is_owner) and alumno_filtro != "Todos los inscritos") else 5
-                        for idx_h, row in df.head(limite_ver).iterrows():
-                            folio_item = str(row.get("Folio", "S/F")).strip()
-                            st.caption(f"🔖 **{folio_item}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
-                            st.caption(f"📘 *{row.get('Tema', '')}*")
+                        if has_faculty_access or is_owner:
+                            padron_regs = load_padron_records()
+                            inscritos_padron = [
+                                str(r.get("Usuario", "")).strip()
+                                for r in padron_regs if str(r.get("Usuario", "")).strip()
+                            ]
+                            usuarios_en_folios = [
+                                str(u).strip() for u in df["Usuario"].dropna().unique().tolist() if str(u).strip()
+                            ]
+                            lista_inscritos = sorted(list(set(inscritos_padron + usuarios_en_folios)))
 
-                            mejor_nota_row = str(row.get("Mejor_Calificacion_PDF") or "").strip()
-                            speaking_row = row.get("Speaking_Score")
-                            if mejor_nota_row:
-                                st.caption(f"🏆 **Mejor Quiz:** `{mejor_nota_row}`")
-                            if speaking_row is not None and float(speaking_row) > 0:
-                                st.caption(f"🎙️ **Mejor Evaluación Oral:** `{int(float(speaking_row))}%`")
+                            alumno_filtro = st.selectbox(
+                                "👤 Filtrar por Estudiante / Inscrito:",
+                                ["Todos los inscritos"] + lista_inscritos,
+                                key="sel_filtro_inscrito_historial"
+                            )
+                            if alumno_filtro != "Todos los inscritos":
+                                df = df[df["Usuario"].astype(str).str.strip().str.lower() == alumno_filtro.lower()]
+                        else:
+                            df = df[df["Usuario"].astype(str).str.strip().str.lower() == usuario.strip().lower()]
 
-                            if st.button(f"📖 Cargar Lección ({folio_item})", key=f"load_fol_{folio_item}_{idx_h}", width="stretch"):
-                                st.session_state.generated_text = str(row.get("Texto", ""))
-                                st.session_state.current_folio = folio_item
-                                st.session_state.selected_cefr = normalize_cefr(row.get("Nivel_CEFR", "B1"))
-                                st.session_state.selected_academic_grade = str(row.get("Grado_Academico", "Licenciatura / Universidad"))
-                                st.session_state.study_mode_active = False
-                                st.session_state.quiz_graded = False
-                                st.session_state.quiz_score = None
-                                st.session_state.quiz_user_answers = {}
-                                st.session_state.image_bytes = None
-                                st.session_state.current_motivational_quote = None
-                                st.session_state.speaking_eval_result = row.get("Speaking_Eval")
-                                st.session_state["best_stored_score"] = mejor_nota_row
+                        if df.empty:
+                            st.warning("No se encontraron folios registrados para este usuario.")
+                        else:
+                            limite_ver = 10 if ((has_faculty_access or is_owner) and alumno_filtro != "Todos los inscritos") else 5
+                            for idx_h, row in df.head(limite_ver).iterrows():
+                                folio_item = str(row.get("Folio", "S/F")).strip()
+                                st.caption(f"🔖 **{folio_item}** | 👤 **{row.get('Usuario', '')}** | 📅 {row.get('Fecha_de_subida', '')}")
+                                st.caption(f"📘 *{row.get('Tema', '')}*")
 
-                                raw_qz = row.get("Quiz_JSON")
-                                if isinstance(raw_qz, list):
-                                    st.session_state.quiz_data = raw_qz
-                                elif isinstance(raw_qz, dict):
-                                    st.session_state.quiz_data = raw_qz.get("questions")
-                                elif isinstance(raw_qz, str) and raw_qz.strip():
-                                    try:
-                                        qz_obj = json.loads(raw_qz)
-                                        st.session_state.quiz_data = qz_obj if isinstance(qz_obj, list) else qz_obj.get("questions")
-                                    except Exception:
+                                mejor_nota_row = str(row.get("Mejor_Calificacion_PDF") or "").strip()
+                                speaking_row = row.get("Speaking_Score")
+                                vid_sc_row = float(row.get("Video_Score") or 0)
+                                sum_sc_row = float(row.get("Summary_Score") or 0)
+
+                                badges_notas = []
+                                if mejor_nota_row:
+                                    badges_notas.append(f"📝 Quiz: `{mejor_nota_row}`")
+                                if speaking_row is not None and float(speaking_row) > 0:
+                                    badges_notas.append(f"🎙️ Oral: `{int(float(speaking_row))}%`")
+                                if vid_sc_row > 0:
+                                    badges_notas.append(f"🎬 Video: `{round(vid_sc_row, 1)}%`")
+                                if sum_sc_row > 0:
+                                    badges_notas.append(f"✍️ Resumen: `{round(sum_sc_row, 1)}%`")
+                                if badges_notas:
+                                    st.caption(" | ".join(badges_notas))
+# ==============================================================================
+# PARTE 18A — MITAD 2 DE 2 (FINAL): CARGAR FOLIO, BORRAR TODO Y PIE DE PÁGINA
+# ==============================================================================
+                                if st.button(f"📖 Cargar Lección ({folio_item})", key=f"load_fol_{folio_item}_{idx_h}", width="stretch"):
+                                    row_full_h = fetch_lesson_by_folio(folio_item) or {}
+                                    st.session_state.generated_text = str(row.get("Texto", ""))
+                                    st.session_state.current_folio = folio_item
+                                    st.session_state.selected_cefr = normalize_cefr(row.get("Nivel_CEFR", "B1"))
+                                    st.session_state.selected_academic_grade = str(row.get("Grado_Academico", "Licenciatura / Universidad"))
+                                    st.session_state.study_mode_active = False
+                                    st.session_state.quiz_graded = False
+                                    st.session_state.quiz_score = None
+                                    st.session_state.quiz_user_answers = {}
+                                    st.session_state.image_bytes = None
+                                    st.session_state.current_motivational_quote = None
+                                    st.session_state.speaking_eval_result = row.get("Speaking_Eval")
+                                    st.session_state["best_stored_score"] = mejor_nota_row
+
+                                    v_u_h = str(row_full_h.get("Video_URL") or "").strip()
+                                    if v_u_h:
+                                        st.session_state["current_lesson_video"] = {
+                                            "url": v_u_h,
+                                            "title": str(row_full_h.get("Video_Title") or "Educational Video"),
+                                            "channel": str(row_full_h.get("Video_Channel") or "YouTube"),
+                                            "duration_sec": int(row_full_h.get("Video_Duration_Sec") or 240),
+                                            "duration_min": round(int(row_full_h.get("Video_Duration_Sec") or 240) / 60.0, 2)
+                                        }
+                                    else:
+                                        st.session_state["current_lesson_video"] = None
+
+                                    st.session_state["video_watched_sec"] = int(row_full_h.get("Video_Watched_Sec") or 0)
+                                    st.session_state["video_score_100"] = float(row_full_h.get("Video_Score") or 0.0)
+                                    st.session_state["video_summary_draft"] = str(row_full_h.get("Summary_Text") or "")
+                                    st.session_state["video_apa7_draft"] = str(row_full_h.get("APA7_Reference") or "")
+                                    st.session_state["summary_score_100"] = float(row_full_h.get("Summary_Score") or 0.0)
+                                    st.session_state["summary_eval_result"] = row_full_h.get("Summary_Eval")
+
+                                    raw_qz = row.get("Quiz_JSON")
+                                    if isinstance(raw_qz, list):
+                                        st.session_state.quiz_data = raw_qz
+                                    elif isinstance(raw_qz, dict):
+                                        st.session_state.quiz_data = raw_qz.get("questions")
+                                    elif isinstance(raw_qz, str) and raw_qz.strip():
+                                        try:
+                                            qz_obj = json.loads(raw_qz)
+                                            st.session_state.quiz_data = qz_obj if isinstance(qz_obj, list) else qz_obj.get("questions")
+                                        except Exception:
+                                            st.session_state.quiz_data = None
+                                    else:
                                         st.session_state.quiz_data = None
-                                else:
-                                    st.session_state.quiz_data = None
-                                st.rerun()
+                                    st.rerun()
 
-                            st.divider()
-            except Exception as e:
-                st.error(f"Error al cargar historial desde Supabase: {e}")
+                                st.divider()
+                except Exception as e:
+                    st.error(f"Error al cargar historial desde Supabase: {e}")
 
-    st.divider()
+        st.divider()
 
-    if st.button("🗑️ Borrar Todo", type="secondary", width="stretch"):
-        st.session_state.generated_text = ""
-        st.session_state.study_mode_active = False
-        st.session_state.image_bytes = None
-        st.session_state.current_lesson_image = None
-        st.session_state.current_motivational_quote = None
-        st.session_state.last_img_error = None
-        st.session_state.audio_bytes = None
-        st.session_state.quiz_audio_bytes = None
-        st.session_state.speaking_eval_result = None
-        st.session_state.show_saved_audios = False
-        st.session_state.quiz_data = None
-        st.session_state.quiz_graded = False
-        st.session_state.quiz_score = None
-        st.session_state.quiz_user_answers = {}
-        st.session_state.current_folio = ""
-        st.session_state.current_pdf_link = ""
-        st.session_state.current_creation_date = ""
-        st.session_state.url_folio_checked = False
-        st.session_state["best_stored_score"] = ""
-        st.query_params.clear()
-        st.session_state.sidebar_state = "expanded"
-        st.rerun()
+        if st.button("🗑️ Borrar Todo", type="secondary", width="stretch"):
+            st.session_state.generated_text = ""
+            st.session_state.study_mode_active = False
+            st.session_state.image_bytes = None
+            st.session_state.current_lesson_image = None
+            st.session_state.current_motivational_quote = None
+            st.session_state.last_img_error = None
+            st.session_state.audio_bytes = None
+            st.session_state.quiz_audio_bytes = None
+            st.session_state.speaking_eval_result = None
+            st.session_state.show_saved_audios = False
+            st.session_state.quiz_data = None
+            st.session_state.quiz_graded = False
+            st.session_state.quiz_score = None
+            st.session_state.quiz_user_answers = {}
+            st.session_state.current_folio = ""
+            st.session_state.current_pdf_link = ""
+            st.session_state.current_creation_date = ""
+            st.session_state.url_folio_checked = False
+            st.session_state["best_stored_score"] = ""
+            st.session_state["current_lesson_video"] = None
+            st.session_state["video_watched_sec"] = 0
+            st.session_state["video_score_100"] = 0.0
+            st.session_state["video_watch_started_ts"] = None
+            st.session_state["video_summary_draft"] = ""
+            st.session_state["video_apa7_draft"] = ""
+            st.session_state["summary_score_100"] = 0.0
+            st.session_state["summary_eval_result"] = None
+            st.query_params.clear()
+            st.session_state.sidebar_state = "expanded"
+            st.rerun()
 
 # --- 18. PIE DE PÁGINA INSTITUCIONAL ---
 st.divider()
