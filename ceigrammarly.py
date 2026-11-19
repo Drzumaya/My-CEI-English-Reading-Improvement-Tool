@@ -6531,7 +6531,7 @@ if generar_btn:
                    - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto_apa}", "{gramatica_b1}", and {academic_grade} education, sorted alphabetically by author surname.
                 """
 # ==============================================================================
-# PARTE 15A: EJECUCIÓN PARALELA (QUIZ + IMAGEN), AUDIO Y PERSISTENCIA EN PG
+# PARTE 15A: EJECUCIÓN PARALELA (QUIZ + VIDEO EDUCATIVO), AUDIO Y PERSISTENCIA
 # ==============================================================================
                 texto_gen, mod_usado = generar_con_maxima_potencia(gm_active, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
@@ -6553,7 +6553,15 @@ if generar_btn:
                 st.session_state.speaking_eval_result = None
                 st.session_state["best_stored_score"] = ""
 
-                escena_visual = f"Setting: {contexto_en}. Characters: {personas_en}. Topic: {asunto_apa}."
+                # Inicializar estados del Video Educativo (25%) y Resumen APA 7 (15%)
+                st.session_state["current_lesson_video"] = None
+                st.session_state["video_watched_sec"] = 0
+                st.session_state["video_score_100"] = 0.0
+                st.session_state["video_watch_started_ts"] = None
+                st.session_state["video_summary_draft"] = ""
+                st.session_state["video_apa7_draft"] = ""
+                st.session_state["summary_score_100"] = 0.0
+                st.session_state["summary_eval_result"] = None
 
                 ctx_st = get_script_run_ctx() if callable(get_script_run_ctx) else None
 
@@ -6573,23 +6581,22 @@ if generar_btn:
                         None,
                         gm_active
                     )
-                    fut_img = pool.submit(
+                    fut_vid = pool.submit(
                         _run_with_ctx,
-                        generar_imagen_garantizada,
-                        gm_active,
-                        escena_visual,
-                        f"Folio {nuevo_folio}",
+                        buscar_video_relacionado_leccion,
+                        gramatica_b1,
                         cefr_level,
-                        academic_grade
+                        texto_gen,
+                        gm_active
                     )
                     try:
                         st.session_state.quiz_data = fut_quiz.result(timeout=20)
                     except Exception:
                         st.session_state.quiz_data = None
                     try:
-                        st.session_state.image_bytes = fut_img.result(timeout=20)
+                        st.session_state["current_lesson_video"] = fut_vid.result(timeout=20)
                     except Exception:
-                        st.session_state.image_bytes = None
+                        st.session_state["current_lesson_video"] = None
 
                 try:
                     clean_tts = re.split(r"\bBibliography\b", texto_gen.replace("*", "").replace("#", ""), maxsplit=1)[0]
@@ -6613,6 +6620,11 @@ if generar_btn:
                     )
                     if st.session_state.quiz_data:
                         save_quiz_and_best_score_pg(nuevo_folio, "", st.session_state.quiz_data, {})
+                    if st.session_state.get("current_lesson_video"):
+                        save_video_and_summary_pg(
+                            folio_code=nuevo_folio,
+                            video_info=st.session_state["current_lesson_video"]
+                        )
                 except Exception as e_db:
                     st.warning(f"⚠️ Lección generada, pero hubo un aviso al guardar en Supabase: {e_db}")
 
@@ -6628,8 +6640,26 @@ if st.query_params.get("study_w"):
     st.session_state["study_mode_active"] = True
 if "hide_lesson_text" not in st.session_state:
     st.session_state["hide_lesson_text"] = False
+if "hide_right_tools" not in st.session_state:
+    st.session_state["hide_right_tools"] = False
 
-col_lesson_left, col_tools_right = st.columns([2.2, 1.3])
+# Barra superior centrada con flechitas para plegar/desplegar panel derecho
+_, col_arrow_center, _ = st.columns([2.2, 0.8, 2.2])
+with col_arrow_center:
+    if st.session_state["hide_right_tools"]:
+        if st.button("◀ Mostrar Panel", help="Mostrar Video, Resumen APA 7 y Audio", width="stretch", key="btn_show_right_panel"):
+            st.session_state["hide_right_tools"] = False
+            st.rerun()
+    else:
+        if st.button("▶ Ocultar Panel", help="Ocultar panel derecho y expandir lectura", width="stretch", key="btn_hide_right_panel"):
+            st.session_state["hide_right_tools"] = True
+            st.rerun()
+
+if st.session_state["hide_right_tools"]:
+    col_lesson_left = st.container()
+    col_tools_right = None
+else:
+    col_lesson_left, col_tools_right = st.columns([2.1, 1.4])
 
 with col_lesson_left:
     has_lesson_now = bool(str(st.session_state.get("generated_text") or "").strip())
