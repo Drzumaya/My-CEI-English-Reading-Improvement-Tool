@@ -4784,6 +4784,31 @@ else:
 # ==============================================================================
 # PARTE 13A1 — BLOQUE 1 DE 3: BARRA DE FOLIOS, BOLETÍN Y MIS PAGOS (FOCUS MODE)
 # ==============================================================================
+if st.session_state.get("active_stage_5") == "PORTAL":
+    if es_admin_o_staff or es_socio_afiliado:
+        opciones_p_adm = ["🤝 Portal Socio Afiliado"] if es_socio_afiliado else [
+            "💳 Cobranza Mensual e IVA",
+            "📊 Estados Financieros",
+            "🤝 Alta de Socios Afiliados",
+            "🤝 Portal Socio Afiliado",
+            "👥 Inscripción y Padrón",
+            "🔐 Matriz Global de Permisos",
+            "🏅 Certificados (Timbre y QR)",
+            "🏛️ Datos del Instituto",
+            "🔄 Autoactualización de Librerías"
+        ]
+        sel_adm = st.selectbox("Seleccionar módulo institucional:", opciones_p_adm, key="sb_stage5_admin_mod")
+        st.session_state["active_admin_workspace"] = sel_adm
+    else:
+        opciones_p_est = [
+            "💳 Mis Pagos (9 Bloques)",
+            "📊 Mis Calificaciones y Boletín",
+            "📚 Mis Lecciones y Folios",
+            "🎧 Mis Audios y Pronunciación"
+        ]
+        sel_est = st.selectbox("Seleccionar herramienta estudiantil:", opciones_p_est, key="sb_stage5_est_mod")
+        st.session_state["active_student_workspace"] = sel_est
+
 folio_input = ""
 buscar_folio_btn = False
 
@@ -4792,6 +4817,7 @@ if not st.session_state.get("active_admin_workspace"):
         st.session_state.show_gradebook_panel = False
     if "show_student_payments_panel" not in st.session_state:
         st.session_state.show_student_payments_panel = False
+
 
     with st.container(border=True):
         col_f1, col_f2, col_f3, col_f_pay, col_f4 = st.columns([1.9, 1.0, 1.25, 1.25, 1.6])
@@ -6729,7 +6755,7 @@ if generar_btn:
                 st.error(f"⚠️ Error al generar lección: {e}")
 
 # ==============================================================================
-# PARTE 16 — BLOQUE A1: ESCENARIO CENTRAL 2. VIEWING & LISTENING SKILLS (25%)
+# PARTE 16 — BLOQUE A: VENTANA ESCÉNICA DE LAS 4 COMPETENCIAS (1, 2, 3, 4)
 # ==============================================================================
 if st.query_params.get("study_w"):
     st.session_state["study_mode_active"] = True
@@ -6742,109 +6768,119 @@ if "viewing_center_stage" not in st.session_state:
 if "active_skill_stage" not in st.session_state:
     st.session_state["active_skill_stage"] = "READING"
 
-_, col_arrow_center, _ = st.columns([2.2, 0.9, 2.2])
-with col_arrow_center:
-    if st.session_state["hide_right_tools"]:
-        if st.button("◀ Mostrar Panel", help="Mostrar Catálogo de Videos, Writing Skill y Speaking", width="stretch", key="btn_show_right_panel"):
-            st.session_state["hide_right_tools"] = False
-            st.rerun()
-    else:
-        if st.button("▶ Ocultar Panel", help="Ocultar panel derecho y expandir área central", width="stretch", key="btn_hide_right_panel"):
-            st.session_state["hide_right_tools"] = True
-            st.rerun()
+has_lesson_now = bool(str(st.session_state.get("generated_text") or "").strip())
+stage_5_now = st.session_state.get("active_stage_5", "READING")
 
-if st.session_state["hide_right_tools"]:
-    col_lesson_left = st.container()
+# Si el usuario eligió el Botón 5 (PORTAL) o aún no hay lección generada, no mostramos las columnas del aula
+if stage_5_now == "PORTAL" or not has_lesson_now:
+    col_lesson_left = None
     col_tools_right = None
+    if not has_lesson_now and stage_5_now != "PORTAL" and st.session_state.get("show_lesson_creator"):
+        with st.container(border=True):
+            st.info("👈 **Panel Creador Activado:** Selecciona el nivel CEFR, el tema gramatical y el tópico en la barra izquierda, y presiona **✨ Generate Lesson** para desplegar la **Cabecera de Mando de 5 Botones**.")
 else:
-    col_lesson_left, col_tools_right = st.columns([2.15, 1.35])
-
-with col_lesson_left:
-    has_lesson_now = bool(str(st.session_state.get("generated_text") or "").strip())
-    stage_now = st.session_state.get("active_skill_stage", "READING")
-    if st.session_state.get("viewing_center_stage"):
-        stage_now = "VIEWING"
-
-    # ESCENARIO 2: 2. VIEWING & LISTENING SKILLS (25%)
-    if has_lesson_now and stage_now == "VIEWING":
-        vid_stage = st.session_state.get("current_lesson_video") or {}
-        v_url_st = str(vid_stage.get("url") or "").strip()
-        m_id_st = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", v_url_st)
-        vid_id_st = m_id_st.group(1) if m_id_st else "o1_0Gz4uRKo"
-
-        hdr_v1, hdr_v2 = st.columns([2.4, 1.3])
-        with hdr_v1:
-            st.subheader("🎬 2. VIEWING & LISTENING SKILLS (25%)")
-        with hdr_v2:
-            if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_to_reading_stage"):
-                st.session_state["viewing_center_stage"] = False
-                st.session_state["active_skill_stage"] = "READING"
+    _, col_arrow_center, _ = st.columns([2.2, 0.9, 2.2])
+    with col_arrow_center:
+        if st.session_state["hide_right_tools"]:
+            if st.button("◀ Mostrar Panel", help="Mostrar Catálogo de Videos, Writing Skill y Speaking", width="stretch", key="btn_show_right_panel"):
+                st.session_state["hide_right_tools"] = False
+                st.rerun()
+        else:
+            if st.button("▶ Ocultar Panel", help="Ocultar panel derecho y expandir área central", width="stretch", key="btn_hide_right_panel"):
+                st.session_state["hide_right_tools"] = True
                 st.rerun()
 
-        with st.container(border=True):
-            titulo_st_safe = str(vid_stage.get("title") or "Educational Video").replace("[", "(").replace("]", ")")
-            dur_sec_st = max(60, int(vid_stage.get("duration_sec") or 300))
-            dur_min_st = round(dur_sec_st / 60.0, 2)
-            watched_st = int(st.session_state.get("video_watched_sec") or 0)
-            v_sc_st = float(st.session_state.get("video_score_100") or 0.0)
-            pts_v_st = round((v_sc_st / 100.0) * 25.0, 2)
+    if st.session_state["hide_right_tools"]:
+        col_lesson_left = st.container()
+        col_tools_right = None
+    else:
+        col_lesson_left, col_tools_right = st.columns([2.15, 1.35])
 
-            st.write(f"**📺 Video en Escenario Central:** {titulo_st_safe}")
-            st.caption(
-                f"Canal: *{vid_stage.get('channel', 'YouTube')}*  |  Duración oficial: **`{dur_min_st} min`**  |  "
-                f"Puntuación acreditada (25%): **`{pts_v_st} / 25.0 pts`** (`{round(v_sc_st, 1)}%`)"
-            )
+if col_lesson_left is not None:
+    with col_lesson_left:
+        stage_now = st.session_state.get("active_stage_5", "READING")
+        if st.session_state.get("viewing_center_stage"):
+            stage_now = "VIEWING"
 
-            modo_motor_vid = st.radio(
-                "Motor de reproducción (cambia si tu red escolar restringe YouTube):",
-                ["🎥 Reproductor Nativo HD", "🌐 Espejo Educativo Alternativo (Sin Bloqueo)", "🔗 Apertura Directa"],
-                horizontal=True,
-                key="radio_dual_video_engine"
-            )
+        # ESCENARIO 2: 2. VIEWING & LISTENING SKILLS (25%)
+        if stage_now == "VIEWING":
+            vid_stage = st.session_state.get("current_lesson_video") or {}
+            v_url_st = str(vid_stage.get("url") or "").strip()
+            m_id_st = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", v_url_st)
+            vid_id_st = m_id_st.group(1) if m_id_st else "o1_0Gz4uRKo"
 
-            if modo_motor_vid == "🎥 Reproductor Nativo HD":
-                st.video(f"https://youtube.com{vid_id_st}")
-            elif modo_motor_vid == "🌐 Espejo Educativo Alternativo (Sin Bloqueo)":
-                mirror_iframe = (
-                    f'<iframe width="100%" height="410" src="https://piped.video{vid_id_st}" '
-                    f'frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" '
-                    f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
-                )
-                components.html(mirror_iframe, height=420)
-            else:
-                st.info("Si el reproductor incrustado está bloqueado en tu red local, ábrelo aquí y registra tus minutos abajo:")
-                st.link_button("▶️ Abrir Video en Reproductor Externo", url=f"https://youtube.com{vid_id_st}", type="primary", width="stretch")
-
-            st_c1, st_c2, st_c3 = st.columns(3)
-            with st_c1:
-                st.metric("Duración Total", f"{dur_min_st} min")
-            with st_c2:
-                st.metric("Tiempo Acreditado", f"{round(watched_st / 60.0, 2)} min")
-            with st_c3:
-                st.metric("Calificación (25%)", f"{pts_v_st} / 25 pts")
-
-            b_st1, b_st2 = st.columns(2)
-            with b_st1:
-                if st.button("▶️ Iniciar Cronómetro de Visualización", key="btn_stage_start_timer", width="stretch"):
-                    st.session_state["video_watch_started_ts"] = time.time()
-                    st.toast("⏱️ Cronómetro iniciado. Al terminar de ver el video, pulsa Registrar Minutos Vistos.")
-            with b_st2:
-                if st.button("✅ Registrar Minutos Vistos (25%)", type="primary", key="btn_stage_save_timer", width="stretch"):
-                    t_ini = st.session_state.get("video_watch_started_ts")
-                    if t_ini:
-                        transcurrido = int(time.time() - float(t_ini))
-                        nuevo_w = min(dur_sec_st, max(watched_st, transcurrido))
-                        st.session_state["video_watch_started_ts"] = None
-                    else:
-                        nuevo_w = dur_sec_st
-
-                    nuevo_sc = min(100.0, round((nuevo_w / float(dur_sec_st)) * 100.0, 1))
-                    st.session_state["video_watched_sec"] = nuevo_w
-                    st.session_state["video_score_100"] = nuevo_sc
-                    if st.session_state.current_folio:
-                        save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
-                    st.success(f"✅ Visualización acreditada: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25 pts).")
+            hdr_v1, hdr_v2 = st.columns([2.4, 1.3])
+            with hdr_v1:
+                st.subheader("🎬 2. VIEWING & LISTENING SKILLS (25%)")
+            with hdr_v2:
+                if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_to_reading_stage"):
+                    st.session_state["viewing_center_stage"] = False
+                    st.session_state["active_stage_5"] = "READING"
+                    st.session_state["active_skill_stage"] = "READING"
                     st.rerun()
+
+            with st.container(border=True):
+                titulo_st_safe = str(vid_stage.get("title") or "Educational Video").replace("[", "(").replace("]", ")")
+                dur_sec_st = max(60, int(vid_stage.get("duration_sec") or 300))
+                dur_min_st = round(dur_sec_st / 60.0, 2)
+                watched_st = int(st.session_state.get("video_watched_sec") or 0)
+                v_sc_st = float(st.session_state.get("video_score_100") or 0.0)
+                pts_v_st = round((v_sc_st / 100.0) * 25.0, 2)
+
+                st.write(f"**📺 Video en Escenario Central:** {titulo_st_safe}")
+                st.caption(
+                    f"Canal: *{vid_stage.get('channel', 'YouTube')}*  |  Duración oficial: **`{dur_min_st} min`**  |  "
+                    f"Puntuación acreditada (25%): **`{pts_v_st} / 25.0 pts`** (`{round(v_sc_st, 1)}%`)"
+                )
+
+                modo_motor_vid = st.radio(
+                    "Motor de reproducción (cambia si tu red escolar restringe YouTube):",
+                    ["🎥 Reproductor Nativo HD", "🌐 Espejo Educativo Alternativo (Sin Bloqueo)", "🔗 Apertura Directa"],
+                    horizontal=True,
+                    key="radio_dual_video_engine"
+                )
+
+                if modo_motor_vid == "🎥 Reproductor Nativo HD":
+                    st.video(f"https://youtube.com{vid_id_st}")
+                elif modo_motor_vid == "🌐 Espejo Educativo Alternativo (Sin Bloqueo)":
+                    mirror_iframe = (
+                        f'<iframe width="100%" height="410" src="https://piped.video{vid_id_st}" '
+                        f'frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" '
+                        f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
+                    )
+                    components.html(mirror_iframe, height=420)
+                else:
+                    st.info("Si el reproductor incrustado está bloqueado en tu red local, ábrelo aquí y registra tus minutos abajo:")
+                    st.link_button("▶️ Abrir Video en Reproductor Externo", url=f"https://youtube.com{vid_id_st}", type="primary", width="stretch")
+
+                st_c1, st_c2, st_c3 = st.columns(3)
+                st_c1.metric("Duración Total", f"{dur_min_st} min")
+                st_c2.metric("Tiempo Acreditado", f"{round(watched_st / 60.0, 2)} min")
+                st_c3.metric("Calificación (25%)", f"{pts_v_st} / 25 pts")
+
+                b_st1, b_st2 = st.columns(2)
+                with b_st1:
+                    if st.button("▶️ Iniciar Cronómetro de Visualización", key="btn_stage_start_timer", width="stretch"):
+                        st.session_state["video_watch_started_ts"] = time.time()
+                        st.toast("⏱️ Cronómetro iniciado. Al terminar de ver el video, pulsa Registrar Minutos Vistos.")
+                with b_st2:
+                    if st.button("✅ Registrar Minutos Vistos (25%)", type="primary", key="btn_stage_save_timer", width="stretch"):
+                        t_ini = st.session_state.get("video_watch_started_ts")
+                        if t_ini:
+                            transcurrido = int(time.time() - float(t_ini))
+                            nuevo_w = min(dur_sec_st, max(watched_st, transcurrido))
+                            st.session_state["video_watch_started_ts"] = None
+                        else:
+                            nuevo_w = dur_sec_st
+
+                        nuevo_sc = min(100.0, round((nuevo_w / float(dur_sec_st)) * 100.0, 1))
+                        st.session_state["video_watched_sec"] = nuevo_w
+                        st.session_state["video_score_100"] = nuevo_sc
+                        if st.session_state.current_folio:
+                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
+                        st.success(f"✅ Visualización acreditada: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25 pts).")
+                        st.rerun()
+
 # ==============================================================================
 # PARTE 16 — BLOQUE A2: ESCENARIOS CENTRALES SPEAKING (25%) Y WRITING (20%)
 # ==============================================================================
@@ -6940,30 +6976,125 @@ with col_lesson_left:
                     else:
                         st.error(ev_w["feedback"])
 # ==============================================================================
-# PARTE 16 — BLOQUE B (FINAL): 1. READING & COMPREHENSION SKILLS + QUIZ (30%)
+# PARTE 16 — BLOQUE B1: ESCENARIOS CENTRALES 3 (SPEAKING) Y 4 (WRITING)
 # ==============================================================================
-    else:
-        hdr_l1, hdr_l2, hdr_l3 = st.columns([2.2, 1.1, 1.2])
-        with hdr_l1:
-            st.subheader(f"📖 1. READING & COMPREHENSION SKILLS ({st.session_state.selected_cefr})")
-        with hdr_l2:
-            lbl_hide = "👁️ Mostrar Lectura" if st.session_state.get("hide_lesson_text") else "🙈 Ocultar Lectura"
-            if st.button(lbl_hide, type="secondary", width="stretch", disabled=not has_lesson_now, key="btn_toggle_hide_lesson"):
-                st.session_state["hide_lesson_text"] = not st.session_state.get("hide_lesson_text", False)
-                st.rerun()
-        with hdr_l3:
-            lbl_modo = "📄 Lectura Clásica" if st.session_state.get("study_mode_active") else "🧠 Modo Estudio IA"
-            if st.button(lbl_modo, type="secondary", width="stretch", disabled=not has_lesson_now, key="btn_toggle_study_mode"):
-                st.session_state.study_mode_active = not st.session_state.get("study_mode_active", False)
-                if not st.session_state.study_mode_active:
-                    st.session_state["active_study_word"] = ""
-                    if "study_w" in st.query_params:
-                        del st.query_params["study_w"]
-                    if "study_p" in st.query_params:
-                        del st.query_params["study_p"]
-                st.rerun()
+        elif stage_now == "SPEAKING":
+            hdr_s1, hdr_s2 = st.columns([2.4, 1.3])
+            with hdr_s1:
+                st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
+            with hdr_s2:
+                if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_spk"):
+                    st.session_state["active_stage_5"] = "READING"
+                    st.session_state["active_skill_stage"] = "READING"
+                    st.rerun()
 
-        if st.session_state.get("generated_text"):
+            with st.container(border=True):
+                st.markdown("#### 🎧 Audio Modelo de Pronunciación (Inglés)")
+                if st.session_state.audio_bytes:
+                    st.audio(st.session_state.audio_bytes, format="audio/mp3")
+                else:
+                    st.caption("Audio modelo disponible al generar o cargar una lección.")
+                st.info("💡 Escucha la pronunciación modelo y graba tu lectura en el panel derecho (**🎙️ 3. ALPHABETICAL & SPEAKING SKILLS**) para obtener tu calificación fonética y gramatical con IA.")
+                if st.session_state.get("speaking_eval_result"):
+                    ev_c = st.session_state["speaking_eval_result"]
+                    st.success(f"🏆 **Última Evaluación Oral:** {ev_c.get('score_percent', 0)}% ({ev_c.get('cefr_performance', '')})")
+                    st.write(f"**🔤 Fonética:** {ev_c.get('phonetic_feedback', '')}")
+                    st.write(f"**🎵 Fluidez:** {ev_c.get('fluency_prosody', '')}")
+                    st.write(f"**📐 Gramática Oral:** {ev_c.get('grammar_accuracy', '')}")
+
+        elif stage_now == "WRITING":
+            hdr_w1, hdr_w2 = st.columns([2.4, 1.3])
+            with hdr_w1:
+                st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")
+            with hdr_w2:
+                if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_wrt"):
+                    st.session_state["active_stage_5"] = "READING"
+                    st.session_state["active_skill_stage"] = "READING"
+                    st.rerun()
+
+            with st.container(border=True):
+                s_sc_c = float(st.session_state.get("summary_score_100") or 0.0)
+                pts_w_c = round((s_sc_c / 100.0) * 20.0, 2)
+                st.markdown(f"**Redacción Académica en Pantalla Central (120–125 palabras) + Cita APA 7 — Valor: 20% (`{pts_w_c} / 20.0 pts`)**")
+
+                res_central = st.text_area(
+                    "Write your English summary of the video (strictly 120 to 125 words):",
+                    value=st.session_state.get("video_summary_draft", ""),
+                    height=190,
+                    placeholder="Write an academic summary in English of what you watched in the video (strictly 120 to 125 words)...",
+                    key="txt_central_writing_summary"
+                )
+                cnt_c = len([w for w in re.findall(r"\b[\w'-]+\b", res_central.strip()) if w])
+                if 120 <= cnt_c <= 125:
+                    st.success(f"✅ Conteo exacto: **{cnt_c} palabras** (dentro del rango oficial de 120 a 125 palabras).")
+                else:
+                    st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(debe contener entre 120 y 125 palabras)*.")
+
+                vid_ref_c = st.session_state.get("current_lesson_video") or {}
+                ej_apa_c = (
+                    f"{vid_ref_c.get('channel', 'Author/Channel')}. ({str(vid_ref_c.get('published_date', '2026'))[:4]}). "
+                    f"{vid_ref_c.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_c.get('url', 'https://youtube.com...')}"
+                )
+                apa_central = st.text_area(
+                    "📚 Referencia Bibliográfica del Video en Formato APA 7:",
+                    value=st.session_state.get("video_apa7_draft", ""),
+                    height=85,
+                    placeholder=f"Ejemplo APA 7:\n{ej_apa_c}",
+                    key="txt_central_writing_apa7"
+                )
+
+                if st.button("📝 Calificar Writing Skill y Cita APA 7 (20%)", type="primary", width="stretch", key="btn_central_eval_writing"):
+                    with st.spinner("Evaluando Writing Skill (120-125 palabras) y formato APA 7 con IA..."):
+                        ev_w = evaluar_resumen_video_apa7(
+                            resumen_texto=res_central,
+                            referencia_apa7=apa_central,
+                            video_info=vid_ref_c,
+                            tema_gramatical=gramatica_b1,
+                            nivel_cefr=st.session_state.selected_cefr
+                        )
+                        st.session_state["video_summary_draft"] = res_central
+                        st.session_state["video_apa7_draft"] = apa_central
+                        if ev_w["ok"]:
+                            st.session_state["summary_score_100"] = ev_w["raw_score_100"]
+                            st.session_state["summary_eval_result"] = ev_w
+                            if st.session_state.current_folio:
+                                save_video_and_summary_pg(
+                                    folio_code=st.session_state.current_folio,
+                                    summary_text=res_central,
+                                    apa7_reference=apa_central,
+                                    summary_score_100=ev_w["raw_score_100"],
+                                    summary_eval_dict=ev_w
+                                )
+                            st.success(f"🏆 Calificación Writing Skill: **{ev_w['raw_score_100']}%** (`{ev_w['weighted_points_20']} / 20.0 pts`).")
+                            st.info(ev_w["feedback"])
+                            if ev_w.get("apa7_corrected"):
+                                st.caption(f"📖 **Sugerencia APA 7:** {ev_w['apa7_corrected']}")
+                        else:
+                            st.error(ev_w["feedback"])
+# ==============================================================================
+# PARTE 16 — BLOQUE B2 (FINAL): 1. READING & COMPREHENSION + QUIZ (30%)
+# ==============================================================================
+        else:
+            hdr_l1, hdr_l2, hdr_l3 = st.columns([2.2, 1.1, 1.2])
+            with hdr_l1:
+                st.subheader(f"📖 1. READING & COMPREHENSION SKILLS ({st.session_state.selected_cefr})")
+            with hdr_l2:
+                lbl_hide = "👁️ Mostrar Lectura" if st.session_state.get("hide_lesson_text") else "🙈 Ocultar Lectura"
+                if st.button(lbl_hide, type="secondary", width="stretch", key="btn_toggle_hide_lesson"):
+                    st.session_state["hide_lesson_text"] = not st.session_state.get("hide_lesson_text", False)
+                    st.rerun()
+            with hdr_l3:
+                lbl_modo = "📄 Lectura Clásica" if st.session_state.get("study_mode_active") else "🧠 Modo Estudio IA"
+                if st.button(lbl_modo, type="secondary", width="stretch", key="btn_toggle_study_mode"):
+                    st.session_state.study_mode_active = not st.session_state.get("study_mode_active", False)
+                    if not st.session_state.study_mode_active:
+                        st.session_state["active_study_word"] = ""
+                        if "study_w" in st.query_params:
+                            del st.query_params["study_w"]
+                        if "study_p" in st.query_params:
+                            del st.query_params["study_p"]
+                    st.rerun()
+
             if st.session_state.get("hide_lesson_text"):
                 st.info("🙈 **Lectura oculta temporalmente.** Presiona **👁️ Mostrar Lectura** arriba para volver a desplegarla.")
             elif st.session_state.get("study_mode_active"):
@@ -6976,60 +7107,49 @@ with col_lesson_left:
             else:
                 with st.container(height=540, border=True):
                     st.markdown(st.session_state.generated_text)
-        else:
-            with st.container(height=280, border=True):
-                st.info(
-                    "👈 Configura los parámetros en el panel izquierdo y presiona **Generate Lesson**, "
-                    "o busca un **Folio** existente en la barra superior."
-                )
 
-    # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA)
-    if st.session_state.get("generated_text"):
-        if st.session_state.quiz_data is None:
-            cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
-            if st.button(
-                f"📝 Generar Quiz de Comprensión — 30% ({cefr_tag} - {st.session_state.selected_academic_grade})",
-                type="primary",
-                width="stretch"
-            ):
-                with st.spinner("Generando preguntas de evaluación y vinculando al Folio en Supabase..."):
-                    try:
-                        q_gen = generar_quiz_leccion(
-                            st.session_state.generated_text,
-                            gramatica_b1,
-                            st.session_state.selected_cefr,
-                            st.session_state.selected_academic_grade
-                        )
-                        st.session_state.quiz_data = q_gen
-                        if st.session_state.current_folio:
-                            save_quiz_and_best_score_pg(
-                                st.session_state.current_folio,
-                                "",
-                                q_gen,
-                                {}
+            # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA)
+            if st.session_state.quiz_data is None:
+                cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
+                if st.button(
+                    f"📝 Generar Quiz de Comprensión — 30% ({cefr_tag} - {st.session_state.selected_academic_grade})",
+                    type="primary",
+                    width="stretch"
+                ):
+                    with st.spinner("Generando preguntas de evaluación y vinculando al Folio en Supabase..."):
+                        try:
+                            q_gen = generar_quiz_leccion(
+                                st.session_state.generated_text,
+                                gramatica_b1,
+                                st.session_state.selected_cefr,
+                                st.session_state.selected_academic_grade
                             )
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al generar quiz: {e}")
-        else:
-            with st.container(border=True):
-                st.subheader(f"📝 Reading & Grammar Comprehension Quiz — 30% (Folio: {st.session_state.current_folio})")
-                for idx, item in enumerate(st.session_state.quiz_data):
-                    st.markdown(f"**{idx + 1}. {item['question']}**")
-                    choice = st.radio(
-                        f"q_{idx}",
-                        item["options"],
-                        key=f"radio_quiz_{idx}",
-                        label_visibility="collapsed",
-                        index=None
-                    )
-                    st.session_state.quiz_user_answers[idx] = choice
-                    if st.session_state.quiz_graded:
-                        if choice == item["answer"]:
-                            st.success(f"✅ Correct! ({item['answer']})")
-                        else:
-                            st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
-                    st.write("")
+                            st.session_state.quiz_data = q_gen
+                            if st.session_state.current_folio:
+                                save_quiz_and_best_score_pg(st.session_state.current_folio, "", q_gen, {})
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al generar quiz: {e}")
+            else:
+                with st.container(border=True):
+                    st.subheader(f"📝 Reading & Grammar Comprehension Quiz — 30% (Folio: {st.session_state.current_folio})")
+                    for idx, item in enumerate(st.session_state.quiz_data):
+                        st.markdown(f"**{idx + 1}. {item['question']}**")
+                        choice = st.radio(
+                            f"q_{idx}",
+                            item["options"],
+                            key=f"radio_quiz_{idx}",
+                            label_visibility="collapsed",
+                            index=None
+                        )
+                        st.session_state.quiz_user_answers[idx] = choice
+                        if st.session_state.quiz_graded:
+                            if choice == item["answer"]:
+                                st.success(f"✅ Correct! ({item['answer']})")
+                            else:
+                                st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
+                        st.write("")
+
 
 
 # ==============================================================================
