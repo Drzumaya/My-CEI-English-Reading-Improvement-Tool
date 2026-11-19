@@ -4524,8 +4524,8 @@ generar_btn = False
 cefr_level = st.session_state.get("selected_cefr") or "B1 (Intermediate)"
 gramatica_b1 = st.session_state.get("selected_grammar") or "General English Grammar"
 
-# --- BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS) ---
-if st.session_state.get("show_lesson_creator") or bool(str(st.session_state.get("generated_text") or "").strip()):
+# --- BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS: SE ABRE AL 1ER CLIC Y SE CIERRA AL 2DO CLIC) ---
+if st.session_state.get("show_lesson_creator"):
     with st.sidebar:
         st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
     st.caption(f"📍 {institute_address}")
