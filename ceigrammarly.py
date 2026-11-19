@@ -4414,7 +4414,8 @@ if not st.session_state.authenticated:
             )
 
         st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
-        st.markdown("<h2 style='text-align: center;'>🎓 CEFR ACADEMIC GRAMMAR & DISCOURSE SYSTEM</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #1e3a8a;'>🎓 CEI ENGLISH LEARNING PLATFORM</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #475569; font-size: 14px;'>Career English Institute • Global Pedagogical &amp; CEFR Assessment Suite</p>", unsafe_allow_html=True)
         st.divider()
 
         with st.form("login_form"):
