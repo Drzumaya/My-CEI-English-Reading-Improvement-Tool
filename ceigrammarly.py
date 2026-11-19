@@ -4736,7 +4736,13 @@ if st.session_state.get("active_student_workspace"):
                         type=["jpg", "jpeg", "png", "pdf"],
                         key="ws_est_up_comp"
                     )
-                    if st.button(f"📤 Registrar Pago Bloque {b_elegido['bloque_num']}/9 y Desbloquear Boletín", type="primary", width="stretch", key="ws_est_btn_comp"):
+                    if st.button(
+                        f"📤 Informar Pago Bloque {b_elegido['bloque_num']}/9 y Subir Comprobante",
+                        type="primary",
+                        width="stretch",
+                        key="ws_est_btn_comp"
+                    ):
+
                         b64_comp, mime_comp = "", ""
                         if archivo_comp is not None:
                             raw_bytes = archivo_comp.getvalue()
