@@ -5007,35 +5007,35 @@ st.divider()
 # ==============================================================================
 # PARTE 13A2: MÉTRICAS DEL BOLETÍN (RÚBRICA 35/25/25/15) Y RECUPERACIÓN DE FOLIOS
 # ==============================================================================
-    if topico_seleccionado_gb == "Vista General":
-        prom_vista = gb_data["overall_avg"]
-        recs_filtrados = gb_data["records"]
-        temas_filtrados = gb_data["topic_summary"]
-    else:
-        t_info = next((t for t in gb_data["topic_summary"] if t["Grammar Topic"] == topico_seleccionado_gb), {})
-        prom_vista = t_info.get("Dominio (%)", 0.0)
-        recs_filtrados = [r for r in gb_data["records"] if r["Grammar_Topic"] == topico_seleccionado_gb]
-        temas_filtrados = [t_info] if t_info else []
+            if topico_seleccionado_gb == "Vista General":
+                prom_vista = gb_data["overall_avg"]
+                recs_filtrados = gb_data["records"]
+                temas_filtrados = gb_data["topic_summary"]
+            else:
+                t_info = next((t for t in gb_data["topic_summary"] if t["Grammar Topic"] == topico_seleccionado_gb), {})
+                prom_vista = t_info.get("Dominio (%)", 0.0)
+                recs_filtrados = [r for r in gb_data["records"] if r["Grammar_Topic"] == topico_seleccionado_gb]
+                temas_filtrados = [t_info] if t_info else []
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("🏆 Promedio Ponderado", f"{gb_data['overall_avg']}%", delta=f"Vista: {prom_vista}%")
-    m2.metric("📝 Quiz (35%) / 🎙️ Audio (25%)", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
-    m3.metric("🎬 Video (25%) / ✍️ Resumen (15%)", f"{gb_data.get('video_avg', 0.0)}% / {gb_data.get('summary_avg', 0.0)}%")
-    m4.metric("📚 Lecciones Evaluadas", len(recs_filtrados))
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("🏆 Promedio Ponderado", f"{gb_data['overall_avg']}%", delta=f"Vista: {prom_vista}%")
+            m2.metric("📝 Quiz (35%) / 🎙️ Audio (25%)", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
+            m3.metric("🎬 Video (25%) / ✍️ Resumen (15%)", f"{gb_data.get('video_avg', 0.0)}% / {gb_data.get('summary_avg', 0.0)}%")
+            m4.metric("📚 Lecciones Evaluadas", len(recs_filtrados))
 
-    st.caption("📐 **Rúbrica Oficial de Evaluación (100%):** Quiz Escrito = **35%**  |  Pronunciación y Audio = **25%**  |  Ver Video Educativo = **25%**  |  Resumen (120-125 palabras) y Cita APA 7 = **15%**.")
+            st.caption("📐 **Rúbrica Oficial de Evaluación (100%):** Quiz Escrito = **35%**  |  Pronunciación y Audio = **25%**  |  Ver Video Educativo = **25%**  |  Resumen (120-125 palabras) y Cita APA 7 = **15%**.")
 
-    if temas_filtrados:
-        st.markdown("#### 📈 Porcentaje de Dominio por Grammar Topic")
-        df_chart = pd.DataFrame(temas_filtrados).set_index("Grammar Topic")
-        st.bar_chart(df_chart[["Dominio (%)"]], height=260)
-        st.dataframe(pd.DataFrame(temas_filtrados), width="stretch", hide_index=True)
+            if temas_filtrados:
+                st.markdown("#### 📈 Porcentaje de Dominio por Grammar Topic")
+                df_chart = pd.DataFrame(temas_filtrados).set_index("Grammar Topic")
+                st.bar_chart(df_chart[["Dominio (%)"]], height=260)
+                st.dataframe(pd.DataFrame(temas_filtrados), width="stretch", hide_index=True)
 
-    st.markdown("#### 📋 Historial Completo de Lecciones Evaluadas")
-    if recs_filtrados:
-        st.dataframe(pd.DataFrame(recs_filtrados), width="stretch", hide_index=True)
-    else:
-        st.warning("Aún no hay lecciones registradas para este filtro en Supabase.")
+            st.markdown("#### 📋 Historial Completo de Lecciones Evaluadas")
+            if recs_filtrados:
+                st.dataframe(pd.DataFrame(recs_filtrados), width="stretch", hide_index=True)
+            else:
+                st.warning("Aún no hay lecciones registradas para este filtro en Supabase.")
 
 auto_fetch_url_folio = bool(
     st.session_state.current_folio
