@@ -4193,8 +4193,8 @@ if verify_folio:
                 f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 110px; border-radius: 50%;"></div>',
                 unsafe_allow_html=True
             )
-        st.markdown("<h3 style='text-align: center;'>🏛️ CAREER ENGLISH INSTITUTE</h3>", unsafe_allow_html=True)
-        st.markdown(f"<p style='text-align: center; color: #555; font-size: 12px;'>📍 {institute_address}</p>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center; color: #1e3a8a;'>🎓 CEI ENGLISH LEARNING PLATFORM</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #475569; font-size: 14px;'>Career English Institute • Global Pedagogical &amp; CEFR Assessment Suite</p>", unsafe_allow_html=True)
         st.markdown("<h2 style='text-align: center;'>🛡️ DIGITAL CREDENTIAL VERIFICATION PORTAL</h2>", unsafe_allow_html=True)
         st.divider()
 
