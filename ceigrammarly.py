@@ -6691,7 +6691,7 @@ if generar_btn:
                 st.error(f"⚠️ Error al generar lección: {e}")
 
 # ==============================================================================
-# PARTE 16 — BLOQUE 1 DE 2: ESCENARIO CENTRAL 2. VIEWING & LISTENING SKILLS (25%)
+# PARTE 16 — BLOQUE A1: ESCENARIO CENTRAL 2. VIEWING & LISTENING SKILLS (25%)
 # ==============================================================================
 if st.query_params.get("study_w"):
     st.session_state["study_mode_active"] = True
@@ -6701,6 +6701,8 @@ if "hide_right_tools" not in st.session_state:
     st.session_state["hide_right_tools"] = False
 if "viewing_center_stage" not in st.session_state:
     st.session_state["viewing_center_stage"] = False
+if "active_skill_stage" not in st.session_state:
+    st.session_state["active_skill_stage"] = "READING"
 
 _, col_arrow_center, _ = st.columns([2.2, 0.9, 2.2])
 with col_arrow_center:
@@ -6721,9 +6723,12 @@ else:
 
 with col_lesson_left:
     has_lesson_now = bool(str(st.session_state.get("generated_text") or "").strip())
+    stage_now = st.session_state.get("active_skill_stage", "READING")
+    if st.session_state.get("viewing_center_stage"):
+        stage_now = "VIEWING"
 
-    # ESCENARIO CENTRAL: 2. VIEWING & LISTENING SKILLS (OCULTA LA LECCIÓN PARA VER VIDEO EN PANTALLA CENTRAL)
-    if has_lesson_now and st.session_state.get("viewing_center_stage"):
+    # ESCENARIO 2: 2. VIEWING & LISTENING SKILLS (25%)
+    if has_lesson_now and stage_now == "VIEWING":
         vid_stage = st.session_state.get("current_lesson_video") or {}
         v_url_st = str(vid_stage.get("url") or "").strip()
         m_id_st = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", v_url_st)
@@ -6735,6 +6740,7 @@ with col_lesson_left:
         with hdr_v2:
             if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_to_reading_stage"):
                 st.session_state["viewing_center_stage"] = False
+                st.session_state["active_skill_stage"] = "READING"
                 st.rerun()
 
         with st.container(border=True):
@@ -6798,15 +6804,105 @@ with col_lesson_left:
                     st.session_state["video_watched_sec"] = nuevo_w
                     st.session_state["video_score_100"] = nuevo_sc
                     if st.session_state.current_folio:
-                        save_video_and_summary_pg(
-                            folio_code=st.session_state.current_folio,
-                            watched_sec=nuevo_w,
-                            video_score_100=nuevo_sc
-                        )
+                        save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
                     st.success(f"✅ Visualización acreditada: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25 pts).")
                     st.rerun()
 # ==============================================================================
-# PARTE 16 — BLOQUE 2 DE 2: 1. READING & COMPREHENSION SKILLS + QUIZ (30%)
+# PARTE 16 — BLOQUE A2: ESCENARIOS CENTRALES SPEAKING (25%) Y WRITING (20%)
+# ==============================================================================
+    elif has_lesson_now and stage_now == "SPEAKING":
+        hdr_s1, hdr_s2 = st.columns([2.4, 1.3])
+        with hdr_s1:
+            st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
+        with hdr_s2:
+            if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_spk"):
+                st.session_state["active_skill_stage"] = "READING"
+                st.rerun()
+
+        with st.container(border=True):
+            st.markdown("#### 🎧 Audio Modelo de Pronunciación (Inglés)")
+            if st.session_state.audio_bytes:
+                st.audio(st.session_state.audio_bytes, format="audio/mp3")
+            else:
+                st.caption("Audio modelo disponible al generar o cargar una lección.")
+            st.info("💡 Escucha la pronunciación modelo y luego graba tu voz en el panel derecho (**🎙️ 3. ALPHABETICAL & SPEAKING SKILLS**) para recibir tu evaluación fonética y gramatical con IA.")
+            if st.session_state.get("speaking_eval_result"):
+                ev_c = st.session_state["speaking_eval_result"]
+                st.success(f"🏆 **Última Evaluación Oral:** {ev_c.get('score_percent', 0)}% ({ev_c.get('cefr_performance', '')})")
+                st.write(f"**🔤 Fonética:** {ev_c.get('phonetic_feedback', '')}")
+                st.write(f"**🎵 Fluidez:** {ev_c.get('fluency_prosody', '')}")
+                st.write(f"**📐 Gramática Oral:** {ev_c.get('grammar_accuracy', '')}")
+
+    elif has_lesson_now and stage_now == "WRITING":
+        hdr_w1, hdr_w2 = st.columns([2.4, 1.3])
+        with hdr_w1:
+            st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")
+        with hdr_w2:
+            if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_wrt"):
+                st.session_state["active_skill_stage"] = "READING"
+                st.rerun()
+
+        with st.container(border=True):
+            s_sc_c = float(st.session_state.get("summary_score_100") or 0.0)
+            pts_w_c = round((s_sc_c / 100.0) * 20.0, 2)
+            st.markdown(f"**Redacción Académica en Pantalla Central (120–125 palabras) + Cita APA 7 — Valor: 20% (`{pts_w_c} / 20.0 pts`)**")
+
+            res_central = st.text_area(
+                "Write your English summary of the video (strictly 120 to 125 words):",
+                value=st.session_state.get("video_summary_draft", ""),
+                height=190,
+                placeholder="Write an academic summary in English of what you watched in the video (strictly 120 to 125 words)...",
+                key="txt_central_writing_summary"
+            )
+            cnt_c = len([w for w in re.findall(r"\b[\w'-]+\b", res_central.strip()) if w])
+            if 120 <= cnt_c <= 125:
+                st.success(f"✅ Conteo exacto: **{cnt_c} palabras** (dentro del rango oficial de 120 a 125 palabras).")
+            else:
+                st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(debe contener entre 120 y 125 palabras)*.")
+
+            vid_ref_c = st.session_state.get("current_lesson_video") or {}
+            ej_apa_c = (
+                f"{vid_ref_c.get('channel', 'Author/Channel')}. ({str(vid_ref_c.get('published_date', '2026'))[:4]}). "
+                f"{vid_ref_c.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_c.get('url', 'https://youtube.com...')}"
+            )
+            apa_central = st.text_area(
+                "📚 Referencia Bibliográfica del Video en Formato APA 7:",
+                value=st.session_state.get("video_apa7_draft", ""),
+                height=85,
+                placeholder=f"Ejemplo APA 7:\n{ej_apa_c}",
+                key="txt_central_writing_apa7"
+            )
+
+            if st.button("📝 Calificar Writing Skill y Cita APA 7 (20%)", type="primary", width="stretch", key="btn_central_eval_writing"):
+                with st.spinner("Evaluando Writing Skill (120-125 palabras) y formato APA 7 con IA..."):
+                    ev_w = evaluar_resumen_video_apa7(
+                        resumen_texto=res_central,
+                        referencia_apa7=apa_central,
+                        video_info=vid_ref_c,
+                        tema_gramatical=gramatica_b1,
+                        nivel_cefr=st.session_state.selected_cefr
+                    )
+                    st.session_state["video_summary_draft"] = res_central
+                    st.session_state["video_apa7_draft"] = apa_central
+                    if ev_w["ok"]:
+                        st.session_state["summary_score_100"] = ev_w["raw_score_100"]
+                        st.session_state["summary_eval_result"] = ev_w
+                        if st.session_state.current_folio:
+                            save_video_and_summary_pg(
+                                folio_code=st.session_state.current_folio,
+                                summary_text=res_central,
+                                apa7_reference=apa_central,
+                                summary_score_100=ev_w["raw_score_100"],
+                                summary_eval_dict=ev_w
+                            )
+                        st.success(f"🏆 Calificación Writing Skill: **{ev_w['raw_score_100']}%** (`{ev_w['weighted_points_20']} / 20.0 pts`).")
+                        st.info(ev_w["feedback"])
+                        if ev_w.get("apa7_corrected"):
+                            st.caption(f"📖 **Sugerencia APA 7:** {ev_w['apa7_corrected']}")
+                    else:
+                        st.error(ev_w["feedback"])
+# ==============================================================================
+# PARTE 16 — BLOQUE B (FINAL): 1. READING & COMPREHENSION SKILLS + QUIZ (30%)
 # ==============================================================================
     else:
         hdr_l1, hdr_l2, hdr_l3 = st.columns([2.2, 1.1, 1.2])
@@ -6896,6 +6992,7 @@ with col_lesson_left:
                         else:
                             st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
                     st.write("")
+
 
 # ==============================================================================
 # PARTE 16A: CALIFICACIÓN DEL QUIZ, NUEVAS PREGUNTAS Y AUDIO DEL EXAMEN
