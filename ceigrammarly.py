@@ -14,6 +14,7 @@ import json
 import os
 import random
 import re
+import time
 import subprocess
 import sys
 import urllib.parse
@@ -7016,31 +7017,39 @@ def _render_floating_pip_video(v_info: dict):
     if not m_id:
         return
     vid_id = m_id.group(1)
-    titulo_v = str(v_info.get("title") or "Educational Video").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")[:65]
+    titulo_v = str(v_info.get("title") or "Educational Video").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")[:60]
     embed_src = f"https://youtube-nocookie.com{vid_id}?rel=0&modestbranding=1"
 
-    pip_html = "".join([
-        '<div id="ceiPipBox" style="position:fixed;bottom:18px;left:18px;width:440px;max-width:92vw;',
-        'background:#111827;color:#f9fafb;border:2px solid #2563eb;border-radius:12px;',
-        'box-shadow:0 12px 32px rgba(0,0,0,0.45);z-index:999999;overflow:hidden;font-family:sans-serif;">',
-        '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;',
-        'background:#1e3a8a;font-size:12px;font-weight:bold;gap:6px;">',
-        f'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px;">🎬 {titulo_v}</span>',
-        '<div style="display:flex;gap:4px;flex-shrink:0;">',
-        '<button onclick="setPipSize(330,186)" style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Pequeño</button>',
-        '<button onclick="setPipSize(480,270)" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Mediano</button>',
-        '<button onclick="togglePipMin()" id="btnPipMin" style="background:#4b5563;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">—</button>',
-        '</div></div>',
-        '<div id="ceiPipBody" style="width:100%;height:248px;background:#000;">',
-        f'<iframe id="ceiPipFrame" width="100%" height="100%" src="{embed_src}" frameborder="0" ',
-        'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
-        '</div></div>',
+    pip_js = "".join([
         '<script>',
-        'function setPipSize(w,h){const b=document.getElementById("ceiPipBox"),d=document.getElementById("ceiPipBody");if(b&&d){d.style.display="block";b.style.width=w+"px";b.style.height=h+"px";}}',
-        'function togglePipMin(){const d=document.getElementById("ceiPipBody"),btn=document.getElementById("btnPipMin");if(d){const h=d.style.display==="none";d.style.display=h?"block":"none";if(btn)btn.innerText=h?"—":"▢";}}',
+        '(function(){',
+        'const doc = window.parent.document;',
+        'let box = doc.getElementById("ceiPipBox");',
+        'if(!box){',
+        '  box = doc.createElement("div");',
+        '  box.id = "ceiPipBox";',
+        '  box.style.cssText = "position:fixed;bottom:18px;left:18px;width:430px;max-width:92vw;background:#111827;color:#f9fafb;border:2px solid #2563eb;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,0.5);z-index:999999;overflow:hidden;font-family:sans-serif;";',
+        '  doc.body.appendChild(box);',
+        '}',
+        f'box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#1e3a8a;font-size:12px;font-weight:bold;gap:6px;">',
+        f'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">🎬 {titulo_v}</span>',
+        '<div style="display:flex;gap:4px;flex-shrink:0;">',
+        '<button id="btnPipSm" style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Pequeño</button>',
+        '<button id="btnPipMd" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Mediano</button>',
+        '<button id="btnPipMin" style="background:#4b5563;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">—</button>',
+        '</div></div>',
+        '<div id="ceiPipBody" style="width:100%;height:242px;background:#000;">',
+        f'<iframe width="100%" height="100%" src="{embed_src}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
+        '</div>`;',
+        'const bodyEl = doc.getElementById("ceiPipBody");',
+        'doc.getElementById("btnPipSm").onclick = ()=>{ bodyEl.style.display="block"; box.style.width="320px"; bodyEl.style.height="180px"; };',
+        'doc.getElementById("btnPipMd").onclick = ()=>{ bodyEl.style.display="block"; box.style.width="460px"; bodyEl.style.height="260px"; };',
+        'doc.getElementById("btnPipMin").onclick = ()=>{ const h = bodyEl.style.display==="none"; bodyEl.style.display = h ? "block" : "none"; doc.getElementById("btnPipMin").innerText = h ? "—" : "▢"; };',
+        '})();',
         '</script>'
     ])
-    components.html(pip_html, height=0, width=0)
+    components.html(pip_js, height=0, width=0)
+
 
 
 if col_tools_right is not None:
