@@ -6884,7 +6884,7 @@ if col_lesson_left is not None:
 # ==============================================================================
 # PARTE 16 — BLOQUE A2: ESCENARIOS CENTRALES SPEAKING (25%) Y WRITING (20%)
 # ==============================================================================
-    elif has_lesson_now and stage_now == "SPEAKING":
+     elif stage_now == "SPEAKING":
         hdr_s1, hdr_s2 = st.columns([2.4, 1.3])
         with hdr_s1:
             st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
@@ -6907,7 +6907,8 @@ if col_lesson_left is not None:
                 st.write(f"**🎵 Fluidez:** {ev_c.get('fluency_prosody', '')}")
                 st.write(f"**📐 Gramática Oral:** {ev_c.get('grammar_accuracy', '')}")
 
-    elif has_lesson_now and stage_now == "WRITING":
+     elif stage_now == "WRITING":
+
         hdr_w1, hdr_w2 = st.columns([2.4, 1.3])
         with hdr_w1:
             st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")
