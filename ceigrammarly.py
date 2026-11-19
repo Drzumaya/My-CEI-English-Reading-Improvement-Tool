@@ -7038,7 +7038,7 @@ if col_tools_right is not None:
                 if st.session_state.current_folio and vid_data.get("url"):
                     save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_data)
 
-            alts_list = vid_data.get("alternatives") if isinstance(vid_data, dict) else []
+            alts_list = (vid_data.get("alternatives") or []) if isinstance(vid_data, dict) else []
             if len(alts_list) < 9:
                 _fresh_pack = buscar_video_relacionado_leccion(
                     gramatica_b1,
