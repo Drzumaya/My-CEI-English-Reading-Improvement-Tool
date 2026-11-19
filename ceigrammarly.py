@@ -6092,19 +6092,31 @@ if generar_btn:
 # ==============================================================================
 if st.query_params.get("study_w"):
     st.session_state["study_mode_active"] = True
+if "hide_lesson_text" not in st.session_state:
+    st.session_state["hide_lesson_text"] = False
 
 col_lesson_left, col_tools_right = st.columns([2.2, 1.3])
 
 with col_lesson_left:
-    hdr_l1, hdr_l2 = st.columns([2.4, 1.4])
+    hdr_l1, hdr_l2, hdr_l3 = st.columns([2.0, 1.15, 1.35])
     with hdr_l1:
         st.subheader(f"📖 Generated Lesson ({st.session_state.selected_cefr})")
     with hdr_l2:
         if st.session_state.get("generated_text"):
+            lbl_hide = (
+                "👁️ Mostrar Lección"
+                if st.session_state.get("hide_lesson_text")
+                else "🙈 Ocultar Lección"
+            )
+            if st.button(lbl_hide, type="secondary", width="stretch", key="btn_toggle_hide_lesson"):
+                st.session_state["hide_lesson_text"] = not st.session_state.get("hide_lesson_text", False)
+                st.rerun()
+    with hdr_l3:
+        if st.session_state.get("generated_text"):
             lbl_modo = (
-                "📄 Volver a Lectura Clásica"
+                "📄 Lectura Clásica"
                 if st.session_state.get("study_mode_active")
-                else "🧠 Activar Modo Estudio IA"
+                else "🧠 Modo Estudio IA"
             )
             if st.button(lbl_modo, type="secondary", width="stretch", key="btn_toggle_study_mode"):
                 st.session_state.study_mode_active = not st.session_state.get("study_mode_active", False)
@@ -6117,7 +6129,9 @@ with col_lesson_left:
                 st.rerun()
 
     if st.session_state.get("generated_text"):
-        if st.session_state.get("study_mode_active"):
+        if st.session_state.get("hide_lesson_text"):
+            st.info("🙈 **Lección oculta temporalmente.** Presiona **👁️ Mostrar Lección** arriba para volver a desplegarla.")
+        elif st.session_state.get("study_mode_active"):
             with st.spinner("Analizando estructuras gramaticales, fonética y definiciones..."):
                 payload_estudio = analyze_lesson_for_study_mode(
                     st.session_state.generated_text,
@@ -6133,7 +6147,6 @@ with col_lesson_left:
                 "👈 Configura los parámetros en el panel izquierdo y presiona **Generate Lesson**, "
                 "o busca un **Folio** existente en la barra superior."
             )
-
 
     # QUIZ INTERACTIVO DE LA LECCIÓN
     if st.session_state.get("generated_text"):
@@ -6182,6 +6195,7 @@ with col_lesson_left:
                         else:
                             st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
                     st.write("")
+
 # ==============================================================================
 # PARTE 16A: CALIFICACIÓN DEL QUIZ, NUEVAS PREGUNTAS Y AUDIO DEL EXAMEN
 # ==============================================================================
