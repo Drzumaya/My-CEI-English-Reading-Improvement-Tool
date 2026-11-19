@@ -6801,14 +6801,10 @@ if generar_btn:
                 st.error(f"⚠️ Error al generar lección: {e}")
 
 # ==============================================================================
-# PARTE 16 — BLOQUE A: VENTANA ESCÉNICA DE LAS 4 COMPETENCIAS (1, 2, 3, 4)
-# ============================================================================== 
+# PARTE 16 — BLOQUE 1A-1: VENTANA ESCÉNICA ÚNICA + 2. VIEWING & LISTENING (25%)
+# ==============================================================================
 if st.query_params.get("study_w"):
     st.session_state["study_mode_active"] = True
-if "hide_lesson_text" not in st.session_state:
-    st.session_state["hide_lesson_text"] = False
-if "hide_right_tools" not in st.session_state:
-    st.session_state["hide_right_tools"] = False
 if "viewing_center_stage" not in st.session_state:
     st.session_state["viewing_center_stage"] = False
 if "active_skill_stage" not in st.session_state:
@@ -6817,30 +6813,12 @@ if "active_skill_stage" not in st.session_state:
 has_lesson_now = bool(str(st.session_state.get("generated_text") or "").strip())
 stage_5_now = st.session_state.get("active_stage_5", "READING")
 
-# Si el usuario eligió el Botón 5 (PORTAL) o aún no hay lección generada, no mostramos las columnas del aula
 if stage_5_now == "PORTAL" or not has_lesson_now:
     col_lesson_left = None
     col_tools_right = None
-    if not has_lesson_now and stage_5_now != "PORTAL" and st.session_state.get("show_lesson_creator"):
-        with st.container(border=True):
-            st.info("👈 **Panel Creador Activado:** Selecciona el nivel CEFR, el tema gramatical y el tópico en la barra izquierda, y presiona **✨ Generate Lesson** para desplegar la **Cabecera de Mando de 5 Botones**.")
 else:
-    _, col_arrow_center, _ = st.columns([2.2, 0.9, 2.2])
-    with col_arrow_center:
-        if st.session_state["hide_right_tools"]:
-            if st.button("◀ Mostrar Panel", help="Mostrar Catálogo de Videos, Writing Skill y Speaking", width="stretch", key="btn_show_right_panel"):
-                st.session_state["hide_right_tools"] = False
-                st.rerun()
-        else:
-            if st.button("▶ Ocultar Panel", help="Ocultar panel derecho y expandir área central", width="stretch", key="btn_hide_right_panel"):
-                st.session_state["hide_right_tools"] = True
-                st.rerun()
-
-    if st.session_state["hide_right_tools"]:
-        col_lesson_left = st.container()
-        col_tools_right = None
-    else:
-        col_lesson_left, col_tools_right = st.columns([2.15, 1.35])
+    col_lesson_left = st.container()
+    col_tools_right = None
 
 if col_lesson_left is not None:
     with col_lesson_left:
@@ -6855,7 +6833,7 @@ if col_lesson_left is not None:
             m_id_st = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", v_url_st)
             vid_id_st = m_id_st.group(1) if m_id_st else "o1_0Gz4uRKo"
 
-            hdr_v1, hdr_v2 = st.columns([2.4, 1.3])
+            hdr_v1, hdr_v2 = st.columns([2.6, 1.2])
             with hdr_v1:
                 st.subheader("🎬 2. VIEWING & LISTENING SKILLS (25%)")
             with hdr_v2:
@@ -6890,11 +6868,11 @@ if col_lesson_left is not None:
                     st.video(f"https://youtube.com{vid_id_st}")
                 elif modo_motor_vid == "🌐 Espejo Educativo Alternativo (Sin Bloqueo)":
                     mirror_iframe = (
-                        f'<iframe width="100%" height="410" src="https://piped.video{vid_id_st}" '
+                        f'<iframe width="100%" height="440" src="https://piped.video{vid_id_st}" '
                         f'frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" '
                         f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
                     )
-                    components.html(mirror_iframe, height=420)
+                    components.html(mirror_iframe, height=450)
                 else:
                     st.info("Si el reproductor incrustado está bloqueado en tu red local, ábrelo aquí y registra tus minutos abajo:")
                     st.link_button("▶️ Abrir Video en Reproductor Externo", url=f"https://youtube.com{vid_id_st}", type="primary", width="stretch")
@@ -6926,6 +6904,104 @@ if col_lesson_left is not None:
                             save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
                         st.success(f"✅ Visualización acreditada: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25 pts).")
                         st.rerun()
+# ==============================================================================
+# PARTE 16 — BLOQUE 1A-2: ESCENARIOS CENTRALES 3 (SPEAKING) Y 4 (WRITING)
+# ==============================================================================
+        elif stage_now == "SPEAKING":
+            hdr_s1, hdr_s2 = st.columns([2.6, 1.2])
+            with hdr_s1:
+                st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
+            with hdr_s2:
+                if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_spk"):
+                    st.session_state["active_stage_5"] = "READING"
+                    st.session_state["active_skill_stage"] = "READING"
+                    st.rerun()
+
+            with st.container(border=True):
+                st.markdown("#### 🎧 Audio Modelo de Pronunciación (Inglés)")
+                if st.session_state.audio_bytes:
+                    st.audio(st.session_state.audio_bytes, format="audio/mp3")
+                    safe_audio_name = f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
+                    st.download_button(
+                        label="📥 Descargar Audio Modelo (MP3)",
+                        data=st.session_state.audio_bytes,
+                        file_name=safe_audio_name,
+                        mime="audio/mp3",
+                        width="stretch"
+                    )
+                else:
+                    st.caption("Audio modelo disponible al generar o cargar una lección.")
+
+        elif stage_now == "WRITING":
+            hdr_w1, hdr_w2 = st.columns([2.6, 1.2])
+            with hdr_w1:
+                st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")
+            with hdr_w2:
+                if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_wrt"):
+                    st.session_state["active_stage_5"] = "READING"
+                    st.session_state["active_skill_stage"] = "READING"
+                    st.rerun()
+
+            with st.container(border=True):
+                s_sc_c = float(st.session_state.get("summary_score_100") or 0.0)
+                pts_w_c = round((s_sc_c / 100.0) * 20.0, 2)
+                st.markdown(f"**Redacción Académica en Pantalla Central (120–125 palabras) + Cita APA 7 — Valor: 20% (`{pts_w_c} / 20.0 pts`)**")
+
+                res_central = st.text_area(
+                    "Write your English summary of the video (strictly 120 to 125 words):",
+                    value=st.session_state.get("video_summary_draft", ""),
+                    height=200,
+                    placeholder="Write an academic summary in English of what you watched in the video (strictly 120 to 125 words)...",
+                    key="txt_central_writing_summary"
+                )
+                cnt_c = len([w for w in re.findall(r"\b[\w'-]+\b", res_central.strip()) if w])
+                if 120 <= cnt_c <= 125:
+                    st.success(f"✅ Conteo exacto: **{cnt_c} palabras** (dentro del rango oficial de 120 a 125 palabras).")
+                else:
+                    st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(debe contener entre 120 y 125 palabras)*.")
+
+                vid_ref_c = st.session_state.get("current_lesson_video") or {}
+                ej_apa_c = (
+                    f"{vid_ref_c.get('channel', 'Author/Channel')}. ({str(vid_ref_c.get('published_date', '2026'))[:4]}). "
+                    f"{vid_ref_c.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_c.get('url', 'https://youtube.com...')}"
+                )
+                apa_central = st.text_area(
+                    "📚 Referencia Bibliográfica del Video en Formato APA 7:",
+                    value=st.session_state.get("video_apa7_draft", ""),
+                    height=85,
+                    placeholder=f"Ejemplo APA 7:\n{ej_apa_c}",
+                    key="txt_central_writing_apa7"
+                )
+
+                if st.button("📝 Calificar Writing Skill y Cita APA 7 (20%)", type="primary", width="stretch", key="btn_central_eval_writing"):
+                    with st.spinner("Evaluando Writing Skill (120-125 palabras) y formato APA 7 con IA..."):
+                        ev_w = evaluar_resumen_video_apa7(
+                            resumen_texto=res_central,
+                            referencia_apa7=apa_central,
+                            video_info=vid_ref_c,
+                            tema_gramatical=gramatica_b1,
+                            nivel_cefr=st.session_state.selected_cefr
+                        )
+                        st.session_state["video_summary_draft"] = res_central
+                        st.session_state["video_apa7_draft"] = apa_central
+                        if ev_w["ok"]:
+                            st.session_state["summary_score_100"] = ev_w["raw_score_100"]
+                            st.session_state["summary_eval_result"] = ev_w
+                            if st.session_state.current_folio:
+                                save_video_and_summary_pg(
+                                    folio_code=st.session_state.current_folio,
+                                    summary_text=res_central,
+                                    apa7_reference=apa_central,
+                                    summary_score_100=ev_w["raw_score_100"],
+                                    summary_eval_dict=ev_w
+                                )
+                            st.success(f"🏆 Calificación Writing Skill: **{ev_w['raw_score_100']}%** (`{ev_w['weighted_points_20']} / 20.0 pts`).")
+                            st.info(ev_w["feedback"])
+                            if ev_w.get("apa7_corrected"):
+                                st.caption(f"📖 **Sugerencia APA 7:** {ev_w['apa7_corrected']}")
+                        else:
+                            st.error(ev_w["feedback"])
+
 
 # ==============================================================================
 # PARTE 16 — BLOQUE A2: ESCENARIOS CENTRALES SPEAKING (25%) Y WRITING (20%)
@@ -7025,18 +7101,12 @@ if col_lesson_left is not None:
                             st.error(ev_w["feedback"])
 
 # ==============================================================================
-# PARTE 16 — BLOQUE B2 (FINAL): 1. READING & COMPREHENSION + QUIZ (30%)
-# ============================================================================== 
+# PARTE 16 — BLOQUE 1B (FINAL): 1. READING & COMPREHENSION + QUIZ (30%)
+# ==============================================================================
         else:
-            hdr_l1, hdr_l2, hdr_l3 = st.columns([2.2, 1.1, 1.2])
-
+            hdr_l1, hdr_l3 = st.columns([3.0, 1.2])
             with hdr_l1:
                 st.subheader(f"📖 1. READING & COMPREHENSION SKILLS ({st.session_state.selected_cefr})")
-            with hdr_l2:
-                lbl_hide = "👁️ Mostrar Lectura" if st.session_state.get("hide_lesson_text") else "🙈 Ocultar Lectura"
-                if st.button(lbl_hide, type="secondary", width="stretch", key="btn_toggle_hide_lesson"):
-                    st.session_state["hide_lesson_text"] = not st.session_state.get("hide_lesson_text", False)
-                    st.rerun()
             with hdr_l3:
                 lbl_modo = "📄 Lectura Clásica" if st.session_state.get("study_mode_active") else "🧠 Modo Estudio IA"
                 if st.button(lbl_modo, type="secondary", width="stretch", key="btn_toggle_study_mode"):
@@ -7049,9 +7119,7 @@ if col_lesson_left is not None:
                             del st.query_params["study_p"]
                     st.rerun()
 
-            if st.session_state.get("hide_lesson_text"):
-                st.info("🙈 **Lectura oculta temporalmente.** Presiona **👁️ Mostrar Lectura** arriba para volver a desplegarla.")
-            elif st.session_state.get("study_mode_active"):
+            if st.session_state.get("study_mode_active"):
                 with st.spinner("Analizando estructuras gramaticales, fonética y definiciones..."):
                     payload_estudio = analyze_lesson_for_study_mode(
                         st.session_state.generated_text,
@@ -7103,7 +7171,6 @@ if col_lesson_left is not None:
                             else:
                                 st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
                         st.write("")
-
 
 
 # ==============================================================================
