@@ -4827,7 +4827,7 @@ else:
 
 
 # ==============================================================================
-# PARTE 13A1: BARRA DE FOLIOS EXCLUSIVA EN BOTÓN 1 (FOCUS MODE)
+# PARTE 13A1: SELECTOR DESPLEGABLE DE FOLIOS (BOTÓN ABRIR) — OCULTO EN CREADOR
 # ==============================================================================
 if st.session_state.get("active_stage_5") == "PORTAL":
     if es_admin_o_staff or es_socio_afiliado:
@@ -4857,26 +4857,70 @@ if st.session_state.get("active_stage_5") == "PORTAL":
 folio_input = ""
 buscar_folio_btn = False
 
-if not st.session_state.get("active_admin_workspace") and st.session_state.get("active_stage_5", "READING") == "READING":
+mostrar_barra_folios = (
+    not st.session_state.get("active_admin_workspace")
+    and st.session_state.get("active_stage_5", "READING") == "READING"
+    and not st.session_state.get("show_lesson_creator", False)
+)
+
+if mostrar_barra_folios:
     st.session_state.show_gradebook_panel = False
     st.session_state.show_student_payments_panel = False
 
+    try:
+        regs_folios_dd = load_lessons_history_pg() or []
+    except Exception:
+        regs_folios_dd = []
+
+    if not (has_faculty_access or is_owner):
+        regs_folios_dd = [
+            r for r in regs_folios_dd
+            if str(r.get("Usuario", "")).strip().lower() == usuario.strip().lower()
+        ]
+
+    opciones_folios_map = {}
+    for r_dd in regs_folios_dd:
+        f_cod = str(r_dd.get("Folio") or "").strip()
+        if not f_cod:
+            continue
+        tema_dd = str(r_dd.get("Tema") or "Lección CEI").strip()
+        if len(tema_dd) > 65:
+            tema_dd = tema_dd[:62] + "..."
+        cefr_dd = str(r_dd.get("Nivel_CEFR") or "").strip()
+        usr_dd = str(r_dd.get("Usuario") or "").strip()
+        etiqueta_dd = f"{f_cod} — {tema_dd} ({cefr_dd})" + (f" • {usr_dd}" if (has_faculty_access or is_owner) else "")
+        if etiqueta_dd not in opciones_folios_map:
+            opciones_folios_map[etiqueta_dd] = f_cod
+
     with st.container(border=True):
-        col_f1, col_f2, col_f4 = st.columns([2.4, 1.0, 2.0])
-        with col_f1:
-            folio_input = st.text_input(
-                "🔍 Buscador de Folio Académico:",
-                value=st.session_state.current_folio,
-                placeholder="Ej: CEI-20261113-4821",
-                label_visibility="collapsed"
-            )
-        with col_f2:
-            buscar_folio_btn = st.button("🔍 Buscar", width="stretch")
-        with col_f4:
-            if st.session_state.current_folio and st.session_state.generated_text:
-                st.info(f"📄 `{st.session_state.current_folio}` | `{st.session_state.current_creation_date}`")
-            else:
-                st.caption("🔍 Ingresa un Folio académico para cargar su lección.")
+        if opciones_folios_map:
+            lista_lbl_folios = list(opciones_folios_map.keys())
+            idx_default_f = 0
+            curr_f_now = str(st.session_state.get("current_folio") or "").strip()
+            for i_f, lbl_f in enumerate(lista_lbl_folios):
+                if opciones_folios_map[lbl_f] == curr_f_now:
+                    idx_default_f = i_f
+                    break
+
+            col_f1, col_f2, col_f4 = st.columns([2.7, 0.9, 1.8])
+            with col_f1:
+                sel_folio_lbl = st.selectbox(
+                    "📚 Seleccionar Folio de Lección:",
+                    lista_lbl_folios,
+                    index=idx_default_f,
+                    label_visibility="collapsed",
+                    key="sb_dropdown_folios_inicio"
+                )
+                folio_input = opciones_folios_map.get(sel_folio_lbl, "")
+            with col_f2:
+                buscar_folio_btn = st.button("📂 Abrir", type="primary", width="stretch", key="btn_abrir_folio_dd")
+            with col_f4:
+                if st.session_state.current_folio and st.session_state.generated_text:
+                    st.info(f"📄 `{st.session_state.current_folio}` | `{st.session_state.current_creation_date}`")
+                else:
+                    st.caption("Selecciona una lección de la lista y pulsa **📂 Abrir**.")
+        else:
+            st.caption("📭 Aún no hay folios guardados. Presiona **✨ GENERAR LECCIÓN** arriba para crear el primero.")
 
 
 
@@ -7061,6 +7105,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
 # ==============================================================================
 # PARTE 16A: CALIFICACIÓN DEL QUIZ, NUEVAS PREGUNTAS Y AUDIO DEL EXAMEN
 # ==============================================================================
+            if st.session_state.get("generated_text") and st.session_state.quiz_data is not None and st.session_state.get("active_stage_5", "READING") == "READING":
                 col_btn_grade, col_btn_new = st.columns(2)
                 with col_btn_grade:
                     if st.button("✅ Calificar Quiz", type="primary", width="stretch"):
@@ -7504,6 +7549,7 @@ if has_lesson_p18 and stage_5_p18 == "READING":
                         st.markdown(f"- {t}")
 
     # BOTONES DE AUDIO DEL QUIZ (DEBAJO DEL QUIZ Y ARRIBA DEL PDF OFICIAL)
+            if st.session_state.get("generated_text") and st.session_state.quiz_data is not None and st.session_state.get("active_stage_5", "READING") == "READING":
     if st.session_state.quiz_data:
         st.divider()
         st.markdown("#### 🎧 Audio de Comprensión del Quiz (Inglés)")
