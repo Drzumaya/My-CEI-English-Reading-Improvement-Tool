@@ -676,18 +676,20 @@ def _extract_numeric_score(score_str: str) -> float:
     m2 = re.search(r"(\d+(?:\.\d+)?)", str(score_str))
     return float(m2.group(1)) if m2 else -1.0
 
+
 def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
     with pg_session() as cur:
         cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (usuario_name.strip(),))
         u_row = cur.fetchone()
-        uid = u_row if u_row else None
+        uid = int(u_row) if u_row else None
         if uid is None:
             cur.execute("""
                 INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
                 VALUES (%s, 'AUTO_SESSION', 'Estudiante', 'Basico', 'Activo')
                 RETURNING id;
             """, (usuario_name.strip(),))
-            uid = cur.fetchone()
+            new_u = cur.fetchone()
+            uid = int(new_u) if new_u else None
 
         cur.execute("""
             INSERT INTO lessons_folios (folio, user_id, tema, cefr_level, academic_grade, lesson_text, pdf_link)
@@ -697,6 +699,11 @@ def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str,
                 pdf_link = EXCLUDED.pdf_link,
                 updated_at = NOW();
         """, (folio.strip().upper(), uid, tema, cefr, grado, texto, pdf_link))
+    try:
+        load_lessons_history_pg.clear()
+    except Exception:
+        pass
+
 
 def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, user_ans: dict) -> tuple[bool, str, str]:
     f_clean = str(folio or "").strip().upper()
@@ -724,6 +731,10 @@ def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, 
                 SET quiz_data = %s::jsonb, updated_at = NOW()
                 WHERE UPPER(TRIM(folio)) = %s;
             """, (json.dumps(quiz_items, ensure_ascii=False), f_clean))
+            try:
+                load_lessons_history_pg.clear()
+            except Exception:
+                pass
             return False, "", prev_best_str
 
         if prev_num < 0 or new_num >= prev_num:
@@ -742,11 +753,16 @@ def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, 
                 json.dumps(serializable_ans, ensure_ascii=False),
                 f_clean
             ))
+            try:
+                load_lessons_history_pg.clear()
+            except Exception:
+                pass
             msg = f"🏆 ¡Nueva mejor calificación guardada en Supabase para `{f_clean}`: **{nota_actual}**!"
             return True, msg, nota_actual
         else:
             msg = f"ℹ️ Se conserva tu calificación más alta previa en Supabase: **{prev_best_str}** (intento actual: {nota_actual})."
             return False, msg, prev_best_str
+
 
 def save_best_speaking_pg(folio: str, score_pct: int):
     f_clean = str(folio or "").strip().upper()
@@ -763,15 +779,105 @@ def save_best_speaking_pg(folio: str, score_pct: int):
                     updated_at = NOW()
                 WHERE UPPER(TRIM(folio)) = %s;
             """, (float(score_pct), eval_json, f_clean))
+        load_lessons_history_pg.clear()
     except Exception:
         pass
+
 # ==============================================================================
-# PARTE 4B: CONSULTA DE FOLIOS, HISTORIAL Y LIBRETA POR GRAMMAR TOPIC (PG)
+# PARTE 4B: CONSULTA DE FOLIOS, VIDEO/APA 7 Y LIBRETA POR GRAMMAR TOPIC (PG)
 # ==============================================================================
+@st.cache_resource(show_spinner=False)
+def ensure_video_summary_schema_pg() -> bool:
+    """Agrega columnas de Video (25%) y Resumen APA 7 (15%) en lessons_folios sin afectar datos."""
+    try:
+        with pg_session() as cur:
+            cur.execute("""
+                ALTER TABLE lessons_folios
+                ADD COLUMN IF NOT EXISTS video_url TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS video_title TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS video_channel TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS video_duration_sec INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS video_watched_sec INTEGER DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS video_score_100 NUMERIC(5,2) DEFAULT 0.0,
+                ADD COLUMN IF NOT EXISTS summary_text TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS apa7_reference TEXT DEFAULT '',
+                ADD COLUMN IF NOT EXISTS summary_score_100 NUMERIC(5,2) DEFAULT 0.0,
+                ADD COLUMN IF NOT EXISTS summary_eval_json JSONB;
+            """)
+        return True
+    except Exception:
+        return False
+
+
+ensure_video_summary_schema_pg()
+
+
+def save_video_and_summary_pg(
+    folio_code: str,
+    video_info: dict = None,
+    watched_sec: int = None,
+    video_score_100: float = None,
+    summary_text: str = None,
+    apa7_reference: str = None,
+    summary_score_100: float = None,
+    summary_eval_dict: dict = None
+) -> bool:
+    """Guarda metadatos del video, tiempo visto (25%) y resumen APA 7 (15%) en lessons_folios."""
+    fol = str(folio_code or "").strip().upper()
+    if not fol:
+        return False
+    ensure_video_summary_schema_pg()
+    try:
+        with pg_session() as cur:
+            if video_info:
+                cur.execute("""
+                    UPDATE lessons_folios
+                    SET video_url = COALESCE(NULLIF(%s, ''), video_url),
+                        video_title = COALESCE(NULLIF(%s, ''), video_title),
+                        video_channel = COALESCE(NULLIF(%s, ''), video_channel),
+                        video_duration_sec = CASE WHEN %s > 0 THEN %s ELSE video_duration_sec END
+                    WHERE UPPER(TRIM(folio)) = %s;
+                """, (
+                    str(video_info.get("url") or ""),
+                    str(video_info.get("title") or ""),
+                    str(video_info.get("channel") or ""),
+                    int(video_info.get("duration_sec") or 0),
+                    int(video_info.get("duration_sec") or 0),
+                    fol
+                ))
+            if watched_sec is not None and video_score_100 is not None:
+                cur.execute("""
+                    UPDATE lessons_folios
+                    SET video_watched_sec = GREATEST(COALESCE(video_watched_sec, 0), %s),
+                        video_score_100 = GREATEST(COALESCE(video_score_100, 0), %s)
+                    WHERE UPPER(TRIM(folio)) = %s;
+                """, (int(watched_sec), float(video_score_100), fol))
+            if summary_text is not None and apa7_reference is not None and summary_score_100 is not None:
+                cur.execute("""
+                    UPDATE lessons_folios
+                    SET summary_text = %s,
+                        apa7_reference = %s,
+                        summary_score_100 = GREATEST(COALESCE(summary_score_100, 0), %s),
+                        summary_eval_json = %s::jsonb
+                    WHERE UPPER(TRIM(folio)) = %s;
+                """, (
+                    str(summary_text),
+                    str(apa7_reference),
+                    float(summary_score_100),
+                    json.dumps(summary_eval_dict or {}, ensure_ascii=False),
+                    fol
+                ))
+        load_lessons_history_pg.clear()
+        return True
+    except Exception:
+        return False
+
+
 def fetch_lesson_by_folio(folio_code: str) -> dict | None:
     folio_clean = str(folio_code or "").strip().upper()
     if not folio_clean:
         return None
+    ensure_video_summary_schema_pg()
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
@@ -790,6 +896,7 @@ def fetch_lesson_by_folio(folio_code: str) -> dict | None:
                 ans_raw = r.get("best_quiz_answers")
                 spk_raw = r.get("speaking_eval_json")
                 spk_val = r.get("best_speaking_score")
+                sum_raw = r.get("summary_eval_json")
                 return {
                     "Folio": r.get("folio"),
                     "Usuario": r.get("usuario"),
@@ -802,6 +909,16 @@ def fetch_lesson_by_folio(folio_code: str) -> dict | None:
                     "Best_Answers": ans_raw if isinstance(ans_raw, dict) else (json.loads(ans_raw) if ans_raw else {}),
                     "Speaking_Score": float(spk_val) if spk_val is not None else -1.0,
                     "Speaking_Eval": spk_raw if isinstance(spk_raw, dict) else (json.loads(spk_raw) if spk_raw else None),
+                    "Video_URL": r.get("video_url") or "",
+                    "Video_Title": r.get("video_title") or "",
+                    "Video_Channel": r.get("video_channel") or "",
+                    "Video_Duration_Sec": int(r.get("video_duration_sec") or 0),
+                    "Video_Watched_Sec": int(r.get("video_watched_sec") or 0),
+                    "Video_Score": float(r.get("video_score_100") or 0.0),
+                    "Summary_Text": r.get("summary_text") or "",
+                    "APA7_Reference": r.get("apa7_reference") or "",
+                    "Summary_Score": float(r.get("summary_score_100") or 0.0),
+                    "Summary_Eval": sum_raw if isinstance(sum_raw, dict) else (json.loads(sum_raw) if sum_raw else None),
                     "PDF_Link": r.get("pdf_link") or "",
                     "Created_At": r.get("fecha_fmt") or ""
                 }
@@ -809,7 +926,10 @@ def fetch_lesson_by_folio(folio_code: str) -> dict | None:
         pass
     return None
 
+
+@st.cache_data(ttl=60, show_spinner=False)
 def load_lessons_history_pg() -> list[dict]:
+    ensure_video_summary_schema_pg()
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
@@ -824,6 +944,8 @@ def load_lessons_history_pg() -> list[dict]:
                     f.best_quiz_score AS "Mejor_Calificacion_PDF",
                     f.best_speaking_score AS "Speaking_Score",
                     f.speaking_eval_json AS "Speaking_Eval",
+                    COALESCE(f.video_score_100, 0) AS "Video_Score",
+                    COALESCE(f.summary_score_100, 0) AS "Summary_Score",
                     f.pdf_link AS "PDF_Link",
                     TO_CHAR(f.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS "Fecha_de_subida"
                 FROM lessons_folios f
@@ -834,9 +956,8 @@ def load_lessons_history_pg() -> list[dict]:
             return cur.fetchall()
     except Exception:
         return []
-
 def fetch_student_gradebook_pg(target_usuario: str) -> dict:
-    """Calcula promedios y desglose por Grammar Topic del nivel CEFR desde lessons_folios."""
+    """Calcula promedios y rúbrica oficial (Quiz 35%, Audio 25%, Video 25%, Resumen APA 7 15%)."""
     default_res = {
         "matricula": "CEI-2026-0000",
         "nivel_cefr": "B1 (Intermediate)",
@@ -845,13 +966,22 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
         "topic_summary": [],
         "overall_avg": 0.0,
         "quiz_avg": 0.0,
-        "oral_avg": 0.0
+        "oral_avg": 0.0,
+        "video_avg": 0.0,
+        "summary_avg": 0.0,
+        "rubric_weights": {
+            "Quiz": 35,
+            "Audio": 25,
+            "Ver Video": 25,
+            "Resumen APA 7": 15
+        }
     }
+    ensure_video_summary_schema_pg()
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
                 SELECT id,
-                       COALESCE(matricula, 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
+                       COALESCE(NULLIF(TRIM(matricula), ''), 'CEI-2026-' || LPAD(id::text, 4, '0')) AS matricula,
                        COALESCE(nivel_cefr, 'B1') AS nivel_cefr,
                        COALESCE(grado_academico, 'Licenciatura / Universidad') AS grado_academico
                 FROM users_padron
@@ -867,6 +997,8 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
                     f.cefr_level,
                     f.best_quiz_score,
                     COALESCE(f.best_speaking_score, -1) AS speaking_score,
+                    COALESCE(f.video_score_100, -1) AS video_score,
+                    COALESCE(f.summary_score_100, -1) AS summary_score,
                     TO_CHAR(f.created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD HH24:MI') AS fecha
                 FROM lessons_folios f
                 JOIN users_padron u ON f.user_id = u.id
@@ -897,20 +1029,38 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
 
     por_tema = {t: {"scores": [], "lecciones": 0} for t in catalogo_nivel}
     registros_procesados = []
-    todas_quiz, todas_oral, todas_combinadas = [], [], []
+    todas_quiz, todas_oral, todas_video, todas_summary, todas_combinadas = [], [], [], [], []
 
     for r in rows:
         q_pct = _parse_quiz_pct(r.get("best_quiz_score"))
         o_raw = float(r.get("speaking_score") if r.get("speaking_score") is not None else -1)
         o_pct = o_raw if o_raw > 0 else None
 
-        notas_item = [x for x in [q_pct, o_pct] if x is not None]
-        prom_leccion = round(sum(notas_item) / len(notas_item), 1) if notas_item else None
+        v_raw = float(r.get("video_score") if r.get("video_score") is not None else -1)
+        v_pct = v_raw if v_raw > 0 else None
+
+        s_raw = float(r.get("summary_score") if r.get("summary_score") is not None else -1)
+        s_pct = s_raw if s_raw > 0 else None
+
+        # Cálculo ponderado oficial: Quiz 35% + Audio 25% + Ver Video 25% + Resumen APA 7 15%
+        hay_evaluacion = any(x is not None for x in [q_pct, o_pct, v_pct, s_pct])
+        if hay_evaluacion:
+            pts_q = ((q_pct or 0.0) * 0.35)
+            pts_o = ((o_pct or 0.0) * 0.25)
+            pts_v = ((v_pct or 0.0) * 0.25)
+            pts_s = ((s_pct or 0.0) * 0.15)
+            prom_leccion = round(pts_q + pts_o + pts_v + pts_s, 1)
+        else:
+            prom_leccion = None
 
         if q_pct is not None:
             todas_quiz.append(q_pct)
         if o_pct is not None:
             todas_oral.append(o_pct)
+        if v_pct is not None:
+            todas_video.append(v_pct)
+        if s_pct is not None:
+            todas_summary.append(s_pct)
         if prom_leccion is not None:
             todas_combinadas.append(prom_leccion)
 
@@ -927,9 +1077,11 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
             "Nivel": r.get("cefr_level", ""),
             "Grammar_Topic": g_topic,
             "Tema_Leccion": r.get("tema", ""),
-            "Quiz_Pct": f"{q_pct}%" if q_pct is not None else "Pendiente",
-            "Oral_Pct": f"{o_pct}%" if o_pct is not None else "Pendiente",
-            "Promedio_Leccion": f"{prom_leccion}%" if prom_leccion is not None else "Sin evaluar"
+            "Quiz (35%)": f"{q_pct}% ({round(q_pct*0.35,1)} pts)" if q_pct is not None else "Pendiente",
+            "Audio (25%)": f"{o_pct}% ({round(o_pct*0.25,1)} pts)" if o_pct is not None else "Pendiente",
+            "Video (25%)": f"{v_pct}% ({round(v_pct*0.25,1)} pts)" if v_pct is not None else "Pendiente",
+            "Resumen APA7 (15%)": f"{s_pct}% ({round(s_pct*0.15,1)} pts)" if s_pct is not None else "Pendiente",
+            "Calificación_Final": f"{prom_leccion}%" if prom_leccion is not None else "Sin evaluar"
         })
 
     resumen_temas = []
@@ -951,8 +1103,17 @@ def fetch_student_gradebook_pg(target_usuario: str) -> dict:
         "topic_summary": resumen_temas,
         "overall_avg": round(sum(todas_combinadas) / len(todas_combinadas), 1) if todas_combinadas else 0.0,
         "quiz_avg": round(sum(todas_quiz) / len(todas_quiz), 1) if todas_quiz else 0.0,
-        "oral_avg": round(sum(todas_oral) / len(todas_oral), 1) if todas_oral else 0.0
+        "oral_avg": round(sum(todas_oral) / len(todas_oral), 1) if todas_oral else 0.0,
+        "video_avg": round(sum(todas_video) / len(todas_video), 1) if todas_video else 0.0,
+        "summary_avg": round(sum(todas_summary) / len(todas_summary), 1) if todas_summary else 0.0,
+        "rubric_weights": {
+            "Quiz": 35,
+            "Audio": 25,
+            "Ver Video": 25,
+            "Resumen APA 7": 15
+        }
     }
+
 # ==============================================================================
 # PARTE 5: MOTOR CRIPTOGRÁFICO (HMAC-SHA256), CERTIFICADOS Y BOLETINES (PG)
 # ==============================================================================
@@ -1553,74 +1714,128 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.cell(0, 5, clean_pdf_text(f"Registration ID: {gb_data.get('matricula')}  |  CEFR Level: {gb_data.get('nivel_cefr')}  |  View: {topic_filter}"), new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.ln(3)
 
+    # Resumen Ejecutivo de Promedios (5 columnas equilibradas = 186 mm)
     pdf.set_fill_color(242, 245, 250)
     pdf.set_draw_color(26, 42, 68)
     pdf.rect(12, pdf.get_y(), 186, 15, style="DF")
     y_box = pdf.get_y() + 3.5
-    pdf.set_xy(15, y_box)
-    pdf.set_font("Times", "B", 10.5)
+    pdf.set_xy(13, y_box)
+    pdf.set_font("Times", "B", 9.5)
     pdf.set_text_color(26, 42, 68)
-    pdf.cell(46, 8, f"Overall Avg: {gb_data['overall_avg']}%", align="C")
-    pdf.cell(46, 8, f"Written (Quiz): {gb_data['quiz_avg']}%", align="C")
-    pdf.cell(46, 8, f"Oral (Speaking): {gb_data['oral_avg']}%", align="C")
-    pdf.cell(44, 8, f"Total Lessons: {len(gb_data['records'])}", align="C")
+    pdf.cell(38, 8, f"Overall: {gb_data.get('overall_avg', 0.0)}%", align="C")
+    pdf.cell(37, 8, f"Quiz: {gb_data.get('quiz_avg', 0.0)}%", align="C")
+    pdf.cell(37, 8, f"Audio: {gb_data.get('oral_avg', 0.0)}%", align="C")
+    pdf.cell(37, 8, f"Video: {gb_data.get('video_avg', 0.0)}%", align="C")
+    pdf.cell(35, 8, f"Summary: {gb_data.get('summary_avg', 0.0)}%", align="C")
     pdf.ln(15)
 
-    pdf.set_font("Times", "B", 11)
+    # TABLA 1: RÚBRICA INSTITUCIONAL DE EVALUACIÓN (APA 7)
+    pdf.set_font("Times", "B", 10.5)
     pdf.set_text_color(20, 20, 20)
-    pdf.cell(0, 6, "Table 1", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Times", "I", 10.5)
-    pdf.cell(0, 6, clean_pdf_text(f"Applied Grammar Competency Breakdown by CEFR {gb_data.get('nivel_cefr')} Topic"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5.5, "Table 1", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Times", "I", 10)
+    pdf.cell(0, 5.5, "Institutional Assessment Rubric & Weighting Criteria (APA 7th Edition Standard)", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
 
-    pdf.set_font("Times", "B", 9.5)
+    pdf.set_font("Times", "B", 9)
     pdf.set_draw_color(20, 20, 20)
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
-    pdf.cell(124, 7, "Grammar Topic", align="L")
-    pdf.cell(18, 7, "Lessons", align="C")
-    pdf.cell(22, 7, "Mastery", align="C")
-    pdf.cell(22, 7, "Status", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(62, 6.5, "Assessment Component", align="L")
+    pdf.cell(96, 6.5, "Academic Requirement & Evaluation Metric", align="L")
+    pdf.cell(28, 6.5, "Weight (%)", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
 
-    pdf.set_font("Times", "", 9.2)
+    rubrica_filas = [
+        ("1. Lesson Comprehension Quiz", "Multiple-choice grammar & reading comprehension assessment", "35%"),
+        ("2. Oral Pronunciation & Audio", "AI phonetic articulation, fluency, prosody & accuracy evaluation", "25%"),
+        ("3. Educational Video Viewing", "Verified watch duration in minutes proportional to video length", "25%"),
+        ("4. Written Summary & APA 7 Ref.", "120-125 word academic English summary + APA 7th Ed. citation", "15%"),
+    ]
+    pdf.set_font("Times", "", 8.8)
+    for comp_name, comp_desc, comp_w in rubrica_filas:
+        pdf.cell(62, 5.8, clean_pdf_text(comp_name), align="L")
+        pdf.cell(96, 5.8, clean_pdf_text(comp_desc), align="L")
+        pdf.cell(28, 5.8, comp_w, align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+    pdf.set_font("Times", "B", 9)
+    pdf.cell(158, 6, "Total Weighted Coursework Score", align="R")
+    pdf.cell(28, 6, "100%", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+    pdf.ln(4.5)
+
+    # TABLA 2: DOMINIO POR GRAMMAR TOPIC
+    pdf.set_font("Times", "B", 10.5)
+    pdf.cell(0, 5.5, "Table 2", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Times", "I", 10)
+    pdf.cell(0, 5.5, clean_pdf_text(f"Applied Grammar Competency Breakdown by CEFR {gb_data.get('nivel_cefr')} Topic"), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(1)
+
+    pdf.set_font("Times", "B", 9)
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+    pdf.cell(124, 6.5, "Grammar Topic", align="L")
+    pdf.cell(18, 6.5, "Lessons", align="C")
+    pdf.cell(22, 6.5, "Mastery", align="C")
+    pdf.cell(22, 6.5, "Status", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.line(12, pdf.get_y(), 198, pdf.get_y())
+
+    pdf.set_font("Times", "", 8.8)
     temas_pdf = gb_data.get("topic_summary", [])
     if topic_filter != "Vista General":
         temas_pdf = [t for t in temas_pdf if t["Grammar Topic"] == topic_filter]
 
     for t_row in temas_pdf:
-        pdf.cell(124, 6.2, clean_pdf_text(t_row["Grammar Topic"])[:68], align="L")
-        pdf.cell(18, 6.2, str(t_row["Lecciones"]), align="C")
-        pdf.cell(22, 6.2, f"{t_row['Dominio (%)']}%", align="C")
-        pdf.cell(22, 6.2, clean_pdf_text(t_row["Estatus"]), align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(124, 5.8, clean_pdf_text(t_row["Grammar Topic"])[:68], align="L")
+        pdf.cell(18, 5.8, str(t_row["Lecciones"]), align="C")
+        pdf.cell(22, 5.8, f"{t_row['Dominio (%)']}%", align="C")
+        pdf.cell(22, 5.8, clean_pdf_text(t_row["Estatus"]), align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
-    pdf.ln(5)
+    pdf.ln(4.5)
 
-    pdf.set_font("Times", "B", 11)
-    pdf.cell(0, 6, "Table 2", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Times", "I", 10.5)
-    pdf.cell(0, 6, "Chronological Archive of Assessed Lessons and Folios", new_x="LMARGIN", new_y="NEXT")
+    # TABLA 3: ARCHIVO CRONOLÓGICO CON QUIZ (35%), AUDIO (25%), VIDEO (25%) Y RESUMEN (15%)
+    pdf.set_font("Times", "B", 10.5)
+    pdf.cell(0, 5.5, "Table 3", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Times", "I", 10)
+    pdf.cell(0, 5.5, "Chronological Archive of Assessed Lessons, Video Duration & APA 7 Summary Scores", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(1)
 
-    pdf.set_font("Times", "B", 9)
+    pdf.set_font("Times", "B", 8.2)
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
-    pdf.cell(38, 7, "Folio", align="L")
-    pdf.cell(82, 7, "Grammar Topic", align="L")
-    pdf.cell(22, 7, "Quiz", align="C")
-    pdf.cell(22, 7, "Oral", align="C")
-    pdf.cell(22, 7, "Lesson Avg", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(34, 6.5, "Folio", align="L")
+    pdf.cell(52, 6.5, "Grammar Topic", align="L")
+    pdf.cell(20, 6.5, "Quiz 35%", align="C")
+    pdf.cell(20, 6.5, "Audio 25%", align="C")
+    pdf.cell(20, 6.5, "Video 25%", align="C")
+    pdf.cell(20, 6.5, "Sum. 15%", align="C")
+    pdf.cell(20, 6.5, "Final", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
 
-    pdf.set_font("Times", "", 8.8)
+    pdf.set_font("Times", "", 8.0)
     recs_pdf = gb_data.get("records", [])
     if topic_filter != "Vista General":
         recs_pdf = [r for r in recs_pdf if r["Grammar_Topic"] == topic_filter]
 
+    def _short_cell(val_str: str) -> str:
+        s = str(val_str or "").strip()
+        if "%" in s:
+            return s.split("%") + "%"
+        return "Pend."
+
     for r_item in recs_pdf:
-        pdf.cell(38, 6, clean_pdf_text(r_item["Folio"]), align="L")
-        pdf.cell(82, 6, clean_pdf_text(r_item["Grammar_Topic"])[:55], align="L")
-        pdf.cell(22, 6, clean_pdf_text(r_item["Quiz_Pct"]), align="C")
-        pdf.cell(22, 6, clean_pdf_text(r_item["Oral_Pct"]), align="C")
-        pdf.cell(22, 6, clean_pdf_text(r_item["Promedio_Leccion"]), align="C", new_x="LMARGIN", new_y="NEXT")
+        q_txt = _short_cell(r_item.get("Quiz (35%)") or r_item.get("Quiz_Pct"))
+        o_txt = _short_cell(r_item.get("Audio (25%)") or r_item.get("Oral_Pct"))
+        v_txt = _short_cell(r_item.get("Video (25%)"))
+        s_txt = _short_cell(r_item.get("Resumen APA7 (15%)"))
+        f_txt = str(r_item.get("Calificación_Final") or r_item.get("Promedio_Leccion") or "Pend.")
+        if f_txt == "Sin evaluar":
+            f_txt = "Pend."
+
+        pdf.cell(34, 5.8, clean_pdf_text(r_item["Folio"]), align="L")
+        pdf.cell(52, 5.8, clean_pdf_text(r_item["Grammar_Topic"])[:34], align="L")
+        pdf.cell(20, 5.8, clean_pdf_text(q_txt), align="C")
+        pdf.cell(20, 5.8, clean_pdf_text(o_txt), align="C")
+        pdf.cell(20, 5.8, clean_pdf_text(v_txt), align="C")
+        pdf.cell(20, 5.8, clean_pdf_text(s_txt), align="C")
+        pdf.cell(20, 5.8, clean_pdf_text(f_txt), align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.line(12, pdf.get_y(), 198, pdf.get_y())
     pdf.ln(6)
 
@@ -1651,6 +1866,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     pdf.cell(152, 5, clean_pdf_text("Signed digitally by: Jacob Zumaya Prianti - Academic Director, Career English Institute"), new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output()), timbre
+
 # ==============================================================================
 # PARTE 7B1: GENERADOR DE CERTIFICADO OFICIAL EN PDF (CARTA HORIZONTAL)
 # ==============================================================================
@@ -4608,8 +4824,8 @@ if not st.session_state.get("active_admin_workspace"):
                     alumno_objetivo_gb = st.session_state.current_user
             else:
                 alumno_objetivo_gb = st.session_state.current_user
-                st.info(f"🎓 **Expediente Académico de:** {alumno_objetivo_gb}")
-
+                _mat_gb_prev = fetch_student_gradebook_pg(alumno_objetivo_gb).get("matricula", "")
+                st.info(f"🎓 **Expediente Académico de:** {alumno_objetivo_gb}  |  🆔 **Matrícula Oficial:** `{_mat_gb_prev}`")
 
             gb_data = fetch_student_gradebook_pg(alumno_objetivo_gb)
 
@@ -4627,7 +4843,10 @@ if not st.session_state.get("active_admin_workspace"):
                 fin_alumno = evaluar_estado_financiero_alumno(alumno_objetivo_gb)
                 d_ret = int(fin_alumno.get("dias_retraso", 0))
                 if is_owner or fin_alumno["descarga_permitida"]:
-                    cache_key_bol = f"{alumno_objetivo_gb}|{topico_seleccionado_gb}|{gb_data['overall_avg']}|{len(gb_data['records'])}"
+                    cache_key_bol = (
+                        f"{alumno_objetivo_gb}|{topico_seleccionado_gb}|{gb_data['overall_avg']}|"
+                        f"{gb_data.get('video_avg', 0)}|{gb_data.get('summary_avg', 0)}|{len(gb_data['records'])}"
+                    )
                     if st.session_state.get("_bol_cache_key") != cache_key_bol:
                         pdf_bol_bytes, timbre_bol = create_official_gradebook_pdf(
                             alumno_objetivo_gb,
@@ -4668,6 +4887,122 @@ if not st.session_state.get("active_admin_workspace"):
                         st.session_state.show_gradebook_panel = False
                         st.session_state.show_student_payments_panel = True
                         st.rerun()
+# ==============================================================================
+# PARTE 13A2: MÉTRICAS DEL BOLETÍN (RÚBRICA 35/25/25/15) Y RECUPERACIÓN DE FOLIOS
+# ==============================================================================
+            if topico_seleccionado_gb == "Vista General":
+                prom_vista = gb_data["overall_avg"]
+                recs_filtrados = gb_data["records"]
+                temas_filtrados = gb_data["topic_summary"]
+            else:
+                t_info = next((t for t in gb_data["topic_summary"] if t["Grammar Topic"] == topico_seleccionado_gb), {})
+                prom_vista = t_info.get("Dominio (%)", 0.0)
+                recs_filtrados = [r for r in gb_data["records"] if r["Grammar_Topic"] == topico_seleccionado_gb]
+                temas_filtrados = [t_info] if t_info else []
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("🏆 Promedio Ponderado", f"{gb_data['overall_avg']}%", delta=f"Vista: {prom_vista}%")
+            m2.metric("📝 Quiz (35%) / 🎙️ Audio (25%)", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
+            m3.metric("🎬 Video (25%) / ✍️ Resumen (15%)", f"{gb_data.get('video_avg', 0.0)}% / {gb_data.get('summary_avg', 0.0)}%")
+            m4.metric("📚 Lecciones Evaluadas", len(recs_filtrados))
+
+            st.caption("📐 **Rúbrica Oficial de Evaluación (100%):** Quiz Escrito = **35%**  |  Pronunciación y Audio = **25%**  |  Ver Video Educativo = **25%**  |  Resumen (120-125 palabras) y Cita APA 7 = **15%**.")
+
+            if temas_filtrados:
+                st.markdown("#### 📈 Porcentaje de Dominio por Grammar Topic")
+                df_chart = pd.DataFrame(temas_filtrados).set_index("Grammar Topic")
+                st.bar_chart(df_chart[["Dominio (%)"]], height=260)
+                st.dataframe(pd.DataFrame(temas_filtrados), width="stretch", hide_index=True)
+
+            st.markdown("#### 📋 Historial Completo de Lecciones Evaluadas")
+            if recs_filtrados:
+                st.dataframe(pd.DataFrame(recs_filtrados), width="stretch", hide_index=True)
+            else:
+                st.warning("Aún no hay lecciones registradas para este filtro en Supabase.")
+
+auto_fetch_url_folio = bool(
+    st.session_state.current_folio
+    and not st.session_state.generated_text
+    and not st.session_state.get("url_folio_checked", False)
+)
+
+if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
+    if auto_fetch_url_folio:
+        st.session_state.url_folio_checked = True
+
+    folio_buscado = folio_input.strip().upper()
+    try:
+        with st.spinner(f"Buscando Folio {folio_buscado} en Supabase PostgreSQL..."):
+            row_f = fetch_lesson_by_folio(folio_buscado)
+
+            if not row_f:
+                st.warning(f"⚠️ No se encontró ningún registro con el Folio `{folio_buscado}` en Supabase.")
+            else:
+                st.session_state.generated_text = str(row_f.get("Text", ""))
+                st.session_state.selected_cefr = normalize_cefr(row_f.get("CEFR", "B1"))
+                st.session_state.selected_academic_grade = str(row_f.get("Grade", "Licenciatura / Universidad"))
+                st.session_state.current_folio = folio_buscado
+                st.session_state.current_pdf_link = str(row_f.get("PDF_Link") or "")
+                st.session_state.current_creation_date = str(row_f.get("Created_At") or "")
+                st.session_state.study_mode_active = False
+                st.session_state.quiz_graded = False
+                st.session_state.quiz_score = None
+                st.session_state.quiz_user_answers = {}
+                st.session_state.image_bytes = None
+                st.session_state.audio_bytes = None
+                st.session_state.quiz_audio_bytes = None
+                st.session_state.speaking_eval_result = row_f.get("Speaking_Eval")
+                st.session_state["best_stored_score"] = str(row_f.get("Best_Score") or "")
+
+                # Restaurar datos del Video Educativo y Resumen APA 7 del Folio
+                v_url_f = str(row_f.get("Video_URL") or "").strip()
+                if v_url_f:
+                    st.session_state["current_lesson_video"] = {
+                        "url": v_url_f,
+                        "title": str(row_f.get("Video_Title") or "Educational Video"),
+                        "channel": str(row_f.get("Video_Channel") or "YouTube"),
+                        "duration_sec": int(row_f.get("Video_Duration_Sec") or 240),
+                        "duration_min": round(int(row_f.get("Video_Duration_Sec") or 240) / 60.0, 2)
+                    }
+                else:
+                    st.session_state["current_lesson_video"] = None
+
+                st.session_state["video_watched_sec"] = int(row_f.get("Video_Watched_Sec") or 0)
+                st.session_state["video_score_100"] = float(row_f.get("Video_Score") or 0.0)
+                st.session_state["video_summary_draft"] = str(row_f.get("Summary_Text") or "")
+                st.session_state["video_apa7_draft"] = str(row_f.get("APA7_Reference") or "")
+                st.session_state["summary_score_100"] = float(row_f.get("Summary_Score") or 0.0)
+                st.session_state["summary_eval_result"] = row_f.get("Summary_Eval")
+
+                qz_obj = row_f.get("Quiz")
+                if isinstance(qz_obj, list):
+                    st.session_state.quiz_data = qz_obj
+                elif isinstance(qz_obj, dict):
+                    st.session_state.quiz_data = qz_obj.get("questions")
+                else:
+                    st.session_state.quiz_data = None
+
+                if st.session_state.generated_text:
+                    try:
+                        clean_tts = re.split(
+                            r"\bBibliography\b",
+                            st.session_state.generated_text.replace("*", "").replace("#", ""),
+                            maxsplit=1
+                        )
+                        tts = gTTS(text=clean_tts, lang="en", slow=False)
+                        afp = io.BytesIO()
+                        tts.write_to_fp(afp)
+                        st.session_state.audio_bytes = afp.getvalue()
+                    except Exception:
+                        st.warning("⚠️ Lección recuperada, pero el audio no pudo sintetizarse en este momento.")
+
+                st.success(f"✅ Folio **{folio_buscado}** recuperado desde Supabase.")
+                st.rerun()
+    except Exception as e:
+        st.error(f"Error al buscar folio en Supabase: {e}")
+
+st.divider()
+
 
 # ==============================================================================
 # PARTE 13A2: MÉTRICAS DEL BOLETÍN Y RECUPERACIÓN DIRECTA DE FOLIOS
