@@ -7334,7 +7334,7 @@ if col_tools_right is not None:
         else:
             st.caption("Audio modelo disponible al generar o cargar una lección.")
 
-
+# ==============================================================================
 # PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) SIN SALIDA EXTERNA
 # ==============================================================================
             st.markdown(f"**📚 Catálogo de Videos: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
