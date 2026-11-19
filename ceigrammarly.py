@@ -4697,6 +4697,8 @@ if st.session_state.get("active_student_workspace"):
 
     if "hide_payment_report_form" not in st.session_state:
         st.session_state["hide_payment_report_form"] = True
+    if "pay_report_step" not in st.session_state:
+        st.session_state["pay_report_step"] = "form"
     if "payment_report_sent_msg" not in st.session_state:
         st.session_state["payment_report_sent_msg"] = ""
 
@@ -4731,20 +4733,23 @@ if st.session_state.get("active_student_workspace"):
             if est_sp.get("en_vacaciones"):
                 st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
 
-            lbl_btn_reversible = (
-                "📤 Informar pago"
-                if st.session_state.get("hide_payment_report_form", True)
-                else "✖️ Cerrar informe de pago"
-            )
-            tipo_btn_reversible = "primary" if st.session_state.get("hide_payment_report_form", True) else "secondary"
+            form_cerrado = bool(st.session_state.get("hide_payment_report_form", True))
+            lbl_btn_reversible = "📤 Informar pago" if form_cerrado else "✖️ Cerrar informe de pago"
+            tipo_btn_reversible = "primary" if form_cerrado else "secondary"
             if st.button(lbl_btn_reversible, type=tipo_btn_reversible, width="stretch", key="ws_btn_toggle_pay_form"):
-                st.session_state["hide_payment_report_form"] = not st.session_state.get("hide_payment_report_form", True)
+                nuevo_estado_cerrado = not form_cerrado
+                st.session_state["hide_payment_report_form"] = nuevo_estado_cerrado
+                if not nuevo_estado_cerrado:
+                    # Al abrir el formulario, limpiar estados previos para ocultar WhatsApp y confirmación
+                    st.session_state["pay_report_step"] = "form"
+                    st.session_state["last_wa_owner_url"] = ""
+                    st.session_state["last_folio_reportado"] = ""
                 st.rerun()
 
             if st.session_state.get("payment_report_sent_msg"):
                 st.success(st.session_state["payment_report_sent_msg"])
 # ==============================================================================
-# PARTE 14E — SECCIÓN 1B: CONTENIDO REVERSIBLE DE INFORMAR PAGO Y WHATSAPP
+# PARTE 14E — SECCIÓN 1B: MÁQUINA DE ESTADOS DE INFORME DE PAGO Y WHATSAPP
 # ==============================================================================
             if not st.session_state.get("hide_payment_report_form", True):
                 with st.container(border=True):
@@ -4794,76 +4799,102 @@ if st.session_state.get("active_student_workspace"):
                                 key="ws_est_metodo_pago"
                             )
                             ref_p_est = st.text_input("Número de referencia / rastreo bancario:", placeholder="Ej: SPEI-8492014", key="ws_est_ref_pago")
+
                         with col_up2:
                             archivo_comp = st.file_uploader(
                                 "📎 Adjuntar Comprobante de Pago (Obligatorio — Imagen JPG/PNG o PDF):",
                                 type=["jpg", "jpeg", "png", "pdf"],
                                 key="ws_est_up_comp"
                             )
-                            if st.button(
-                                f"📤 Informar Pago Bloque {b_elegido['bloque_num']}/9 y Subir Comprobante",
-                                type="primary",
-                                width="stretch",
-                                key="ws_est_btn_comp"
-                            ):
-                                if archivo_comp is None:
-                                    st.warning("⚠️ **Comprobante faltante:** Debes subir la imagen (JPG/PNG) o PDF de tu comprobante de pago antes de enviar el informe.")
-                                else:
-                                    raw_bytes = archivo_comp.getvalue()
-                                    mime_comp = str(archivo_comp.type or "image/jpeg")
-                                    if "image" in mime_comp.lower():
-                                        try:
-                                            raw_bytes = compress_bytes_image(raw_bytes, max_side=1100, quality=78)
-                                            mime_comp = "image/jpeg"
-                                        except Exception:
-                                            pass
-                                    b64_comp = base64.b64encode(raw_bytes).decode("ascii")
 
-                                    res_rep = reportar_comprobante_pago_estudiante_pg(
-                                        student_user=alumno_actual_ws,
-                                        metodo_pago=metodo_p_est,
-                                        referencia=ref_p_est,
-                                        comprobante_b64=b64_comp,
-                                        comprobante_mime=mime_comp,
-                                        ciclo_seleccionado=ciclo_elegido_num
-                                    )
-                                    if res_rep["ok"]:
-                                        _, wa_owner_url = build_whatsapp_aviso_pago_owner(
-                                            nombre_alumno=f"{alumno_actual_ws} (Matrícula: {mat_oficial_sp})",
-                                            usuario_alumno=alumno_actual_ws,
-                                            nivel_cefr=res_rep.get("nivel_cefr", est_sp.get("nivel_cefr", "")),
-                                            folio_pago=res_rep["folio_pago"],
-                                            ciclo_num=res_rep["ciclo_num"],
-                                            monto_pagado=res_rep["monto"],
-                                            referencia=ref_p_est
-                                        )
-                                        st.session_state["last_wa_owner_url"] = wa_owner_url
-                                        st.session_state["last_folio_reportado"] = res_rep["folio_pago"]
-                                        st.session_state["last_bloque_reportado"] = b_elegido["bloque_num"]
-                                        st.success(res_rep["msg"])
+                            paso_actual = st.session_state.get("pay_report_step", "form")
+
+                            if paso_actual == "form":
+                                if st.button(
+                                    f"📤 Informar pago y subir comprobante (Bloque {b_elegido['bloque_num']}/9)",
+                                    type="primary",
+                                    width="stretch",
+                                    key="ws_est_btn_comp"
+                                ):
+                                    if archivo_comp is None:
+                                        st.warning("⚠️ **Comprobante faltante:** Debes adjuntar el archivo de tu comprobante (JPG, PNG o PDF) antes de continuar.")
                                     else:
-                                        st.error(res_rep["msg"])
+                                        raw_bytes = archivo_comp.getvalue()
+                                        mime_comp = str(archivo_comp.type or "image/jpeg")
+                                        if "image" in mime_comp.lower():
+                                            try:
+                                                raw_bytes = compress_bytes_image(raw_bytes, max_side=1100, quality=78)
+                                                mime_comp = "image/jpeg"
+                                            except Exception:
+                                                pass
+                                        b64_comp = base64.b64encode(raw_bytes).decode("ascii")
 
-                            if st.session_state.get("last_wa_owner_url"):
+                                        res_rep = reportar_comprobante_pago_estudiante_pg(
+                                            student_user=alumno_actual_ws,
+                                            metodo_pago=metodo_p_est,
+                                            referencia=ref_p_est,
+                                            comprobante_b64=b64_comp,
+                                            comprobante_mime=mime_comp,
+                                            ciclo_seleccionado=ciclo_elegido_num
+                                        )
+                                        if res_rep["ok"]:
+                                            _, wa_owner_url = build_whatsapp_aviso_pago_owner(
+                                                nombre_alumno=f"{alumno_actual_ws} (Matrícula: {mat_oficial_sp})",
+                                                usuario_alumno=alumno_actual_ws,
+                                                nivel_cefr=res_rep.get("nivel_cefr", est_sp.get("nivel_cefr", "")),
+                                                folio_pago=res_rep["folio_pago"],
+                                                ciclo_num=res_rep["ciclo_num"],
+                                                monto_pagado=res_rep["monto"],
+                                                referencia=ref_p_est
+                                            )
+                                            st.session_state["last_wa_owner_url"] = wa_owner_url
+                                            st.session_state["last_folio_reportado"] = res_rep["folio_pago"]
+                                            st.session_state["last_bloque_reportado"] = b_elegido["bloque_num"]
+                                            st.session_state["last_audit_msg"] = res_rep["msg"]
+                                            st.session_state["pay_report_step"] = "wa_pending"
+                                            st.rerun()
+                                        else:
+                                            st.error(res_rep["msg"])
+
+                            elif paso_actual == "wa_pending":
+                                st.success(st.session_state.get("last_audit_msg", "✅ Comprobante guardado en base de datos."))
                                 st.link_button(
-                                    f"📲 Enviar Aviso por WhatsApp al Owner / Admin (Folio {st.session_state.get('last_folio_reportado', '')})",
-                                    url=st.session_state["last_wa_owner_url"],
+                                    f"📲 Enviar aviso por WhatsApp al Owner / Admin (Folio {st.session_state.get('last_folio_reportado', '')})",
+                                    url=st.session_state.get("last_wa_owner_url", "https://wa.me"),
                                     type="primary",
                                     width="stretch"
                                 )
                                 if st.button(
-                                    "✅ Confirmar WhatsApp Enviado y Cerrar Informe",
+                                    "✅ Confirmar envío de WhatsApp",
                                     type="secondary",
                                     width="stretch",
-                                    key="ws_btn_confirm_wa_close"
+                                    key="ws_btn_confirm_wa_step"
+                                ):
+                                    st.session_state["pay_report_step"] = "confirmed"
+                                    st.rerun()
+
+                            elif paso_actual == "confirmed":
+                                st.button(
+                                    "✅ Confirmación recibida",
+                                    disabled=True,
+                                    width="stretch",
+                                    key="ws_btn_confirmed_badge"
+                                )
+                                if st.button(
+                                    "✖️ Cerrar formulario",
+                                    type="primary",
+                                    width="stretch",
+                                    key="ws_btn_close_after_confirm"
                                 ):
                                     fol_env = st.session_state.get("last_folio_reportado", "")
                                     blq_env = st.session_state.get("last_bloque_reportado", "")
                                     st.session_state["payment_report_sent_msg"] = (
-                                        f"✅ **Informe de pago enviado con éxito** (Folio `{fol_env}` — Bloque {blq_env}/9, Matrícula `{mat_oficial_sp}`). "
-                                        f"El aviso fue notificado al Owner / Administrador autorizado y tu Boletín de Calificaciones ya está habilitado."
+                                        f"✅ **Confirmación recibida:** Informe de pago guardado y notificado "
+                                        f"(Folio `{fol_env}` — Bloque {blq_env}/9, Matrícula `{mat_oficial_sp}`). "
+                                        f"Tu Boletín de Calificaciones está activo."
                                     )
                                     st.session_state["hide_payment_report_form"] = True
+                                    st.session_state["pay_report_step"] = "form"
                                     st.session_state["last_wa_owner_url"] = ""
                                     st.rerun()
 
