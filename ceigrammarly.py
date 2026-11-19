@@ -7242,15 +7242,25 @@ with col_lesson_left:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17 — BLOQUE 1 DE 2: 2. VIEWING & LISTENING SKILLS (25%) Y CATÁLOGO
+# PARTE 17 — BLOQUE 1A: 2. VIEWING & LISTENING SKILLS -> ESCENARIO CENTRAL
 # ==============================================================================
 if col_tools_right is not None:
     with col_tools_right:
         st.subheader("🎬 2. VIEWING & LISTENING SKILLS (25%)")
 
+        topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
+        titulo_catalogo = (
+            f"{gramatica_b1} • {topico_actual_leccion}"
+            if topico_actual_leccion
+            else f"{gramatica_b1} ({st.session_state.selected_cefr})"
+        )
+        vid_data = st.session_state.get("current_lesson_video") or {}
+        alts_list = list(vid_data.get("alternatives") or []) if isinstance(vid_data, dict) else []
+
         if st.session_state.get("generated_text"):
             if "video_catalog_limit" not in st.session_state:
                 st.session_state["video_catalog_limit"] = 12
+
 
             topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
             titulo_catalogo = (
