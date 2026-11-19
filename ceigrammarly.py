@@ -6643,7 +6643,10 @@ if (
 # ==============================================================================
 # PARTE 17 — BLOQUE 2A: CATÁLOGO DE VIDEOS (SOLO ACTIVO EN BOTÓN 2 VIEWING)
 # ==============================================================================
-if has_lesson_now and stage_5_now == "VIEWING":
+has_lesson_p17 = bool(str(st.session_state.get("generated_text") or "").strip())
+stage_5_p17 = st.session_state.get("active_stage_5", "READING")
+
+if has_lesson_p17 and stage_5_p17 == "VIEWING":
     st.markdown("### 📚 Catálogo Escrolable de Videos Relacionados")
 
     topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
@@ -6721,8 +6724,9 @@ if has_lesson_now and stage_5_now == "VIEWING":
                             save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=nuevo_principal)
                         st.rerun()
                 st.divider()
+
 # ==============================================================================
-# PARTE 17 — BLOQUE 2B: MÁS OPCIONES DE VIDEO + CONEXIÓN PARTE 17A (SPEAKING)
+# PARTE 17 — BLOQUE 2B (FINAL): MÁS OPCIONES DE VIDEO Y URL PROPIA (BOTÓN 2)
 # ==============================================================================
     c_more1, c_more2 = st.columns([1.6, 1.8])
     with c_more1:
