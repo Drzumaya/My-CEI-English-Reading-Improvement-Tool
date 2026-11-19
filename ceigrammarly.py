@@ -4247,16 +4247,31 @@ elif es_admin_o_staff or es_socio_afiliado:
         if not opciones_menu_inst:
             opciones_menu_inst = ["🏅 Certificados (Timbre y QR)"]
 
+    panel_admin_abierto = bool(st.session_state.get("active_admin_workspace"))
     idx_ws_actual = (
         opciones_menu_inst.index(st.session_state["active_admin_workspace"])
         if st.session_state["active_admin_workspace"] in opciones_menu_inst else 0
     )
 
     with st.container(border=True):
-        c_nav1, c_nav2, c_nav3 = st.columns([3.2, 1.0, 1.2])
+        hdr_adm1, hdr_adm2 = st.columns([2.8, 1.6])
+        with hdr_adm1:
+            titulo_panel = "🤝 PORTAL SOCIO AFILIADO" if es_socio_afiliado else "🛡️ PANEL ADMINISTRATIVO INSTITUCIONAL"
+            st.markdown(f"#### {titulo_panel}")
+        with hdr_adm2:
+            if panel_admin_abierto:
+                if st.button("🔒 Cerrar Panel Administrativo", type="secondary", width="stretch", key="btn_toggle_admin_close"):
+                    st.session_state["active_admin_workspace"] = None
+                    st.rerun()
+            else:
+                if st.button("🔓 Abrir Panel Administrativo", type="primary", width="stretch", key="btn_toggle_admin_open"):
+                    st.session_state["active_admin_workspace"] = st.session_state.get("sb_centro_mando_inst") or opciones_menu_inst[0]
+                    st.rerun()
+
+        c_nav1, c_nav2 = st.columns([3.4, 1.0])
         with c_nav1:
             mod_elegido = st.selectbox(
-                "🧭 Centro de Mando Institucional:",
+                "Seleccionar módulo administrativo:",
                 options=opciones_menu_inst,
                 index=idx_ws_actual,
                 label_visibility="collapsed",
@@ -4266,13 +4281,12 @@ elif es_admin_o_staff or es_socio_afiliado:
             if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_workspace"):
                 st.session_state["active_admin_workspace"] = st.session_state.get("sb_centro_mando_inst") or mod_elegido
                 st.rerun()
-        with c_nav3:
-            if st.session_state["active_admin_workspace"]:
-                if st.button("✖️ CERRAR", type="secondary", width="stretch", key="btn_close_workspace_top"):
-                    st.session_state["active_admin_workspace"] = None
-                    st.rerun()
-            else:
-                st.caption("📚 Aula Académica Activa")
+
+        if panel_admin_abierto:
+            st.caption(f"🟢 **Panel Administrativo Abierto:** `{st.session_state['active_admin_workspace']}` *(Aula de lecciones oculta)*")
+        else:
+            st.caption("📚 **Aula de Lecciones Visible** *(Presiona **🔓 Abrir Panel Administrativo** o **🚀 IR** para ocultarla y gestionar el instituto)*")
+
 
 # ==============================================================================
 # PARTE 13A1 — BLOQUE 1 DE 3: BARRA DE FOLIOS, BOLETÍN Y MIS PAGOS (FOCUS MODE)
