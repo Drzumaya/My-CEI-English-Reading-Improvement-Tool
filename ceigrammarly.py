@@ -53,7 +53,7 @@ st.set_page_config(
     page_title="CEI ENGLISH LEARNING PLATFORM — Career English Institute",
     page_icon="🎓",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
 # --- 1B. MOTOR DE AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO) ---
@@ -4520,9 +4520,9 @@ has_faculty_access = is_owner or can("Reuso_Ilimitado_Folios") or (curr_r_clean 
 cefr_options = list(CEFR_MAP.values())
 
 # --- BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS) ---
-with st.sidebar:
-    if not (st.session_state.get("show_lesson_creator") or bool(str(st.session_state.get("generated_text") or "").strip())):
-        st.caption("🔒 Configurador en espera. Presiona **✨ GENERAR LECCIÓN** en el centro para activar este panel.")
+if st.session_state.get("show_lesson_creator") or bool(str(st.session_state.get("generated_text") or "").strip()):
+    with st.sidebar:
+
     else:
         st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
     st.caption(f"📍 {institute_address}")
