@@ -4171,7 +4171,7 @@ with col_exit:
         st.session_state.pending_ls_token = "REMOVE"
         st.rerun()
 
-# --- BARRA DE COMANDO SPA (ROL-AWARE: ESTUDIANTE VS INSTITUCIONAL) ---
+# --- BARRA DE COMANDO SPA UNIFICADA (ESTUDIANTE, STAFF, AFILIADO Y OWNER) ---
 es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
 es_admin_o_staff = bool(
     is_owner
@@ -4196,15 +4196,30 @@ if es_estudiante_rol:
         "📚 Mis Lecciones y Folios",
         "🎧 Mis Audios y Pronunciación"
     ]
+    panel_est_abierto = bool(st.session_state.get("active_student_workspace"))
     idx_est_ws = (
         opciones_menu_est.index(st.session_state["active_student_workspace"])
         if st.session_state["active_student_workspace"] in opciones_menu_est else 0
     )
+
     with st.container(border=True):
-        ce1, ce2, ce3 = st.columns([3.2, 1.0, 1.2])
+        hdr_e1, hdr_e2 = st.columns([2.8, 1.6])
+        with hdr_e1:
+            st.markdown("#### 🎓 MI PANEL ESTUDIANTIL")
+        with hdr_e2:
+            if panel_est_abierto:
+                if st.button("🔒 Cerrar Mi Panel", type="secondary", width="stretch", key="btn_toggle_est_close"):
+                    st.session_state["active_student_workspace"] = None
+                    st.rerun()
+            else:
+                if st.button("🔓 Abrir Mi Panel", type="primary", width="stretch", key="btn_toggle_est_open"):
+                    st.session_state["active_student_workspace"] = st.session_state.get("sb_portal_estudiante_nav") or opciones_menu_est[0]
+                    st.rerun()
+
+        ce1, ce2 = st.columns([3.4, 1.0])
         with ce1:
             mod_est_elegido = st.selectbox(
-                "🎓 Mi Espacio Estudiantil:",
+                "Seleccionar herramienta estudiantil:",
                 options=opciones_menu_est,
                 index=idx_est_ws,
                 label_visibility="collapsed",
@@ -4214,13 +4229,11 @@ if es_estudiante_rol:
             if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_student_ws"):
                 st.session_state["active_student_workspace"] = st.session_state.get("sb_portal_estudiante_nav") or mod_est_elegido
                 st.rerun()
-        with ce3:
-            if st.session_state["active_student_workspace"]:
-                if st.button("✖️ CERRAR", type="secondary", width="stretch", key="btn_close_student_ws"):
-                    st.session_state["active_student_workspace"] = None
-                    st.rerun()
-            else:
-                st.caption("🎓 Aula de Aprendizaje Activa")
+
+        if panel_est_abierto:
+            st.caption(f"🟢 **Panel Estudiantil Abierto:** `{st.session_state['active_student_workspace']}` *(Aula de lecciones oculta)*")
+        else:
+            st.caption("📚 **Aula de Lecciones Visible** *(Presiona **🔓 Abrir Mi Panel** o **🚀 IR** para ocultarla y ver tus pagos, boletín o historial)*")
 
 elif es_admin_o_staff or es_socio_afiliado:
     st.session_state["active_student_workspace"] = None
@@ -4286,6 +4299,7 @@ elif es_admin_o_staff or es_socio_afiliado:
             st.caption(f"🟢 **Panel Administrativo Abierto:** `{st.session_state['active_admin_workspace']}` *(Aula de lecciones oculta)*")
         else:
             st.caption("📚 **Aula de Lecciones Visible** *(Presiona **🔓 Abrir Panel Administrativo** o **🚀 IR** para ocultarla y gestionar el instituto)*")
+
 
 
 # ==============================================================================
