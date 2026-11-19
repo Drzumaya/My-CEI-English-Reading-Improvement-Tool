@@ -4524,7 +4524,7 @@ with st.sidebar:
     if not (st.session_state.get("show_lesson_creator") or bool(str(st.session_state.get("generated_text") or "").strip())):
         st.caption("🔒 Configurador en espera. Presiona **✨ GENERAR LECCIÓN** en el centro para activar este panel.")
     else:
-    st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
+        st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
     st.caption(f"📍 {institute_address}")
     st.success(
         f"👤 **{st.session_state.current_user}**\n\n"
