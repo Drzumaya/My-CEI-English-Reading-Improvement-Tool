@@ -4715,18 +4715,51 @@ tiene_leccion_activa = bool(str(st.session_state.get("generated_text") or "").st
 if not tiene_leccion_activa:
     c_init1, c_init2 = st.columns(2)
     with c_init1:
+        abierto_creador = bool(st.session_state.get("show_lesson_creator"))
+        lbl_gen_toggle = "✅ COMPLETAR Y GENERAR LECCIÓN" if abierto_creador else "✨ GENERAR LECCIÓN"
         if st.button(
-            "✨ GENERAR LECCIÓN",
-            type="primary" if st.session_state.get("show_lesson_creator") and st.session_state["active_stage_5"] != "PORTAL" else "secondary",
+            lbl_gen_toggle,
+            type="primary" if (abierto_creador and st.session_state["active_stage_5"] != "PORTAL") else "secondary",
             width="stretch",
             key="btn_init_2_generate"
         ):
-            st.session_state["active_stage_5"] = "READING"
-            st.session_state["show_lesson_creator"] = True
-            st.session_state["active_admin_workspace"] = None
-            st.session_state["active_student_workspace"] = None
-            st.session_state.sidebar_state = "expanded"
-            st.rerun()
+            if not abierto_creador:
+                # PRIMER CLIC: Abre el formulario creador izquierdo
+                st.session_state["show_lesson_creator"] = True
+                st.session_state["active_stage_5"] = "READING"
+                st.session_state["active_admin_workspace"] = None
+                st.session_state["active_student_workspace"] = None
+                st.session_state["creator_missing_fields"] = []
+                st.rerun()
+            else:
+                # SEGUNDO CLIC: Valida si faltan casillas por llenar o seleccionar
+                campos_faltantes = []
+                val_cefr = str(st.session_state.get("selected_cefr") or "").strip()
+                val_grade = str(st.session_state.get("selected_academic_grade") or "").strip()
+                val_context = str(st.session_state.get("sb_context_input") or st.session_state.get("current_topic") or "").strip()
+                val_subject = str(st.session_state.get("sb_subject_input") or "").strip()
+                val_grammar = str(st.session_state.get("selected_grammar") or "").strip()
+
+                if not val_cefr:
+                    campos_faltantes.append("🎯 **CEFR Level**")
+                if not val_grade:
+                    campos_faltantes.append("🎓 **Academic Grade**")
+                if not val_context:
+                    campos_faltantes.append("1️⃣ **Contexto / Lugar / Tema**")
+                if not val_subject:
+                    campos_faltantes.append("2️⃣ **Asunto / Materia**")
+                if not val_grammar:
+                    campos_faltantes.append("3️⃣ **Tema Gramatical**")
+
+                if campos_faltantes:
+                    st.session_state["creator_missing_fields"] = campos_faltantes
+                    st.rerun()
+                else:
+                    # Todo completo: cierra el formulario, sube el encabezado y dispara la generación
+                    st.session_state["creator_missing_fields"] = []
+                    st.session_state["show_lesson_creator"] = False
+                    st.session_state["trigger_generate_from_top"] = True
+                    st.rerun()
 
     with c_init2:
         if st.button(
@@ -4737,16 +4770,25 @@ if not tiene_leccion_activa:
         ):
             st.session_state["active_stage_5"] = "PORTAL"
             st.session_state["show_lesson_creator"] = False
+            st.session_state["creator_missing_fields"] = []
             if es_admin_o_staff or es_socio_afiliado:
                 st.session_state["active_admin_workspace"] = st.session_state.get("active_admin_workspace") or "💳 Cobranza Mensual e IVA"
             else:
                 st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
             st.rerun()
 
-    if not st.session_state.get("show_lesson_creator") and st.session_state["active_stage_5"] != "PORTAL":
-        st.info("👆 Presiona **✨ GENERAR LECCIÓN** para abrir el panel creador izquierdo, o abre tu **Panel** para gestionar registros, pagos o folios.")
+    if st.session_state.get("creator_missing_fields"):
+        faltantes_txt = "  •  ".join(st.session_state["creator_missing_fields"])
+        st.warning(
+            f"⚠️ **Faltan casillas por llenar o seleccionar en el formulario izquierdo:**\n\n"
+            f"{faltantes_txt}\n\n"
+            f"👈 Por favor complétalas y vuelve a hacer clic en **✅ COMPLETAR Y GENERAR LECCIÓN**."
+        )
+    elif st.session_state.get("show_lesson_creator") and st.session_state["active_stage_5"] != "PORTAL":
+        st.info("👈 **Formulario Abierto:** Completa todas las casillas del panel izquierdo y haz clic nuevamente arriba en **✅ COMPLETAR Y GENERAR LECCIÓN**.")
 else:
-    st.session_state["show_lesson_creator"] = True
+    # Con lección activa, el formulario creador izquierdo permanece cerrado por defecto para subir el encabezado
+    st.session_state["show_lesson_creator"] = False
     stage_actual = st.session_state.get("active_stage_5", "READING")
 
     b1, b2, b3, b4, b5 = st.columns(5)
