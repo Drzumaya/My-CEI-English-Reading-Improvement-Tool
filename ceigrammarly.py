@@ -7319,21 +7319,6 @@ if col_tools_right is not None:
             with st.container(height=160, border=True):
                 st.caption("🎬 El catálogo de videos, el escenario central y Writing Skill aparecerán aquí al generar o cargar un Folio.")
 
-        st.divider()
-        st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
-        if st.session_state.audio_bytes:
-            st.audio(st.session_state.audio_bytes, format="audio/mp3")
-            safe_audio_name = f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
-            st.download_button(
-                label="📥 Descargar Audio Modelo (MP3)",
-                data=st.session_state.audio_bytes,
-                file_name=safe_audio_name,
-                mime="audio/mp3",
-                width="stretch"
-            )
-        else:
-            st.caption("Audio modelo disponible al generar o cargar una lección.")
-
 # ==============================================================================
 # PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) SIN SALIDA EXTERNA
 # ==============================================================================
