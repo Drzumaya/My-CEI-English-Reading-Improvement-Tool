@@ -4350,11 +4350,11 @@ if not st.session_state.get("active_admin_workspace"):
                 delta=f"Recargo desde {est_sp['fecha_recargo']}"
             )
 # ==============================================================================
-# PARTE 13A1 — BLOQUE 2 DE 3: SUBIDA DE COMPROBANTE, VISIÓN IA Y WHATSAPP
+# PARTE 13A1 — BLOQUE 2 DE 3: INFORMAR PAGO, VISIÓN IA Y WHATSAPP (ESTUDIANTE)
 # ==============================================================================
             if est_sp.get("en_vacaciones"):
                 st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
-            st.markdown("#### 📤 Reportar Pago y Subir Comprobante Bancario")
+            st.markdown("#### 📤 Informar Pago y Subir Comprobante Bancario")
             bloques_pend_13 = [
                 b for b in est_sp.get("bloques_9", [])
                 if "Pagado" not in str(b.get("estatus", ""))
@@ -4367,7 +4367,7 @@ if not st.session_state.get("active_admin_workspace"):
                     for b in bloques_pend_13
                 }
                 sel_b_lbl_13 = st.selectbox(
-                    "🎯 Selecciona el Bloque que deseas pagar:",
+                    "🎯 Selecciona el Bloque que deseas informar como pagado:",
                     list(opciones_b_13.keys()),
                     key="sel_bloque_pago_13a1"
                 )
@@ -4392,10 +4392,10 @@ if not st.session_state.get("active_admin_workspace"):
                         f"- **Bloque seleccionado:** **Bloque {b_sel_13['bloque_num']}/9** (Ciclo `#{ciclo_sel_13}`)\n"
                         f"- **Ventana 4ta semana (sin recargo):** `{b_sel_13['sem4_inicio']}` al `{b_sel_13['sem4_fin']}`\n"
                         f"- **Activación de recargo (Semana 5):** `{b_sel_13['fecha_recargo']}`\n"
-                        f"- **Monto total a transferir:** **`${monto_sel_13:,.2f} MXN`**"
+                        f"- **Monto total transferido:** **`${monto_sel_13:,.2f} MXN`**"
                     )
                     metodo_p_est = st.selectbox(
-                        "Método de pago:",
+                        "Método de pago utilizado:",
                         ["Transferencia Bancaria (SPEI)", "Depósito en Ventanilla / Practicaja", "Pago en Efectivo en Instituto"],
                         key="sel_metodo_pago_est"
                     )
@@ -4406,7 +4406,12 @@ if not st.session_state.get("active_admin_workspace"):
                         type=["jpg", "jpeg", "png", "pdf"],
                         key="up_comprobante_est"
                     )
-                    if st.button(f"📤 Registrar Pago Bloque {b_sel_13['bloque_num']}/9 y Desbloquear Boletín", type="primary", width="stretch", key="btn_subir_comp_est"):
+                    if st.button(
+                        f"📤 Informar Pago Bloque {b_sel_13['bloque_num']}/9 y Subir Comprobante",
+                        type="primary",
+                        width="stretch",
+                        key="btn_subir_comp_est"
+                    ):
                         b64_comp = ""
                         mime_comp = ""
                         if archivo_comp is not None:
@@ -4451,6 +4456,7 @@ if not st.session_state.get("active_admin_workspace"):
                             type="primary",
                             width="stretch"
                         )
+
 
 # ==============================================================================
 # PARTE 13A1 — BLOQUE 3 DE 3 (FINAL): TABLA DE 9 BLOQUES Y BOLETÍN TIMBRADO
@@ -4652,7 +4658,7 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
 
 st.divider()
 # ==============================================================================
-# PARTE 14E — SECCIÓN 1 DE 3: PORTAL EXCLUSIVO DEL ESTUDIANTE (MIS PAGOS)
+# PARTE 14E — SECCIÓN 1 DE 3: PORTAL EXCLUSIVO DEL ESTUDIANTE (INFORMAR PAGOS)
 # ==============================================================================
 if st.session_state.get("active_student_workspace"):
     vista_est_sel = st.session_state["active_student_workspace"]
@@ -4684,7 +4690,7 @@ if st.session_state.get("active_student_workspace"):
             if est_sp.get("en_vacaciones"):
                 st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
 
-            st.markdown("#### 📤 Reportar Pago y Subir Comprobante Bancario")
+            st.markdown("#### 📤 Informar Pago y Subir Comprobante Bancario")
             bloques_pendientes = [
                 b for b in est_sp.get("bloques_9", [])
                 if "Pagado" not in str(b.get("estatus", ""))
@@ -4697,7 +4703,7 @@ if st.session_state.get("active_student_workspace"):
                     for b in bloques_pendientes
                 }
                 sel_bloque_lbl = st.selectbox(
-                    "🎯 Selecciona el Bloque que deseas pagar:",
+                    "🎯 Selecciona el Bloque que deseas informar como pagado:",
                     list(opciones_bloques_pay.keys()),
                     key="ws_est_sel_bloque_pago"
                 )
@@ -4722,10 +4728,10 @@ if st.session_state.get("active_student_workspace"):
                         f"- **Bloque seleccionado:** **Bloque {b_elegido['bloque_num']}/9** (Ciclo `#{ciclo_elegido_num}`)\n"
                         f"- **Ventana 4ta semana (sin recargo):** `{b_elegido['sem4_inicio']}` al `{b_elegido['sem4_fin']}`\n"
                         f"- **Activación de recargo (Semana 5):** `{b_elegido['fecha_recargo']}`\n"
-                        f"- **Monto total a transferir:** **`${monto_ui:,.2f} MXN`**"
+                        f"- **Monto total transferido:** **`${monto_ui:,.2f} MXN`**"
                     )
                     metodo_p_est = st.selectbox(
-                        "Método de pago:",
+                        "Método de pago utilizado:",
                         ["Transferencia Bancaria (SPEI)", "Depósito en Ventanilla / Practicaja", "Pago en Efectivo en Instituto"],
                         key="ws_est_metodo_pago"
                     )
@@ -4742,7 +4748,6 @@ if st.session_state.get("active_student_workspace"):
                         width="stretch",
                         key="ws_est_btn_comp"
                     ):
-
                         b64_comp, mime_comp = "", ""
                         if archivo_comp is not None:
                             raw_bytes = archivo_comp.getvalue()
@@ -4786,6 +4791,7 @@ if st.session_state.get("active_student_workspace"):
                             type="primary",
                             width="stretch"
                         )
+
 # ==============================================================================
 # PARTE 14E — SECCIÓN 2 DE 3: TABLA 9 BLOQUES Y MIS CALIFICACIONES Y BOLETÍN
 # ==============================================================================
@@ -5723,20 +5729,25 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             )
 
                         with col_cfg2:
-                            st.markdown("##### 🧾 Cobro Directo y Aviso WhatsApp")
+                            st.markdown("##### 🧾 Registro Oficial de Pago (Owner / Admin) y Aviso WhatsApp")
                             st.info(
                                 f"- **Inscripción:** `{nueva_fecha_ins}`  |  **Inicio Clases:** `{nueva_fecha_ini}`\n"
                                 f"- **Ventana 4ta Semana (Sin recargo):** `{estado_f['sem4_pago_inicio']}` al `{estado_f['sem4_pago_fin']}`\n"
                                 f"- **Inicio Siguiente Bloque / Recargo:** `{estado_f['fecha_recargo']}`\n"
-                                f"- **TOTAL A PAGAR:** **`${total_vivo:,.2f} MXN`**"
+                                f"- **TOTAL A REGISTRAR:** **`${total_vivo:,.2f} MXN`**"
                             )
                             _, wa_est_url = build_whatsapp_recordatorio_estudiante(estado_f, est_objetivo, nuevo_tel_wa)
                             st.link_button("📲 Enviar Recordatorio WhatsApp al Estudiante", url=wa_est_url, width="stretch")
 
                             if estado_f["ciclo_pagado"]:
-                                st.success(f"✅ Bloque {estado_f['ciclo_a_cobrar']} pagado.")
-                            else:
-                                if st.button(f"✅ Confirmar Pago Directo (${total_vivo:,.2f})", type="primary", width="stretch", key="btn_reg_pay"):
+                                st.success(f"✅ Bloque {estado_f['ciclo_a_cobrar']} registrado como Pagado.")
+                            elif puede_cobranza_v2:
+                                if st.button(
+                                    f"✅ Registrar Pago Oficial (${total_vivo:,.2f} MXN)",
+                                    type="primary",
+                                    width="stretch",
+                                    key="btn_reg_pay"
+                                ):
                                     aff_s = "" if sel_aff_user == "Sin Afiliado" else sel_aff_user
                                     actualizar_config_financiera_alumno_pg(
                                         est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva,
@@ -5748,6 +5759,8 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         st.rerun()
                                     else:
                                         st.error(res_p["msg"])
+                            else:
+                                st.warning("🔒 Solo el Owner o un Administrador con permiso **Gestionar_Pagos_Cobranza** puede registrar pagos oficiales.")
 
                         if estado_f.get("bloques_9"):
                             st.markdown("##### 🗓️ Plan de 9 Bloques de 4 Semanas del Nivel (36 Semanas)")
