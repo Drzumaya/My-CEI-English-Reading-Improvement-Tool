@@ -7009,7 +7009,7 @@ with col_lesson_left:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17 — BLOQUE 1A: REPRODUCTOR FLOTANTE SIMULTÁNEO (PEQUEÑO / MEDIANO)
+# PARTE 17 — BLOQUE 1A-1: VENTANA FLOTANTE DESLIZABLE Y REDIMENSIONABLE (25%)
 # ==============================================================================
 def _render_floating_pip_video(v_info: dict):
     v_url = str(v_info.get("url") or "").strip()
@@ -7017,7 +7017,16 @@ def _render_floating_pip_video(v_info: dict):
     if not m_id:
         return
     vid_id = m_id.group(1)
-    titulo_v = str(v_info.get("title") or "Educational Video").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("`", "'")[:65]
+    titulo_v = (
+        str(v_info.get("title") or "Educational Video")
+        .replace("[", "(")
+        .replace("]", ")")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("`", "'")[:65]
+    )
     embed_src = f"https://youtube.com{vid_id}?playsinline=1&rel=0"
 
     pip_js = "".join([
@@ -7041,7 +7050,7 @@ def _render_floating_pip_video(v_info: dict):
         '<button id="btnPipClose" style="background:#dc2626;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">✕</button>',
         '</div></div>',
         '<div id="ceiPipBody" style="flex:1;width:100%;height:100%;background:#000;position:relative;">',
-        f'<iframe width="100%" height="100%" src="{embed_src}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="display:block;"></iframe>',
+        f'<iframe width="100%" height="100%" src="{embed_src}" frameborder="0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="display:block;"></iframe>',
         '</div>',
         '<div style="font-size:10px;color:#94a3b8;background:#0f172a;padding:2px 8px;text-align:right;flex-shrink:0;">Arrastra barra superior ✥ o esquina inferior ◢</div>`;',
         'const headerEl = doc.getElementById("ceiPipHeader");',
@@ -7065,8 +7074,9 @@ def _render_floating_pip_video(v_info: dict):
         '</script>'
     ])
     components.html(pip_js, height=0, width=0)
-
-
+# ==============================================================================
+# PARTE 17 — BLOQUE 1A-2: CONTROL DE VIDEO ACTIVO Y MEDIDOR DE MINUTOS (25%)
+# ==============================================================================
 if col_tools_right is not None:
     with col_tools_right:
         st.subheader(f"🎬 Educational Video & APA 7 Summary ({st.session_state.selected_cefr})")
@@ -7125,7 +7135,8 @@ if col_tools_right is not None:
                 pts_video_25 = round((v_score_now / 100.0) * 25.0, 2)
 
                 with st.container(border=True):
-                    st.markdown(f"**📺 Video Activo:** [{vid_data.get('title', 'Lesson Video')}]({vid_data['url']})")
+                    titulo_activo_safe = str(vid_data.get("title") or "Lesson Video").replace("[", "(").replace("]", ")")
+                    st.write(f"📺 **Video Activo:** {titulo_activo_safe}")
                     st.caption(
                         f"Canal: *{vid_data.get('channel', 'YouTube')}* | Duración: **`{dur_total_min} min`** | "
                         f"Acreditado (25%): **`{pts_video_25} / 25.0 pts`** (`{round(v_score_now, 1)}%`)"
@@ -7168,46 +7179,51 @@ if col_tools_right is not None:
 
                 if st.session_state["pip_video_visible"]:
                     _render_floating_pip_video(vid_data)
+                else:
+                    components.html('<script>const b=window.parent.document.getElementById("ceiPipBox");if(b)b.remove();</script>', height=0, width=0)
 # ==============================================================================
-# PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) TIPO YOUTUBE
+# PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) SIN SALIDA EXTERNA
 # ==============================================================================
             st.markdown(f"**📚 Catálogo de Videos: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
             with st.container(height=255, border=True):
-                for idx_alt, alt_v in enumerate(alts_list, start=1):
-                    alt_title = str(alt_v.get("title") or f"Video Relacionado {idx_alt}")
-                    alt_chan = str(alt_v.get("channel") or "YouTube ESL")
-                    alt_min = alt_v.get("duration_min", 5.0)
-                    alt_url = str(alt_v.get("url") or "")
+                if not alts_list:
+                    st.caption("No hay videos alternativos cargados en este momento.")
+                else:
+                    for idx_alt, alt_v in enumerate(alts_list, start=1):
+                        alt_title_safe = str(alt_v.get("title") or f"Video Relacionado {idx_alt}").replace("[", "(").replace("]", ")")
+                        alt_chan = str(alt_v.get("channel") or "YouTube ESL")
+                        alt_min = alt_v.get("duration_min", 5.0)
+                        alt_url = str(alt_v.get("url") or "")
 
-                    cv_txt, cv_btn = st.columns([2.5, 1.1])
-                    with cv_txt:
-                        st.markdown(f"**{idx_alt}. {alt_title}**")
-                        st.caption(f"📺 {alt_chan} • ⏱️ `{alt_min} min`")
-                    with cv_btn:
-                        if st.button(
-                            "▶️ Ver",
-                            key=f"btn_pick_vid_{idx_alt}_{alt_url[-11:]}",
-                            width="stretch"
-                        ):
-                            nuevo_principal = dict(alt_v)
-                            otras_alts = [v for v in alts_list if v.get("url") != alt_url]
-                            if vid_data and vid_data.get("url"):
-                                vieja_opcion = {k: v for k, v in vid_data.items() if k != "alternatives"}
-                                otras_alts.insert(0, vieja_opcion)
-                            nuevo_principal["alternatives"] = otras_alts
+                        cv_txt, cv_btn = st.columns([2.5, 1.1])
+                        with cv_txt:
+                            st.write(f"**{idx_alt}. {alt_title_safe}**")
+                            st.caption(f"📺 {alt_chan} • ⏱️ `{alt_min} min`")
+                        with cv_btn:
+                            if st.button(
+                                "▶️ Ver",
+                                key=f"btn_pick_vid_{idx_alt}_{alt_url[-11:]}",
+                                width="stretch"
+                            ):
+                                nuevo_principal = dict(alt_v)
+                                otras_alts = [v for v in alts_list if v.get("url") != alt_url]
+                                if vid_data and vid_data.get("url"):
+                                    vieja_opcion = {k: v for k, v in vid_data.items() if k != "alternatives"}
+                                    otras_alts.insert(0, vieja_opcion)
+                                nuevo_principal["alternatives"] = otras_alts
 
-                            st.session_state["current_lesson_video"] = nuevo_principal
-                            st.session_state["video_watched_sec"] = 0
-                            st.session_state["video_score_100"] = 0.0
-                            st.session_state["video_watch_started_ts"] = time.time()
-                            st.session_state["pip_video_visible"] = True
-                            if st.session_state.current_folio:
-                                save_video_and_summary_pg(
-                                    folio_code=st.session_state.current_folio,
-                                    video_info=nuevo_principal
-                                )
-                            st.rerun()
-                    st.divider()
+                                st.session_state["current_lesson_video"] = nuevo_principal
+                                st.session_state["video_watched_sec"] = 0
+                                st.session_state["video_score_100"] = 0.0
+                                st.session_state["video_watch_started_ts"] = time.time()
+                                st.session_state["pip_video_visible"] = True
+                                if st.session_state.current_folio:
+                                    save_video_and_summary_pg(
+                                        folio_code=st.session_state.current_folio,
+                                        video_info=nuevo_principal
+                                    )
+                                st.rerun()
+                        st.divider()
 
             c_more1, c_more2 = st.columns([1.6, 1.8])
             with c_more1:
@@ -7250,7 +7266,7 @@ if col_tools_right is not None:
                         vid_obj_new = {
                             "video_id": vid_id_c,
                             "url": custom_yt_url.strip(),
-                            "title": meta_c.get("title") or f"[{titulo_catalogo}] Custom Video",
+                            "title": meta_c.get("title") or f"({titulo_catalogo}) Custom Video",
                             "channel": meta_c.get("channel") or "YouTube Academic Resource",
                             "published_date": "2026",
                             "duration_sec": 300,
@@ -7267,7 +7283,7 @@ if col_tools_right is not None:
                         st.rerun()
         else:
             with st.container(height=160, border=True):
-                st.caption("🎬 El catálogo escrolable y el reproductor flotante simultáneo aparecerán aquí al generar o cargar un Folio.")
+                st.caption("🎬 El catálogo escrolable y el reproductor flotante deslizable aparecerán aquí al generar o cargar un Folio.")
 
 
 
