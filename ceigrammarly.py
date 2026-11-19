@@ -6887,10 +6887,23 @@ if has_lesson_now and stage_5_now != "PORTAL":
                             st.error(ev_w["feedback"])
 
 # ==============================================================================
-# PARTE 16 — BLOQUE 1B (FINAL): VENTANA MAESTRA 2 (VIEWING 25% + WRITING 20% SPLIT)
+# PARTE 16 — BLOQUE 1B-1: VENTANA MAESTRA 2 (VIDEO ACTIVO + CRONÓMETRO 25%)
 # ==============================================================================
     elif stage_5_now == "VIEWING":
         vid_stage = st.session_state.get("current_lesson_video") or {}
+        if not vid_stage.get("url"):
+            with st.spinner("Cargando video educativo relacionado con la lección..."):
+                vid_stage = buscar_video_relacionado_leccion(
+                    gramatica_b1,
+                    st.session_state.selected_cefr,
+                    st.session_state.generated_text,
+                    topic_context=str(st.session_state.get("current_topic") or "").strip(),
+                    max_videos=12
+                )
+                st.session_state["current_lesson_video"] = vid_stage
+                if st.session_state.current_folio and vid_stage.get("url"):
+                    save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_stage)
+
         v_url_st = str(vid_stage.get("url") or "").strip()
         m_id_st = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", v_url_st)
         vid_id_st = m_id_st.group(1) if m_id_st else "o1_0Gz4uRKo"
@@ -6928,20 +6941,25 @@ if has_lesson_now and stage_5_now != "PORTAL":
 
                 modo_motor_vid = st.radio(
                     "Motor de reproducción:",
-                    ["🎥 Reproductor Nativo HD", "🌐 Espejo Educativo (Sin Bloqueo)", "🔗 Apertura Directa"],
+                    ["🎥 Reproductor HD Embebido", "🌐 Espejo Educativo (Sin Bloqueo)", "🔗 Apertura Directa"],
                     horizontal=True,
                     key="radio_dual_video_engine"
                 )
 
-                if modo_motor_vid == "🎥 Reproductor Nativo HD":
-                    st.video(f"https://youtube.com{vid_id_st}")
+                if modo_motor_vid == "🎥 Reproductor HD Embebido":
+                    yt_embed_html = (
+                        f'<iframe width="100%" height="390" src="https://youtube.com{vid_id_st}?rel=0" '
+                        f'frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" '
+                        f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
+                    )
+                    components.html(yt_embed_html, height=400)
                 elif modo_motor_vid == "🌐 Espejo Educativo (Sin Bloqueo)":
                     mirror_iframe = (
-                        f'<iframe width="100%" height="380" src="https://piped.video{vid_id_st}" '
+                        f'<iframe width="100%" height="390" src="https://piped.video{vid_id_st}" '
                         f'frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" '
                         f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
                     )
-                    components.html(mirror_iframe, height=390)
+                    components.html(mirror_iframe, height=400)
                 else:
                     st.link_button("▶️ Abrir Video en Reproductor Externo", url=f"https://youtube.com{vid_id_st}", type="primary", width="stretch")
 
@@ -6972,7 +6990,9 @@ if has_lesson_now and stage_5_now != "PORTAL":
                             save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
                         st.success(f"✅ Acreditado: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25 pts).")
                         st.rerun()
-
+# ==============================================================================
+# PARTE 16 — BLOQUE 1B-2 (FINAL): PANEL DERECHO DE WRITING SKILL (20%)
+# ==============================================================================
         if col_wrt_box is not None:
             with col_wrt_box:
                 with st.container(border=True):
@@ -7432,7 +7452,7 @@ if has_lesson_now and stage_5_now == "SPEAKING":
             st.caption(ev_prev.get("phonetic_feedback", ""))
 
 # ==============================================================================
-# PARTE 18: DESCARGA DE AUDIO MP3, EVALUACIÓN ORAL Y PDF OFICIAL (SOLO BOTÓN 1)
+# PARTE 18: AUDIO DEL QUIZ, DESCARGA MP3/PDF OFICIAL Y REINICIO (SOLO BOTÓN 1)
 # ==============================================================================
 has_lesson_p18 = bool(str(st.session_state.get("generated_text") or "").strip())
 stage_5_p18 = st.session_state.get("active_stage_5", "READING")
@@ -7483,6 +7503,46 @@ if has_lesson_p18 and stage_5_p18 == "READING":
                     for t in tips:
                         st.markdown(f"- {t}")
 
+    # BOTONES DE AUDIO DEL QUIZ (DEBAJO DEL QUIZ Y ARRIBA DEL PDF OFICIAL)
+    if st.session_state.quiz_data:
+        st.divider()
+        st.markdown("#### 🎧 Audio de Comprensión del Quiz (Inglés)")
+        cq_aud1, cq_aud2 = st.columns(2)
+        with cq_aud1:
+            if st.button("🔊 Crear Audio del Quiz", type="secondary", width="stretch", key="btn_create_quiz_audio_p18"):
+                with st.spinner("Sintetizando preguntas y opciones del Quiz en inglés..."):
+                    try:
+                        lineas_q_tts = []
+                        for idx_q, item_q in enumerate(st.session_state.quiz_data, start=1):
+                            q_txt = str(item_q.get("question") or "").strip()
+                            opts_q = [str(o).strip() for o in (item_q.get("options") or [])]
+                            lineas_q_tts.append(f"Question {idx_q}. {q_txt}. Options: {', '.join(opts_q)}.")
+                        tts_q = gTTS(text=" ".join(lineas_q_tts), lang="en", slow=False)
+                        q_buf = io.BytesIO()
+                        tts_q.write_to_fp(q_buf)
+                        st.session_state.quiz_audio_bytes = q_buf.getvalue()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al generar audio del quiz: {e}")
+
+        with cq_aud2:
+            if st.session_state.get("quiz_audio_bytes"):
+                st.download_button(
+                    label="📥 Descargar Audio del Quiz (MP3)",
+                    data=st.session_state.quiz_audio_bytes,
+                    file_name=f"CEI_Quiz_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3",
+                    mime="audio/mp3",
+                    type="primary",
+                    width="stretch",
+                    key="btn_dl_quiz_audio_p18"
+                )
+            else:
+                st.button("📥 Descargar Audio del Quiz (MP3)", disabled=True, width="stretch", key="btn_dl_quiz_audio_disabled_p18")
+
+        if st.session_state.get("quiz_audio_bytes"):
+            st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
+
+    # DESCARGA DE PDF OFICIAL DE LA LECCIÓN
     st.divider()
     nota_actual_pdf = st.session_state.get("best_stored_score") or st.session_state.get("quiz_score")
     pdf_bytes = create_lesson_pdf(
@@ -7502,42 +7562,30 @@ if has_lesson_p18 and stage_5_p18 == "READING":
         key="btn_dl_pdf_official_stage"
     )
 
-    # ==========================================================================
-    # PARTE 18A (FINAL): REINICIO DE AULA (EXCLUSIVO EN BOTÓN 1)
-    # ==========================================================================
+    # REINICIO DE AULA (EXCLUSIVO EN BOTÓN 1)
     st.divider()
     if st.button("🗑️ Borrar Todo", type="secondary", width="stretch", key="btn_clear_all_stage"):
-        st.session_state.generated_text = ""
-        st.session_state.study_mode_active = False
-        st.session_state.image_bytes = None
-        st.session_state.current_lesson_image = None
-        st.session_state.current_motivational_quote = None
-        st.session_state.last_img_error = None
-        st.session_state.audio_bytes = None
-        st.session_state.quiz_audio_bytes = None
-        st.session_state.speaking_eval_result = None
-        st.session_state.show_saved_audios = False
-        st.session_state.quiz_data = None
-        st.session_state.quiz_graded = False
-        st.session_state.quiz_score = None
+        for k_reset in [
+            "generated_text", "current_folio", "current_pdf_link", "current_creation_date",
+            "best_stored_score", "video_summary_draft", "video_apa7_draft"
+        ]:
+            st.session_state[k_reset] = ""
+        for k_none in [
+            "image_bytes", "current_lesson_image", "current_motivational_quote", "last_img_error",
+            "audio_bytes", "quiz_audio_bytes", "speaking_eval_result", "quiz_data", "quiz_score",
+            "current_lesson_video", "video_watch_started_ts", "summary_eval_result"
+        ]:
+            st.session_state[k_none] = None
+        for k_false in [
+            "study_mode_active", "show_saved_audios", "quiz_graded", "url_folio_checked",
+            "split_speaking_open", "split_writing_open", "show_lesson_creator"
+        ]:
+            st.session_state[k_false] = False
         st.session_state.quiz_user_answers = {}
-        st.session_state.current_folio = ""
-        st.session_state.current_pdf_link = ""
-        st.session_state.current_creation_date = ""
-        st.session_state.url_folio_checked = False
-        st.session_state["best_stored_score"] = ""
-        st.session_state["current_lesson_video"] = None
         st.session_state["video_watched_sec"] = 0
         st.session_state["video_score_100"] = 0.0
-        st.session_state["video_watch_started_ts"] = None
-        st.session_state["video_summary_draft"] = ""
-        st.session_state["video_apa7_draft"] = ""
         st.session_state["summary_score_100"] = 0.0
-        st.session_state["summary_eval_result"] = None
         st.session_state["active_stage_5"] = "READING"
-        st.session_state["split_speaking_open"] = False
-        st.session_state["split_writing_open"] = False
-        st.session_state["show_lesson_creator"] = False
         st.query_params.clear()
         st.rerun()
 
