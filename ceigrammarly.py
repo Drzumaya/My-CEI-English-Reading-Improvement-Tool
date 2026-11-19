@@ -2227,61 +2227,101 @@ def _buscar_en_motores_navegador(query_busqueda: str) -> list[str]:
     return ids_encontrados
 
 
-def buscar_video_relacionado_leccion(tema_gramatical: str, nivel_cefr: str, texto_leccion: str = "", client_obj=None) -> dict:
-    """Algoritmo Diccionario Multi-Motor (Brave, Firefox, Opera, Google) + Banco Curado Infalible."""
+def buscar_video_relacionado_leccion(
+    tema_gramatical: str,
+    nivel_cefr: str,
+    texto_leccion: str = "",
+    client_obj=None,
+    topic_context: str = "",
+    max_videos: int = 12
+) -> dict:
+    """Catálogo tipo YouTube (12 a 20 videos) por Gramática y Tópico con Multi-Motor + Banco Curado."""
     gm = client_obj or init_gemini_client()
     cefr_code = next(iter(str(nivel_cefr).split()), "B1").upper() if nivel_cefr else "B1"
     if cefr_code not in CEFR_LEVEL_DEFAULT_VIDEOS:
         cefr_code = "B1"
 
-    # 1. Construir consulta académica precisa
-    query_yt = f"English grammar {tema_gramatical} {cefr_code} lesson"
+    topico_clean = str(topic_context or "").strip()
+    etiqueta_tema = f"{tema_gramatical} — {topico_clean}" if topico_clean else str(tema_gramatical or f"CEFR {cefr_code} Grammar")
+
+    # 1. Generar dos consultas complementarias (una por gramática y otra por tópico/asunto)
+    queries_busqueda = [
+        f"English grammar {tema_gramatical} {cefr_code} lesson",
+        f"{topico_clean} {tema_gramatical} English ESL video" if topico_clean else f"{tema_gramatical} examples in context English"
+    ]
     try:
         if gm:
             q_raw, _ = generar_con_maxima_potencia(
                 gm,
-                f"Generate a 5-word English YouTube search query for an ESL grammar lesson on '{tema_gramatical}' (CEFR {cefr_code}). Return ONLY plain words.",
-                instruccion_sistema="Output only 5 plain search words."
+                f"Generate 2 distinct 5-word English YouTube search queries for ESL students learning '{tema_gramatical}' (Topic: '{topico_clean}', CEFR {cefr_code}). Return one query per line, plain words only.",
+                instruccion_sistema="Output only 2 lines of plain search words."
             )
             if q_raw and q_raw.strip():
-                query_yt = q_raw.strip().replace('"', "")
+                for ln in q_raw.strip().splitlines():
+                    ln_c = ln.strip().replace('"', "").lstrip("-•1234567890. ")
+                    if ln_c and ln_c not in queries_busqueda:
+                        queries_busqueda.append(ln_c)
     except Exception:
         pass
 
-    # 2. Buscar en motores Brave, Firefox, Opera y Google y validar con oEmbed
-    candidatos_ids = _buscar_en_motores_navegador(query_yt)
-    for vid_cand in candidatos_ids[:5]:
-        meta_ok = _validar_video_oembed(vid_cand)
-        if meta_ok:
-            dur_est = 360
-            meta_ok["duration_sec"] = dur_est
-            meta_ok["duration_min"] = round(dur_est / 60.0, 2)
-            meta_ok["query_used"] = query_yt
-            return meta_ok
+    pool_videos = []
+    seen_ids = set()
 
-    # 3. Respaldo Infalible: Diccionario Curado por Tema Gramatical y Nivel CEFR
+    # 2. Recolectar candidatos en vivo desde Brave, Firefox, Opera y Google/YouTube
+    for q_item in queries_busqueda[:3]:
+        if len(pool_videos) >= max_videos:
+            break
+        candidatos_ids = _buscar_en_motores_navegador(q_item)
+        for vid_cand in candidatos_ids:
+            if vid_cand in seen_ids:
+                continue
+            meta_ok = _validar_video_oembed(vid_cand)
+            if meta_ok:
+                seen_ids.add(vid_cand)
+                meta_ok["duration_sec"] = 360
+                meta_ok["duration_min"] = 6.0
+                meta_ok["topic_label"] = etiqueta_tema
+                meta_ok["query_used"] = q_item
+                pool_videos.append(meta_ok)
+                if len(pool_videos) >= max_videos:
+                    break
+
+    # 3. Completar catálogo hasta max_videos (12 a 20 opciones) con Banco Curado CEFR + Tópico
     tema_low = str(tema_gramatical or "").lower()
-    seleccion_dicc = None
+    prioritarios = []
+    secundarios = []
     for clave_gram, info_v in CURATED_CEFR_VIDEO_DICT.items():
         if clave_gram in tema_low:
-            seleccion_dicc = dict(info_v)
+            prioritarios.append(info_v)
+        else:
+            secundarios.append(info_v)
+
+    def_v = CEFR_LEVEL_DEFAULT_VIDEOS.get(cefr_code, CEFR_LEVEL_DEFAULT_VIDEOS["B1"])
+    banco_ordenado = prioritarios + [def_v] + list(CEFR_LEVEL_DEFAULT_VIDEOS.values()) + secundarios
+
+    for item_b in banco_ordenado:
+        if len(pool_videos) >= max_videos:
             break
+        vid_b = item_b["video_id"]
+        if vid_b not in seen_ids:
+            seen_ids.add(vid_b)
+            dur_b = int(item_b.get("duration_sec") or 360)
+            titulo_claro = f"[{etiqueta_tema}] {item_b['title']}" if topico_clean else item_b["title"]
+            pool_videos.append({
+                "video_id": vid_b,
+                "url": f"https://youtube.com{vid_b}",
+                "title": titulo_claro,
+                "channel": item_b["channel"],
+                "published_date": item_b.get("published_date", "2024"),
+                "duration_sec": dur_b,
+                "duration_min": round(dur_b / 60.0, 2),
+                "topic_label": etiqueta_tema,
+                "query_used": queries_busqueda[0]
+            })
 
-    if not seleccion_dicc:
-        seleccion_dicc = dict(CEFR_LEVEL_DEFAULT_VIDEOS.get(cefr_code, CEFR_LEVEL_DEFAULT_VIDEOS["B1"]))
-
-    vid_final = seleccion_dicc["video_id"]
-    dur_final = int(seleccion_dicc.get("duration_sec") or 360)
-    return {
-        "video_id": vid_final,
-        "url": f"https://youtube.com{vid_final}",
-        "title": seleccion_dicc["title"],
-        "channel": seleccion_dicc["channel"],
-        "published_date": seleccion_dicc.get("published_date", "2024"),
-        "duration_sec": dur_final,
-        "duration_min": round(dur_final / 60.0, 2),
-        "query_used": query_yt
-    }
+    principal = dict(pool_videos[0])
+    principal["alternatives"] = [dict(v) for v in pool_videos[1:max_videos]]
+    return principal
 
 def evaluar_resumen_video_apa7(
     resumen_texto: str,
@@ -6968,61 +7008,156 @@ with col_lesson_left:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17 — BLOQUE 1 DE 2: VIDEO EDUCATIVO Y MEDIDOR DE MINUTOS (25%)
+# PARTE 17 — BLOQUE 1A DE 2: CATÁLOGO ESCROLABLE (12-20 VIDEOS) TIPO YOUTUBE
 # ==============================================================================
 if col_tools_right is not None:
     with col_tools_right:
         st.subheader(f"🎬 Educational Video & APA 7 Summary ({st.session_state.selected_cefr})")
 
         if st.session_state.get("generated_text"):
-            col_v_in, col_v_btn = st.columns([2.5, 1.5])
-            with col_v_in:
-                custom_yt_url = st.text_input(
-                    "🔗 Pegar enlace de YouTube alternativo (Opcional):",
-                    placeholder="https://youtube.com...",
-                    key="input_custom_yt_url",
-                    label_visibility="collapsed"
-                )
-            with col_v_btn:
-                if st.button("🔄 Buscar / Usar Video", key="btn_refresh_lesson_video", width="stretch"):
-                    with st.spinner("🎬 Vinculando video educativo..."):
-                        if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
-                            m_id = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
-                            vid_id_c = m_id.group(1) if m_id else ""
-                            vid_obj_new = {
-                                "video_id": vid_id_c,
-                                "url": custom_yt_url.strip(),
-                                "title": f"Selected Lesson Video ({st.session_state.selected_cefr})",
-                                "channel": "YouTube Academic Resource",
-                                "published_date": "2026",
-                                "duration_sec": 300,
-                                "duration_min": 5.0
-                            }
-                        else:
-                            vid_obj_new = buscar_video_relacionado_leccion(
-                                gramatica_b1,
-                                st.session_state.selected_cefr,
-                                st.session_state.generated_text
-                            )
-                        st.session_state["current_lesson_video"] = vid_obj_new
-                        st.session_state["video_watched_sec"] = 0
-                        st.session_state["video_score_100"] = 0.0
-                        st.session_state["video_watch_started_ts"] = None
-                        if st.session_state.current_folio and vid_obj_new:
-                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
-                        st.rerun()
+            if "video_catalog_limit" not in st.session_state:
+                st.session_state["video_catalog_limit"] = 12
+
+            topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
+            titulo_catalogo = (
+                f"{gramatica_b1} • {topico_actual_leccion}"
+                if topico_actual_leccion
+                else f"{gramatica_b1} ({st.session_state.selected_cefr})"
+            )
 
             vid_data = st.session_state.get("current_lesson_video")
             if not vid_data or not vid_data.get("url"):
                 vid_data = buscar_video_relacionado_leccion(
                     gramatica_b1,
                     st.session_state.selected_cefr,
-                    st.session_state.generated_text
+                    st.session_state.generated_text,
+                    topic_context=topico_actual_leccion,
+                    max_videos=st.session_state["video_catalog_limit"]
                 )
                 st.session_state["current_lesson_video"] = vid_data
                 if st.session_state.current_folio and vid_data.get("url"):
                     save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_data)
 
+            alts_list = vid_data.get("alternatives") if isinstance(vid_data, dict) else []
+            if len(alts_list) < 9:
+                _fresh_pack = buscar_video_relacionado_leccion(
+                    gramatica_b1,
+                    st.session_state.selected_cefr,
+                    st.session_state.generated_text,
+                    topic_context=topico_actual_leccion,
+                    max_videos=st.session_state["video_catalog_limit"]
+                )
+                curr_url_now = (vid_data or {}).get("url", "")
+                existentes_urls = {curr_url_now} | {v.get("url") for v in alts_list}
+                for cand_v in ([_fresh_pack] + _fresh_pack.get("alternatives", [])):
+                    if cand_v.get("url") and cand_v.get("url") not in existentes_urls:
+                        alts_list.append(cand_v)
+                        existentes_urls.add(cand_v.get("url"))
+                if isinstance(vid_data, dict):
+                    vid_data["alternatives"] = alts_list
+                    st.session_state["current_lesson_video"] = vid_data
+
+            # VENTANA ESCROLABLE TIPO YOUTUBE CON TÍTULO DEL TEMA/TÓPICO Y HASTA 20 OPCIONES
+            st.markdown(f"**📚 Videos Relacionados: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
+            with st.container(height=275, border=True):
+                if not alts_list:
+                    st.caption("No hay videos alternativos adicionales cargados.")
+                else:
+                    for idx_alt, alt_v in enumerate(alts_list, start=1):
+                        alt_title = str(alt_v.get("title") or f"Video Relacionado {idx_alt}")
+                        alt_chan = str(alt_v.get("channel") or "YouTube ESL")
+                        alt_min = alt_v.get("duration_min", 5.0)
+                        alt_url = str(alt_v.get("url") or "")
+
+                        cv_txt, cv_btn = st.columns([2.5, 1.1])
+                        with cv_txt:
+                            st.markdown(f"**{idx_alt}. [{alt_title}]({alt_url})**")
+                            st.caption(f"📺 {alt_chan} • ⏱️ `{alt_min} min`")
+                        with cv_btn:
+                            if st.button(
+                                "▶️ Ver",
+                                key=f"btn_swap_alt_vid_{idx_alt}_{alt_v.get('video_id', idx_alt)}",
+                                width="stretch"
+                            ):
+                                nuevo_principal = dict(alt_v)
+                                otras_alts = [v for v in alts_list if v.get("url") != alt_url]
+                                if vid_data and vid_data.get("url"):
+                                    vieja_opcion = {k: v for k, v in vid_data.items() if k != "alternatives"}
+                                    otras_alts.insert(0, vieja_opcion)
+                                nuevo_principal["alternatives"] = otras_alts
+
+                                st.session_state["current_lesson_video"] = nuevo_principal
+                                st.session_state["video_watched_sec"] = 0
+                                st.session_state["video_score_100"] = 0.0
+                                st.session_state["video_watch_started_ts"] = None
+                                if st.session_state.current_folio:
+                                    save_video_and_summary_pg(
+                                        folio_code=st.session_state.current_folio,
+                                        video_info=nuevo_principal
+                                    )
+                                st.rerun()
+                        st.divider()
+
+            # Botón estilo YouTube para expandir hasta 20 opciones o pegar URL propia
+            c_more1, c_more2 = st.columns([1.6, 1.8])
+            with c_more1:
+                if len(alts_list) < 19:
+                    if st.button("➕ Ver más opciones (hasta 20)", key="btn_load_more_videos", width="stretch"):
+                        with st.spinner("Buscando más videos sobre el tema y tópico..."):
+                            st.session_state["video_catalog_limit"] = 20
+                            mas_pack = buscar_video_relacionado_leccion(
+                                gramatica_b1,
+                                st.session_state.selected_cefr,
+                                st.session_state.generated_text,
+                                topic_context=topico_actual_leccion,
+                                max_videos=20
+                            )
+                            curr_u = (vid_data or {}).get("url", "")
+                            urls_ya = {curr_u} | {v.get("url") for v in alts_list}
+                            for nv in ([mas_pack] + mas_pack.get("alternatives", [])):
+                                if nv.get("url") and nv.get("url") not in urls_ya and len(alts_list) < 19:
+                                    alts_list.append(nv)
+                                    urls_ya.add(nv.get("url"))
+                            if isinstance(vid_data, dict):
+                                vid_data["alternatives"] = alts_list
+                                st.session_state["current_lesson_video"] = vid_data
+                        st.rerun()
+                else:
+                    st.caption("✅ Catálogo completo (20 videos)")
+
+            with c_more2:
+                custom_yt_url = st.text_input(
+                    "🔗 Pegar enlace YouTube propio:",
+                    placeholder="https://youtube.com...",
+                    key="input_custom_yt_url",
+                    label_visibility="collapsed"
+                )
+                if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
+                    if st.button("🔄 Cargar URL Pegada", key="btn_refresh_lesson_video", width="stretch"):
+                        m_id = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
+                        vid_id_c = m_id.group(1) if m_id else ""
+                        meta_c = _validar_video_oembed(vid_id_c) or {}
+                        vid_obj_new = {
+                            "video_id": vid_id_c,
+                            "url": custom_yt_url.strip(),
+                            "title": meta_c.get("title") or f"[{titulo_catalogo}] Custom Video",
+                            "channel": meta_c.get("channel") or "YouTube Academic Resource",
+                            "published_date": "2026",
+                            "duration_sec": 300,
+                            "duration_min": 5.0,
+                            "alternatives": alts_list
+                        }
+                        st.session_state["current_lesson_video"] = vid_obj_new
+                        st.session_state["video_watched_sec"] = 0
+                        st.session_state["video_score_100"] = 0.0
+                        st.session_state["video_watch_started_ts"] = None
+                        if st.session_state.current_folio:
+                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
+                        st.rerun()
+# ==============================================================================
+# PARTE 17 — BLOQUE 1B DE 2: REPRODUCTOR PRINCIPAL Y MEDIDOR DE MINUTOS (25%)
+# ==============================================================================
+            # REPRODUCTOR PRINCIPAL DEL VIDEO ACTIVO
             if vid_data and vid_data.get("url"):
                 st.video(vid_data["url"])
                 dur_total_sec = max(60, int(vid_data.get("duration_sec") or 300))
@@ -7069,11 +7204,10 @@ if col_tools_right is not None:
                                 )
                             st.success(f"✅ Visualización registrada: {round(nuevo_watched / 60.0, 2)} min ({round((nuevo_v_score/100.0)*25.0, 2)} / 25 pts).")
                             st.rerun()
-            else:
-                st.info("🎬 No se encontró enlace directo automático; pega una URL de YouTube arriba y pulsa **🔄 Buscar / Usar Video**.")
         else:
             with st.container(height=160, border=True):
-                st.caption("🎬 El video educativo relacionado con la lección aparecerá aquí al generar o cargar un Folio.")
+                st.caption("🎬 El catálogo escrolable de videos relacionados (12 a 20 opciones) aparecerá aquí al generar o cargar un Folio.")
+
 # ==============================================================================
 # PARTE 17 — BLOQUE 2 DE 2: RESUMEN (120-125 PALABRAS) + APA 7 (15%) Y AUDIO
 # ==============================================================================
