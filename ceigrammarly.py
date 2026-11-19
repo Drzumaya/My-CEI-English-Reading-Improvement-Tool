@@ -4689,20 +4689,30 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
 
 st.divider()
 # ==============================================================================
-# PARTE 14E — SECCIÓN 1 DE 3: PORTAL EXCLUSIVO DEL ESTUDIANTE (INFORMAR PAGOS)
+# PARTE 14E — SECCIÓN 1A: PORTAL EXCLUSIVO DEL ESTUDIANTE (CABECERA Y MÉTRICAS)
 # ==============================================================================
 if st.session_state.get("active_student_workspace"):
     vista_est_sel = st.session_state["active_student_workspace"]
     alumno_actual_ws = str(st.session_state.get("current_user") or "").strip()
+
+    if "hide_payment_report_form" not in st.session_state:
+        st.session_state["hide_payment_report_form"] = False
+    if "payment_report_sent_msg" not in st.session_state:
+        st.session_state["payment_report_sent_msg"] = ""
 
     with st.container(border=True):
         if vista_est_sel == "💳 Mis Pagos (9 Bloques)":
             st.subheader("💳 Mis Pagos Mensuales (9 Bloques de 4 Semanas) y Comprobantes")
             est_sp = evaluar_estado_financiero_alumno(alumno_actual_ws)
             mat_oficial_sp = str(est_sp.get("matricula") or "").strip()
+            if not mat_oficial_sp:
+                for _rp in load_padron_records():
+                    if str(_rp.get("Usuario") or "").strip().lower() == alumno_actual_ws.lower():
+                        mat_oficial_sp = str(_rp.get("Matricula") or "").strip()
+                        break
 
             st.info(
-                f"🆔 **Matrícula Oficial:** `{mat_oficial_sp}` *(inclúyela en el concepto de tu transferencia para desbloqueo automático)*\n\n"
+                f"🆔 **Matrícula Oficial:** `{mat_oficial_sp or 'SIN-MATRÍCULA'}` *(inclúyela en el concepto de tu transferencia para desbloqueo automático)*\n\n"
                 "🎓 **Beneficios de tu Membresía Activa:** Tu pago puntual mantiene habilitada las **24 horas del día** "
                 "(incluso durante los recesos vacacionales de clases) la plataforma inteligente para generar lecciones y avanzar en tu aprendizaje, "
                 "además de permitirte **descargar tu Boletín Oficial de Calificaciones** en cualquier momento para mantenerte informado de tu avance."
@@ -4721,107 +4731,142 @@ if st.session_state.get("active_student_workspace"):
             if est_sp.get("en_vacaciones"):
                 st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
 
-            st.markdown("#### 📤 Informar Pago y Subir Comprobante Bancario")
-            bloques_pendientes = [
-                b for b in est_sp.get("bloques_9", [])
-                if "Pagado" not in str(b.get("estatus", ""))
-            ]
-            if not bloques_pendientes:
-                st.success("✅ ¡Felicidades! Todos los bloques de tu nivel están pagados. Tu Boletín de Calificaciones está **ACTIVO**.")
-            else:
-                opciones_bloques_pay = {
-                    f"Bloque {b['bloque_num']}/9 (Ciclo #{b['ciclo_global']}) — {b['estatus']} | Ventana 4ta Sem: {b['sem4_inicio']} al {b['sem4_fin']}": b
-                    for b in bloques_pendientes
-                }
-                sel_bloque_lbl = st.selectbox(
-                    "🎯 Selecciona el Bloque que deseas informar como pagado:",
-                    list(opciones_bloques_pay.keys()),
-                    key="ws_est_sel_bloque_pago"
+            hdr_pay1, hdr_pay2 = st.columns([2.8, 1.4])
+            with hdr_pay1:
+                st.markdown("#### 📤 Informar Pago y Subir Comprobante Bancario")
+            with hdr_pay2:
+                lbl_btn_form = (
+                    "📝 Abrir Formulario de Informe"
+                    if st.session_state.get("hide_payment_report_form")
+                    else "✖️ Cerrar Formulario"
                 )
-                b_elegido = opciones_bloques_pay[sel_bloque_lbl]
-                ciclo_elegido_num = int(b_elegido["ciclo_global"])
+                if st.button(lbl_btn_form, type="secondary", width="stretch", key="ws_btn_toggle_pay_form"):
+                    st.session_state["hide_payment_report_form"] = not st.session_state.get("hide_payment_report_form", False)
+                    st.rerun()
 
-                hoy_loc_ui = datetime.now(ZoneInfo("America/Hermosillo")).date()
-                base_ui = float(est_sp["mensualidad_base"])
-                es_venc_ui = hoy_loc_ui >= b_elegido["fecha_recargo"]
-                if es_venc_ui:
-                    sub_ui = round(base_ui * 1.05, 2)
-                elif est_sp.get("reglas_incentivo_activas"):
-                    sub_ui = round(base_ui * 0.93, 2)
+            if st.session_state.get("payment_report_sent_msg"):
+                st.success(st.session_state["payment_report_sent_msg"])
+# ==============================================================================
+# PARTE 14E — SECCIÓN 1B: FORMULARIO DE INFORME DE PAGO Y CIERRE AUTOMÁTICO
+# ==============================================================================
+            if not st.session_state.get("hide_payment_report_form"):
+                bloques_pendientes = [
+                    b for b in est_sp.get("bloques_9", [])
+                    if "Pagado" not in str(b.get("estatus", ""))
+                ]
+                if not bloques_pendientes:
+                    st.success("✅ ¡Felicidades! Todos los bloques de tu nivel están pagados. Tu Boletín de Calificaciones está **ACTIVO**.")
                 else:
-                    sub_ui = base_ui
-                monto_ui = round(sub_ui * 1.16, 2) if est_sp.get("aplicar_iva") else sub_ui
+                    opciones_bloques_pay = {
+                        f"Bloque {b['bloque_num']}/9 (Ciclo #{b['ciclo_global']}) — {b['estatus']} | Ventana 4ta Sem: {b['sem4_inicio']} al {b['sem4_fin']}": b
+                        for b in bloques_pendientes
+                    }
+                    sel_bloque_lbl = st.selectbox(
+                        "🎯 Selecciona el Bloque que deseas informar como pagado:",
+                        list(opciones_bloques_pay.keys()),
+                        key="ws_est_sel_bloque_pago"
+                    )
+                    b_elegido = opciones_bloques_pay[sel_bloque_lbl]
+                    ciclo_elegido_num = int(b_elegido["ciclo_global"])
 
-                col_up1, col_up2 = st.columns([1.4, 1.6])
-                with col_up1:
-                    st.markdown(
-                        f"- **Matrícula Oficial:** `{mat_oficial_sp}`\n"
-                        f"- **Bloque seleccionado:** **Bloque {b_elegido['bloque_num']}/9** (Ciclo `#{ciclo_elegido_num}`)\n"
-                        f"- **Ventana 4ta semana (sin recargo):** `{b_elegido['sem4_inicio']}` al `{b_elegido['sem4_fin']}`\n"
-                        f"- **Activación de recargo (Semana 5):** `{b_elegido['fecha_recargo']}`\n"
-                        f"- **Monto total transferido:** **`${monto_ui:,.2f} MXN`**"
-                    )
-                    metodo_p_est = st.selectbox(
-                        "Método de pago utilizado:",
-                        ["Transferencia Bancaria (SPEI)", "Depósito en Ventanilla / Practicaja", "Pago en Efectivo en Instituto"],
-                        key="ws_est_metodo_pago"
-                    )
-                    ref_p_est = st.text_input("Número de referencia / rastreo bancario:", placeholder="Ej: SPEI-8492014", key="ws_est_ref_pago")
-                with col_up2:
-                    archivo_comp = st.file_uploader(
-                        "📎 Adjuntar Comprobante de Pago (Imagen JPG/PNG o PDF):",
-                        type=["jpg", "jpeg", "png", "pdf"],
-                        key="ws_est_up_comp"
-                    )
-                    if st.button(
-                        f"📤 Informar Pago Bloque {b_elegido['bloque_num']}/9 y Subir Comprobante",
-                        type="primary",
-                        width="stretch",
-                        key="ws_est_btn_comp"
-                    ):
-                        b64_comp, mime_comp = "", ""
-                        if archivo_comp is not None:
-                            raw_bytes = archivo_comp.getvalue()
-                            mime_comp = str(archivo_comp.type or "image/jpeg")
-                            if "image" in mime_comp.lower():
-                                try:
-                                    raw_bytes = compress_bytes_image(raw_bytes, max_side=1100, quality=78)
-                                    mime_comp = "image/jpeg"
-                                except Exception:
-                                    pass
-                            b64_comp = base64.b64encode(raw_bytes).decode("ascii")
+                    hoy_loc_ui = datetime.now(ZoneInfo("America/Hermosillo")).date()
+                    base_ui = float(est_sp["mensualidad_base"])
+                    es_venc_ui = hoy_loc_ui >= b_elegido["fecha_recargo"]
+                    if es_venc_ui:
+                        sub_ui = round(base_ui * 1.05, 2)
+                    elif est_sp.get("reglas_incentivo_activas"):
+                        sub_ui = round(base_ui * 0.93, 2)
+                    else:
+                        sub_ui = base_ui
+                    monto_ui = round(sub_ui * 1.16, 2) if est_sp.get("aplicar_iva") else sub_ui
 
-                        res_rep = reportar_comprobante_pago_estudiante_pg(
-                            student_user=alumno_actual_ws,
-                            metodo_pago=metodo_p_est,
-                            referencia=ref_p_est,
-                            comprobante_b64=b64_comp,
-                            comprobante_mime=mime_comp,
-                            ciclo_seleccionado=ciclo_elegido_num
+                    col_up1, col_up2 = st.columns([1.4, 1.6])
+                    with col_up1:
+                        st.markdown(
+                            f"- **Matrícula Oficial:** `{mat_oficial_sp}`\n"
+                            f"- **Bloque seleccionado:** **Bloque {b_elegido['bloque_num']}/9** (Ciclo `#{ciclo_elegido_num}`)\n"
+                            f"- **Ventana 4ta semana (sin recargo):** `{b_elegido['sem4_inicio']}` al `{b_elegido['sem4_fin']}`\n"
+                            f"- **Activación de recargo (Semana 5):** `{b_elegido['fecha_recargo']}`\n"
+                            f"- **Monto total transferido:** **`${monto_ui:,.2f} MXN`**"
                         )
-                        if res_rep["ok"]:
-                            _, wa_owner_url = build_whatsapp_aviso_pago_owner(
-                                nombre_alumno=f"{alumno_actual_ws} (Matrícula: {mat_oficial_sp})",
-                                usuario_alumno=alumno_actual_ws,
-                                nivel_cefr=res_rep.get("nivel_cefr", est_sp.get("nivel_cefr", "")),
-                                folio_pago=res_rep["folio_pago"],
-                                ciclo_num=res_rep["ciclo_num"],
-                                monto_pagado=res_rep["monto"],
-                                referencia=ref_p_est
-                            )
-                            st.session_state["last_wa_owner_url"] = wa_owner_url
-                            st.session_state["last_folio_reportado"] = res_rep["folio_pago"]
-                            st.success(res_rep["msg"])
-                        else:
-                            st.error(res_rep["msg"])
-
-                    if st.session_state.get("last_wa_owner_url"):
-                        st.link_button(
-                            f"📲 Enviar Nota Informativa por WhatsApp al Owner / Admin (Folio {st.session_state.get('last_folio_reportado', '')})",
-                            url=st.session_state["last_wa_owner_url"],
+                        metodo_p_est = st.selectbox(
+                            "Método de pago utilizado:",
+                            ["Transferencia Bancaria (SPEI)", "Depósito en Ventanilla / Practicaja", "Pago en Efectivo en Instituto"],
+                            key="ws_est_metodo_pago"
+                        )
+                        ref_p_est = st.text_input("Número de referencia / rastreo bancario:", placeholder="Ej: SPEI-8492014", key="ws_est_ref_pago")
+                    with col_up2:
+                        archivo_comp = st.file_uploader(
+                            "📎 Adjuntar Comprobante de Pago (Obligatorio — Imagen JPG/PNG o PDF):",
+                            type=["jpg", "jpeg", "png", "pdf"],
+                            key="ws_est_up_comp"
+                        )
+                        if st.button(
+                            f"📤 Informar Pago Bloque {b_elegido['bloque_num']}/9 y Subir Comprobante",
                             type="primary",
-                            width="stretch"
-                        )
+                            width="stretch",
+                            key="ws_est_btn_comp"
+                        ):
+                            if archivo_comp is None:
+                                st.warning("⚠️ **Comprobante faltante:** Debes subir la imagen (JPG/PNG) o PDF de tu comprobante de pago antes de enviar el informe.")
+                            else:
+                                raw_bytes = archivo_comp.getvalue()
+                                mime_comp = str(archivo_comp.type or "image/jpeg")
+                                if "image" in mime_comp.lower():
+                                    try:
+                                        raw_bytes = compress_bytes_image(raw_bytes, max_side=1100, quality=78)
+                                        mime_comp = "image/jpeg"
+                                    except Exception:
+                                        pass
+                                b64_comp = base64.b64encode(raw_bytes).decode("ascii")
+
+                                res_rep = reportar_comprobante_pago_estudiante_pg(
+                                    student_user=alumno_actual_ws,
+                                    metodo_pago=metodo_p_est,
+                                    referencia=ref_p_est,
+                                    comprobante_b64=b64_comp,
+                                    comprobante_mime=mime_comp,
+                                    ciclo_seleccionado=ciclo_elegido_num
+                                )
+                                if res_rep["ok"]:
+                                    _, wa_owner_url = build_whatsapp_aviso_pago_owner(
+                                        nombre_alumno=f"{alumno_actual_ws} (Matrícula: {mat_oficial_sp})",
+                                        usuario_alumno=alumno_actual_ws,
+                                        nivel_cefr=res_rep.get("nivel_cefr", est_sp.get("nivel_cefr", "")),
+                                        folio_pago=res_rep["folio_pago"],
+                                        ciclo_num=res_rep["ciclo_num"],
+                                        monto_pagado=res_rep["monto"],
+                                        referencia=ref_p_est
+                                    )
+                                    st.session_state["last_wa_owner_url"] = wa_owner_url
+                                    st.session_state["last_folio_reportado"] = res_rep["folio_pago"]
+                                    st.session_state["last_bloque_reportado"] = b_elegido["bloque_num"]
+                                    st.success(res_rep["msg"])
+                                else:
+                                    st.error(res_rep["msg"])
+
+                        if st.session_state.get("last_wa_owner_url"):
+                            st.link_button(
+                                f"📲 Paso 2: Abrir WhatsApp y Enviar Aviso al Owner / Admin (Folio {st.session_state.get('last_folio_reportado', '')})",
+                                url=st.session_state["last_wa_owner_url"],
+                                type="primary",
+                                width="stretch"
+                            )
+                            if st.button(
+                                "✅ Confirmar WhatsApp Enviado y Cerrar Formulario",
+                                type="secondary",
+                                width="stretch",
+                                key="ws_btn_confirm_wa_close"
+                            ):
+                                fol_env = st.session_state.get("last_folio_reportado", "")
+                                blq_env = st.session_state.get("last_bloque_reportado", "")
+                                st.session_state["payment_report_sent_msg"] = (
+                                    f"✅ **Informe de pago enviado con éxito** (Folio `{fol_env}` — Bloque {blq_env}/9, Matrícula `{mat_oficial_sp}`). "
+                                    f"El aviso fue notificado al Owner / Administrador autorizado y tu Boletín de Calificaciones ya está habilitado."
+                                )
+                                st.session_state["hide_payment_report_form"] = True
+                                st.session_state["last_wa_owner_url"] = ""
+                                st.rerun()
 
 # ==============================================================================
 # PARTE 14E — SECCIÓN 2 DE 3: TABLA 9 BLOQUES Y MIS CALIFICACIONES Y BOLETÍN
