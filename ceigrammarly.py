@@ -6098,35 +6098,47 @@ if "hide_lesson_text" not in st.session_state:
 col_lesson_left, col_tools_right = st.columns([2.2, 1.3])
 
 with col_lesson_left:
+    has_lesson_now = bool(str(st.session_state.get("generated_text") or "").strip())
     hdr_l1, hdr_l2, hdr_l3 = st.columns([2.0, 1.15, 1.35])
     with hdr_l1:
         st.subheader(f"📖 Generated Lesson ({st.session_state.selected_cefr})")
     with hdr_l2:
-        if st.session_state.get("generated_text"):
-            lbl_hide = (
-                "👁️ Mostrar Lección"
-                if st.session_state.get("hide_lesson_text")
-                else "🙈 Ocultar Lección"
-            )
-            if st.button(lbl_hide, type="secondary", width="stretch", key="btn_toggle_hide_lesson"):
-                st.session_state["hide_lesson_text"] = not st.session_state.get("hide_lesson_text", False)
-                st.rerun()
+        lbl_hide = (
+            "👁️ Mostrar Lección"
+            if st.session_state.get("hide_lesson_text")
+            else "🙈 Ocultar Lección"
+        )
+        if st.button(
+            lbl_hide,
+            type="secondary",
+            width="stretch",
+            disabled=not has_lesson_now,
+            key="btn_toggle_hide_lesson"
+        ):
+            st.session_state["hide_lesson_text"] = not st.session_state.get("hide_lesson_text", False)
+            st.rerun()
     with hdr_l3:
-        if st.session_state.get("generated_text"):
-            lbl_modo = (
-                "📄 Lectura Clásica"
-                if st.session_state.get("study_mode_active")
-                else "🧠 Modo Estudio IA"
-            )
-            if st.button(lbl_modo, type="secondary", width="stretch", key="btn_toggle_study_mode"):
-                st.session_state.study_mode_active = not st.session_state.get("study_mode_active", False)
-                if not st.session_state.study_mode_active:
-                    st.session_state["active_study_word"] = ""
-                    if "study_w" in st.query_params:
-                        del st.query_params["study_w"]
-                    if "study_p" in st.query_params:
-                        del st.query_params["study_p"]
-                st.rerun()
+        lbl_modo = (
+            "📄 Lectura Clásica"
+            if st.session_state.get("study_mode_active")
+            else "🧠 Modo Estudio IA"
+        )
+        if st.button(
+            lbl_modo,
+            type="secondary",
+            width="stretch",
+            disabled=not has_lesson_now,
+            key="btn_toggle_study_mode"
+        ):
+            st.session_state.study_mode_active = not st.session_state.get("study_mode_active", False)
+            if not st.session_state.study_mode_active:
+                st.session_state["active_study_word"] = ""
+                if "study_w" in st.query_params:
+                    del st.query_params["study_w"]
+                if "study_p" in st.query_params:
+                    del st.query_params["study_p"]
+            st.rerun()
+
 
     if st.session_state.get("generated_text"):
         if st.session_state.get("hide_lesson_text"):
