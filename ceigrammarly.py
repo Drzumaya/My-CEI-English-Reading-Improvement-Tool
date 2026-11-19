@@ -6856,6 +6856,71 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         st.success(f"✅ Acreditado: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25 pts).")
                         st.rerun()
 
+# ==============================================================================
+# PARTE 16 — BLOQUE 2-B (FINAL): PANEL DERECHO DE WRITING SKILL (20%)
+# ==============================================================================
+        if col_wrt_box is not None:
+            with col_wrt_box:
+                with st.container(border=True):
+                    st.subheader("✍️ 4. WRITING SKILL (20%)")
+                    s_sc_c = float(st.session_state.get("summary_score_100") or 0.0)
+                    pts_w_c = round((s_sc_c / 100.0) * 20.0, 2)
+                    st.caption(f"**Resumen (120–125 palabras) + Cita APA 7 — Valor: 20% (`{pts_w_c} / 20.0 pts`)**")
+
+                    res_central = st.text_area(
+                        "Write your English summary while watching the video (strictly 120 to 125 words):",
+                        value=st.session_state.get("video_summary_draft", ""),
+                        height=180,
+                        placeholder="Write your academic summary in English while watching the video on the left (120–125 words)...",
+                        key="txt_central_writing_summary"
+                    )
+                    cnt_c = len([w for w in re.findall(r"\b[\w'-]+\b", res_central.strip()) if w])
+                    if 120 <= cnt_c <= 125:
+                        st.success(f"✅ Conteo exacto: **{cnt_c} palabras** (rango válido: 120–125).")
+                    else:
+                        st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(debe contener 120–125 palabras)*.")
+
+                    vid_ref_c = st.session_state.get("current_lesson_video") or {}
+                    ej_apa_c = (
+                        f"{vid_ref_c.get('channel', 'Author/Channel')}. ({str(vid_ref_c.get('published_date', '2026'))[:4]}). "
+                        f"{vid_ref_c.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_c.get('url', 'https://youtube.com...')}"
+                    )
+                    apa_central = st.text_area(
+                        "📚 Referencia Bibliográfica en Formato APA 7:",
+                        value=st.session_state.get("video_apa7_draft", ""),
+                        height=80,
+                        placeholder=f"Ejemplo APA 7:\n{ej_apa_c}",
+                        key="txt_central_writing_apa7"
+                    )
+
+                    if st.button("📝 Calificar Writing Skill y APA 7 (20%)", type="primary", width="stretch", key="btn_central_eval_writing"):
+                        with st.spinner("Evaluando Writing Skill (120-125 palabras) y formato APA 7 con IA..."):
+                            ev_w = evaluar_resumen_video_apa7(
+                                resumen_texto=res_central,
+                                referencia_apa7=apa_central,
+                                video_info=vid_ref_c,
+                                tema_gramatical=gramatica_b1,
+                                nivel_cefr=st.session_state.selected_cefr
+                            )
+                            st.session_state["video_summary_draft"] = res_central
+                            st.session_state["video_apa7_draft"] = apa_central
+                            if ev_w["ok"]:
+                                st.session_state["summary_score_100"] = ev_w["raw_score_100"]
+                                st.session_state["summary_eval_result"] = ev_w
+                                if st.session_state.current_folio:
+                                    save_video_and_summary_pg(
+                                        folio_code=st.session_state.current_folio,
+                                        summary_text=res_central,
+                                        apa7_reference=apa_central,
+                                        summary_score_100=ev_w["raw_score_100"],
+                                        summary_eval_dict=ev_w
+                                    )
+                                st.success(f"🏆 Writing Skill: **{ev_w['raw_score_100']}%** (`{ev_w['weighted_points_20']} / 20.0 pts`).")
+                                st.info(ev_w["feedback"])
+                                if ev_w.get("apa7_corrected"):
+                                    st.caption(f"📖 **Sugerencia APA 7:** {ev_w['apa7_corrected']}")
+                            else:
+                                st.error(ev_w["feedback"])
 
 # ==============================================================================
 # PARTE 17 — BLOQUE 2A: CATÁLOGO DE VIDEOS (SOLO ACTIVO EN BOTÓN 2 VIEWING)
