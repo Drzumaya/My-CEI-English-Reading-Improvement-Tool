@@ -2332,7 +2332,7 @@ def evaluar_resumen_video_apa7(
     nivel_cefr: str,
     client_obj=None
 ) -> dict:
-    """Evalúa el resumen escrito (120 a 125 palabras) y su referencia APA 7 (vale 15% del total)."""
+    """WRITING SKILL (20%): Evalúa el resumen escrito (120 a 125 palabras) y su referencia APA 7."""
     palabras = [w for w in re.findall(r"\b[\w'-]+\b", str(resumen_texto or "").strip()) if w]
     conteo_palabras = len(palabras)
     en_rango_palabras = (120 <= conteo_palabras <= 125)
@@ -2342,11 +2342,11 @@ def evaluar_resumen_video_apa7(
             "ok": False,
             "word_count": conteo_palabras,
             "raw_score_100": 0.0,
-            "weighted_points_15": 0.0,
+            "weighted_points_20": 0.0,
             "apa7_valid": False,
             "feedback": (
                 f"⚠️ El resumen tiene **{conteo_palabras} palabras**. "
-                f"Debe contener estrictamente entre **120 y 125 palabras** para ser calificado."
+                f"En **WRITING SKILL**, el texto debe contener estrictamente entre **120 y 125 palabras** para ser calificado."
             )
         }
 
@@ -2355,15 +2355,15 @@ def evaluar_resumen_video_apa7(
             "ok": False,
             "word_count": conteo_palabras,
             "raw_score_100": 0.0,
-            "weighted_points_15": 0.0,
+            "weighted_points_20": 0.0,
             "apa7_valid": False,
-            "feedback": "⚠️ Debes completar el apartado de **Referencia en formato APA 7** del video antes de calificar."
+            "feedback": "⚠️ Debes completar el apartado de **Referencia en formato APA 7** del video antes de calificar **WRITING SKILL**."
         }
 
     gm = client_obj or init_gemini_client()
     prompt_eval_sum = f"""
-    Evaluate this student's English video summary and APA 7th edition video reference.
-    Target Grammar: {tema_gramatical} | CEFR Level: {nivel_cefr}
+    Evaluate this student's English video summary and APA 7th edition video reference under CEFR {nivel_cefr} international academic standards.
+    Target Grammar: {tema_gramatical}
     Video Title: {video_info.get('title', '')} | Channel: {video_info.get('channel', '')} | URL: {video_info.get('url', '')}
     Word Count Verified: {conteo_palabras} words (strictly within 120-125 words).
 
@@ -2373,11 +2373,11 @@ def evaluar_resumen_video_apa7(
     STUDENT APA 7 REFERENCE:
     {referencia_apa7.strip()}
 
-    Evaluate:
-    1. Academic summary quality, coherence, and grammar accuracy in English (0-70 points).
-    2. APA 7th edition video citation format accuracy: Author/Channel. (Year, Month Day). Title of video [Video]. YouTube. URL (0-30 points).
+    Evaluate on a 100-point scale (worth 20% of total course grade):
+    1. Academic summary coherence, synthesis of video content, vocabulary range, and grammatical accuracy in English (0-70 points).
+    2. APA 7th edition video citation accuracy: Author/Channel. (Year, Month Day). Title of video [Video]. YouTube. URL (0-30 points).
     Return ONLY a valid JSON object with exact keys:
-    {{"score_100": 92, "apa7_valid": true, "feedback_es": "Retroalimentación clara en español sobre redacción, gramática y formato APA 7.", "apa7_corrected": "Ejemplo correcto en formato APA 7 de este video"}}
+    {{"score_100": 92, "apa7_valid": true, "feedback_es": "Retroalimentación pedagógica detallada en español sobre síntesis, gramática inglesa y formato APA 7.", "apa7_corrected": "Ejemplo correcto en formato APA 7 de este video"}}
     """
     try:
         raw_res, _ = generar_con_maxima_potencia(
@@ -2389,14 +2389,14 @@ def evaluar_resumen_video_apa7(
         cleaned = raw_res.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         j_res = json.loads(cleaned)
         sc_100 = min(100.0, max(0.0, float(j_res.get("score_100") or 0.0)))
-        pts_15 = round((sc_100 / 100.0) * 15.0, 2)
+        pts_20 = round((sc_100 / 100.0) * 20.0, 2)
         return {
             "ok": True,
             "word_count": conteo_palabras,
             "raw_score_100": sc_100,
-            "weighted_points_15": pts_15,
+            "weighted_points_20": pts_20,
             "apa7_valid": bool(j_res.get("apa7_valid", True)),
-            "feedback": str(j_res.get("feedback_es") or "Resumen y referencia APA 7 evaluados."),
+            "feedback": str(j_res.get("feedback_es") or "Writing Skill y referencia APA 7 evaluados."),
             "apa7_corrected": str(j_res.get("apa7_corrected") or "")
         }
     except Exception as e:
@@ -2404,10 +2404,11 @@ def evaluar_resumen_video_apa7(
             "ok": False,
             "word_count": conteo_palabras,
             "raw_score_100": 0.0,
-            "weighted_points_15": 0.0,
+            "weighted_points_20": 0.0,
             "apa7_valid": False,
-            "feedback": f"Error al evaluar resumen con IA: {e}"
+            "feedback": f"Error al evaluar Writing Skill con IA: {e}"
         }
+
 
 # ==============================================================================
 # PARTE 8A: MOTOR LEXICOGRÁFICO HÍBRIDO Y NORMALIZADOR APA 7a EDICIÓN
