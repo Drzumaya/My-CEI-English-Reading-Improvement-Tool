@@ -5005,35 +5005,37 @@ st.divider()
 
 
 # ==============================================================================
-# PARTE 13A2: MÉTRICAS DEL BOLETÍN Y RECUPERACIÓN DIRECTA DE FOLIOS
+# PARTE 13A2: MÉTRICAS DEL BOLETÍN (RÚBRICA 35/25/25/15) Y RECUPERACIÓN DE FOLIOS
 # ==============================================================================
-        if topico_seleccionado_gb == "Vista General":
-            prom_vista = gb_data["overall_avg"]
-            recs_filtrados = gb_data["records"]
-            temas_filtrados = gb_data["topic_summary"]
-        else:
-            t_info = next((t for t in gb_data["topic_summary"] if t["Grammar Topic"] == topico_seleccionado_gb), {})
-            prom_vista = t_info.get("Dominio (%)", 0.0)
-            recs_filtrados = [r for r in gb_data["records"] if r["Grammar_Topic"] == topico_seleccionado_gb]
-            temas_filtrados = [t_info] if t_info else []
+            if topico_seleccionado_gb == "Vista General":
+                prom_vista = gb_data["overall_avg"]
+                recs_filtrados = gb_data["records"]
+                temas_filtrados = gb_data["topic_summary"]
+            else:
+                t_info = next((t for t in gb_data["topic_summary"] if t["Grammar Topic"] == topico_seleccionado_gb), {})
+                prom_vista = t_info.get("Dominio (%)", 0.0)
+                recs_filtrados = [r for r in gb_data["records"] if r["Grammar_Topic"] == topico_seleccionado_gb]
+                temas_filtrados = [t_info] if t_info else []
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("🏆 Promedio General", f"{gb_data['overall_avg']}%")
-        m2.metric("🎯 Promedio Vista Actual", f"{prom_vista}%")
-        m3.metric("📝 Escrito / 🎙️ Oral", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
-        m4.metric("📚 Lecciones Evaluadas", len(recs_filtrados))
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("🏆 Promedio Ponderado", f"{gb_data['overall_avg']}%", delta=f"Vista: {prom_vista}%")
+            m2.metric("📝 Quiz (35%) / 🎙️ Audio (25%)", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
+            m3.metric("🎬 Video (25%) / ✍️ Resumen (15%)", f"{gb_data.get('video_avg', 0.0)}% / {gb_data.get('summary_avg', 0.0)}%")
+            m4.metric("📚 Lecciones Evaluadas", len(recs_filtrados))
 
-        if temas_filtrados:
-            st.markdown("#### 📈 Porcentaje de Dominio por Grammar Topic")
-            df_chart = pd.DataFrame(temas_filtrados).set_index("Grammar Topic")
-            st.bar_chart(df_chart[["Dominio (%)"]], height=260)
-            st.dataframe(pd.DataFrame(temas_filtrados), width="stretch", hide_index=True)
+            st.caption("📐 **Rúbrica Oficial de Evaluación (100%):** Quiz Escrito = **35%**  |  Pronunciación y Audio = **25%**  |  Ver Video Educativo = **25%**  |  Resumen (120-125 palabras) y Cita APA 7 = **15%**.")
 
-        st.markdown("#### 📋 Historial Completo de Lecciones Evaluadas")
-        if recs_filtrados:
-            st.dataframe(pd.DataFrame(recs_filtrados), width="stretch", hide_index=True)
-        else:
-            st.warning("Aún no hay lecciones registradas para este filtro en Supabase.")
+            if temas_filtrados:
+                st.markdown("#### 📈 Porcentaje de Dominio por Grammar Topic")
+                df_chart = pd.DataFrame(temas_filtrados).set_index("Grammar Topic")
+                st.bar_chart(df_chart[["Dominio (%)"]], height=260)
+                st.dataframe(pd.DataFrame(temas_filtrados), width="stretch", hide_index=True)
+
+            st.markdown("#### 📋 Historial Completo de Lecciones Evaluadas")
+            if recs_filtrados:
+                st.dataframe(pd.DataFrame(recs_filtrados), width="stretch", hide_index=True)
+            else:
+                st.warning("Aún no hay lecciones registradas para este filtro en Supabase.")
 
 auto_fetch_url_folio = bool(
     st.session_state.current_folio
@@ -5069,6 +5071,25 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
                 st.session_state.speaking_eval_result = row_f.get("Speaking_Eval")
                 st.session_state["best_stored_score"] = str(row_f.get("Best_Score") or "")
 
+                v_url_f = str(row_f.get("Video_URL") or "").strip()
+                if v_url_f:
+                    st.session_state["current_lesson_video"] = {
+                        "url": v_url_f,
+                        "title": str(row_f.get("Video_Title") or "Educational Video"),
+                        "channel": str(row_f.get("Video_Channel") or "YouTube"),
+                        "duration_sec": int(row_f.get("Video_Duration_Sec") or 240),
+                        "duration_min": round(int(row_f.get("Video_Duration_Sec") or 240) / 60.0, 2)
+                    }
+                else:
+                    st.session_state["current_lesson_video"] = None
+
+                st.session_state["video_watched_sec"] = int(row_f.get("Video_Watched_Sec") or 0)
+                st.session_state["video_score_100"] = float(row_f.get("Video_Score") or 0.0)
+                st.session_state["video_summary_draft"] = str(row_f.get("Summary_Text") or "")
+                st.session_state["video_apa7_draft"] = str(row_f.get("APA7_Reference") or "")
+                st.session_state["summary_score_100"] = float(row_f.get("Summary_Score") or 0.0)
+                st.session_state["summary_eval_result"] = row_f.get("Summary_Eval")
+
                 qz_obj = row_f.get("Quiz")
                 if isinstance(qz_obj, list):
                     st.session_state.quiz_data = qz_obj
@@ -5083,7 +5104,7 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
                             r"\bBibliography\b",
                             st.session_state.generated_text.replace("*", "").replace("#", ""),
                             maxsplit=1
-                        )
+                        )[0]
                         tts = gTTS(text=clean_tts, lang="en", slow=False)
                         afp = io.BytesIO()
                         tts.write_to_fp(afp)
@@ -5097,6 +5118,7 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
         st.error(f"Error al buscar folio en Supabase: {e}")
 
 st.divider()
+
 # ==============================================================================
 # PARTE 14E — SECCIÓN 1A: PORTAL EXCLUSIVO DEL ESTUDIANTE (CABECERA Y MÉTRICAS)
 # ==============================================================================
