@@ -7293,491 +7293,278 @@ if col_lesson_left is not None:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17 — BLOQUE 1A: 2. VIEWING & LISTENING SKILLS -> ESCENARIO CENTRAL
+# PARTE 17 — BLOQUE 2A: CATÁLOGO DE VIDEOS (SOLO ACTIVO EN BOTÓN 2 VIEWING)
 # ==============================================================================
-if col_tools_right is not None:
-    with col_tools_right:
-        st.subheader("🎬 2. VIEWING & LISTENING SKILLS (25%)")
+if has_lesson_now and stage_5_now == "VIEWING":
+    st.markdown("### 📚 Catálogo Escrolable de Videos Relacionados")
 
-        topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
-        titulo_catalogo = (
-            f"{gramatica_b1} • {topico_actual_leccion}"
-            if topico_actual_leccion
-            else f"{gramatica_b1} ({st.session_state.selected_cefr})"
+    topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
+    titulo_catalogo = (
+        f"{gramatica_b1} • {topico_actual_leccion}"
+        if topico_actual_leccion
+        else f"{gramatica_b1} ({st.session_state.selected_cefr})"
+    )
+    if "video_catalog_limit" not in st.session_state:
+        st.session_state["video_catalog_limit"] = 12
+
+    vid_data = st.session_state.get("current_lesson_video")
+    if not vid_data or not vid_data.get("url"):
+        vid_data = buscar_video_relacionado_leccion(
+            gramatica_b1,
+            st.session_state.selected_cefr,
+            st.session_state.generated_text,
+            topic_context=topico_actual_leccion,
+            max_videos=st.session_state["video_catalog_limit"]
         )
-        vid_data = st.session_state.get("current_lesson_video") or {}
-        alts_list = list(vid_data.get("alternatives") or []) if isinstance(vid_data, dict) else []
+        st.session_state["current_lesson_video"] = vid_data
+        if st.session_state.current_folio and vid_data.get("url"):
+            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_data)
 
-        if st.session_state.get("generated_text"):
-            if "video_catalog_limit" not in st.session_state:
-                st.session_state["video_catalog_limit"] = 12
+    alts_list = list(vid_data.get("alternatives") or []) if isinstance(vid_data, dict) else []
+    if not alts_list and not st.session_state.get("_vid_alts_fetched_once"):
+        st.session_state["_vid_alts_fetched_once"] = True
+        _fresh_pack = buscar_video_relacionado_leccion(
+            gramatica_b1,
+            st.session_state.selected_cefr,
+            st.session_state.generated_text,
+            topic_context=topico_actual_leccion,
+            max_videos=st.session_state["video_catalog_limit"]
+        )
+        curr_url_now = (vid_data or {}).get("url", "")
+        existentes_urls = {curr_url_now}
+        for cand_v in ([_fresh_pack] + list(_fresh_pack.get("alternatives") or [])):
+            if cand_v.get("url") and cand_v.get("url") not in existentes_urls:
+                alts_list.append(cand_v)
+                existentes_urls.add(cand_v.get("url"))
+        if isinstance(vid_data, dict):
+            vid_data["alternatives"] = alts_list
+            st.session_state["current_lesson_video"] = vid_data
 
+    st.markdown(f"**Temática:** _{titulo_catalogo}_ (`{len(alts_list) + 1}` opciones)")
+    with st.container(height=280, border=True):
+        if not alts_list:
+            st.caption("No hay videos alternativos cargados en este momento.")
+        else:
+            for idx_alt, alt_v in enumerate(alts_list, start=1):
+                alt_title_safe = str(alt_v.get("title") or f"Video Relacionado {idx_alt}").replace("[", "(").replace("]", ")")
+                alt_chan = str(alt_v.get("channel") or "YouTube ESL")
+                alt_min = alt_v.get("duration_min", 5.0)
+                alt_url = str(alt_v.get("url") or "")
 
-            topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
-            titulo_catalogo = (
-                f"{gramatica_b1} • {topico_actual_leccion}"
-                if topico_actual_leccion
-                else f"{gramatica_b1} ({st.session_state.selected_cefr})"
-            )
+                cv_txt, cv_btn = st.columns([3.4, 1.0])
+                with cv_txt:
+                    st.write(f"**{idx_alt}. {alt_title_safe}**")
+                    st.caption(f"📺 {alt_chan} • ⏱️ `{alt_min} min`")
+                with cv_btn:
+                    if st.button("▶️ Reproducir Arriba", key=f"btn_pick_vid_{idx_alt}_{alt_url[-11:]}", width="stretch"):
+                        nuevo_principal = dict(alt_v)
+                        otras_alts = [v for v in alts_list if v.get("url") != alt_url]
+                        if vid_data and vid_data.get("url"):
+                            vieja_opcion = {k: v for k, v in vid_data.items() if k != "alternatives"}
+                            otras_alts.insert(0, vieja_opcion)
+                        nuevo_principal["alternatives"] = otras_alts
 
-            vid_data = st.session_state.get("current_lesson_video")
-            if not vid_data or not vid_data.get("url"):
-                vid_data = buscar_video_relacionado_leccion(
-                    gramatica_b1,
-                    st.session_state.selected_cefr,
-                    st.session_state.generated_text,
-                    topic_context=topico_actual_leccion,
-                    max_videos=st.session_state["video_catalog_limit"]
-                )
-                st.session_state["current_lesson_video"] = vid_data
-                if st.session_state.current_folio and vid_data.get("url"):
-                    save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_data)
-
-            alts_list = list(vid_data.get("alternatives") or []) if isinstance(vid_data, dict) else []
-            if not alts_list and not st.session_state.get("_vid_alts_fetched_once"):
-                st.session_state["_vid_alts_fetched_once"] = True
-                _fresh_pack = buscar_video_relacionado_leccion(
-                    gramatica_b1,
-                    st.session_state.selected_cefr,
-                    st.session_state.generated_text,
-                    topic_context=topico_actual_leccion,
-                    max_videos=st.session_state["video_catalog_limit"]
-                )
-                curr_url_now = (vid_data or {}).get("url", "")
-                existentes_urls = {curr_url_now}
-                for cand_v in ([_fresh_pack] + list(_fresh_pack.get("alternatives") or [])):
-                    if cand_v.get("url") and cand_v.get("url") not in existentes_urls:
-                        alts_list.append(cand_v)
-                        existentes_urls.add(cand_v.get("url"))
-                if isinstance(vid_data, dict):
-                    vid_data["alternatives"] = alts_list
-                    st.session_state["current_lesson_video"] = vid_data
-
-            if vid_data and vid_data.get("url"):
-                dur_total_sec = max(60, int(vid_data.get("duration_sec") or 300))
-                dur_total_min = round(dur_total_sec / 60.0, 2)
-                v_score_now = float(st.session_state.get("video_score_100") or 0.0)
-                pts_video_25 = round((v_score_now / 100.0) * 25.0, 2)
-
-                with st.container(border=True):
-                    titulo_activo_safe = str(vid_data.get("title") or "Lesson Video").replace("[", "(").replace("]", ")")
-                    st.write(f"📺 **Video Seleccionado:** {titulo_activo_safe}")
-                    st.caption(
-                        f"Canal: *{vid_data.get('channel', 'YouTube')}* | Duración: **`{dur_total_min} min`** | "
-                        f"Acreditado (25%): **`{pts_video_25} / 25.0 pts`**"
-                    )
-                    if st.session_state.get("viewing_center_stage"):
-                        if st.button("📖 Ocultar Video y Volver a Reading", type="secondary", width="stretch", key="btn_side_back_reading"):
-                            st.session_state["viewing_center_stage"] = False
-                            st.rerun()
-                    else:
-                        if st.button("🎬 Ver Video en Pantalla Central (Ocultar Lectura)", type="primary", width="stretch", key="btn_side_open_stage"):
-                            st.session_state["viewing_center_stage"] = True
-                            if not st.session_state.get("video_watch_started_ts"):
-                                st.session_state["video_watch_started_ts"] = time.time()
-                            st.rerun()
-            topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
-            titulo_catalogo = (
-                f"{gramatica_b1} • {topico_actual_leccion}"
-                if topico_actual_leccion
-                else f"{gramatica_b1} ({st.session_state.selected_cefr})"
-            )
-            alts_list = list(vid_data.get("alternatives") or []) if isinstance(vid_data, dict) else []
-
-            st.markdown(f"**📚 Catálogo de Videos: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
-            with st.container(height=240, border=True):
-                for idx_alt, alt_v in enumerate(alts_list, start=1):
-                    alt_title_safe = str(alt_v.get("title") or f"Video Relacionado {idx_alt}").replace("[", "(").replace("]", ")")
-                    alt_chan = str(alt_v.get("channel") or "YouTube ESL")
-                    alt_min = alt_v.get("duration_min", 5.0)
-                    alt_url = str(alt_v.get("url") or "")
-
-                    cv_txt, cv_btn = st.columns([2.5, 1.1])
-                    with cv_txt:
-                        st.write(f"**{idx_alt}. {alt_title_safe}**")
-                        st.caption(f"📺 {alt_chan} • ⏱️ `{alt_min} min`")
-                    with cv_btn:
-                        if st.button("▶️ Ver", key=f"btn_pick_vid_{idx_alt}_{alt_url[-11:]}", width="stretch"):
-                            nuevo_principal = dict(alt_v)
-                            otras_alts = [v for v in alts_list if v.get("url") != alt_url]
-                            if vid_data and vid_data.get("url"):
-                                vieja_opcion = {k: v for k, v in vid_data.items() if k != "alternatives"}
-                                otras_alts.insert(0, vieja_opcion)
-                            nuevo_principal["alternatives"] = otras_alts
-
-                            st.session_state["current_lesson_video"] = nuevo_principal
-                            st.session_state["video_watched_sec"] = 0
-                            st.session_state["video_score_100"] = 0.0
-                            st.session_state["video_watch_started_ts"] = time.time()
-                            st.session_state["viewing_center_stage"] = True
-                            if st.session_state.current_folio:
-                                save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=nuevo_principal)
-                            st.rerun()
-                    st.divider()
-
-# ==============================================================================
-# PARTE 17 — BLOQUE 2 DE 2 (FINAL): 4. WRITING SKILL (20%) Y 3. SPEAKING (25%)
-# ==============================================================================
-            c_more1, c_more2 = st.columns([1.6, 1.8])
-            with c_more1:
-                if len(alts_list) < 19:
-                    if st.button("➕ Ver más opciones (hasta 20)", key="btn_load_more_videos", width="stretch"):
-                        with st.spinner("Cargando más videos sobre el tema y tópico..."):
-                            st.session_state["video_catalog_limit"] = 20
-                            mas_pack = buscar_video_relacionado_leccion(
-                                gramatica_b1,
-                                st.session_state.selected_cefr,
-                                st.session_state.generated_text,
-                                topic_context=topico_actual_leccion,
-                                max_videos=20
-                            )
-                            curr_u = (vid_data or {}).get("url", "")
-                            urls_ya = {curr_u} | {v.get("url") for v in alts_list}
-                            for nv in ([mas_pack] + list(mas_pack.get("alternatives") or [])):
-                                if nv.get("url") and nv.get("url") not in urls_ya and len(alts_list) < 19:
-                                    alts_list.append(nv)
-                                    urls_ya.add(nv.get("url"))
-                            if isinstance(vid_data, dict):
-                                vid_data["alternatives"] = alts_list
-                                st.session_state["current_lesson_video"] = vid_data
-                        st.rerun()
-                else:
-                    st.caption("✅ Catálogo completo (20 videos)")
-
-            with c_more2:
-                custom_yt_url = st.text_input(
-                    "🔗 Pegar enlace YouTube propio:",
-                    placeholder="https://youtube.com...",
-                    key="input_custom_yt_url",
-                    label_visibility="collapsed"
-                )
-                if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
-                    if st.button("🔄 Ver URL en Pantalla Central", key="btn_refresh_lesson_video", width="stretch"):
-                        m_id = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
-                        vid_id_c = m_id.group(1) if m_id else ""
-                        meta_c = _validar_video_oembed(vid_id_c) or {}
-                        vid_obj_new = {
-                            "video_id": vid_id_c,
-                            "url": custom_yt_url.strip(),
-                            "title": meta_c.get("title") or f"({titulo_catalogo}) Custom Video",
-                            "channel": meta_c.get("channel") or "YouTube Academic Resource",
-                            "published_date": "2026",
-                            "duration_sec": 300,
-                            "duration_min": 5.0,
-                            "alternatives": alts_list
-                        }
-                        st.session_state["current_lesson_video"] = vid_obj_new
+                        st.session_state["current_lesson_video"] = nuevo_principal
                         st.session_state["video_watched_sec"] = 0
                         st.session_state["video_score_100"] = 0.0
                         st.session_state["video_watch_started_ts"] = time.time()
                         st.session_state["viewing_center_stage"] = True
                         if st.session_state.current_folio:
-                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
+                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=nuevo_principal)
                         st.rerun()
-
-            st.divider()
-            st.subheader("✍️ 4. WRITING SKILL (20%)")
-            with st.container(border=True):
-                s_score_now = float(st.session_state.get("summary_score_100") or 0.0)
-                pts_sum_20 = round((s_score_now / 100.0) * 20.0, 2)
-                st.markdown(f"**Resumen Académico (120–125 palabras) + Cita APA 7 (Valor: 20% = `{pts_sum_20} / 20.0 pts`)**")
-
-                resumen_input = st.text_area(
-                    "Write your English summary of the video (strictly 120 to 125 words):",
-                    value=st.session_state.get("video_summary_draft", ""),
-                    height=135,
-                    placeholder="Write an academic summary in English of what you watched in the video (between 120 and 125 words)...",
-                    key="txt_video_summary_apa7"
-                )
-                palabras_actuales = len([w for w in re.findall(r"\b[\w'-]+\b", resumen_input.strip()) if w])
-                if 120 <= palabras_actuales <= 125:
-                    st.success(f"✅ Conteo exacto: **{palabras_actuales} palabras** (rango válido: 120–125).")
-                else:
-                    st.warning(f"📏 Conteo actual: **{palabras_actuales} palabras** *(debe contener entre 120 y 125 palabras)*.")
-
-                vid_ref_info = st.session_state.get("current_lesson_video") or {}
-                ej_apa7 = (
-                    f"{vid_ref_info.get('channel', 'Author/Channel')}. ({str(vid_ref_info.get('published_date', '2026'))[:4]}). "
-                    f"{vid_ref_info.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_info.get('url', 'https://youtube.com...')}"
-                )
-                apa7_input = st.text_area(
-                    "📚 Referencia Bibliográfica del Video en Formato APA 7:",
-                    value=st.session_state.get("video_apa7_draft", ""),
-                    height=75,
-                    placeholder=f"Ejemplo APA 7:\n{ej_apa7}",
-                    key="txt_video_apa7_citation"
-                )
-
-                if st.button("📝 Calificar Writing Skill y Cita APA 7 (20%)", type="primary", width="stretch", key="btn_eval_video_summary"):
-                    with st.spinner("Evaluando Writing Skill (120-125 palabras) y formato APA 7 con IA..."):
-                        ev_sum = evaluar_resumen_video_apa7(
-                            resumen_texto=resumen_input,
-                            referencia_apa7=apa7_input,
-                            video_info=vid_ref_info,
-                            tema_gramatical=gramatica_b1,
-                            nivel_cefr=st.session_state.selected_cefr
-                        )
-                        st.session_state["video_summary_draft"] = resumen_input
-                        st.session_state["video_apa7_draft"] = apa7_input
-                        if ev_sum["ok"]:
-                            st.session_state["summary_score_100"] = ev_sum["raw_score_100"]
-                            st.session_state["summary_eval_result"] = ev_sum
-                            if st.session_state.current_folio:
-                                save_video_and_summary_pg(
-                                    folio_code=st.session_state.current_folio,
-                                    summary_text=resumen_input,
-                                    apa7_reference=apa7_input,
-                                    summary_score_100=ev_sum["raw_score_100"],
-                                    summary_eval_dict=ev_sum
-                                )
-                            st.success(f"🏆 Calificación Writing Skill: **{ev_sum['raw_score_100']}%** (`{ev_sum['weighted_points_20']} / 20.0 pts`).")
-                            st.info(ev_sum["feedback"])
-                            if ev_sum.get("apa7_corrected"):
-                                st.caption(f"📖 **Sugerencia APA 7:** {ev_sum['apa7_corrected']}")
-                        else:
-                            st.error(ev_sum["feedback"])
+                st.divider()
+# ==============================================================================
+# PARTE 17 — BLOQUE 2B: MÁS OPCIONES DE VIDEO + CONEXIÓN PARTE 17A (SPEAKING)
+# ==============================================================================
+    c_more1, c_more2 = st.columns([1.6, 1.8])
+    with c_more1:
+        if len(alts_list) < 19:
+            if st.button("➕ Ver más opciones (hasta 20)", key="btn_load_more_videos", width="stretch"):
+                with st.spinner("Cargando más videos sobre el tema y tópico..."):
+                    st.session_state["video_catalog_limit"] = 20
+                    mas_pack = buscar_video_relacionado_leccion(
+                        gramatica_b1,
+                        st.session_state.selected_cefr,
+                        st.session_state.generated_text,
+                        topic_context=topico_actual_leccion,
+                        max_videos=20
+                    )
+                    curr_u = (vid_data or {}).get("url", "")
+                    urls_ya = {curr_u} | {v.get("url") for v in alts_list}
+                    for nv in ([mas_pack] + list(mas_pack.get("alternatives") or [])):
+                        if nv.get("url") and nv.get("url") not in urls_ya and len(alts_list) < 19:
+                            alts_list.append(nv)
+                            urls_ya.add(nv.get("url"))
+                    if isinstance(vid_data, dict):
+                        vid_data["alternatives"] = alts_list
+                        st.session_state["current_lesson_video"] = vid_data
+                st.rerun()
         else:
-            with st.container(height=160, border=True):
-                st.caption("🎬 El catálogo de videos, el escenario central y Writing Skill aparecerán aquí al generar o cargar un Folio.")
+            st.caption("✅ Catálogo completo (20 videos)")
 
-        st.divider()
-        st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
-        if st.session_state.audio_bytes:
-            st.audio(st.session_state.audio_bytes, format="audio/mp3")
-            safe_audio_name = f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
-            st.download_button(
-                label="📥 Descargar Audio Modelo (MP3)",
-                data=st.session_state.audio_bytes,
-                file_name=safe_audio_name,
-                mime="audio/mp3",
-                width="stretch"
-            )
-        else:
-            st.caption("Audio modelo disponible al generar o cargar una lección.")
-
+    with c_more2:
+        custom_yt_url = st.text_input(
+            "🔗 Pegar enlace YouTube propio:",
+            placeholder="https://youtube.com...",
+            key="input_custom_yt_url",
+            label_visibility="collapsed"
+        )
+        if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
+            if st.button("🔄 Reproducir URL Pegada Arriba", key="btn_refresh_lesson_video", width="stretch"):
+                m_id = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
+                vid_id_c = m_id.group(1) if m_id else ""
+                meta_c = _validar_video_oembed(vid_id_c) or {}
+                vid_obj_new = {
+                    "video_id": vid_id_c,
+                    "url": custom_yt_url.strip(),
+                    "title": meta_c.get("title") or f"({titulo_catalogo}) Custom Video",
+                    "channel": meta_c.get("channel") or "YouTube Academic Resource",
+                    "published_date": "2026",
+                    "duration_sec": 300,
+                    "duration_min": 5.0,
+                    "alternatives": alts_list
+                }
+                st.session_state["current_lesson_video"] = vid_obj_new
+                st.session_state["video_watched_sec"] = 0
+                st.session_state["video_score_100"] = 0.0
+                st.session_state["video_watch_started_ts"] = time.time()
+                st.session_state["viewing_center_stage"] = True
+                if st.session_state.current_folio:
+                    save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
+                st.rerun()
 
 # ==============================================================================
-# PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) SIN SALIDA EXTERNA
+# PARTE 17A: GRABADORA DE AUDIO Y VIDEO (SOLO ACTIVO EN BOTÓN 3 SPEAKING)
 # ==============================================================================
-            st.markdown(f"**📚 Catálogo de Videos: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
-            with st.container(height=255, border=True):
-                if not alts_list:
-                    st.caption("No hay videos alternativos cargados en este momento.")
-                else:
-                    for idx_alt, alt_v in enumerate(alts_list, start=1):
-                        alt_title_safe = str(alt_v.get("title") or f"Video Relacionado {idx_alt}").replace("[", "(").replace("]", ")")
-                        alt_chan = str(alt_v.get("channel") or "YouTube ESL")
-                        alt_min = alt_v.get("duration_min", 5.0)
-                        alt_url = str(alt_v.get("url") or "")
+if has_lesson_now and stage_5_now == "SPEAKING":
+    st.subheader("🎤 Grabación de Lectura Oral y Evaluación Fonética con IA (25%)")
+    tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
 
-                        cv_txt, cv_btn = st.columns([2.5, 1.1])
-                        with cv_txt:
-                            st.write(f"**{idx_alt}. {alt_title_safe}**")
-                            st.caption(f"📺 {alt_chan} • ⏱️ `{alt_min} min`")
-                        with cv_btn:
-                            if st.button(
-                                "▶️ Ver",
-                                key=f"btn_pick_vid_{idx_alt}_{alt_url[-11:]}",
-                                width="stretch"
-                            ):
-                                nuevo_principal = dict(alt_v)
-                                otras_alts = [v for v in alts_list if v.get("url") != alt_url]
-                                if vid_data and vid_data.get("url"):
-                                    vieja_opcion = {k: v for k, v in vid_data.items() if k != "alternatives"}
-                                    otras_alts.insert(0, vieja_opcion)
-                                nuevo_principal["alternatives"] = otras_alts
-
-                                st.session_state["current_lesson_video"] = nuevo_principal
-                                st.session_state["video_watched_sec"] = 0
-                                st.session_state["video_score_100"] = 0.0
-                                st.session_state["video_watch_started_ts"] = time.time()
-                                st.session_state["pip_video_visible"] = True
-                                if st.session_state.current_folio:
-                                    save_video_and_summary_pg(
-                                        folio_code=st.session_state.current_folio,
-                                        video_info=nuevo_principal
-                                    )
-                                st.rerun()
-                        st.divider()
-
-            c_more1, c_more2 = st.columns([1.6, 1.8])
-            with c_more1:
-                if len(alts_list) < 19:
-                    if st.button("➕ Ver más opciones (hasta 20)", key="btn_load_more_videos", width="stretch"):
-                        with st.spinner("Cargando más videos sobre el tema y tópico..."):
-                            st.session_state["video_catalog_limit"] = 20
-                            mas_pack = buscar_video_relacionado_leccion(
-                                gramatica_b1,
-                                st.session_state.selected_cefr,
-                                st.session_state.generated_text,
-                                topic_context=topico_actual_leccion,
-                                max_videos=20
+    with tab_rec_audio:
+        student_audio = st.audio_input("Graba tu voz leyendo el texto:")
+        if student_audio is not None:
+            raw_aud = student_audio.getvalue()
+            st.audio(raw_aud)
+            c_aud1, c_aud2 = st.columns(2)
+            with c_aud1:
+                if st.button("💾 Guardar Audio en Folio", key="btn_save_student_audio_s3", width="stretch"):
+                    with st.spinner("Guardando grabación en Supabase Storage..."):
+                        try:
+                            f_code = st.session_state.current_folio or "SIN-FOLIO"
+                            usr_now = st.session_state.get("current_user") or "Estudiante"
+                            public_u, err_u = upload_student_media_to_storage(
+                                raw_aud, "audio/wav", "wav", f_code, usr_now
                             )
-                            curr_u = (vid_data or {}).get("url", "")
-                            urls_ya = {curr_u} | {v.get("url") for v in alts_list}
-                            for nv in ([mas_pack] + list(mas_pack.get("alternatives") or [])):
-                                if nv.get("url") and nv.get("url") not in urls_ya and len(alts_list) < 19:
-                                    alts_list.append(nv)
-                                    urls_ya.add(nv.get("url"))
-                            if isinstance(vid_data, dict):
-                                vid_data["alternatives"] = alts_list
-                                st.session_state["current_lesson_video"] = vid_data
-                        st.rerun()
-                else:
-                    st.caption("✅ Catálogo completo (20 videos)")
+                            if err_u:
+                                st.error(f"Error al subir audio: {err_u}")
+                            else:
+                                save_student_media_record_pg(
+                                    f_code, usr_now, "audio", public_u, gramatica_b1, st.session_state.selected_cefr
+                                )
+                                st.success("✅ Audio guardado permanentemente en tu Folio.")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
-            with c_more2:
-                custom_yt_url = st.text_input(
-                    "🔗 Pegar enlace YouTube propio:",
-                    placeholder="https://youtube.com...",
-                    key="input_custom_yt_url",
-                    label_visibility="collapsed"
-                )
-                if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
-                    if st.button("🔄 Abrir URL Pegada", key="btn_refresh_lesson_video", width="stretch"):
-                        m_id = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
-                        vid_id_c = m_id.group(1) if m_id else ""
-                        meta_c = _validar_video_oembed(vid_id_c) or {}
-                        vid_obj_new = {
-                            "video_id": vid_id_c,
-                            "url": custom_yt_url.strip(),
-                            "title": meta_c.get("title") or f"({titulo_catalogo}) Custom Video",
-                            "channel": meta_c.get("channel") or "YouTube Academic Resource",
-                            "published_date": "2026",
-                            "duration_sec": 300,
-                            "duration_min": 5.0,
-                            "alternatives": alts_list
-                        }
-                        st.session_state["current_lesson_video"] = vid_obj_new
-                        st.session_state["video_watched_sec"] = 0
-                        st.session_state["video_score_100"] = 0.0
-                        st.session_state["video_watch_started_ts"] = time.time()
-                        st.session_state["pip_video_visible"] = True
-                        if st.session_state.current_folio:
-                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
-                        st.rerun()
-                        if st.session_state.current_folio:
-                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
-                        st.rerun()
+            with c_aud2:
+                if st.button("🤖 Evaluar Pronunciación con IA (25%)", type="primary", key="btn_eval_student_audio_s3", width="stretch"):
+                    with st.spinner("Analizando pronunciación, entonación y gramática oral con IA..."):
+                        try:
+                            ev_oral = evaluar_pronunciacion_oral_ia(
+                                raw_aud,
+                                "audio/wav",
+                                st.session_state.generated_text,
+                                st.session_state.selected_cefr,
+                                gramatica_b1
+                            )
+                            st.session_state["speaking_eval_result"] = ev_oral
+                            sc_pct = float(ev_oral.get("score_percent") or 0.0)
+                            pts_25 = round((sc_pct / 100.0) * 25.0, 2)
+                            f_code = st.session_state.current_folio or ""
+                            usr_now = st.session_state.get("current_user") or "Estudiante"
+                            if f_code:
+                                public_u, _ = upload_student_media_to_storage(
+                                    raw_aud, "audio/wav", "wav", f_code, usr_now
+                                )
+                                save_student_media_record_pg(
+                                    f_code, usr_now, "audio", public_u or "", gramatica_b1,
+                                    st.session_state.selected_cefr, eval_dict=ev_oral
+                                )
+                            st.success(f"🏆 **Calificación Oral:** {sc_pct}% (`{pts_25} / 25.0 pts`) — Nivel: **{ev_oral.get('cefr_performance', '')}**")
+                            st.write(f"**🔤 Fonética y Articulación:** {ev_oral.get('phonetic_feedback', '')}")
+                            st.write(f"**🎵 Fluidez y Prosodia:** {ev_oral.get('fluency_prosody', '')}")
+                            st.write(f"**📐 Precisión Gramatical:** {ev_oral.get('grammar_accuracy', '')}")
+                            if ev_oral.get("words_to_practice"):
+                                st.info(f"🎯 **Palabras sugeridas para practicar:** {', '.join(ev_oral['words_to_practice'])}")
+                        except Exception as e:
+                            st.error(f"Error al evaluar pronunciación: {e}")
 
+    with tab_rec_video:
+        st.caption("📹 Graba o sube un video breve en formato MP4 / WebM leyendo o explicando la lección:")
+        student_video_file = st.file_uploader(
+            "Subir o grabar video desde cámara (MP4 / WebM / MOV):",
+            type=["mp4", "webm", "mov"],
+            key="uploader_student_video_s3"
+        )
+        if student_video_file is not None:
+            raw_vid = student_video_file.getvalue()
+            st.video(raw_vid)
+            v_mime = student_video_file.type or "video/mp4"
+            v_ext = "webm" if "webm" in v_mime else "mp4"
+            c_vid1, c_vid2 = st.columns(2)
+            with c_vid1:
+                if st.button("💾 Guardar Video en Folio", key="btn_save_student_video_s3", width="stretch"):
+                    with st.spinner("Guardando video en Supabase Storage..."):
+                        try:
+                            f_code = st.session_state.current_folio or "SIN-FOLIO"
+                            usr_now = st.session_state.get("current_user") or "Estudiante"
+                            public_v, err_v = upload_student_media_to_storage(
+                                raw_vid, v_mime, v_ext, f_code, usr_now
+                            )
+                            if err_v:
+                                st.error(f"Error al subir video: {err_v}")
+                            else:
+                                save_student_media_record_pg(
+                                    f_code, usr_now, "video", public_v, gramatica_b1, st.session_state.selected_cefr
+                                )
+                                st.success("✅ Video guardado permanentemente en tu Folio.")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
+            with c_vid2:
+                if st.button("🤖 Evaluar Video Oral con IA (25%)", type="primary", key="btn_eval_student_video_s3", width="stretch"):
+                    with st.spinner("Evaluando desempeño oral en video con IA..."):
+                        try:
+                            ev_vid = evaluar_pronunciacion_oral_ia(
+                                raw_vid,
+                                v_mime,
+                                st.session_state.generated_text,
+                                st.session_state.selected_cefr,
+                                gramatica_b1
+                            )
+                            st.session_state["speaking_eval_result"] = ev_vid
+                            sc_vpct = float(ev_vid.get("score_percent") or 0.0)
+                            pts_v25 = round((sc_vpct / 100.0) * 25.0, 2)
+                            f_code = st.session_state.current_folio or ""
+                            usr_now = st.session_state.get("current_user") or "Estudiante"
+                            if f_code:
+                                public_v, _ = upload_student_media_to_storage(
+                                    raw_vid, v_mime, v_ext, f_code, usr_now
+                                )
+                                save_student_media_record_pg(
+                                    f_code, usr_now, "video", public_v or "", gramatica_b1,
+                                    st.session_state.selected_cefr, eval_dict=ev_vid
+                                )
+                            st.success(f"🏆 **Calificación Oral (Video):** {sc_vpct}% (`{pts_v25} / 25.0 pts`)")
+                            st.write(f"**🔤 Fonética:** {ev_vid.get('phonetic_feedback', '')}")
+                            st.write(f"**🎵 Fluidez:** {ev_vid.get('fluency_prosody', '')}")
+                        except Exception as e:
+                            st.error(f"Error al evaluar video: {e}")
 
-# ==============================================================================
-# PARTE 17A: GRABADORA DE AUDIO Y VIDEO EN NAVEGADOR
-# ==============================================================================
-        st.divider()
-        st.subheader("🎙️ 2. Speaking & Video Practice (25%)")
-        tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
-
-        with tab_rec_audio:
-            student_audio = st.audio_input("Graba tu voz leyendo el texto:")
-
-        with tab_rec_video:
-            st.caption("Activa tu cámara, graba tu lectura y descárgala:")
-            safe_base_filename = f"CEI_Video_{st.session_state.current_folio or usuario.replace(' ', '_')}"
-            video_recorder_html = f"""
-            <div style="font-family: sans-serif; text-align: center; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #fafafa;">
-                <video id="preview" width="100%" height="175" autoplay muted playsinline style="border-radius: 8px; background: #000; object-fit: cover;"></video>
-                <div style="margin-top: 8px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
-                    <button id="btnStartCam" style="background:#0d6efd; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">📷 Activar Cámara</button>
-                    <button id="btnRec" disabled style="background:#dc3545; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏺️ Grabar</button>
-                    <button id="btnStop" disabled style="background:#6c757d; color:white; border:none; padding:7px 12px; border-radius:6px; cursor:pointer; font-weight:bold;">⏹️ Detener</button>
-                </div>
-                <p id="statusTxt" style="font-size: 12px; color: #555; margin: 6px 0;">Presiona "Activar Cámara" para iniciar</p>
-                <a id="downloadLink" style="display:none; background:#198754; color:white; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:bold; font-size:13px; margin-top:4px;">📥 Descargar Video</a>
-            </div>
-
-            <script>
-            let stream = null;
-            let mediaRecorder = null;
-            let recordedChunks = [];
-            let activeMime = '';
-
-            const preview = document.getElementById('preview');
-            const btnStartCam = document.getElementById('btnStartCam');
-            const btnRec = document.getElementById('btnRec');
-            const btnStop = document.getElementById('btnStop');
-            const statusTxt = document.getElementById('statusTxt');
-            const downloadLink = document.getElementById('downloadLink');
-
-            function getSupportedVideoMimeType() {{
-                const types = [
-                    'video/mp4;codecs=avc1,mp4a.40.2',
-                    'video/mp4;codecs=h264,aac',
-                    'video/mp4',
-                    'video/webm;codecs=vp9,opus',
-                    'video/webm;codecs=h264',
-                    'video/webm'
-                ];
-                for (const t of types) {{
-                    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) return t;
-                }}
-                return '';
-            }}
-
-            btnStartCam.onclick = async () => {{
-                try {{
-                    stream = await navigator.mediaDevices.getUserMedia({{ video: true, audio: true }});
-                    preview.srcObject = stream;
-                    preview.muted = true;
-                    preview.controls = false;
-                    btnRec.disabled = false;
-                    btnStartCam.disabled = true;
-                    statusTxt.innerText = "Cámara activa. Listo para grabar.";
-                }} catch (err) {{
-                    statusTxt.innerText = "⚠️ Permiso de cámara/micrófono denegado o bloqueado por el navegador.";
-                }}
-            }};
-
-            btnRec.onclick = () => {{
-                recordedChunks = [];
-                downloadLink.style.display = 'none';
-                activeMime = getSupportedVideoMimeType();
-                const options = activeMime ? {{ mimeType: activeMime }} : {{}};
-                mediaRecorder = new MediaRecorder(stream, options);
-
-                mediaRecorder.ondataavailable = (e) => {{
-                    if (e.data.size > 0) recordedChunks.push(e.data);
-                }};
-
-                mediaRecorder.onstop = () => {{
-                    const finalMime = activeMime || 'video/webm';
-                    const ext = finalMime.includes('mp4') ? 'mp4' : 'webm';
-                    const blob = new Blob(recordedChunks, {{ type: finalMime }});
-                    const url = URL.createObjectURL(blob);
-
-                    preview.srcObject = null;
-                    preview.src = url;
-                    preview.muted = false;
-                    preview.controls = true;
-
-                    downloadLink.href = url;
-                    downloadLink.download = "{safe_base_filename}." + ext;
-                    downloadLink.innerText = "📥 Descargar Video (" + ext.toUpperCase() + ")";
-                    downloadLink.style.display = 'inline-block';
-                    statusTxt.innerText = "✅ Video grabado. Haz clic abajo para descargarlo.";
-
-                    stream.getTracks().forEach(track => track.stop());
-                    btnStartCam.disabled = false;
-                    btnStartCam.innerText = "🔄 Grabar Otro";
-                }};
-
-                mediaRecorder.start();
-                btnRec.disabled = true;
-                btnStop.disabled = false;
-                statusTxt.innerText = "🔴 Grabando lectura...";
-            }};
-
-            btnStop.onclick = () => {{
-                if (mediaRecorder && mediaRecorder.state !== 'inactive') {{
-                    mediaRecorder.stop();
-                }}
-                btnStop.disabled = true;
-            }};
-            </script>
-            """
-            components.html(video_recorder_html, height=320)
-            st.write("")
+    if st.session_state.get("speaking_eval_result"):
+        ev_prev = st.session_state["speaking_eval_result"]
+        with st.container(border=True):
+            st.markdown(f"**📊 Última Calificación Registrada (25%):** `{ev_prev.get('score_percent', 0)}%` (`{round((float(ev_prev.get('score_percent', 0))/100.0)*25.0, 2)} / 25.0 pts`)")
+            st.caption(ev_prev.get("phonetic_feedback", ""))
 
 # ==============================================================================
 # PARTE 18: DESCARGA DE AUDIO/PDF Y EVALUACIÓN ORAL CON IA (PANEL DERECHO)
