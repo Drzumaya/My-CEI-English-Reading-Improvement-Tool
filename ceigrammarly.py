@@ -6883,7 +6883,7 @@ if col_lesson_left is not None:
 
 # ==============================================================================
 # PARTE 16 — BLOQUE A2: ESCENARIOS CENTRALES SPEAKING (25%) Y WRITING (20%)
-# ============================================================================== 
+# ==============================================================================
         elif stage_now == "SPEAKING":
             hdr_s1, hdr_s2 = st.columns([2.4, 1.3])
             with hdr_s1:
@@ -6918,36 +6918,6 @@ if col_lesson_left is not None:
                     st.session_state["active_skill_stage"] = "READING"
                     st.rerun()
 
-        with st.container(border=True):
-            s_sc_c = float(st.session_state.get("summary_score_100") or 0.0)
-            pts_w_c = round((s_sc_c / 100.0) * 20.0, 2)
-            st.markdown(f"**Redacción Académica en Pantalla Central (120–125 palabras) + Cita APA 7 — Valor: 20% (`{pts_w_c} / 20.0 pts`)**")
-
-            res_central = st.text_area(
-                "Write your English summary of the video (strictly 120 to 125 words):",
-                value=st.session_state.get("video_summary_draft", ""),
-                height=190,
-                placeholder="Write an academic summary in English of what you watched in the video (strictly 120 to 125 words)...",
-                key="txt_central_writing_summary"
-            )
-            cnt_c = len([w for w in re.findall(r"\b[\w'-]+\b", res_central.strip()) if w])
-            if 120 <= cnt_c <= 125:
-                st.success(f"✅ Conteo exacto: **{cnt_c} palabras** (dentro del rango oficial de 120 a 125 palabras).")
-            else:
-                st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(debe contener entre 120 y 125 palabras)*.")
-
-            vid_ref_c = st.session_state.get("current_lesson_video") or {}
-            ej_apa_c = (
-                f"{vid_ref_c.get('channel', 'Author/Channel')}. ({str(vid_ref_c.get('published_date', '2026'))[:4]}). "
-                f"{vid_ref_c.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_c.get('url', 'https://youtube.com...')}"
-            )
-            apa_central = st.text_area(
-                "📚 Referencia Bibliográfica del Video en Formato APA 7:",
-                value=st.session_state.get("video_apa7_draft", ""),
-                height=85,
-                placeholder=f"Ejemplo APA 7:\n{ej_apa_c}",
-                key="txt_central_writing_apa7"
-            )
             with st.container(border=True):
                 s_sc_c = float(st.session_state.get("summary_score_100") or 0.0)
                 pts_w_c = round((s_sc_c / 100.0) * 20.0, 2)
