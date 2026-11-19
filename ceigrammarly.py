@@ -4650,7 +4650,6 @@ with col_title:
         f"**CEFR Level {cefr_badge} Integrated Competency Framework**  |  "
         "Author: Jacob Zumaya Prianti  |  APA 7th Ed. Academic Standard"
     )
-)
 
 with col_qr:
     if is_owner and (not is_mobile):
