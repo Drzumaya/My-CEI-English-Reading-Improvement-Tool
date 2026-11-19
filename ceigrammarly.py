@@ -7436,9 +7436,14 @@ if col_tools_right is not None:
                         if st.session_state.current_folio:
                             save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
                         st.rerun()
-        else:
-            with st.container(height=160, border=True):
-                st.caption("🎬 El catálogo escrolable y el reproductor flotante deslizable aparecerán aquí al generar o cargar un Folio.")
+                        if st.session_state.current_folio:
+                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
+                        st.rerun()
+
+# ==============================================================================
+# PARTE 17 — BLOQUE 2 DE 2 (FINAL): 4. WRITING SKILL (20%) Y 3. SPEAKING (25%)
+# ==============================================================================
+
 
 
 
