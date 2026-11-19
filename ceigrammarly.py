@@ -7090,17 +7090,15 @@ with col_lesson_left:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17 — BLOQUE 1A: REPRODUCTOR NATIVO CON TAMAÑO PEQUEÑO / MEDIANO (25%)
+# PARTE 17 — BLOQUE 1A: 2. VIEWING & LISTENING SKILLS -> ESCENARIO CENTRAL
 # ==============================================================================
 if col_tools_right is not None:
     with col_tools_right:
-        st.subheader(f"🎬 Educational Video & APA 7 Summary ({st.session_state.selected_cefr})")
+        st.subheader("🎬 2. VIEWING & LISTENING SKILLS (25%)")
 
         if st.session_state.get("generated_text"):
             if "video_catalog_limit" not in st.session_state:
                 st.session_state["video_catalog_limit"] = 12
-            if "video_player_size" not in st.session_state:
-                st.session_state["video_player_size"] = "Mediano"
 
             topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
             titulo_catalogo = (
@@ -7142,74 +7140,200 @@ if col_tools_right is not None:
                     vid_data["alternatives"] = alts_list
                     st.session_state["current_lesson_video"] = vid_data
 
-            # REPRODUCTOR ACTIVO EN PANTALLA CON TAMAÑO PEQUEÑO / MEDIANO Y MEDIDOR (25%)
             if vid_data and vid_data.get("url"):
                 dur_total_sec = max(60, int(vid_data.get("duration_sec") or 300))
                 dur_total_min = round(dur_total_sec / 60.0, 2)
-                watched_sec_now = int(st.session_state.get("video_watched_sec") or 0)
                 v_score_now = float(st.session_state.get("video_score_100") or 0.0)
                 pts_video_25 = round((v_score_now / 100.0) * 25.0, 2)
 
                 with st.container(border=True):
                     titulo_activo_safe = str(vid_data.get("title") or "Lesson Video").replace("[", "(").replace("]", ")")
-                    st.write(f"📺 **Video Activo:** {titulo_activo_safe}")
+                    st.write(f"📺 **Video Seleccionado:** {titulo_activo_safe}")
                     st.caption(
                         f"Canal: *{vid_data.get('channel', 'YouTube')}* | Duración: **`{dur_total_min} min`** | "
-                        f"Acreditado (25%): **`{pts_video_25} / 25.0 pts`** (`{round(v_score_now, 1)}%`)"
+                        f"Acreditado (25%): **`{pts_video_25} / 25.0 pts`**"
                     )
-
-                    # Selector de tamaño Pequeño / Mediano / Ocultar
-                    sz1, sz2, sz3 = st.columns(3)
-                    with sz1:
-                        if st.button("🔹 Pequeño", key="btn_sz_small", width="stretch"):
-                            st.session_state["video_player_size"] = "Pequeño"
+                    if st.session_state.get("viewing_center_stage"):
+                        if st.button("📖 Ocultar Video y Volver a Reading", type="secondary", width="stretch", key="btn_side_back_reading"):
+                            st.session_state["viewing_center_stage"] = False
                             st.rerun()
-                    with sz2:
-                        if st.button("🔸 Mediano", key="btn_sz_med", width="stretch"):
-                            st.session_state["video_player_size"] = "Mediano"
-                            st.rerun()
-                    with sz3:
-                        if st.button("🙈 Ocultar Video", key="btn_sz_hide", width="stretch"):
-                            st.session_state["video_player_size"] = "Oculto"
-                            st.rerun()
-
-                    modo_tam = st.session_state.get("video_player_size", "Mediano")
-                    if modo_tam == "Pequeño":
-                        c_vid_sm, _ = st.columns([1.15, 1.0])
-                        with c_vid_sm:
-                            st.video(vid_data["url"])
-                    elif modo_tam == "Mediano":
-                        st.video(vid_data["url"])
                     else:
-                        st.info("🙈 Video oculto. Pulsa **🔹 Pequeño** o **🔸 Mediano** para volver a verlo.")
+                        if st.button("🎬 Ver Video en Pantalla Central (Ocultar Lectura)", type="primary", width="stretch", key="btn_side_open_stage"):
+                            st.session_state["viewing_center_stage"] = True
+                            if not st.session_state.get("video_watch_started_ts"):
+                                st.session_state["video_watch_started_ts"] = time.time()
+                            st.rerun()
 
-                    # Botones del medidor de minutos (25%)
-                    c_tm1, c_tm2 = st.columns(2)
-                    with c_tm1:
-                        if st.button("▶️ Iniciar Tiempo", key="btn_start_vid_timer", width="stretch"):
+            st.markdown(f"**📚 Catálogo de Videos: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
+            with st.container(height=240, border=True):
+                for idx_alt, alt_v in enumerate(alts_list, start=1):
+                    alt_title_safe = str(alt_v.get("title") or f"Video Relacionado {idx_alt}").replace("[", "(").replace("]", ")")
+                    alt_chan = str(alt_v.get("channel") or "YouTube ESL")
+                    alt_min = alt_v.get("duration_min", 5.0)
+                    alt_url = str(alt_v.get("url") or "")
+
+                    cv_txt, cv_btn = st.columns([2.5, 1.1])
+                    with cv_txt:
+                        st.write(f"**{idx_alt}. {alt_title_safe}**")
+                        st.caption(f"📺 {alt_chan} • ⏱️ `{alt_min} min`")
+                    with cv_btn:
+                        if st.button("▶️ Ver", key=f"btn_pick_vid_{idx_alt}_{alt_url[-11:]}", width="stretch"):
+                            nuevo_principal = dict(alt_v)
+                            otras_alts = [v for v in alts_list if v.get("url") != alt_url]
+                            if vid_data and vid_data.get("url"):
+                                vieja_opcion = {k: v for k, v in vid_data.items() if k != "alternatives"}
+                                otras_alts.insert(0, vieja_opcion)
+                            nuevo_principal["alternatives"] = otras_alts
+
+                            st.session_state["current_lesson_video"] = nuevo_principal
+                            st.session_state["video_watched_sec"] = 0
+                            st.session_state["video_score_100"] = 0.0
                             st.session_state["video_watch_started_ts"] = time.time()
-                            st.toast("⏱️ Cronómetro iniciado. Mira el video mientras escribes tu resumen.")
-                    with c_tm2:
-                        if st.button("✅ Acreditar Minutos (25%)", type="primary", key="btn_stop_vid_timer", width="stretch"):
-                            t_ini_v = st.session_state.get("video_watch_started_ts")
-                            if t_ini_v:
-                                transcurrido = int(time.time() - float(t_ini_v))
-                                nuevo_watched = min(dur_total_sec, max(watched_sec_now, transcurrido))
-                                st.session_state["video_watch_started_ts"] = None
-                            else:
-                                nuevo_watched = dur_total_sec
+                            st.session_state["viewing_center_stage"] = True
+                            if st.session_state.current_folio:
+                                save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=nuevo_principal)
+                            st.rerun()
+                    st.divider()
+# ==============================================================================
+# PARTE 17 — BLOQUE 1B + BLOQUE 2: 4. WRITING SKILL (20%) Y 3. SPEAKING (25%)
+# ==============================================================================
+            c_more1, c_more2 = st.columns([1.6, 1.8])
+            with c_more1:
+                if len(alts_list) < 19:
+                    if st.button("➕ Ver más opciones (hasta 20)", key="btn_load_more_videos", width="stretch"):
+                        with st.spinner("Cargando más videos sobre el tema y tópico..."):
+                            st.session_state["video_catalog_limit"] = 20
+                            mas_pack = buscar_video_relacionado_leccion(
+                                gramatica_b1,
+                                st.session_state.selected_cefr,
+                                st.session_state.generated_text,
+                                topic_context=topico_actual_leccion,
+                                max_videos=20
+                            )
+                            curr_u = (vid_data or {}).get("url", "")
+                            urls_ya = {curr_u} | {v.get("url") for v in alts_list}
+                            for nv in ([mas_pack] + list(mas_pack.get("alternatives") or [])):
+                                if nv.get("url") and nv.get("url") not in urls_ya and len(alts_list) < 19:
+                                    alts_list.append(nv)
+                                    urls_ya.add(nv.get("url"))
+                            if isinstance(vid_data, dict):
+                                vid_data["alternatives"] = alts_list
+                                st.session_state["current_lesson_video"] = vid_data
+                        st.rerun()
+                else:
+                    st.caption("✅ Catálogo completo (20 videos)")
 
-                            nuevo_v_score = min(100.0, round((nuevo_watched / float(dur_total_sec)) * 100.0, 1))
-                            st.session_state["video_watched_sec"] = nuevo_watched
-                            st.session_state["video_score_100"] = nuevo_v_score
+            with c_more2:
+                custom_yt_url = st.text_input(
+                    "🔗 Pegar enlace YouTube propio:",
+                    placeholder="https://youtube.com...",
+                    key="input_custom_yt_url",
+                    label_visibility="collapsed"
+                )
+                if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
+                    if st.button("🔄 Ver URL en Pantalla Central", key="btn_refresh_lesson_video", width="stretch"):
+                        m_id = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
+                        vid_id_c = m_id.group(1) if m_id else ""
+                        meta_c = _validar_video_oembed(vid_id_c) or {}
+                        vid_obj_new = {
+                            "video_id": vid_id_c,
+                            "url": custom_yt_url.strip(),
+                            "title": meta_c.get("title") or f"({titulo_catalogo}) Custom Video",
+                            "channel": meta_c.get("channel") or "YouTube Academic Resource",
+                            "published_date": "2026",
+                            "duration_sec": 300,
+                            "duration_min": 5.0,
+                            "alternatives": alts_list
+                        }
+                        st.session_state["current_lesson_video"] = vid_obj_new
+                        st.session_state["video_watched_sec"] = 0
+                        st.session_state["video_score_100"] = 0.0
+                        st.session_state["video_watch_started_ts"] = time.time()
+                        st.session_state["viewing_center_stage"] = True
+                        if st.session_state.current_folio:
+                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
+                        st.rerun()
+
+            st.divider()
+            st.subheader("✍️ 4. WRITING SKILL (20%)")
+            with st.container(border=True):
+                s_score_now = float(st.session_state.get("summary_score_100") or 0.0)
+                pts_sum_20 = round((s_score_now / 100.0) * 20.0, 2)
+                st.markdown(f"**Resumen Académico (120–125 palabras) + Cita APA 7 (Valor: 20% = `{pts_sum_20} / 20.0 pts`)**")
+
+                resumen_input = st.text_area(
+                    "Write your English summary of the video (strictly 120 to 125 words):",
+                    value=st.session_state.get("video_summary_draft", ""),
+                    height=135,
+                    placeholder="Write an academic summary in English of what you watched in the video (between 120 and 125 words)...",
+                    key="txt_video_summary_apa7"
+                )
+                palabras_actuales = len([w for w in re.findall(r"\b[\w'-]+\b", resumen_input.strip()) if w])
+                if 120 <= palabras_actuales <= 125:
+                    st.success(f"✅ Conteo exacto: **{palabras_actuales} palabras** (rango válido: 120–125).")
+                else:
+                    st.warning(f"📏 Conteo actual: **{palabras_actuales} palabras** *(debe contener entre 120 y 125 palabras)*.")
+
+                vid_ref_info = st.session_state.get("current_lesson_video") or {}
+                ej_apa7 = (
+                    f"{vid_ref_info.get('channel', 'Author/Channel')}. ({str(vid_ref_info.get('published_date', '2026'))[:4]}). "
+                    f"{vid_ref_info.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_info.get('url', 'https://youtube.com...')}"
+                )
+                apa7_input = st.text_area(
+                    "📚 Referencia Bibliográfica del Video en Formato APA 7:",
+                    value=st.session_state.get("video_apa7_draft", ""),
+                    height=75,
+                    placeholder=f"Ejemplo APA 7:\n{ej_apa7}",
+                    key="txt_video_apa7_citation"
+                )
+
+                if st.button("📝 Calificar Writing Skill y Cita APA 7 (20%)", type="primary", width="stretch", key="btn_eval_video_summary"):
+                    with st.spinner("Evaluando Writing Skill (120-125 palabras) y formato APA 7 con IA..."):
+                        ev_sum = evaluar_resumen_video_apa7(
+                            resumen_texto=resumen_input,
+                            referencia_apa7=apa7_input,
+                            video_info=vid_ref_info,
+                            tema_gramatical=gramatica_b1,
+                            nivel_cefr=st.session_state.selected_cefr
+                        )
+                        st.session_state["video_summary_draft"] = resumen_input
+                        st.session_state["video_apa7_draft"] = apa7_input
+                        if ev_sum["ok"]:
+                            st.session_state["summary_score_100"] = ev_sum["raw_score_100"]
+                            st.session_state["summary_eval_result"] = ev_sum
                             if st.session_state.current_folio:
                                 save_video_and_summary_pg(
                                     folio_code=st.session_state.current_folio,
-                                    watched_sec=nuevo_watched,
-                                    video_score_100=nuevo_v_score
+                                    summary_text=resumen_input,
+                                    apa7_reference=apa7_input,
+                                    summary_score_100=ev_sum["raw_score_100"],
+                                    summary_eval_dict=ev_sum
                                 )
-                            st.success(f"✅ Acreditados {round(nuevo_watched / 60.0, 2)} min ({round((nuevo_v_score/100.0)*25.0, 2)} / 25 pts).")
-                            st.rerun()
+                            st.success(f"🏆 Calificación Writing Skill: **{ev_sum['raw_score_100']}%** (`{ev_sum['weighted_points_20']} / 20.0 pts`).")
+                            st.info(ev_sum["feedback"])
+                            if ev_sum.get("apa7_corrected"):
+                                st.caption(f"📖 **Sugerencia APA 7:** {ev_sum['apa7_corrected']}")
+                        else:
+                            st.error(ev_sum["feedback"])
+        else:
+            with st.container(height=160, border=True):
+                st.caption("🎬 El catálogo de videos, el escenario central y Writing Skill aparecerán aquí al generar o cargar un Folio.")
+
+        st.divider()
+        st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
+        if st.session_state.audio_bytes:
+            st.audio(st.session_state.audio_bytes, format="audio/mp3")
+            safe_audio_name = f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
+            st.download_button(
+                label="📥 Descargar Audio Modelo (MP3)",
+                data=st.session_state.audio_bytes,
+                file_name=safe_audio_name,
+                mime="audio/mp3",
+                width="stretch"
+            )
+        else:
+            st.caption("Audio modelo disponible al generar o cargar una lección.")
+
 
 # PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) SIN SALIDA EXTERNA
 # ==============================================================================
