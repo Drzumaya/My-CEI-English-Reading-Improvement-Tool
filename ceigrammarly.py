@@ -4519,77 +4519,94 @@ is_faculty_desktop = is_owner or (can("Ver_Panel_Admin") and (not is_mobile))
 has_faculty_access = is_owner or can("Reuso_Ilimitado_Folios") or (curr_r_clean in ["teacher", "docente"])
 cefr_options = list(CEFR_MAP.values())
 
-# --- VALORES SEGUROS POR DEFECTO CUANDO LA BARRA IZQUIERDA ESTÁ OCULTA AL ENTRAR ---
+# --- VALORES SEGUROS POR DEFECTO CUANDO LA BARRA IZQUIERDA ESTÁ OCULTA ---
 generar_btn = False
 usuario = str(st.session_state.get("current_user") or "Usuario").strip()
-cefr_level = st.session_state.get("selected_cefr") or "B1 (Intermediate)"
+cefr_level = st.session_state.get("selected_cefr") or st.session_state.get("user_assigned_level") or "B1 (Intermediate)"
+academic_grade = st.session_state.get("selected_academic_grade") or st.session_state.get("user_academic_grade") or "Licenciatura / Universidad"
 gramatica_b1 = st.session_state.get("selected_grammar") or "General English Grammar"
+contexto = str(st.session_state.get("sb_context_input") or "")
+personas = str(st.session_state.get("sb_personas_input") or "")
+asunto = str(st.session_state.get("sb_subject_input") or "")
+tipo_texto = str(st.session_state.get("sb_tipo_texto_input") or "Narración (Narration)")
+has_lesson_now = bool(str(st.session_state.get("generated_text") or "").strip())
+stage_5_now = st.session_state.get("active_stage_5", "READING")
+stage_now = stage_5_now
 
 # --- BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS: SE ABRE AL 1ER CLIC Y SE CIERRA AL 2DO CLIC) ---
 if st.session_state.get("show_lesson_creator"):
     with st.sidebar:
         st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
-    st.caption(f"📍 {institute_address}")
-    st.success(
-        f"👤 **{st.session_state.current_user}**\n\n"
-        f"🏷️ *{st.session_state.user_role}* | 🛡️ Perfil: **{st.session_state.user_permissions}**"
-    )
-    st.divider()
-
-    st.header("⚙️ Academic Parameters")
-    usuario = st.session_state.current_user
-
-    if is_owner or can("Previsualizar_A1_C2"):
-        st.subheader("🎯 Target Calibration (A1 - C2)")
-        default_idx = (
-            cefr_options.index(st.session_state.user_assigned_level)
-            if st.session_state.user_assigned_level in cefr_options else 2
+        st.caption(f"📍 {institute_address}")
+        st.success(
+            f"👤 **{st.session_state.current_user}**\n\n"
+            f"🏷️ *{st.session_state.user_role}* | 🛡️ Perfil: **{st.session_state.user_permissions}**"
         )
-        cefr_level = st.selectbox("Select CEFR Level (A1 - C2):", cefr_options, index=default_idx)
+        st.divider()
 
-        g_idx = (
-            GRADOS_ACADEMICOS.index(st.session_state.user_academic_grade)
-            if st.session_state.user_academic_grade in GRADOS_ACADEMICOS else 4
+        st.header("⚙️ Academic Parameters")
+        usuario = st.session_state.current_user
+
+        if is_owner or can("Previsualizar_A1_C2"):
+            st.subheader("🎯 Target Calibration (A1 - C2)")
+            default_idx = (
+                cefr_options.index(st.session_state.user_assigned_level)
+                if st.session_state.user_assigned_level in cefr_options else 2
+            )
+            cefr_level = st.selectbox("Select CEFR Level (A1 - C2):", cefr_options, index=default_idx, key="sb_cefr_sel")
+
+            g_idx = (
+                GRADOS_ACADEMICOS.index(st.session_state.user_academic_grade)
+                if st.session_state.user_academic_grade in GRADOS_ACADEMICOS else 4
+            )
+            academic_grade = st.selectbox("Select Academic Grade:", GRADOS_ACADEMICOS, index=g_idx, key="sb_grade_sel")
+        else:
+            cefr_level = st.session_state.user_assigned_level
+            academic_grade = st.session_state.user_academic_grade
+            st.info(f"🎯 **CEFR Level:** {cefr_level}\n\n🎓 **Academic Grade:** {academic_grade}")
+
+        st.session_state["selected_cefr"] = cefr_level
+        st.session_state["selected_academic_grade"] = academic_grade
+
+        st.subheader("1. Context & Characters (Español / English)")
+        contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="Ej: En un aeropuerto en Londres / At an airport", key="sb_context_input")
+        personas = st.text_input("Personas / Personajes:", placeholder="Ej: Un turista y una azafata / A tourist and a pilot", key="sb_personas_input")
+
+        st.subheader("2. Subject Matter (Español / English)")
+        asunto = st.text_input("Asunto / Materia:", placeholder="Ej: Equipaje perdido / Lost luggage", key="sb_subject_input")
+
+        cefr_short_sb = next(iter(cefr_level.split()), "B1")
+        st.subheader(f"3. Grammar Topics ({cefr_short_sb})")
+        temas_nivel_actual = CEFR_GRAMMAR_TOPICS.get(cefr_short_sb, CEFR_GRAMMAR_TOPICS["B1"])
+        gramatica_b1 = st.selectbox(
+            "Selecciona el tema gramatical:",
+            temas_nivel_actual,
+            index=0,
+            key="selected_grammar_topic"
         )
-        academic_grade = st.selectbox("Select Academic Grade:", GRADOS_ACADEMICOS, index=g_idx)
-    else:
-        cefr_level = st.session_state.user_assigned_level
-        academic_grade = st.session_state.user_academic_grade
-        st.info(f"🎯 **CEFR Level:** {cefr_level}\n\n🎓 **Academic Grade:** {academic_grade}")
+        st.session_state["selected_grammar"] = gramatica_b1
 
-    st.subheader("1. Context & Characters (Español / English)")
-    contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="Ej: En un aeropuerto en Londres / At an airport")
-    personas = st.text_input("Personas / Personajes:", placeholder="Ej: Un turista y una azafata / A tourist and a pilot")
+        st.subheader("4. Discourse Mode")
+        tipo_texto = st.selectbox(
+            "Formato de generación para el estudiante:",
+            [
+                "Preguntas (Comprehension & Grammar Questions)",
+                "Descripción (Detailed Description)",
+                "Narración (Narration)",
+                "Juicio (Critical Judgment / Opinion)",
+                "Explicación (Clear Explanation)",
+                "Historia (Short Story)",
+                "Storytelling (Engaging Narrative)"
+            ],
+            key="sb_tipo_texto_input"
+        )
 
-    st.subheader("2. Subject Matter (Español / English)")
-    asunto = st.text_input("Asunto / Materia:", placeholder="Ej: Equipaje perdido / Lost luggage")
+        st.markdown("---")
+        generar_btn = st.button(f"🚀 Generate {cefr_short_sb} Lesson", type="primary", width="stretch")
 
-    cefr_short_sb = next(iter(cefr_level.split()), "B1")
-    st.subheader(f"3. Grammar Topics ({cefr_short_sb})")
-    temas_nivel_actual = CEFR_GRAMMAR_TOPICS.get(cefr_short_sb, CEFR_GRAMMAR_TOPICS["B1"])
-    gramatica_b1 = st.selectbox(
-        "Selecciona el tema gramatical:",
-        temas_nivel_actual,
-        index=0,
-        key="selected_grammar_topic"
-    )
+if st.session_state.pop("trigger_generate_from_top", False):
+    generar_btn = True
 
-    st.subheader("4. Discourse Mode")
-    tipo_texto = st.selectbox(
-        "Formato de generación para el estudiante:",
-        [
-            "Preguntas (Comprehension & Grammar Questions)",
-            "Descripción (Detailed Description)",
-            "Narración (Narration)",
-            "Juicio (Critical Judgment / Opinion)",
-            "Explicación (Clear Explanation)",
-            "Historia (Short Story)",
-            "Storytelling (Engaging Narrative)"
-        ]
-    )
-
-    st.markdown("---")
-    generar_btn = st.button(f"🚀 Generate {cefr_short_sb} Lesson", type="primary", width="stretch")
 # ==============================================================================
 # PARTE 12B: CABECERA INSTITUCIONAL Y BARRA ESCÉNICA PROGRESIVA (2 -> 5 BOTONES)
 # ==============================================================================
