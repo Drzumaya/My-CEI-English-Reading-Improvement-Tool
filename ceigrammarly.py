@@ -6756,7 +6756,7 @@ if generar_btn:
 
 # ==============================================================================
 # PARTE 16 — BLOQUE A: VENTANA ESCÉNICA DE LAS 4 COMPETENCIAS (1, 2, 3, 4)
-# ==============================================================================
+# ============================================================================== 
 if st.query_params.get("study_w"):
     st.session_state["study_mode_active"] = True
 if "hide_lesson_text" not in st.session_state:
