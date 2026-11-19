@@ -4741,6 +4741,134 @@ with sk4:
         st.session_state["active_skill_stage"] = "WRITING"
         st.session_state["viewing_center_stage"] = False
         st.rerun()
+# --- BARRA DE COMANDO SPA UNIFICADA (ESTUDIANTE, STAFF, AFILIADO Y OWNER) ---
+es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
+es_admin_o_staff = bool(
+    is_owner
+    or is_faculty_desktop
+    or can("Ver_Panel_Admin")
+    or can("Gestionar_Pagos_Cobranza")
+    or can("Registrar_Usuarios")
+    or can("Gestionar_Usuarios")
+)
+es_estudiante_rol = (not es_admin_o_staff) and (not es_socio_afiliado)
+
+if "active_admin_workspace" not in st.session_state:
+    st.session_state["active_admin_workspace"] = None
+if "active_student_workspace" not in st.session_state:
+    st.session_state["active_student_workspace"] = None
+
+if es_estudiante_rol:
+    st.session_state["active_admin_workspace"] = None
+    opciones_menu_est = [
+        "💳 Mis Pagos (9 Bloques)",
+        "📊 Mis Calificaciones y Boletín",
+        "📚 Mis Lecciones y Folios",
+        "🎧 Mis Audios y Pronunciación"
+    ]
+    panel_est_abierto = bool(st.session_state.get("active_student_workspace"))
+    idx_est_ws = (
+        opciones_menu_est.index(st.session_state["active_student_workspace"])
+        if st.session_state["active_student_workspace"] in opciones_menu_est else 0
+    )
+
+    with st.container(border=True):
+        hdr_e1, hdr_e2 = st.columns([2.8, 1.6])
+        with hdr_e1:
+            st.markdown("#### 🎓 MI PANEL ESTUDIANTIL")
+        with hdr_e2:
+            if panel_est_abierto:
+                if st.button("🔒 Cerrar Mi Panel", type="secondary", width="stretch", key="btn_toggle_est_close"):
+                    st.session_state["active_student_workspace"] = None
+                    st.rerun()
+            else:
+                if st.button("🔓 Abrir Mi Panel", type="primary", width="stretch", key="btn_toggle_est_open"):
+                    st.session_state["active_student_workspace"] = st.session_state.get("sb_portal_estudiante_nav") or opciones_menu_est
+                    st.rerun()
+
+        ce1, ce2 = st.columns([3.4, 1.0])
+        with ce1:
+            mod_est_elegido = st.selectbox(
+                "Seleccionar herramienta estudiantil:",
+                options=opciones_menu_est,
+                index=idx_est_ws,
+                label_visibility="collapsed",
+                key="sb_portal_estudiante_nav"
+            )
+        with ce2:
+            if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_student_ws"):
+                st.session_state["active_student_workspace"] = st.session_state.get("sb_portal_estudiante_nav") or mod_est_elegido
+                st.rerun()
+
+        if panel_est_abierto:
+            st.caption(f"🟢 **Panel Estudiantil Abierto:** `{st.session_state['active_student_workspace']}` *(Aula de lecciones oculta)*")
+        else:
+            st.caption("📚 **Aula de Lecciones Visible** *(Presiona **🔓 Abrir Mi Panel** o **🚀 IR** para ocultarla y ver tus pagos, boletín o historial)*")
+
+elif es_admin_o_staff or es_socio_afiliado:
+    st.session_state["active_student_workspace"] = None
+    if es_socio_afiliado:
+        opciones_menu_inst = ["🤝 Portal Socio Afiliado"]
+    else:
+        opciones_menu_inst = []
+        if is_owner or can("Gestionar_Pagos_Cobranza") or can("Editar_Fecha_Inicio_Curso") or can("Gestionar_Comisiones_Afiliados") or can("Gestionar_IVA_Mensualidad"):
+            opciones_menu_inst.append("💳 Cobranza Mensual e IVA")
+        if is_owner or can("Ver_Panel_Admin"):
+            opciones_menu_inst.append("📊 Estados Financieros")
+        if is_owner or can("Gestionar_Comisiones_Afiliados"):
+            opciones_menu_inst.extend(["🤝 Alta de Socios Afiliados", "🤝 Portal Socio Afiliado"])
+        if is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios"):
+            opciones_menu_inst.append("👥 Inscripción y Padrón")
+        if is_owner or can("Editar_Permisos"):
+            opciones_menu_inst.append("🔐 Matriz Global de Permisos")
+        if is_owner or can("Emitir_Certificados") or can("Revocar_Certificados"):
+            opciones_menu_inst.append("🏅 Certificados (Timbre y QR)")
+        if is_owner or can("Editar_Instituto_Logo"):
+            opciones_menu_inst.append("🏛️ Datos del Instituto")
+        if is_owner:
+            opciones_menu_inst.append("🔄 Autoactualización de Librerías")
+        if not opciones_menu_inst:
+            opciones_menu_inst = ["🏅 Certificados (Timbre y QR)"]
+
+    panel_admin_abierto = bool(st.session_state.get("active_admin_workspace"))
+    idx_ws_actual = (
+        opciones_menu_inst.index(st.session_state["active_admin_workspace"])
+        if st.session_state["active_admin_workspace"] in opciones_menu_inst else 0
+    )
+
+    with st.container(border=True):
+        hdr_adm1, hdr_adm2 = st.columns([2.8, 1.6])
+        with hdr_adm1:
+            titulo_panel = "🤝 PORTAL SOCIO AFILIADO" if es_socio_afiliado else "🛡️ PANEL ADMINISTRATIVO INSTITUCIONAL"
+            st.markdown(f"#### {titulo_panel}")
+        with hdr_adm2:
+            if panel_admin_abierto:
+                if st.button("🔒 Cerrar Panel Administrativo", type="secondary", width="stretch", key="btn_toggle_admin_close"):
+                    st.session_state["active_admin_workspace"] = None
+                    st.rerun()
+            else:
+                if st.button("🔓 Abrir Panel Administrativo", type="primary", width="stretch", key="btn_toggle_admin_open"):
+                    st.session_state["active_admin_workspace"] = st.session_state.get("sb_centro_mando_inst") or opciones_menu_inst
+                    st.rerun()
+
+        c_nav1, c_nav2 = st.columns([3.4, 1.0])
+        with c_nav1:
+            mod_elegido = st.selectbox(
+                "Seleccionar módulo administrativo:",
+                options=opciones_menu_inst,
+                index=idx_ws_actual,
+                label_visibility="collapsed",
+                key="sb_centro_mando_inst"
+            )
+        with c_nav2:
+            if st.button("🚀 IR", type="primary", width="stretch", key="btn_go_workspace"):
+                st.session_state["active_admin_workspace"] = st.session_state.get("sb_centro_mando_inst") or mod_elegido
+                st.rerun()
+
+        if panel_admin_abierto:
+            st.caption(f"🟢 **Panel Administrativo Abierto:** `{st.session_state['active_admin_workspace']}` *(Aula de lecciones oculta)*")
+        else:
+            st.caption("📚 **Aula de Lecciones Visible** *(Presiona **🔓 Abrir Panel Administrativo** o **🚀 IR** para ocultarla y gestionar el instituto)*")
 
 
 # ==============================================================================
@@ -7187,6 +7315,13 @@ if col_tools_right is not None:
                             if not st.session_state.get("video_watch_started_ts"):
                                 st.session_state["video_watch_started_ts"] = time.time()
                             st.rerun()
+            topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
+            titulo_catalogo = (
+                f"{gramatica_b1} • {topico_actual_leccion}"
+                if topico_actual_leccion
+                else f"{gramatica_b1} ({st.session_state.selected_cefr})"
+            )
+            alts_list = list(vid_data.get("alternatives") or []) if isinstance(vid_data, dict) else []
 
             st.markdown(f"**📚 Catálogo de Videos: _{titulo_catalogo}_** (`{len(alts_list) + 1}` opciones)")
             with st.container(height=240, border=True):
