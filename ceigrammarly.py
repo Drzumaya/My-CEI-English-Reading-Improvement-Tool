@@ -7017,8 +7017,8 @@ def _render_floating_pip_video(v_info: dict):
     if not m_id:
         return
     vid_id = m_id.group(1)
-    titulo_v = str(v_info.get("title") or "Educational Video").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")[:60]
-    embed_src = f"https://youtube-nocookie.com{vid_id}?rel=0&modestbranding=1"
+    titulo_v = str(v_info.get("title") or "Educational Video").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("`", "'")[:65]
+    embed_src = f"https://youtube.com{vid_id}?playsinline=1&rel=0"
 
     pip_js = "".join([
         '<script>',
@@ -7028,28 +7028,43 @@ def _render_floating_pip_video(v_info: dict):
         'if(!box){',
         '  box = doc.createElement("div");',
         '  box.id = "ceiPipBox";',
-        '  box.style.cssText = "position:fixed;bottom:18px;left:18px;width:430px;max-width:92vw;background:#111827;color:#f9fafb;border:2px solid #2563eb;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,0.5);z-index:999999;overflow:hidden;font-family:sans-serif;";',
+        '  box.style.cssText = "position:fixed;bottom:22px;left:22px;width:440px;height:285px;min-width:280px;min-height:190px;max-width:94vw;max-height:85vh;resize:both;background:#0f172a;color:#f8fafc;border:2px solid #2563eb;border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,0.55);z-index:999999;display:flex;flex-direction:column;overflow:hidden;font-family:sans-serif;";',
         '  doc.body.appendChild(box);',
         '}',
-        f'box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#1e3a8a;font-size:12px;font-weight:bold;gap:6px;">',
-        f'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">🎬 {titulo_v}</span>',
+        'box.style.display = "flex";',
+        f'box.innerHTML = `<div id="ceiPipHeader" title="Arrastra para mover por toda la pantalla" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#1e3a8a;font-size:12px;font-weight:bold;gap:6px;cursor:move;user-select:none;flex-shrink:0;">',
+        f'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;">✥ {titulo_v}</span>',
         '<div style="display:flex;gap:4px;flex-shrink:0;">',
         '<button id="btnPipSm" style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Pequeño</button>',
         '<button id="btnPipMd" style="background:#0284c7;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">Mediano</button>',
-        '<button id="btnPipMin" style="background:#4b5563;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">—</button>',
+        '<button id="btnPipMin" style="background:#475569;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">—</button>',
+        '<button id="btnPipClose" style="background:#dc2626;color:#fff;border:none;border-radius:4px;padding:3px 7px;cursor:pointer;font-size:11px;">✕</button>',
         '</div></div>',
-        '<div id="ceiPipBody" style="width:100%;height:242px;background:#000;">',
-        f'<iframe width="100%" height="100%" src="{embed_src}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
-        '</div>`;',
+        '<div id="ceiPipBody" style="flex:1;width:100%;height:100%;background:#000;position:relative;">',
+        f'<iframe width="100%" height="100%" src="{embed_src}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="display:block;"></iframe>',
+        '</div>',
+        '<div style="font-size:10px;color:#94a3b8;background:#0f172a;padding:2px 8px;text-align:right;flex-shrink:0;">Arrastra barra superior ✥ o esquina inferior ◢</div>`;',
+        'const headerEl = doc.getElementById("ceiPipHeader");',
         'const bodyEl = doc.getElementById("ceiPipBody");',
-        'doc.getElementById("btnPipSm").onclick = ()=>{ bodyEl.style.display="block"; box.style.width="320px"; bodyEl.style.height="180px"; };',
-        'doc.getElementById("btnPipMd").onclick = ()=>{ bodyEl.style.display="block"; box.style.width="460px"; bodyEl.style.height="260px"; };',
-        'doc.getElementById("btnPipMin").onclick = ()=>{ const h = bodyEl.style.display==="none"; bodyEl.style.display = h ? "block" : "none"; doc.getElementById("btnPipMin").innerText = h ? "—" : "▢"; };',
+        'let isDragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;',
+        'headerEl.onmousedown = function(e){',
+        '  if(e.target.tagName === "BUTTON") return;',
+        '  isDragging = true;',
+        '  const rect = box.getBoundingClientRect();',
+        '  box.style.bottom = "auto"; box.style.right = "auto";',
+        '  box.style.left = rect.left + "px"; box.style.top = rect.top + "px";',
+        '  startX = e.clientX; startY = e.clientY; origLeft = rect.left; origTop = rect.top;',
+        '  doc.onmousemove = function(ev){ if(!isDragging) return; box.style.left = (origLeft + ev.clientX - startX) + "px"; box.style.top = (origTop + ev.clientY - startY) + "px"; };',
+        '  doc.onmouseup = function(){ isDragging = false; doc.onmousemove = null; doc.onmouseup = null; };',
+        '};',
+        'doc.getElementById("btnPipSm").onclick = ()=>{ bodyEl.style.display="block"; box.style.width="320px"; box.style.height="215px"; };',
+        'doc.getElementById("btnPipMd").onclick = ()=>{ bodyEl.style.display="block"; box.style.width="480px"; box.style.height="310px"; };',
+        'doc.getElementById("btnPipMin").onclick = ()=>{ const h = bodyEl.style.display==="none"; bodyEl.style.display = h ? "block" : "none"; box.style.height = h ? "285px" : "38px"; doc.getElementById("btnPipMin").innerText = h ? "—" : "▢"; };',
+        'doc.getElementById("btnPipClose").onclick = ()=>{ box.remove(); };',
         '})();',
         '</script>'
     ])
     components.html(pip_js, height=0, width=0)
-
 
 
 if col_tools_right is not None:
@@ -7166,7 +7181,7 @@ if col_tools_right is not None:
 
                     cv_txt, cv_btn = st.columns([2.5, 1.1])
                     with cv_txt:
-                        st.markdown(f"**{idx_alt}. [{alt_title}]({alt_url})**")
+                        st.markdown(f"**{idx_alt}. {alt_title}**")
                         st.caption(f"📺 {alt_chan} • ⏱️ `{alt_min} min`")
                     with cv_btn:
                         if st.button(
