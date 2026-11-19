@@ -7090,7 +7090,7 @@ with col_lesson_left:
                 if st.session_state.get("quiz_audio_bytes"):
                     st.audio(st.session_state.quiz_audio_bytes, format="audio/mp3")
 # ==============================================================================
-# PARTE 17 — BLOQUE 1A: 2. VIEWING & LISTENING SKILLS -> ESCENARIO CENTRAL
+# PARTE 17 — BLOQUE 1 DE 2: 2. VIEWING & LISTENING SKILLS (25%) Y CATÁLOGO
 # ==============================================================================
 if col_tools_right is not None:
     with col_tools_right:
@@ -7194,8 +7194,9 @@ if col_tools_right is not None:
                                 save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=nuevo_principal)
                             st.rerun()
                     st.divider()
+
 # ==============================================================================
-# PARTE 17 — BLOQUE 1B + BLOQUE 2: 4. WRITING SKILL (20%) Y 3. SPEAKING (25%)
+# PARTE 17 — BLOQUE 2 DE 2 (FINAL): 4. WRITING SKILL (20%) Y 3. SPEAKING (25%)
 # ==============================================================================
             c_more1, c_more2 = st.columns([1.6, 1.8])
             with c_more1:
@@ -7318,6 +7319,22 @@ if col_tools_right is not None:
         else:
             with st.container(height=160, border=True):
                 st.caption("🎬 El catálogo de videos, el escenario central y Writing Skill aparecerán aquí al generar o cargar un Folio.")
+
+        st.divider()
+        st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
+        if st.session_state.audio_bytes:
+            st.audio(st.session_state.audio_bytes, format="audio/mp3")
+            safe_audio_name = f"CEI_Audio_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
+            st.download_button(
+                label="📥 Descargar Audio Modelo (MP3)",
+                data=st.session_state.audio_bytes,
+                file_name=safe_audio_name,
+                mime="audio/mp3",
+                width="stretch"
+            )
+        else:
+            st.caption("Audio modelo disponible al generar o cargar una lección.")
+
 
 # ==============================================================================
 # PARTE 17 — BLOQUE 1B: CATÁLOGO ESCROLABLE (12-20 VIDEOS) SIN SALIDA EXTERNA
