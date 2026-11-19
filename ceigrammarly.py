@@ -6885,9 +6885,9 @@ if col_lesson_left is not None:
 # PARTE 16 — BLOQUE A2: ESCENARIOS CENTRALES SPEAKING (25%) Y WRITING (20%)
 # ==============================================================================
         elif stage_now == "SPEAKING":
-        hdr_s1, hdr_s2 = st.columns([2.4, 1.3])
-        with hdr_s1:
-            st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
+            hdr_s1, hdr_s2 = st.columns([2.4, 1.3])
+            with hdr_s1:
+                st.subheader("🎙️ 3. ALPHABETICAL & SPEAKING SKILLS (25%)")
         with hdr_s2:
             if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_spk"):
                 st.session_state["active_skill_stage"] = "READING"
@@ -6907,12 +6907,10 @@ if col_lesson_left is not None:
                 st.write(f"**🎵 Fluidez:** {ev_c.get('fluency_prosody', '')}")
                 st.write(f"**📐 Gramática Oral:** {ev_c.get('grammar_accuracy', '')}")
 
-     elif stage_now == "WRITING":
-
-        hdr_w1, hdr_w2 = st.columns([2.4, 1.3])
-        with hdr_w1:
-            st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")
-        with hdr_w2:
+        elif stage_now == "WRITING":
+            hdr_w1, hdr_w2 = st.columns([2.4, 1.3])
+            with hdr_w1:
+                st.subheader("✍️ 4. WRITING SKILL — ACADEMIC SUMMARY & APA 7 (20%)")        with hdr_w2:
             if st.button("📖 Volver a 1. READING & COMPREHENSION", type="primary", width="stretch", key="btn_back_read_from_wrt"):
                 st.session_state["active_skill_stage"] = "READING"
                 st.rerun()
