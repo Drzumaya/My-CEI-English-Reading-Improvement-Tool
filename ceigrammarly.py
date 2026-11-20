@@ -5651,14 +5651,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
     seccion_inst_sel = st.session_state["active_admin_workspace"]
 
     with st.container(border=True):
-        col_ws_t, col_ws_x = st.columns([4.0, 1.5])
-        with col_ws_t:
-            st.markdown(f"### {seccion_inst_sel}")
-        with col_ws_x:
-            if st.button("✖️ CERRAR Y VOLVER A LA LECCIÓN", type="primary", width="stretch", key="btn_close_workspace_header"):
-                st.session_state["active_admin_workspace"] = None
-                st.rerun()
-
+        st.markdown(f"### {seccion_inst_sel}")
         st.divider()
 
         puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
