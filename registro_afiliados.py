@@ -44,6 +44,7 @@ def _find_secret(key_name: str) -> str:
 
 
 def _get_conn_afiliados():
+    st.session_state["_aff_db_last_err"] = ""
     pg_host = _find_secret("PG_HOST") or _find_secret("DB_HOST") or _find_secret("HOST")
     pg_user = _find_secret("PG_USER") or _find_secret("DB_USER") or _find_secret("USER") or _find_secret("USERNAME")
     pg_pass = _find_secret("PG_PASSWORD") or _find_secret("DB_PASSWORD") or _find_secret("PASSWORD")
@@ -51,19 +52,20 @@ def _get_conn_afiliados():
     pg_db = _find_secret("PG_DBNAME") or _find_secret("DB_NAME") or _find_secret("DATABASE") or "postgres"
 
     if pg_host and pg_user and pg_pass:
-        try:
-            return psycopg.connect(
-                host=pg_host,
-                port=pg_port,
-                dbname=pg_db,
-                user=pg_user,
-                password=pg_pass,
-                sslmode="require",
-                connect_timeout=10,
-                prepare_threshold=None
-            )
-        except Exception as e:
-            st.session_state["_aff_db_last_err"] = str(e)
+        for p_try in ([pg_port, 6543] if pg_port != 6543 else [6543]):
+            try:
+                return psycopg.connect(
+                    host=pg_host,
+                    port=p_try,
+                    dbname=pg_db,
+                    user=pg_user,
+                    password=pg_pass,
+                    sslmode="require",
+                    connect_timeout=10,
+                    prepare_threshold=None
+                )
+            except Exception as e:
+                st.session_state["_aff_db_last_err"] = str(e)
 
     db_url = (
         _find_secret("SUPABASE_DB_URL")
@@ -79,8 +81,10 @@ def _get_conn_afiliados():
             return psycopg.connect(db_url, connect_timeout=10, prepare_threshold=None)
         except Exception as e:
             st.session_state["_aff_db_last_err"] = str(e)
-    return None
 
+    if not st.session_state.get("_aff_db_last_err"):
+        st.session_state["_aff_db_last_err"] = "Faltan los secretos PG_HOST / SUPABASE_DB_URL en Settings -> Secrets de esta app en Streamlit Cloud."
+    return None
 
 
 def obtener_terminos_afiliacion_pg() -> dict:
