@@ -4538,68 +4538,106 @@ QUINTA. LEGISLACIÓN APLICABLE Y JURISDICCIÓN.
 Para la interpretación y cumplimiento de los presentes Términos y Condiciones, las partes se someten a las leyes vigentes en los Estados Unidos Mexicanos y a la jurisdicción competente de los tribunales de Agua Prieta, Sonora, México."""
 
 
+def _open_legal_pg_conn():
+    """Abre conexión directa a PostgreSQL usando los secretos configurados."""
+    def _sec(k: str) -> str:
+        if k in st.secrets:
+            return str(st.secrets[k]).strip()
+        for v in st.secrets.values():
+            if isinstance(v, dict) and k in v:
+                return str(v[k]).strip()
+        return ""
+
+    pg_host = _sec("PG_HOST")
+    pg_user = _sec("PG_USER")
+    pg_pass = _sec("PG_PASSWORD")
+    pg_port = int(_sec("PG_PORT") or 6543)
+    pg_db = _sec("PG_DBNAME") or "postgres"
+    if pg_host and pg_user and pg_pass:
+        return psycopg.connect(
+            host=pg_host, port=pg_port, dbname=pg_db,
+            user=pg_user, password=pg_pass, sslmode="require", prepare_threshold=None
+        )
+    db_url = _sec("SUPABASE_DB_URL") or _sec("DATABASE_URL")
+    if not db_url and "postgres" in st.secrets and isinstance(st.secrets["postgres"], dict):
+        db_url = str(st.secrets["postgres"].get("url", "")).strip()
+    if not db_url:
+        return None
+    if "sslmode=" not in db_url:
+        db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
+    return psycopg.connect(db_url, prepare_threshold=None)
+
+
 def get_affiliate_terms_pg() -> dict:
     """Obtiene los Términos y Condiciones de Afiliación vigentes desde PostgreSQL."""
-    conn = get_pg_connection()
+    conn = _open_legal_pg_conn()
     if not conn:
         return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Sistema", "updated_at": ""}
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
-                    clave TEXT PRIMARY KEY,
-                    contenido TEXT NOT NULL,
-                    updated_by TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            cur.execute("SELECT contenido, updated_by, updated_at FROM cei_configuracion_legal WHERE clave = 'terminos_afiliacion';")
-            row = cur.fetchone()
-            if not row:
-                cur.execute(
-                    "INSERT INTO cei_configuracion_legal (clave, contenido, updated_by) VALUES ('terminos_afiliacion', %s, 'Owner');",
-                    (DEFAULT_AFFILIATE_TERMS_TEXT,)
-                )
-                conn.commit()
-                return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Owner", "updated_at": ""}
-            conn.commit()
-            return {
-                "texto": str(row[0] or DEFAULT_AFFILIATE_TERMS_TEXT),
-                "updated_by": str(row[1] or ""),
-                "updated_at": str(row[2] or "")[:19]
-            }
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                        clave TEXT PRIMARY KEY,
+                        contenido TEXT NOT NULL,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("SELECT contenido, updated_by, updated_at FROM cei_configuracion_legal WHERE clave = 'terminos_afiliacion';")
+                row = cur.fetchone()
+                if not row:
+                    cur.execute(
+                        "INSERT INTO cei_configuracion_legal (clave, contenido, updated_by) VALUES ('terminos_afiliacion', %s, 'Owner');",
+                        (DEFAULT_AFFILIATE_TERMS_TEXT,)
+                    )
+                    return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Owner", "updated_at": ""}
+                return {
+                    "texto": str(row[0] or DEFAULT_AFFILIATE_TERMS_TEXT),
+                    "updated_by": str(row[1] or ""),
+                    "updated_at": str(row[2] or "")[:19]
+                }
     except Exception:
         return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Sistema", "updated_at": ""}
-
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def save_affiliate_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
     """Guarda los Términos y Condiciones de Afiliación editados por el Owner/Admin autorizado."""
-    conn = get_pg_connection()
+    conn = _open_legal_pg_conn()
     if not conn:
         return False, "No hay conexión activa con Supabase PostgreSQL."
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
-                    clave TEXT PRIMARY KEY,
-                    contenido TEXT NOT NULL,
-                    updated_by TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            cur.execute("""
-                INSERT INTO cei_configuracion_legal (clave, contenido, updated_by, updated_at)
-                VALUES ('terminos_afiliacion', %s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (clave) DO UPDATE SET
-                    contenido = EXCLUDED.contenido,
-                    updated_by = EXCLUDED.updated_by,
-                    updated_at = CURRENT_TIMESTAMP;
-            """, (nuevo_texto.strip(), autor))
-        conn.commit()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                        clave TEXT PRIMARY KEY,
+                        contenido TEXT NOT NULL,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    INSERT INTO cei_configuracion_legal (clave, contenido, updated_by, updated_at)
+                    VALUES ('terminos_afiliacion', %s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (clave) DO UPDATE SET
+                        contenido = EXCLUDED.contenido,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = CURRENT_TIMESTAMP;
+                """, (nuevo_texto.strip(), autor))
         return True, "✅ Términos y Condiciones de Afiliación actualizados y publicados en vivo."
     except Exception as e:
         return False, f"Error al guardar términos: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # ==============================================================================
