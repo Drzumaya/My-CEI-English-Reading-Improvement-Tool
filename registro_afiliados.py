@@ -124,42 +124,43 @@ def obtener_terminos_afiliacion_pg() -> dict:
 
 
 def _get_hmac_secret() -> bytes:
-    raw = str(
-        _find_secret("HMAC_SECRET_KEY")
-        or _find_secret("SUPABASE_DB_URL")
-        or "CEI_AFF_KEY"
-    ).strip()
-    return raw.encode("utf-8")
+    """Clave HMAC idéntica compartida entre el Panel CEI y el Formulario Público."""
+    custom_key = _find_secret("HMAC_SECRET_KEY")
+    if custom_key:
+        return custom_key.encode("utf-8")
+    return b"CEI_AGUA_PRIETA_SONORA_AFFILIATE_QR_2026"
 
 
 def generar_token_qr_7min() -> tuple[str, int]:
-    """Token dinámico rotativo cada 7 minutos (420s) para generar el QR."""
+    """Genera token con marca de tiempo exacta y rotación visual cada 7 minutos (420s)."""
     ventana = 420
     ahora = int(time.time())
-    slot = ahora // ventana
     restante = ventana - (ahora % ventana)
-    sig = hmac.new(_get_hmac_secret(), f"CEI_AFF_SLOT_{slot}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
-    return f"{slot}.{sig}", restante
+    sig = hmac.new(_get_hmac_secret(), f"CEI_AFF_TS_{ahora}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
+    return f"{ahora}.{sig}", restante
 
 
 def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
-    """Valida el token del QR y verifica que no haya sido utilizado."""
-    if not token_str:
+    """Valida que el QR esté dentro de su ventana de 7 min (+2 min tolerancia) y sea de un solo uso."""
+    tok = urllib.parse.unquote(str(token_str or "").strip())
+    if not tok:
         return True, "Sesión directa autorizada (20 min)"
 
-    if "." not in token_str:
+    if "." not in tok:
         return False, "Enlace QR inválido o incompleto."
     try:
-        slot_str, sig_in = token_str.strip().split(".", 1)
-        slot_num = int(slot_str)
+        ts_str, sig_in = tok.split(".", 1)
+        ts_num = int(ts_str)
     except ValueError:
         return False, "Formato de token QR incorrecto."
 
-    slot_actual = int(time.time()) // 420
-    if slot_num not in (slot_actual, slot_actual - 1, slot_actual - 2):
-        return False, "⏳ Este código QR ha expirado. Escanea el nuevo código QR vigente."
+    ahora = int(time.time())
+    antiguedad_seg = ahora - ts_num
+    # Válido hasta 9 minutos (540s) desde la generación/renovación del QR para ser escaneado
+    if antiguedad_seg < -120 or antiguedad_seg > 540:
+        return False, "⏳ Este código QR ha expirado (vigencia de 7 min para escaneo). Solicita y escanea el nuevo código QR vigente."
 
-    sig_esperada = hmac.new(_get_hmac_secret(), f"CEI_AFF_SLOT_{slot_num}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
+    sig_esperada = hmac.new(_get_hmac_secret(), f"CEI_AFF_TS_{ts_num}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
     if not hmac.compare_digest(sig_in, sig_esperada):
         return False, "Firma de seguridad del QR no válida."
 
@@ -174,7 +175,7 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
                             used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                         );
                     """)
-                    t_hash = hashlib.sha256(token_str.strip().encode("utf-8")).hexdigest()
+                    t_hash = hashlib.sha256(tok.encode("utf-8")).hexdigest()
                     cur.execute("SELECT 1 FROM affiliate_used_tokens WHERE token_hash = %s LIMIT 1;", (t_hash,))
                     if cur.fetchone():
                         return False, "🔒 Este enlace de registro ya fue utilizado y ha quedado inhabilitado."
