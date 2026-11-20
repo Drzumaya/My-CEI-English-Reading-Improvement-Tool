@@ -4640,6 +4640,7 @@ def save_affiliate_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
             pass
 
 
+
 # ==============================================================================
 # PARTE 12A: EVALUACIÓN DE CAPACIDADES RBAC Y TARJETA CREADORA CENTRAL
 # ==============================================================================
