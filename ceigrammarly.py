@@ -4781,37 +4781,17 @@ tiene_leccion_activa = bool(str(st.session_state.get("generated_text") or "").st
 if not tiene_leccion_activa:
     c_init1, c_init2 = st.columns(2)
     with c_init1:
-        abierto_creador = bool(st.session_state.get("show_lesson_creator"))
-        lbl_gen_toggle = "✅ COMPLETAR Y GENERAR LECCIÓN" if abierto_creador else "✨ GENERAR LECCIÓN"
+        en_panel_edu = (st.session_state.get("active_stage_5", "READING") != "PORTAL")
         if st.button(
-            lbl_gen_toggle,
-            type="primary" if (abierto_creador and st.session_state["active_stage_5"] != "PORTAL") else "secondary",
+            "🎓 PANEL EDUCATIVO",
+            type="primary" if en_panel_edu else "secondary",
             width="stretch",
-            key="btn_init_2_generate"
+            key="btn_init_2_panel_educativo"
         ):
-            if not abierto_creador:
-                st.session_state["show_lesson_creator"] = True
-                st.session_state["active_stage_5"] = "READING"
-                st.session_state["active_admin_workspace"] = None
-                st.session_state["active_student_workspace"] = None
-                st.session_state["creator_missing_fields"] = []
-                st.rerun()
-            else:
-                campos_faltantes = []
-                if not str(st.session_state.get("sb_context_input") or "").strip():
-                    campos_faltantes.append("1️⃣ **Contexto / Lugar / Tema**")
-                if not str(st.session_state.get("sb_subject_input") or "").strip():
-                    campos_faltantes.append("3️⃣ **Asunto / Materia**")
-                if not str(st.session_state.get("selected_grammar") or "").strip():
-                    campos_faltantes.append("📐 **Tema Gramatical**")
-
-                if campos_faltantes:
-                    st.session_state["creator_missing_fields"] = campos_faltantes
-                    st.rerun()
-                else:
-                    st.session_state["creator_missing_fields"] = []
-                    st.session_state["show_lesson_creator"] = False
-                    generar_btn = True
+            st.session_state["active_stage_5"] = "READING"
+            st.session_state["active_admin_workspace"] = None
+            st.session_state["active_student_workspace"] = None
+            st.rerun()
 
     with c_init2:
         if st.button(
@@ -4828,6 +4808,25 @@ if not tiene_leccion_activa:
             else:
                 st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
             st.rerun()
+
+    if st.session_state.get("active_stage_5", "READING") != "PORTAL":
+        abierto_creador = bool(st.session_state.get("show_lesson_creator"))
+        with st.container(border=True):
+            c_edu_gen, c_edu_sep = st.columns([1.2, 2.4])
+            with c_edu_gen:
+                lbl_gen_inner = "✖️ Cerrar Creador de Lección" if abierto_creador else "✨ GENERAR LECCIÓN"
+                if st.button(
+                    lbl_gen_inner,
+                    type="primary",
+                    width="stretch",
+                    key="btn_inside_edu_toggle_creator"
+                ):
+                    st.session_state["show_lesson_creator"] = not abierto_creador
+                    st.session_state["creator_missing_fields"] = []
+                    st.rerun()
+            with c_edu_sep:
+                st.caption("Crea una lección nueva con IA o selecciona abajo una lección guardada por Folio para abrirla.")
+
 # ==============================================================================
 # PARTE 12B — MITAD 2 DE 2 (FINAL): TARJETA CREADORA CENTRAL Y BOTONES MAESTROS
 # ==============================================================================
@@ -5048,7 +5047,7 @@ if mostrar_barra_folios:
                     idx_default_f = i_f
                     break
 
-            col_f1, col_f2, col_f4 = st.columns([2.7, 0.9, 1.8])
+            col_f1, col_f2, col_f4 = st.columns([2.6, 0.9, 1.9])
             with col_f1:
                 sel_folio_lbl = st.selectbox(
                     "📚 Seleccionar Folio de Lección:",
@@ -5067,7 +5066,6 @@ if mostrar_barra_folios:
                     st.caption("Selecciona una lección de la lista y pulsa **📂 Abrir**.")
         else:
             st.caption("📭 Aún no hay folios guardados. Presiona **✨ GENERAR LECCIÓN** arriba para crear el primero.")
-
 
 
 # ==============================================================================
