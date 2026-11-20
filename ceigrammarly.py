@@ -6582,6 +6582,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         except Exception:
                             pass
 
+
                 # 14.6B EDITOR DE EXPEDIENTE (OWNER/ADMIN) Y TABLERO DEL SOCIO
                 if s_dat:
                     st.info(
@@ -6943,7 +6944,30 @@ if has_lesson_now and stage_5_now != "PORTAL":
                 with st.container(height=540, border=True):
                     st.markdown(st.session_state.generated_text)
 
-            # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA)
+            # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA — SINCRONIZADO CON TAMAÑO DE LETRA)
+            font_quiz_map = {
+                "Normal (16 px)": 16,
+                "Mediana (19 px)": 19,
+                "Grande (22 px)": 22,
+                "Extra Grande (26 px)": 26
+            }
+            q_font_px = font_quiz_map.get(
+                st.session_state.get("sb_lesson_font_size", "Normal (16 px)"),
+                16
+            )
+            st.markdown(
+                f"""
+                <style>
+                .cei-quiz-box p, .cei-quiz-box label,
+                .cei-quiz-box div[data-testid="stRadio"] p {{
+                    font-size: {q_font_px}px !important;
+                    line-height: 1.65 !important;
+                }}
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
             if st.session_state.quiz_data is None:
                 cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
                 if st.button(
@@ -6967,6 +6991,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                             st.error(f"Error al generar quiz: {e}")
             else:
                 with st.container(border=True):
+                    st.markdown("<div class='cei-quiz-box'>", unsafe_allow_html=True)
                     st.subheader(f"📝 Reading & Grammar Comprehension Quiz — 30% (Folio: {st.session_state.current_folio})")
                     for idx, item in enumerate(st.session_state.quiz_data):
                         st.markdown(f"**{idx + 1}. {item['question']}**")
@@ -6984,6 +7009,8 @@ if has_lesson_now and stage_5_now != "PORTAL":
                             else:
                                 st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
                         st.write("")
+                    st.markdown("</div>", unsafe_allow_html=True)
+
                     c_qz1, c_qz2 = st.columns(2)
                     with c_qz1:
                         if st.button("✅ Calificar Quiz (30%)", type="primary", width="stretch", key="btn_grade_quiz_in_box"):
@@ -7026,6 +7053,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
 
                     if st.session_state.quiz_graded and st.session_state.quiz_score:
                         st.success(f"🏆 **Resultado del Quiz (30%):** `{st.session_state.quiz_score}` respuestas correctas.")
+
 
 # ==============================================================================
 # PARTE 16 — BLOQUE 1-B: PANEL DERECHO DE SPEAKING (25%) EN VISTA DIVIDIDA
