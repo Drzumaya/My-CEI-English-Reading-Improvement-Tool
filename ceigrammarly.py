@@ -6631,7 +6631,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                     except Exception as e:
                                         st.error(f"Error al evaluar pronunciación: {e}")
 
-                                       with tab_rec_video:
+                    with tab_rec_video:
                         st.caption("📹 **Cámara Web en Vivo:** Pulsa **🔴 Grabar**, lee el texto de la izquierda, pulsa **⏹️ Detener**, descárgalo y evalúalo con IA:")
 
                         webcam_recorder_html = """
