@@ -5716,9 +5716,31 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 # PARTE 14B1: CENTRO DE MANDO SPA — INSCRIPCIÓN DE USUARIOS EN EL PADRÓN
 # ==============================================================================
         elif seccion_inst_sel == "👥 Inscripción y Padrón":
-            if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios")):
+            puede_editar_terminos_est = is_owner or can("Editar_Terminos_Afiliacion") or can("Registrar_Usuarios")
+            if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios") or puede_editar_terminos_est):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
             else:
+                if puede_editar_terminos_est:
+                    with st.expander("📜 Editar Términos y Condiciones de Inscripción de Estudiantes (Inscripcion_alumnosCEI.py)", expanded=False):
+                        st_terms_data = get_student_terms_pg()
+                        if st_terms_data.get("updated_at"):
+                            st.caption(f"Última actualización: `{st_terms_data['updated_at']}` por **{st_terms_data['updated_by']}**")
+                        txt_st_terms_edit = st.text_area(
+                            "Texto legal y reglamento académico vigente mostrado en Inscripcion_alumnosCEI.py:",
+                            value=st_terms_data["texto"],
+                            height=250,
+                            key="ta_edit_student_terms_admin"
+                        )
+                        if st.button("💾 Guardar y Publicar Términos de Estudiantes", type="primary", key="btn_save_student_terms_admin"):
+                            if not txt_st_terms_edit.strip():
+                                st.warning("⚠️ El texto de Términos y Condiciones no puede quedar vacío.")
+                            else:
+                                ok_st, msg_st = save_student_terms_pg(txt_st_terms_edit, str(st.session_state.current_user or "Owner"))
+                                if ok_st:
+                                    st.success(msg_st)
+                                else:
+                                    st.error(msg_st)
+
                 permisos_disponibles = PERMISOS_LISTA if (is_owner or can("Editar_Permisos")) else ["Basico"]
                 default_perm_idx = permisos_disponibles.index("Basico") if "Basico" in permisos_disponibles else 0
                 hoy_hermosillo = datetime.now(ZoneInfo("America/Hermosillo")).date()
@@ -5812,6 +5834,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.error(f"Error al registrar en Supabase: {e}")
                             else:
                                 st.warning("⚠️ Completa tanto el usuario como la clave.")
+
 
 # ==============================================================================
 # PARTE 14B2: TABLA DE REGISTROS ACTIVOS, EDICIÓN Y ASIGNACIÓN DE AFILIADOS
