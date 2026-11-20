@@ -284,14 +284,68 @@ def render_formulario_registro_afiliado(
         token_actual, seg_restantes = generar_token_qr_7min()
         min_rest, sec_rest = divmod(seg_restantes, 60)
 
-        st.info(f"📲 **QR de Auto-Registro (Rotación cada 7 min | Ventana de llenado: 20 min)** — Próximo cambio en `{min_rest}m {sec_rest:02d}s`.")
         if base_url_aff:
             url_dinamica = f"{base_url_aff}/?reg_token={urllib.parse.quote(token_actual)}"
             buf_qr = io.BytesIO()
             qrcode.make(url_dinamica).save(buf_qr, format="PNG")
-            st.image(buf_qr.getvalue(), caption="📲 Escanear para Auto-Registro", width=140)
-            if st.button("🔄 Renovar QR Ahora", key=f"{key_prefix}_refresh_qr"):
-                st.rerun()
+            qr_aff_bytes = buf_qr.getvalue()
+            zoom_aff_key = f"{key_prefix}_qr_zoom_center"
+
+            if st.session_state.get(zoom_aff_key, False):
+                st.markdown(
+                    "<div style='text-align:center; padding-top:8px;'>"
+                    "<h2>📲 Escanea para Registrarte como Socio Afiliado CEI</h2>"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
+                _, col_q_ctr, _ = st.columns([1.0, 1.4, 1.0])
+                with col_q_ctr:
+                    st.image(qr_aff_bytes, width=420)
+                    st.info(f"⏳ **QR Dinámico (Rotación cada 7 min | Ventana de llenado: 20 min)** — Cambia en `{min_rest}m {sec_rest:02d}s`.")
+                    if st.button("✖️ CERRAR QR", type="primary", width="stretch", key=f"{key_prefix}_close_qr_center"):
+                        st.session_state[zoom_aff_key] = False
+                        st.rerun()
+                st.stop()
+
+            st.info(f"📲 **QR de Auto-Registro (Rotación cada 7 min | Ventana de llenado: 20 min)** — Próximo cambio en `{min_rest}m {sec_rest:02d}s`.")
+            c_q1, c_q2 = st.columns([1.1, 2.3])
+            with c_q1:
+                qr_aff_b64 = base64.b64encode(qr_aff_bytes).decode("ascii")
+                if st.button("🖥️ Proyectar QR", key=f"{key_prefix}_trigger_zoom_qr", width="stretch"):
+                    st.session_state[zoom_aff_key] = True
+                    st.rerun()
+
+                components.html(
+                    f"""
+                    <div style="text-align:center;font-family:sans-serif;cursor:pointer;"
+                         ondblclick="
+                           const btns = window.parent.document.querySelectorAll('button');
+                           for (const b of btns) {{
+                             if (b.innerText && b.innerText.includes('Proyectar QR')) {{
+                               b.click();
+                               break;
+                             }}
+                           }}
+                         "
+                         title="Haz doble clic en el QR para abrirlo en el centro">
+                      <img src="data:image/png;base64,{qr_aff_b64}" style="width:150px;height:150px;border-radius:10px;border:2px solid #0284c7;" />
+                      <div style="font-size:11px;color:#0284c7;font-weight:bold;margin-top:4px;">🖱️ Doble clic en el QR para proyectar</div>
+                    </div>
+                    """,
+                    height=185
+                )
+            with c_q2:
+                st.download_button(
+                    "⬇️ Descargar QR de Afiliación (PNG)",
+                    data=qr_aff_bytes,
+                    file_name="QR_Alta_Socio_Afiliado_CEI.png",
+                    mime="image/png",
+                    type="primary",
+                    width="stretch",
+                    key=f"{key_prefix}_dl_qr_aff"
+                )
+                if st.button("🔄 Renovar QR Ahora", key=f"{key_prefix}_refresh_qr", width="stretch"):
+                    st.rerun()
         else:
             st.warning("⚠️ Configura `AFFILIATE_REG_URL` en Secrets para activar el QR.")
         st.divider()
