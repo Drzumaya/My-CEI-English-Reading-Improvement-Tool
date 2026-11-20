@@ -5059,6 +5059,9 @@ else:
 # ==============================================================================
 # PARTE 13A1-A: HELPERS DE CIERRE DE PANEL Y QR OFICIAL CON ID DE AFILIADO
 # ==============================================================================
+DEFAULT_STUDENT_INSCRIPTION_URL = "https://inscripcioncei.streamlit.app"
+
+
 def _cerrar_panel_y_volver_leccion():
     st.session_state["active_admin_workspace"] = None
     st.session_state["active_student_workspace"] = None
@@ -5066,6 +5069,74 @@ def _cerrar_panel_y_volver_leccion():
     st.session_state["show_gradebook_panel"] = False
     st.session_state["show_student_payments_panel"] = False
     st.session_state["active_stage_5"] = "READING"
+
+
+def get_student_inscription_url_pg() -> str:
+    """Obtiene desde PostgreSQL el enlace oficial del formulario de inscripción de estudiantes."""
+    fallback_url = str(st.secrets.get("STUDENT_INSCRIPTION_URL", DEFAULT_STUDENT_INSCRIPTION_URL)).strip().rstrip("/")
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return fallback_url
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                        clave TEXT PRIMARY KEY,
+                        contenido TEXT NOT NULL,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("SELECT contenido FROM cei_configuracion_legal WHERE clave = 'url_inscripcion_estudiantes' LIMIT 1;")
+                row = cur.fetchone()
+                if row and str(row[0] or "").strip():
+                    return str(row[0]).strip().rstrip("/")
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return fallback_url
+
+
+def save_student_inscription_url_pg(nueva_url: str, autor: str) -> tuple[bool, str]:
+    """Guarda en PostgreSQL la URL del formulario de inscripción de alumnos editada por Owner/Admin."""
+    url_clean = str(nueva_url or "").strip().rstrip("/")
+    if not (url_clean.startswith("http://") or url_clean.startswith("https://")):
+        return False, "⚠️ La URL debe comenzar con https:// o http://"
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return False, "No hay conexión activa con Supabase PostgreSQL."
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                        clave TEXT PRIMARY KEY,
+                        contenido TEXT NOT NULL,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    INSERT INTO cei_configuracion_legal (clave, contenido, updated_by, updated_at)
+                    VALUES ('url_inscripcion_estudiantes', %s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (clave) DO UPDATE SET
+                        contenido = EXCLUDED.contenido,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = CURRENT_TIMESTAMP;
+                """, (url_clean, autor))
+        return True, f"✅ Enlace oficial de inscripción actualizado a: `{url_clean}`"
+    except Exception as e:
+        return False, f"Error al guardar enlace: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def _obtener_id_oficial_afiliado(usuario_o_id: str) -> tuple[str, str]:
@@ -5088,7 +5159,7 @@ def _obtener_id_oficial_afiliado(usuario_o_id: str) -> tuple[str, str]:
             """, (val, val))
             row = cur.fetchone()
             if row:
-                return str(row).strip(), str(row).strip()
+                return str(row[0]).strip(), str(row[1]).strip()
     except Exception:
         pass
     finally:
@@ -5101,9 +5172,7 @@ def _obtener_id_oficial_afiliado(usuario_o_id: str) -> tuple[str, str]:
 
 def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str = "qr_ins"):
     """Muestra el QR de Inscripción de Alumnos ligado por defecto al ID oficial del Socio Afiliado."""
-    url_ins_base = str(
-        st.secrets.get("STUDENT_INSCRIPTION_URL", "https://streamlit.app")
-    ).strip().rstrip("/")
+    url_ins_base = get_student_inscription_url_pg()
     ref_raw = str(afiliado_ref or "").strip()
     aff_id_oficial, aff_nombre_completo = _obtener_id_oficial_afiliado(ref_raw) if ref_raw else ("", "")
 
@@ -5189,6 +5258,7 @@ def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str =
                 if st.button("🖥️ Proyectar QR en Centro", type="secondary", width="stretch", key=f"{key_prefix}_btn_open_fs"):
                     st.session_state[zoom_state_key] = True
                     st.rerun()
+
 # ==============================================================================
 # PARTE 13A1-B: SELECTOR DE MÓDULOS DEL PORTAL Y DESPLEGABLE DE FOLIOS
 # ==============================================================================
