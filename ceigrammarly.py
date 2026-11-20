@@ -2222,6 +2222,78 @@ def _buscar_en_motores_navegador(query_busqueda: str) -> list[str]:
             continue
 
     return ids_encontrados
+def buscar_video_relacionado_leccion(
+    tema_gramatical: str,
+    nivel_cefr: str,
+    texto_leccion: str = "",
+    client_obj=None,
+    topic_context: str = "",
+    max_videos: int = 12
+) -> dict:
+    """Catálogo tipo YouTube (12 a 20 videos) por Gramática y Tópico con Multi-Motor + Banco Curado."""
+    cefr_code = next(iter(str(nivel_cefr).split()), "B1").upper() if nivel_cefr else "B1"
+    if cefr_code not in CEFR_LEVEL_DEFAULT_VIDEOS:
+        cefr_code = "B1"
+
+    topico_clean = str(topic_context or "").strip()
+    queries_busqueda = [
+        f"English grammar {tema_gramatical} {cefr_code} lesson",
+    ]
+    if topico_clean:
+        queries_busqueda.append(f"English listening comprehension {topico_clean} {cefr_code}")
+
+    candidatos_ids = []
+    for q_b in queries_busqueda:
+        for vid_found in _buscar_en_motores_navegador(q_b):
+            if vid_found not in candidatos_ids:
+                candidatos_ids.append(vid_found)
+
+    tema_low = str(tema_gramatical or "").lower()
+    for key_c, info_c in CURATED_CEFR_VIDEO_DICT.items():
+        if key_c in tema_low and info_c["video_id"] not in candidatos_ids:
+            candidatos_ids.insert(0, info_c["video_id"])
+
+    def_vid = CEFR_LEVEL_DEFAULT_VIDEOS.get(cefr_code, CEFR_LEVEL_DEFAULT_VIDEOS["B1"])
+    if def_vid["video_id"] not in candidatos_ids:
+        candidatos_ids.append(def_vid["video_id"])
+    for info_c in CURATED_CEFR_VIDEO_DICT.values():
+        if info_c["video_id"] not in candidatos_ids:
+            candidatos_ids.append(info_c["video_id"])
+
+    curated_lookup = {v["video_id"]: v for v in CURATED_CEFR_VIDEO_DICT.values()}
+    curated_lookup[def_vid["video_id"]] = def_vid
+
+    resultados = []
+    for idx_v, vid in enumerate(candidatos_ids[:max_videos]):
+        meta = curated_lookup.get(vid)
+        if not meta and idx_v < 4:
+            meta = _validar_video_oembed(vid)
+        if meta:
+            dur_s = int(meta.get("duration_sec") or 360)
+            resultados.append({
+                "video_id": vid,
+                "url": f"https://youtube.com{vid}",
+                "title": str(meta.get("title") or f"{tema_gramatical} ({cefr_code})"),
+                "channel": str(meta.get("channel") or "YouTube ESL"),
+                "published_date": str(meta.get("published_date") or "2024"),
+                "duration_sec": dur_s,
+                "duration_min": round(dur_s / 60.0, 2)
+            })
+        else:
+            resultados.append({
+                "video_id": vid,
+                "url": f"https://youtube.com{vid}",
+                "title": f"{tema_gramatical} — {topico_clean or cefr_code} (Video {idx_v + 1})",
+                "channel": "YouTube ESL",
+                "published_date": "2024",
+                "duration_sec": 360,
+                "duration_min": 6.0
+            })
+
+    principal = dict(resultados[0])
+    principal["alternatives"] = resultados[1:]
+    return principal
+
     # 3. Completar catálogo hasta max_videos (12 a 20 opciones) con Banco Curado CEFR + Tópico
     tema_low = str(tema_gramatical or "").lower()
     prioritarios = []
@@ -6752,8 +6824,10 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_stage)
 
         v_url_st = str(vid_stage.get("url") or "").strip()
-        m_id_st = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", v_url_st)
-        vid_id_st = m_id_st.group(1) if m_id_st else "o1_0Gz4uRKo"
+        m_id_st = re.search(r"(?:v=|youtu\.be/|embed/|youtube\.com)([a-zA-Z0-9_-]{11})", v_url_st)
+        vid_id_st = m_id_st.group(1) if m_id_st else "L9AWrJnhsRI"
+        if vid_id_st.lower() == "o1_0gz4urko":
+            vid_id_st = "L9AWrJnhsRI"
 
         hdr_v1, hdr_v2 = st.columns([2.4, 1.35])
         with hdr_v1:
