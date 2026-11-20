@@ -6401,14 +6401,18 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     except ModuleNotFoundError:
                         st.warning("⚠️ Crea el archivo `registro_afiliados.py` en la raíz del proyecto para activar este formulario.")
 
-        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
+        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2)
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
             url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
             aff_objetivo_portal = st.session_state.current_user
 
             if is_owner or puede_gestionar_afiliados:
                 padron_aff_view = load_padron_records()
-                lista_aff_view = [str(r.get("Usuario", "")).strip() for r in padron_aff_view if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+                lista_aff_view = [
+                    str(r.get("Usuario", "")).strip()
+                    for r in padron_aff_view
+                    if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]
+                ]
                 col_p_sel, col_p_qr = st.columns([2.6, 1.0])
                 with col_p_sel:
                     if lista_aff_view:
@@ -6431,6 +6435,109 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         )
 
             if aff_objetivo_portal:
+                conn_pf = _open_legal_pg_conn()
+                s_dat = None
+                if conn_pf:
+                    try:
+                        with conn_pf.cursor() as cur:
+                            cur.execute("""
+                                ALTER TABLE affiliate_partners
+                                ADD COLUMN IF NOT EXISTS rfc TEXT DEFAULT '',
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE;
+                            """)
+                            cur.execute("""
+                                SELECT affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
+                                       COALESCE(rfc, ''), COALESCE(telefono, ''), COALESCE(email, ''),
+                                       COALESCE(domicilio, ''), COALESCE(estatus, 'Activo'),
+                                       COALESCE(porcentaje_default, 0.0), terminos_aceptados_at
+                                FROM affiliate_partners
+                                WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
+                                LIMIT 1;
+                            """, (aff_objetivo_portal,))
+                            s_dat = cur.fetchone()
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            conn_pf.close()
+                        except Exception:
+                            pass
+                # 14.6B EDITOR DE EXPEDIENTE (OWNER/ADMIN) Y TABLERO DEL SOCIO
+                if s_dat:
+                    st.info(
+                        f"🆔 **ID Afiliado:** `{s_dat}`  |  🧾 **RFC:** `{s_dat or 'Pendiente'}`  |  "
+                        f"💼 **Comisión Asignada:** **`{float(s_dat):.1f}%`**  |  🏷️ **Estatus:** `{s_dat}`\n\n"
+                        "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) de honorarios/comisiones dentro de los primeros 5 días hábiles del mes siguiente.*"
+                    )
+
+                    if is_owner or puede_gestionar_afiliados:
+                        with st.expander(f"✏️ Editar Datos, RFC y Comisión de {s_dat} {s_dat} (Owner / Admin)", expanded=False):
+                            if s_dat:
+                                st.caption(f"🛡️ Términos y Condiciones aceptados el: `{str(s_dat)[:19]}`")
+                            with st.form(f"form_edit_aff_portal_{aff_objetivo_portal}"):
+                                c_e1, c_e2 = st.columns(2)
+                                with c_e1:
+                                    ed_id = st.text_input("🆔 ID de Afiliado:", value=str(s_dat))
+                                    ed_nom = st.text_input("Nombre(s):", value=str(s_dat))
+                                    ed_pat = st.text_input("Apellido Paterno:", value=str(s_dat))
+                                    ed_mat = st.text_input("Apellido Materno:", value=str(s_dat))
+                                    ed_rfc = st.text_input("🧾 RFC (12 o 13 caracteres):", value=str(s_dat), max_chars=13)
+                                with c_e2:
+                                    ed_tel = st.text_input("Teléfono / WhatsApp:", value=str(s_dat))
+                                    ed_mail = st.text_input("Correo Electrónico:", value=str(s_dat))
+                                    ed_dom = st.text_input("Domicilio Completo:", value=str(s_dat))
+                                    ed_pct = st.number_input(
+                                        "💼 Porcentaje Comisión Base (%):",
+                                        min_value=0.0, max_value=100.0,
+                                        value=float(s_dat), step=1.0
+                                    )
+                                    estados_aff = ["Activo", "Inactivo", "Baja"]
+                                    idx_est = estados_aff.index(s_dat) if s_dat in estados_aff else 0
+                                    ed_est = st.selectbox("Estado del Afiliado:", estados_aff, index=idx_est)
+
+                                if st.form_submit_button("💾 Guardar Cambios y Comisión", type="primary", width="stretch"):
+                                    conn_sv = _open_legal_pg_conn()
+                                    if conn_sv:
+                                        try:
+                                            with conn_sv:
+                                                with conn_sv.cursor() as cur:
+                                                    cur.execute("""
+                                                        UPDATE affiliate_partners SET
+                                                            affiliate_id = %s,
+                                                            nombre = %s,
+                                                            apellido_paterno = %s,
+                                                            apellido_materno = %s,
+                                                            rfc = %s,
+                                                            telefono = %s,
+                                                            email = %s,
+                                                            domicilio = %s,
+                                                            porcentaje_default = %s,
+                                                            estatus = %s
+                                                        WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s));
+                                                    """, (
+                                                        ed_id.strip().upper(), ed_nom.strip(), ed_pat.strip(), ed_mat.strip(),
+                                                        ed_rfc.strip().upper(), ed_tel.strip(), ed_mail.strip(), ed_dom.strip(),
+                                                        float(ed_pct), ed_est, aff_objetivo_portal
+                                                    ))
+                                                    est_pad = "Activo" if ed_est == "Activo" else "Inactivo"
+                                                    cur.execute("""
+                                                        UPDATE users_padron SET
+                                                            estatus = %s,
+                                                            porcentaje_comision = %s
+                                                        WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s));
+                                                    """, (est_pad, float(ed_pct), aff_objetivo_portal))
+                                            st.cache_data.clear()
+                                            st.success(f"✅ Datos y comisión ({ed_pct:.1f}%) actualizados correctamente.")
+                                            st.rerun()
+                                        except Exception as e_sv:
+                                            st.error(f"Error al guardar cambios: {e_sv}")
+                                        finally:
+                                            try:
+                                                conn_sv.close()
+                                            except Exception:
+                                                pass
+
                 try:
                     from portal_afiliado import render_portal_socio_afiliado
                     render_portal_socio_afiliado(aff_objetivo_portal)
