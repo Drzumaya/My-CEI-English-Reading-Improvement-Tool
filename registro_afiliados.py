@@ -1,14 +1,15 @@
 # ==============================================================================
-# registro_afiliados.py — PARTE 1 DE 4: CONEXIÓN Y VALIDACIÓN DE TOKENS QR
+# registro_afiliados.py — PARTE 1 DE 4: CONEXIÓN, TOKENS QR Y TÉRMINOS LEGALES
 # ==============================================================================
 import base64
-from datetime import date
+from datetime import date, datetime
 import hashlib
 import hmac
 import io
 import random
 import time
 import urllib.parse
+from zoneinfo import ZoneInfo
 import psycopg
 import qrcode
 import streamlit as st
@@ -18,6 +19,14 @@ if hasattr(st, "iframe"):
     components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
         html_str, height=height or 150, width=width or "stretch"
     )
+
+DEFAULT_AFFILIATE_TERMS_FALLBACK = """TÉRMINOS Y CONDICIONES DEL PROGRAMA DE SOCIOS AFILIADOS — CAREER ENGLISH INSTITUTE (CEI)
+
+1. OBJETO DE LA AFILIACIÓN: El Socio Afiliado actúa como promotor independiente de los programas académicos de Career English Institute (CEI), sin que ello constituya relación laboral, subordinación o representación legal.
+2. COMISIONES Y LIQUIDACIÓN: Las comisiones aplicables se calcularán exclusivamente sobre inscripciones y mensualidades efectivamente cobradas y validadas por la administración de CEI, conforme al porcentaje vigente asignado al Socio.
+3. USO DE MARCA Y MATERIALES: El Socio se compromete a utilizar únicamente los materiales oficiales aprobados por CEI y a no alterar precios, certificaciones ni condiciones académicas sin autorización escrita.
+4. CONFIDENCIALIDAD Y PROTECCIÓN DE DATOS: Toda información de prospectos y estudiantes deberá tratarse bajo estricta confidencialidad y conforme a la normativa de protección de datos personales vigente.
+5. VIGENCIA Y TERMINACIÓN: CEI se reserva el derecho de suspender o cancelar la afiliación ante incumplimiento de estos términos o uso indebido de la marca institucional."""
 
 
 def _find_secret(key_name: str) -> str:
@@ -55,6 +64,42 @@ def _get_conn_afiliados():
     if "sslmode=" not in db_url:
         db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
     return psycopg.connect(db_url, prepare_threshold=None)
+
+
+def obtener_terminos_afiliacion_pg() -> dict:
+    """Lee desde Supabase PostgreSQL los Términos y Condiciones de Afiliación vigentes."""
+    conn = _get_conn_afiliados()
+    if not conn:
+        return {"texto": DEFAULT_AFFILIATE_TERMS_FALLBACK, "updated_by": "CEI", "updated_at": ""}
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                        clave TEXT PRIMARY KEY,
+                        contenido TEXT NOT NULL,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute(
+                    "SELECT contenido, updated_by, updated_at FROM cei_configuracion_legal WHERE clave = 'terminos_afiliacion' LIMIT 1;"
+                )
+                row = cur.fetchone()
+                if row and str(row[0] or "").strip():
+                    return {
+                        "texto": str(row[0]).strip(),
+                        "updated_by": str(row[1] or "CEI"),
+                        "updated_at": str(row[2] or "")[:19]
+                    }
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return {"texto": DEFAULT_AFFILIATE_TERMS_FALLBACK, "updated_by": "CEI", "updated_at": ""}
 
 
 def _get_hmac_secret() -> bytes:
@@ -243,11 +288,12 @@ def render_formulario_registro_afiliado(
             st.rerun()
         return
 # ==============================================================================
-# registro_afiliados.py — PARTE 3 DE 4: FORMULARIO Y GUARDADO TRANSACCIONAL
+# registro_afiliados.py — PARTE 3 DE 4: FORMULARIO, TÉRMINOS Y GUARDADO
 # ==============================================================================
     anio_actual = date.today().year
     id_sugerido = f"AFIL-CEI-{anio_actual}-{random.randint(1000, 9999)}"
     es_externo = tiempo_inicio_escaneo is not None
+    datos_terminos = obtener_terminos_afiliacion_pg()
 
     with st.form(f"{key_prefix}_form", clear_on_submit=False):
         affiliate_id = st.text_input("🆔 ID de Socio Afiliado *", value=id_sugerido, disabled=es_externo)
@@ -273,6 +319,18 @@ def render_formulario_registro_afiliado(
         ine_frente = st.file_uploader("INE Anverso (Frente) *", type=["png", "jpg", "jpeg", "pdf"], key=f"{key_prefix}_ine_f")
         ine_reverso = st.file_uploader("INE Reverso (Vuelta) *", type=["png", "jpg", "jpeg", "pdf"], key=f"{key_prefix}_ine_r")
 
+        st.divider()
+        st.markdown("##### 📜 Términos y Condiciones de la Afiliación")
+        if datos_terminos.get("updated_at"):
+            st.caption(f"Versión vigente actualizada el `{datos_terminos['updated_at']}`")
+        with st.container(height=210, border=True):
+            st.markdown(datos_terminos["texto"])
+
+        acepta_terminos = st.checkbox(
+            "✅ He leído, comprendo y acepto los Términos y Condiciones del Programa de Socios Afiliados de Career English Institute *",
+            key=f"{key_prefix}_chk_terminos"
+        )
+
         submitted = st.form_submit_button("💾 Enviar Registro y Finalizar", type="primary", width="stretch")
         if submitted:
             if es_externo and (time.time() - float(tiempo_inicio_escaneo)) > 1200:
@@ -283,6 +341,9 @@ def render_formulario_registro_afiliado(
                 return
             if not ine_frente or not ine_reverso:
                 st.error("⚠️ Adjunta ambos lados de la Identificación Oficial (INE).")
+                return
+            if not acepta_terminos:
+                st.error("⚠️ Debes leer y marcar la casilla de aceptación de los Términos y Condiciones para continuar.")
                 return
 
             ine_f_b64 = base64.b64encode(ine_frente.read()).decode("utf-8")
@@ -300,12 +361,18 @@ def render_formulario_registro_afiliado(
                 with conn:
                     with conn.cursor() as cur:
                         cur.execute("""
+                            ALTER TABLE affiliate_partners
+                            ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
+                            ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+                        """)
+                        cur.execute("""
                             INSERT INTO affiliate_partners (
                                 affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
                                 telefono, email, domicilio, ine_anverso_b64, ine_reverso_b64,
                                 fecha_ingreso, estatus, fecha_inactividad, fecha_baja,
-                                porcentaje_default, registrado_por
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                porcentaje_default, registrado_por,
+                                terminos_aceptados, terminos_aceptados_at
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW())
                             ON CONFLICT (usuario_login) DO UPDATE SET
                                 affiliate_id = EXCLUDED.affiliate_id,
                                 nombre = EXCLUDED.nombre,
@@ -320,7 +387,9 @@ def render_formulario_registro_afiliado(
                                 estatus = EXCLUDED.estatus,
                                 fecha_inactividad = EXCLUDED.fecha_inactividad,
                                 fecha_baja = EXCLUDED.fecha_baja,
-                                porcentaje_default = EXCLUDED.porcentaje_default;
+                                porcentaje_default = EXCLUDED.porcentaje_default,
+                                terminos_aceptados = TRUE,
+                                terminos_aceptados_at = NOW();
                         """, (
                             id_clean, u_clean, nombre.strip(), ap_paterno.strip(), ap_materno.strip(),
                             telefono.strip(), email.strip(), domicilio.strip(),
@@ -360,6 +429,7 @@ def render_formulario_registro_afiliado(
                     conn.close()
                 except Exception:
                     pass
+
 # ==============================================================================
 # registro_afiliados.py — PARTE 4 DE 4 (FINAL): MODO INDEPENDIENTE (STANDALONE)
 # ==============================================================================
