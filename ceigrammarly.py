@@ -6736,10 +6736,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     except ModuleNotFoundError:
                         st.warning("⚠️ Crea el archivo `registro_afiliados.py` en la raíz del proyecto para activar este formulario.")
 
-        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2)
+               # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2 — CON QR OFICIAL LIGADO AL ID)
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
             url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
-            url_ins_alumnos = str(st.secrets.get("STUDENT_INSCRIPTION_URL", "https://inscripcion-alumnos-cei.streamlit.app")).strip().rstrip("/")
             aff_objetivo_portal = st.session_state.current_user
 
             if is_owner or puede_gestionar_afiliados:
@@ -6771,76 +6770,10 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         )
 
             if aff_objetivo_portal:
-                url_qr_referido = f"{url_ins_alumnos}/?ref_aff={urllib.parse.quote(str(aff_objetivo_portal).strip())}"
-                buf_qr_ins = io.BytesIO()
-                qrcode.make(url_qr_referido).save(buf_qr_ins, format="PNG")
-                qr_ins_bytes = buf_qr_ins.getvalue()
-
-                if st.session_state.get("qr_zoom_fullscreen", False):
-                    st.markdown(
-                        "<div style='text-align:center; padding-top:10px;'>"
-                        "<h2>📲 Escanea para Inscribirte en Career English Institute (CEI)</h2>"
-                        "</div>",
-                        unsafe_allow_html=True
-                    )
-                    _, col_qr_center, _ = st.columns([1.0, 1.4, 1.0])
-                    with col_qr_center:
-                        st.image(qr_ins_bytes, width=420)
-                        st.info(f"🤝 **Socio Afiliado Anfitrión:** `{aff_objetivo_portal}`\n\n🔗 `{url_qr_referido}`")
-                        if st.button("✖️ CERRAR QR", type="primary", width="stretch", key="btn_close_qr_zoom_fs"):
-                            st.session_state["qr_zoom_fullscreen"] = False
-                            st.rerun()
-                    st.stop()
-
-                with st.container(border=True):
-                    c_qr1, c_qr2 = st.columns([1.1, 2.4])
-                    with c_qr1:
-                        qr_b64_str = base64.b64encode(qr_ins_bytes).decode("ascii")
-                        if st.button("🖥️ Ampliar QR", key="btn_trigger_dblclick_qr", width="stretch"):
-                            st.session_state["qr_zoom_fullscreen"] = True
-                            st.rerun()
-
-                        components.html(
-                            f"""
-                            <div style="text-align:center;font-family:sans-serif;cursor:pointer;"
-                                 ondblclick="
-                                   const btns = window.parent.document.querySelectorAll('button');
-                                   for (const b of btns) {{
-                                     if (b.innerText && b.innerText.includes('Ampliar QR')) {{
-                                       b.click();
-                                       break;
-                                     }}
-                                   }}
-                                 "
-                                 title="Haz doble clic sobre el QR para abrirlo en el centro">
-                              <img src="data:image/png;base64,{qr_b64_str}" style="width:155px;height:155px;border-radius:10px;border:2px solid #0284c7;" />
-                              <div style="font-size:11px;color:#0284c7;font-weight:bold;margin-top:4px;">🖱️ Doble clic en el QR para proyectar</div>
-                            </div>
-                            """,
-                            height=190
-                        )
-                    with c_qr2:
-                        st.markdown("#### 📲 Código QR Oficial de Inscripción de Alumnos")
-                        st.caption(
-                            "Haz **doble clic sobre el código QR** para abrirlo en el centro de la pantalla (ideal para Zoom) "
-                            "o descárgalo para enviarlo por WhatsApp."
-                        )
-                        st.code(url_qr_referido, language=None)
-                        b_q1, b_q2 = st.columns(2)
-                        with b_q1:
-                            st.download_button(
-                                "⬇️ Descargar QR Inscripción (PNG)",
-                                data=qr_ins_bytes,
-                                file_name=f"QR_Inscripcion_CEI_{str(aff_objetivo_portal).replace(' ', '_')}.png",
-                                mime="image/png",
-                                type="primary",
-                                width="stretch",
-                                key="btn_dl_qr_ins_aff"
-                            )
-                        with b_q2:
-                            if st.button("🖥️ Proyectar QR en Centro", type="secondary", width="stretch", key="btn_open_qr_zoom_btn"):
-                                st.session_state["qr_zoom_fullscreen"] = True
-                                st.rerun()
+                _render_qr_inscripcion_alumnos_box(
+                    afiliado_ref=str(aff_objetivo_portal).strip(),
+                    key_prefix=f"portal_aff_{str(aff_objetivo_portal).strip().replace(' ', '_')}"
+                )
 
                 conn_pf = _open_legal_pg_conn()
                 s_dat = None
@@ -6870,8 +6803,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             conn_pf.close()
                         except Exception:
                             pass
-
-
 
                 # 14.6B EDITOR DE EXPEDIENTE (OWNER/ADMIN) Y TABLERO DEL SOCIO
                 if s_dat:
