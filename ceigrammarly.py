@@ -165,7 +165,8 @@ CAPABILITY_COLS = [
     "Editar_Fecha_Inicio_Curso",
     "Gestionar_Comisiones_Afiliados",
     "Gestionar_IVA_Mensualidad",
-    "Gestionar_Pagos_Cobranza"
+    "Gestionar_Pagos_Cobranza",
+    "Editar_Terminos_Afiliacion"
 ]
 
 DEFAULT_PERMISSIONS_MATRIX = {
@@ -183,7 +184,8 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Editar_Fecha_Inicio_Curso": False,
         "Gestionar_Comisiones_Afiliados": False,
         "Gestionar_IVA_Mensualidad": False,
-        "Gestionar_Pagos_Cobranza": False
+        "Gestionar_Pagos_Cobranza": False,
+        "Editar_Terminos_Afiliacion": False
     },
     "Certificador": {
         "Ver_Panel_Admin": True,
@@ -197,7 +199,9 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Reuso_Ilimitado_Folios": True,
         "Editar_Fecha_Inicio_Curso": False,
         "Gestionar_Comisiones_Afiliados": False,
-        "Gestionar_IVA_Mensualidad": False
+        "Gestionar_IVA_Mensualidad": False,
+        "Gestionar_Pagos_Cobranza": False,
+        "Editar_Terminos_Afiliacion": False
     },
     "Auditoria": {
         "Ver_Panel_Admin": True,
@@ -211,7 +215,9 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Reuso_Ilimitado_Folios": True,
         "Editar_Fecha_Inicio_Curso": False,
         "Gestionar_Comisiones_Afiliados": False,
-        "Gestionar_IVA_Mensualidad": False
+        "Gestionar_IVA_Mensualidad": False,
+        "Gestionar_Pagos_Cobranza": False,
+        "Editar_Terminos_Afiliacion": False
     },
     "Basico": {c: False for c in CAPABILITY_COLS}
 }
@@ -296,6 +302,7 @@ CEFR_GRAMMAR_TOPICS = {
         "Cross-Clause Referencing & Advanced Conjunctions"
     ]
 }
+
 
 @st.cache_resource
 def init_gemini_client():
@@ -4767,19 +4774,33 @@ else:
 # PARTE 13A1: SELECTOR DESPLEGABLE DE FOLIOS (BOTÓN ABRIR) — OCULTO EN CREADOR
 # ==============================================================================
 if st.session_state.get("active_stage_5") == "PORTAL":
-    if es_admin_o_staff or es_socio_afiliado:
-        opciones_p_adm = ["🤝 Portal Socio Afiliado"] if es_socio_afiliado else [
-            "💳 Cobranza Mensual e IVA",
-            "📊 Estados Financieros",
-            "🤝 Alta de Socios Afiliados",
-            "🤝 Portal Socio Afiliado",
-            "👥 Inscripción y Padrón",
-            "🔐 Matriz Global de Permisos",
-            "🏅 Certificados (Timbre y QR)",
-            "🏛️ Datos del Instituto",
-            "🔄 Autoactualización de Librerías"
-        ]
-        sel_adm = st.selectbox("Seleccionar módulo institucional:", opciones_p_adm, key="sb_stage5_admin_mod")
+    tiene_acceso_admin_portal = (
+        es_admin_o_staff
+        or can("Editar_Terminos_Afiliacion")
+        or can("Gestionar_Comisiones_Afiliados")
+    )
+    if tiene_acceso_admin_portal or es_socio_afiliado:
+        if es_socio_afiliado:
+            opciones_p_adm = ["🤝 Portal Socio Afiliado"]
+        else:
+            opciones_p_adm = [
+                "💳 Cobranza Mensual e IVA",
+                "📊 Estados Financieros",
+                "🤝 Alta de Socios Afiliados",
+                "🤝 Portal Socio Afiliado",
+                "👥 Inscripción y Padrón",
+                "🔐 Matriz Global de Permisos",
+                "🏅 Certificados (Timbre y QR)",
+                "🏛️ Datos del Instituto",
+                "🔄 Autoactualización de Librerías"
+            ]
+        idx_def_adm = 2 if (not is_owner and not es_socio_afiliado and can("Editar_Terminos_Afiliacion")) else 0
+        sel_adm = st.selectbox(
+            "Seleccionar módulo institucional:",
+            opciones_p_adm,
+            index=idx_def_adm,
+            key="sb_stage5_admin_mod"
+        )
         st.session_state["active_admin_workspace"] = sel_adm
     else:
         opciones_p_est = [
@@ -6212,20 +6233,43 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 else:
                     st.info("No hay registros financieros de estudiantes para mostrar.")
 
-        # 14.5C PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS Y QR DE REGISTRO
+        # 14.5C PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS, TÉRMINOS Y QR DE REGISTRO
         if seccion_inst_sel == "🤝 Alta de Socios Afiliados":
-            if not (is_owner or puede_gestionar_afiliados):
-                st.warning("⛔ Tu perfil actual no tiene permisos habilitados para dar de alta Socios Afiliados.")
+            puede_editar_terminos_aff = is_owner or can("Editar_Terminos_Afiliacion")
+            if not (is_owner or puede_gestionar_afiliados or puede_editar_terminos_aff):
+                st.warning("⛔ Tu perfil actual no tiene permisos habilitados para gestionar Socios Afiliados ni Términos.")
             else:
-                try:
-                    from registro_afiliados import render_formulario_registro_afiliado
-                    render_formulario_registro_afiliado(
-                        registrado_por=st.session_state.current_user,
-                        key_prefix="panel_admin_aff_main",
-                        mostrar_qr_dinamico=True
-                    )
-                except ModuleNotFoundError:
-                    st.warning("⚠️ Crea el archivo `registro_afiliados.py` en la raíz del proyecto para activar este formulario.")
+                if puede_editar_terminos_aff:
+                    with st.expander("📜 Editar Términos y Condiciones de Afiliación (Formulario Público)", expanded=False):
+                        terms_data = get_affiliate_terms_pg()
+                        if terms_data.get("updated_at"):
+                            st.caption(f"Última actualización: `{terms_data['updated_at']}` por **{terms_data['updated_by']}**")
+                        txt_terms_edit = st.text_area(
+                            "Texto legal vigente mostrado en registro_afiliados.py:",
+                            value=terms_data["texto"],
+                            height=240,
+                            key="ta_edit_affiliate_terms_admin"
+                        )
+                        if st.button("💾 Guardar y Publicar Términos y Condiciones", type="primary", key="btn_save_aff_terms_admin"):
+                            if not txt_terms_edit.strip():
+                                st.warning("⚠️ El texto de Términos y Condiciones no puede quedar vacío.")
+                            else:
+                                ok_t, msg_t = save_affiliate_terms_pg(txt_terms_edit, str(st.session_state.current_user or "Owner"))
+                                if ok_t:
+                                    st.success(msg_t)
+                                else:
+                                    st.error(msg_t)
+
+                if is_owner or puede_gestionar_afiliados:
+                    try:
+                        from registro_afiliados import render_formulario_registro_afiliado
+                        render_formulario_registro_afiliado(
+                            registrado_por=st.session_state.current_user,
+                            key_prefix="panel_admin_aff_main",
+                            mostrar_qr_dinamico=True
+                        )
+                    except ModuleNotFoundError:
+                        st.warning("⚠️ Crea el archivo `registro_afiliados.py` en la raíz del proyecto para activar este formulario.")
 
         # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
@@ -6282,6 +6326,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         unsafe_allow_html=True
     )
     st.stop()
+
 
 # ==============================================================================
 # PARTE 15: PROCESAMIENTO Y GENERACIÓN DE LECCIÓN (VALIDACIÓN Y PROMPT GEMINI)
