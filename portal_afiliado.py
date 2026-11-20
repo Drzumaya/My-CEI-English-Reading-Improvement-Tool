@@ -1,7 +1,8 @@
 # ==============================================================================
-# portal_afiliado.py — PARTE 1 DE 2: CONEXIÓN, QR CON ID OFICIAL Y PROYECCIÓN ZOOM
+# portal_afiliado.py — PARTE 1 DE 3: CONEXIÓN, QR CON ID OFICIAL Y PROYECCIÓN ZOOM
 # ==============================================================================
 import base64
+import hashlib
 import io
 import urllib.parse
 import pandas as pd
@@ -15,7 +16,7 @@ if hasattr(st, "iframe"):
         html_str, height=height or 150, width=width or "stretch"
     )
 
-DEFAULT_INSCRIPTION_URL_AFF = "https://streamlit.app"
+DEFAULT_INSCRIPTION_URL_AFF = "https://inscripcioncei.streamlit.app"
 
 
 def _find_secret_portal(key_name: str) -> str:
@@ -119,6 +120,7 @@ def _cargar_perfil_afiliado(usuario_afiliado: str) -> dict:
         except Exception:
             pass
     return perfil
+
 
 # ==============================================================================
 # portal_afiliado.py — PARTE 2 DE 2 (FINAL): PANEL FINANCIERO Y MODO STANDALONE
