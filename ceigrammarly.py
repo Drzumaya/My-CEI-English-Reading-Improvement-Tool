@@ -6631,39 +6631,130 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                     except Exception as e:
                                         st.error(f"Error al evaluar pronunciación: {e}")
 
-                    with tab_rec_video:
+                                       with tab_rec_video:
+                        st.caption("📹 **Cámara Web en Vivo:** Pulsa **🔴 Grabar**, lee el texto de la izquierda, pulsa **⏹️ Detener**, descárgalo y evalúalo con IA:")
+
+                        webcam_recorder_html = """
+                        <div style="background:#0f172a;padding:12px;border-radius:12px;color:#f8fafc;font-family:sans-serif;">
+                          <video id="ceiPreview" autoplay muted playsinline style="width:100%;max-height:240px;border-radius:8px;background:#000;object-fit:cover;"></video>
+                          <video id="ceiPlayback" controls playsinline style="width:100%;max-height:240px;border-radius:8px;background:#000;display:none;margin-top:8px;"></video>
+                          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                            <button id="btnStartVid" style="flex:1;padding:8px 12px;border:none;border-radius:8px;background:#dc2626;color:#fff;font-weight:bold;cursor:pointer;">🔴 Grabar</button>
+                            <button id="btnStopVid" disabled style="flex:1;padding:8px 12px;border:none;border-radius:8px;background:#475569;color:#fff;font-weight:bold;cursor:pointer;">⏹️ Detener</button>
+                            <a id="btnDlVid" style="display:none;flex:1;padding:8px 12px;border-radius:8px;background:#16a34a;color:#fff;font-weight:bold;text-align:center;text-decoration:none;">📥 Descargar Video</a>
+                          </div>
+                          <div id="vidStatus" style="font-size:12px;color:#94a3b8;margin-top:6px;">Listo para activar cámara y micrófono.</div>
+                        </div>
+                        <script>
+                        (function() {
+                          let mediaRecorder;
+                          let recordedChunks = [];
+                          let activeStream = null;
+                          const preview = document.getElementById('ceiPreview');
+                          const playback = document.getElementById('ceiPlayback');
+                          const btnStart = document.getElementById('btnStartVid');
+                          const btnStop = document.getElementById('btnStopVid');
+                          const btnDl = document.getElementById('btnDlVid');
+                          const statusEl = document.getElementById('vidStatus');
+
+                          btnStart.onclick = async () => {
+                            try {
+                              recordedChunks = [];
+                              playback.style.display = 'none';
+                              btnDl.style.display = 'none';
+                              preview.style.display = 'block';
+                              activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                              preview.srcObject = activeStream;
+                              const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+                                ? 'video/webm;codecs=vp8,opus'
+                                : 'video/webm';
+                              mediaRecorder = new MediaRecorder(activeStream, { mimeType });
+                              mediaRecorder.ondataavailable = (e) => {
+                                if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+                              };
+                              mediaRecorder.onstop = () => {
+                                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                                const url = URL.createObjectURL(blob);
+                                preview.style.display = 'none';
+                                playback.src = url;
+                                playback.style.display = 'block';
+                                btnDl.href = url;
+                                btnDl.download = 'CEI_Speaking_Video.webm';
+                                btnDl.style.display = 'inline-block';
+                                statusEl.textContent = '✅ Grabación finalizada. Puedes reproducirla, descargarla o cargarla abajo para calificación con IA.';
+                                if (activeStream) activeStream.getTracks().forEach(t => t.stop());
+                              };
+                              mediaRecorder.start();
+                              btnStart.disabled = true;
+                              btnStop.disabled = false;
+                              btnStop.style.background = '#ea580c';
+                              statusEl.textContent = '🔴 Grabando video y audio en vivo...';
+                            } catch (err) {
+                              statusEl.textContent = '⚠️ Permiso de cámara/micrófono denegado o no disponible: ' + err.message;
+                            }
+                          };
+
+                          btnStop.onclick = () => {
+                            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                              mediaRecorder.stop();
+                              btnStart.disabled = false;
+                              btnStop.disabled = true;
+                              btnStop.style.background = '#475569';
+                            }
+                          };
+                        })();
+                        </script>
+                        """
+                        components.html(webcam_recorder_html, height=345)
+
                         student_video_file = st.file_uploader(
-                            "Subir o grabar video desde cámara (MP4 / WebM):",
-                            type=["mp4", "webm", "mov"],
+                            "📤 Cargar el video recién grabado (CEI_Speaking_Video.webm / MP4) para evaluar con IA:",
+                            type=["webm", "mp4", "mov"],
                             key="vid_in_split_s3"
                         )
                         if student_video_file is not None:
                             raw_vid = student_video_file.getvalue()
                             st.video(raw_vid)
-                            v_mime = student_video_file.type or "video/mp4"
+                            v_mime = student_video_file.type or "video/webm"
                             v_ext = "webm" if "webm" in v_mime else "mp4"
-                            if st.button("🤖 Evaluar Video Oral con IA (25%)", type="primary", key="btn_eval_vid_split_s3", width="stretch"):
-                                with st.spinner("Evaluando desempeño oral en video con IA..."):
-                                    try:
-                                        ev_vid = evaluar_pronunciacion_oral_ia(
-                                            raw_vid, v_mime, st.session_state.generated_text,
-                                            st.session_state.selected_cefr, gramatica_b1
-                                        )
-                                        st.session_state["speaking_eval_result"] = ev_vid
-                                        sc_vpct = float(ev_vid.get("score_percent") or 0.0)
-                                        pts_v25 = round((sc_vpct / 100.0) * 25.0, 2)
-                                        f_code = st.session_state.current_folio or ""
-                                        usr_now = st.session_state.get("current_user") or "Estudiante"
-                                        if f_code:
-                                            public_v, _ = upload_student_media_to_storage(raw_vid, v_mime, v_ext, f_code, usr_now)
-                                            save_student_media_record_pg(
-                                                f_code, usr_now, "video", public_v or "", gramatica_b1,
-                                                st.session_state.selected_cefr, eval_dict=ev_vid
+
+                            cv_act1, cv_act2 = st.columns(2)
+                            with cv_act1:
+                                st.download_button(
+                                    label="📥 Descargar Video",
+                                    data=raw_vid,
+                                    file_name=f"CEI_Video_{st.session_state.current_folio or usuario.replace(' ', '_')}.{v_ext}",
+                                    mime=v_mime,
+                                    type="secondary",
+                                    width="stretch",
+                                    key="btn_dl_vid_split_s3"
+                                )
+                            with cv_act2:
+                                if st.button("🤖 Evaluar Pronunciación con IA (25%)", type="primary", key="btn_eval_vid_split_s3", width="stretch"):
+                                    with st.spinner("Analizando pronunciación, entonación y gramática oral en video con IA..."):
+                                        try:
+                                            ev_vid = evaluar_pronunciacion_oral_ia(
+                                                raw_vid, v_mime, st.session_state.generated_text,
+                                                st.session_state.selected_cefr, gramatica_b1
                                             )
-                                        st.success(f"🏆 **Calificación Oral (Video):** {sc_vpct}% (`{pts_v25} / 25.0 pts`)")
-                                        st.write(f"**🔤 Fonética:** {ev_vid.get('phonetic_feedback', '')}")
-                                    except Exception as e:
-                                        st.error(f"Error al evaluar video: {e}")
+                                            st.session_state["speaking_eval_result"] = ev_vid
+                                            sc_vpct = float(ev_vid.get("score_percent") or 0.0)
+                                            pts_v25 = round((sc_vpct / 100.0) * 25.0, 2)
+                                            f_code = st.session_state.current_folio or ""
+                                            usr_now = st.session_state.get("current_user") or "Estudiante"
+                                            if f_code:
+                                                public_v, _ = upload_student_media_to_storage(raw_vid, v_mime, v_ext, f_code, usr_now)
+                                                save_student_media_record_pg(
+                                                    f_code, usr_now, "video", public_v or "", gramatica_b1,
+                                                    st.session_state.selected_cefr, eval_dict=ev_vid
+                                                )
+                                            st.success(f"🏆 **Calificación Oral (Video):** {sc_vpct}% (`{pts_v25} / 25.0 pts`)")
+                                            st.write(f"**🔤 Fonética:** {ev_vid.get('phonetic_feedback', '')}")
+                                            st.write(f"**🎵 Fluidez:** {ev_vid.get('fluency_prosody', '')}")
+                                            st.write(f"**📐 Gramática:** {ev_vid.get('grammar_accuracy', '')}")
+                                        except Exception as e:
+                                            st.error(f"Error al evaluar video: {e}")
+
 # ==============================================================================
 # PARTE 16 — BLOQUE 2-A: VENTANA MAESTRA 2 (VIDEO ACTIVO + CRONÓMETRO 25%)
 # ==============================================================================
