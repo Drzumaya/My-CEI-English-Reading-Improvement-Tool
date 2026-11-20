@@ -550,12 +550,18 @@ if __name__ == "__main__":
         st.session_state["aff_ext_scan_ts"] = None
         st.session_state["aff_ext_err"] = ""
 
+    # Si se escaneó un token diferente al de la sesión previa, revalidar al instante
+    if q_token and st.session_state.get("aff_ext_token") != q_token:
+        st.session_state["aff_ext_authorized"] = False
+        st.session_state["aff_ext_err"] = ""
+
     if not st.session_state["aff_ext_authorized"]:
         ok_tok, msg_tok = validar_token_qr_7min(q_token)
         if ok_tok:
             st.session_state["aff_ext_authorized"] = True
             st.session_state["aff_ext_token"] = q_token
             st.session_state["aff_ext_scan_ts"] = time.time()
+            st.session_state["aff_ext_err"] = ""
         else:
             st.session_state["aff_ext_err"] = msg_tok
 
@@ -565,7 +571,7 @@ if __name__ == "__main__":
             key_prefix="ext_qr_aff",
             mostrar_qr_dinamico=False,
             token_sesion_externa=st.session_state["aff_ext_token"],
-            tiempo_inicio_escaneo=st.session_state["aff_ext_scan_ts"]
+            tiempo_inicio_escaneo=float(st.session_state["aff_ext_scan_ts"] or time.time())
         )
     else:
         st.markdown("### 🤝 Career English Institute — Auto-Registro de Socios Afiliados")
