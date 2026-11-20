@@ -4546,13 +4546,8 @@ if "show_lesson_creator" not in st.session_state:
 
 col_logo, col_title, col_logout = st.columns([0.9, 4.3, 0.9])
 with col_logo:
-    logo_file = globals().get("logo_path") or (
-        "logo_cei.png" if os.path.exists("logo_cei.png") else (
-            "logo.png" if os.path.exists("logo.png") else None
-        )
-    )
-    if logo_file and os.path.exists(str(logo_file)):
-        st.image(logo_file, width=105)
+    if os.path.exists("LOGO CEI APP.png"):
+        st.image("LOGO CEI APP.png", width=105)
     else:
         st.markdown("## 🎓")
 
