@@ -4907,23 +4907,68 @@ if not tiene_leccion_activa:
                 st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
             st.rerun()
 
-    if st.session_state.get("active_stage_5", "READING") != "PORTAL":
-        abierto_creador = bool(st.session_state.get("show_lesson_creator"))
-        with st.container(border=True):
-            c_edu_gen, c_edu_sep = st.columns([1.2, 2.4])
-            with c_edu_gen:
-                lbl_gen_inner = "✖️ Cerrar Creador de Lección" if abierto_creador else "✨ GENERAR LECCIÓN"
-                if st.button(
-                    lbl_gen_inner,
-                    type="primary",
-                    width="stretch",
-                    key="btn_inside_edu_toggle_creator"
-                ):
-                    st.session_state["show_lesson_creator"] = not abierto_creador
-                    st.session_state["creator_missing_fields"] = []
-                    st.rerun()
-            with c_edu_sep:
-                st.caption("Crea una lección nueva con IA o selecciona abajo una lección guardada por Folio para abrirla.")
+if st.session_state.get("active_stage_5") == "PORTAL":
+    tiene_acceso_admin_portal = (
+        es_admin_o_staff
+        or can("Editar_Terminos_Afiliacion")
+        or can("Gestionar_Comisiones_Afiliados")
+    )
+    lbl_volver_edu = (
+        "🔙 CERRAR Y VOLVER A LA LECCIÓN"
+        if bool(str(st.session_state.get("generated_text") or "").strip())
+        else "🔙 CERRAR Y VOLVER AL PANEL EDUCATIVO"
+    )
+
+    if tiene_acceso_admin_portal or es_socio_afiliado:
+        if es_socio_afiliado:
+            opciones_p_adm = ["🤝 Portal Socio Afiliado"]
+        else:
+            opciones_p_adm = [
+                "💳 Cobranza Mensual e IVA",
+                "📊 Estados Financieros",
+                "🤝 Alta de Socios Afiliados",
+                "🤝 Portal Socio Afiliado",
+                "👥 Inscripción y Padrón",
+                "🔐 Matriz Global de Permisos",
+                "🏅 Certificados (Timbre y QR)",
+                "🏛️ Datos del Instituto",
+                "🔄 Autoactualización de Librerías"
+            ]
+        col_mod_sel, col_mod_back = st.columns([2.5, 1.3])
+        with col_mod_sel:
+            sel_adm = st.selectbox(
+                "Seleccionar módulo institucional:",
+                opciones_p_adm,
+                key="sb_stage5_admin_mod"
+            )
+            st.session_state["active_admin_workspace"] = sel_adm
+        with col_mod_back:
+            st.write("")
+            if st.button(lbl_volver_edu, type="primary", width="stretch", key="btn_global_close_admin_back_lesson"):
+                st.session_state["active_admin_workspace"] = None
+                st.session_state["active_student_workspace"] = None
+                st.session_state["qr_zoom_fullscreen"] = False
+                st.session_state["active_stage_5"] = "READING"
+                st.rerun()
+    else:
+        opciones_p_est = [
+            "💳 Mis Pagos (9 Bloques)",
+            "📊 Mis Calificaciones y Boletín",
+            "📚 Mis Lecciones y Folios",
+            "🎧 Mis Audios y Pronunciación"
+        ]
+        col_est_sel, col_est_back = st.columns([2.5, 1.3])
+        with col_est_sel:
+            sel_est = st.selectbox("Seleccionar herramienta estudiantil:", opciones_p_est, key="sb_stage5_est_mod")
+            st.session_state["active_student_workspace"] = sel_est
+        with col_est_back:
+            st.write("")
+            if st.button(lbl_volver_edu, type="primary", width="stretch", key="btn_global_close_est_back_lesson"):
+                st.session_state["active_student_workspace"] = None
+                st.session_state["active_admin_workspace"] = None
+                st.session_state["active_stage_5"] = "READING"
+                st.rerun()
+
 
 # ==============================================================================
 # PARTE 12B — MITAD 2 DE 2 (FINAL): TARJETA CREADORA CENTRAL Y BOTONES MAESTROS
