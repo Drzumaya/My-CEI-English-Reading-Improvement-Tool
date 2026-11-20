@@ -4639,6 +4639,104 @@ def save_affiliate_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
         except Exception:
             pass
 
+DEFAULT_STUDENT_TERMS_TEXT = """TÉRMINOS, CONDICIONES Y REGLAMENTO ACADÉMICO DE INSCRIPCIÓN
+CAREER ENGLISH INSTITUTE (CEI) — AGUA PRIETA, SONORA, MÉXICO
+
+PRIMERA. NATURALEZA DEL SERVICIO (100% EN LÍNEA) Y MARCO LEGAL APLICABLE.
+Los presentes Términos y Condiciones regulan la prestación de servicios educativos privados de enseñanza del idioma inglés en modalidad 100% en línea (clases en vivo por videoconferencia y plataforma educativa interactiva), impartidos por Career English Institute (CEI), con sede administrativa en Agua Prieta, Sonora, México, de conformidad con la legislación civil, educativa y de protección al consumidor vigente en los Estados Unidos Mexicanos y en el Estado de Sonora.
+
+SEGUNDA. CALIBRACIÓN AL MARCO COMÚN EUROPEO (CEFR).
+Los programas académicos de CEI son flexibles y ajustables al nivel real del estudiante conforme al Marco Común Europeo de Referencia para las Lenguas (CEFR: A1, A2, B1, B2, C1 y C2). Al formalizar su inscripción, la plataforma educativa y todas las lecciones, audios, evaluaciones y ejercicios generados en ella quedarán calibrados automáticamente al nivel CEFR indicado en este formulario, pudiendo ajustarse previa valoración académica.
+
+TERCERA. DURACIÓN DEL PROGRAMA (9 PERIODOS) Y PERIODOS VACACIONALES ACTIVOS.
+1. Estructura del Nivel: Cada nivel académico está estructurado en nueve (9) periodos mensuales de cuatro (4) semanas cada uno.
+2. Periodos Vacacionales Activos (Verano e Invierno): Durante los recesos vacacionales largos de verano e invierno no se imparten clases en vivo en línea; sin embargo, la plataforma educativa permanecerá plenamente activa y disponible las 24 horas para que el estudiante continúe practicando y manteniendo su avance académico.
+3. Conclusión del Nivel: Al finalizar satisfactoriamente los 9 periodos y acreditar la rúbrica correspondiente, el estudiante obtiene su constancia o certificado institucional del nivel cursado.
+
+CUARTA. ASISTENCIA EN LÍNEA, INASISTENCIAS JUSTIFICADAS Y RECUPERACIÓN DE CLASES.
+1. Asistencia del Estudiante y Asignación de Trabajo (Homework): El estudiante se compromete a conectarse puntualmente a sus clases en línea. En caso de requerir ausentarse por causa justificada, deberá avisar con anticipación a la institución o docente para recibir su asignación de trabajo (homework). La entrega y cumplimiento oportuno de dicha asignación será suficiente para dar la clase por dada o satisfecha.
+2. Ausencia del Docente: En caso de que el docente deba ausentarse por causa justificada, se notificará con anticipación al estudiante y, por mutuo acuerdo entre ambas partes, se reprogramará y recuperará íntegramente la clase perdida sin costo adicional.
+
+QUINTA. RÚBRICA DE EVALUACIÓN POR CRITERIOS Y ACCESO AL BOLETÍN.
+1. Evaluación Integral: El estudiante deberá asegurarse de completar en tiempo y forma los criterios de la rúbrica de calificaciones acordes a su nivel (Reading & Quiz 30%, Viewing & Listening 25%, Alphabetical & Speaking 25% y Writing Skill APA 7 20%).
+2. Puntualidad en Mensualidades y Boletín: El estudiante (o su padre/tutor) se compromete a mantenerse al corriente en el pago de sus mensualidades (dentro de la 4ta semana de cada bloque) e informarlo oportunamente en la plataforma para conservar activo su acceso al Boletín Informativo de Calificaciones y avances.
+
+SEXTA. PROTECCIÓN DE DATOS PERSONALES Y JURISDICCIÓN.
+De conformidad con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP), los datos recabados se utilizarán exclusivamente para fines académicos, administrativos y de certificación interna. Para cualquier controversia derivada de la interpretación o cumplimiento de este acuerdo, las partes se someten a las leyes vigentes y a los tribunales competentes de Agua Prieta, Sonora, México."""
+
+
+def get_student_terms_pg() -> dict:
+    """Obtiene los Términos y Condiciones de Inscripción de Estudiantes desde PostgreSQL."""
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return {"texto": DEFAULT_STUDENT_TERMS_TEXT, "updated_by": "Sistema", "updated_at": ""}
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                        clave TEXT PRIMARY KEY,
+                        contenido TEXT NOT NULL,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("SELECT contenido, updated_by, updated_at FROM cei_configuracion_legal WHERE clave = 'terminos_estudiantes';")
+                row = cur.fetchone()
+                if not row:
+                    cur.execute(
+                        "INSERT INTO cei_configuracion_legal (clave, contenido, updated_by) VALUES ('terminos_estudiantes', %s, 'Owner');",
+                        (DEFAULT_STUDENT_TERMS_TEXT,)
+                    )
+                    return {"texto": DEFAULT_STUDENT_TERMS_TEXT, "updated_by": "Owner", "updated_at": ""}
+                return {
+                    "texto": str(row[0] or DEFAULT_STUDENT_TERMS_TEXT),
+                    "updated_by": str(row[1] or ""),
+                    "updated_at": str(row[2] or "")[:19]
+                }
+    except Exception:
+        return {"texto": DEFAULT_STUDENT_TERMS_TEXT, "updated_by": "Sistema", "updated_at": ""}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def save_student_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
+    """Guarda los Términos y Condiciones de Estudiantes editados por el Owner/Admin autorizado."""
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return False, "No hay conexión activa con Supabase PostgreSQL."
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                        clave TEXT PRIMARY KEY,
+                        contenido TEXT NOT NULL,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    INSERT INTO cei_configuracion_legal (clave, contenido, updated_by, updated_at)
+                    VALUES ('terminos_estudiantes', %s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (clave) DO UPDATE SET
+                        contenido = EXCLUDED.contenido,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = CURRENT_TIMESTAMP;
+                """, (nuevo_texto.strip(), autor))
+        return True, "✅ Términos y Condiciones de Estudiantes actualizados y publicados en vivo."
+    except Exception as e:
+        return False, f"Error al guardar términos de estudiantes: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def evaluar_pronunciacion_oral_ia(
     media_bytes: bytes,
     mime_type: str,
