@@ -32,38 +32,55 @@ DEFAULT_AFFILIATE_TERMS_FALLBACK = """TÉRMINOS Y CONDICIONES DEL PROGRAMA DE SO
 def _find_secret(key_name: str) -> str:
     if key_name in st.secrets:
         return str(st.secrets[key_name]).strip()
-    for sec in st.secrets.values():
-        if isinstance(sec, dict) and key_name in sec:
-            return str(sec[key_name]).strip()
+    key_low = key_name.lower()
+    for k, v in st.secrets.items():
+        if str(k).lower() == key_low and not isinstance(v, dict):
+            return str(v).strip()
+        if isinstance(v, dict):
+            for sub_k, sub_v in v.items():
+                if str(sub_k).lower() == key_low:
+                    return str(sub_v).strip()
     return ""
 
 
 def _get_conn_afiliados():
-    pg_host = _find_secret("PG_HOST")
-    pg_user = _find_secret("PG_USER")
-    pg_pass = _find_secret("PG_PASSWORD")
-    pg_port = int(_find_secret("PG_PORT") or 6543)
-    pg_db = _find_secret("PG_DBNAME") or "postgres"
+    pg_host = _find_secret("PG_HOST") or _find_secret("DB_HOST") or _find_secret("HOST")
+    pg_user = _find_secret("PG_USER") or _find_secret("DB_USER") or _find_secret("USER") or _find_secret("USERNAME")
+    pg_pass = _find_secret("PG_PASSWORD") or _find_secret("DB_PASSWORD") or _find_secret("PASSWORD")
+    pg_port = int(_find_secret("PG_PORT") or _find_secret("DB_PORT") or _find_secret("PORT") or 6543)
+    pg_db = _find_secret("PG_DBNAME") or _find_secret("DB_NAME") or _find_secret("DATABASE") or "postgres"
 
     if pg_host and pg_user and pg_pass:
-        return psycopg.connect(
-            host=pg_host,
-            port=pg_port,
-            dbname=pg_db,
-            user=pg_user,
-            password=pg_pass,
-            sslmode="require",
-            prepare_threshold=None
-        )
+        try:
+            return psycopg.connect(
+                host=pg_host,
+                port=pg_port,
+                dbname=pg_db,
+                user=pg_user,
+                password=pg_pass,
+                sslmode="require",
+                connect_timeout=10,
+                prepare_threshold=None
+            )
+        except Exception as e:
+            st.session_state["_aff_db_last_err"] = str(e)
 
-    db_url = _find_secret("SUPABASE_DB_URL") or _find_secret("DATABASE_URL")
-    if not db_url and "postgres" in st.secrets and isinstance(st.secrets["postgres"], dict):
-        db_url = str(st.secrets["postgres"].get("url", "")).strip()
-    if not db_url:
-        return None
-    if "sslmode=" not in db_url:
-        db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
-    return psycopg.connect(db_url, prepare_threshold=None)
+    db_url = (
+        _find_secret("SUPABASE_DB_URL")
+        or _find_secret("DATABASE_URL")
+        or _find_secret("POSTGRES_URL")
+        or _find_secret("DB_URL")
+        or _find_secret("URL")
+    )
+    if db_url and db_url.startswith("postgres"):
+        if "sslmode=" not in db_url:
+            db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
+        try:
+            return psycopg.connect(db_url, connect_timeout=10, prepare_threshold=None)
+        except Exception as e:
+            st.session_state["_aff_db_last_err"] = str(e)
+    return None
+
 
 
 def obtener_terminos_afiliacion_pg() -> dict:
