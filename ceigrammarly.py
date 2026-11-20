@@ -6854,63 +6854,166 @@ if has_lesson_now and stage_5_now != "PORTAL":
                 watched_st = int(st.session_state.get("video_watched_sec") or 0)
                 v_sc_st = float(st.session_state.get("video_score_100") or 0.0)
                 pts_v_st = round((v_sc_st / 100.0) * 25.0, 2)
+                folio_vid_key = str(st.session_state.current_folio or "DEFAULT")
 
                 st.write(f"**📺 Video Activo:** {titulo_st_safe}")
                 st.caption(
-                    f"Canal: *{vid_stage.get('channel', 'YouTube')}*  |  Duración: **`{dur_min_st} min`**  |  "
-                    f"Acreditado (25%): **`{pts_v_st} / 25.0 pts`** (`{round(v_sc_st, 1)}%`)"
+                    f"Canal: *{vid_stage.get('channel', 'YouTube')}*  |  Duración oficial: **`{dur_min_st} min`**  |  "
+                    f"Acreditado en Boletín (25%): **`{pts_v_st} / 25.0 pts`** (`{round(v_sc_st, 1)}%`)"
                 )
 
-                v_watch_url = "https://www.youtube.com" + "/watch?v=" + vid_id_st
-                v_mirror_url = "https://yewtu.be" + "/embed/" + vid_id_st
+                v_watch_url = "https://youtube.com" + "/watch?v=" + vid_id_st
 
-                modo_motor_vid = st.radio(
-                    "Motor de reproducción:",
-                    ["🎥 Reproductor Oficial Streamlit (HD)", "🌐 Espejo Educativo (Invidious)", "🔗 Abrir en YouTube"],
-                    horizontal=True,
-                    key="radio_dual_video_engine"
-                )
+                # REPRODUCTOR OFICIAL YOUTUBE API + REGLA VISUAL AUTOMÁTICA SINCRONIZADA
+                yt_ruler_html = f"""
+                <div style="font-family:sans-serif;background:#0f172a;padding:12px;border-radius:12px;color:#f8fafc;">
+                  <div id="ceiYtPlayer" style="width:100%;height:360px;border-radius:8px;overflow:hidden;background:#000;"></div>
 
-                if modo_motor_vid == "🎥 Reproductor Oficial Streamlit (HD)":
-                    st.video(v_watch_url)
-                elif modo_motor_vid == "🌐 Espejo Educativo (Invidious)":
-                    mirror_iframe = (
-                        f'<iframe width="100%" height="390" src="{v_mirror_url}" '
-                        f'frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" '
-                        f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
+                  <!-- REGLA VISUAL GRADUADA EN TIEMPO REAL -->
+                  <div style="margin-top:12px;background:#1e293b;padding:10px 12px;border-radius:10px;border:1px solid #334155;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:6px;">
+                      <span id="rulerStateBadge" style="font-weight:bold;color:#38bdf8;">⏸️ En espera (Pulsa Play en el video)</span>
+                      <span id="rulerTimeText" style="font-family:monospace;font-size:14px;font-weight:bold;color:#f8fafc;">00:00 / 00:00 (0%)</span>
+                    </div>
+
+                    <!-- Barra de progreso sobre regla -->
+                    <div style="position:relative;width:100%;height:18px;background:#0f172a;border-radius:9px;overflow:hidden;border:1px solid #475569;">
+                      <div id="rulerFillBar" style="width:0%;height:100%;background:linear-gradient(90deg,#0284c7,#22c55e);transition:width 0.3s ease;"></div>
+                    </div>
+
+                    <!-- Marcas de graduación de la regla -->
+                    <div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;margin-top:4px;font-family:monospace;">
+                      <span>0% (0 pts)</span>
+                      <span>25% (6.25 pts)</span>
+                      <span>50% (12.5 pts)</span>
+                      <span>75% (18.75 pts)</span>
+                      <span>100% (25.0 pts)</span>
+                    </div>
+
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;">
+                      <span style="color:#cbd5e1;">⏱️ Tiempo efectivo acumulado al ritmo del video:</span>
+                      <span id="rulerPointsBadge" style="font-weight:bold;color:#4ade80;font-size:14px;">0.00 / 25.00 pts</span>
+                    </div>
+                  </div>
+                </div>
+
+                <script src="https://youtube.com/iframe_api"></script>
+                <script>
+                  (function() {{
+                    const storageKey = "cei_vid_sec_{folio_vid_key}_{vid_id_st}";
+                    let watchedSeconds = Math.max({watched_st}, parseInt(localStorage.getItem(storageKey) || "0", 10));
+                    let totalDuration = {dur_sec_st};
+                    let player = null;
+                    let tickInterval = null;
+
+                    function fmtTime(sec) {{
+                      sec = Math.max(0, Math.floor(sec));
+                      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+                      const s = String(sec % 60).padStart(2, '0');
+                      return m + ":" + s;
+                    }}
+
+                    function renderRuler() {{
+                      const effectiveSec = Math.min(totalDuration, watchedSeconds);
+                      const pct = totalDuration > 0 ? Math.min(100, (effectiveSec / totalDuration) * 100) : 0;
+                      const pts = ((pct / 100) * 25.0).toFixed(2);
+                      document.getElementById("rulerFillBar").style.width = pct.toFixed(1) + "%";
+                      document.getElementById("rulerTimeText").textContent =
+                        fmtTime(effectiveSec) + " / " + fmtTime(totalDuration) + " (" + pct.toFixed(1) + "%)";
+                      document.getElementById("rulerPointsBadge").textContent = pts + " / 25.00 pts";
+                      localStorage.setItem(storageKey, String(Math.floor(effectiveSec)));
+                    }}
+
+                    function startTick() {{
+                      if (tickInterval) return;
+                      tickInterval = setInterval(() => {{
+                        if (player && typeof player.getPlayerState === "function" && player.getPlayerState() === 1) {{
+                          const realDur = player.getDuration();
+                          if (realDur && realDur > 10) totalDuration = Math.floor(realDur);
+                          const currPos = Math.floor(player.getCurrentTime() || 0);
+                          watchedSeconds = Math.max(watchedSeconds + 1, currPos);
+                          if (watchedSeconds >= totalDuration - 2) {{
+                            watchedSeconds = totalDuration;
+                          }}
+                          renderRuler();
+                        }}
+                      }}, 1000);
+                    }}
+
+                    function stopTick() {{
+                      if (tickInterval) {{
+                        clearInterval(tickInterval);
+                        tickInterval = null;
+                      }}
+                    }}
+
+                    window.onYouTubeIframeAPIReady = function() {{
+                      player = new YT.Player('ceiYtPlayer', {{
+                        videoId: '{vid_id_st}',
+                        playerVars: {{ rel: 0, modestbranding: 1 }},
+                        events: {{
+                          onReady: function(e) {{
+                            const d = e.target.getDuration();
+                            if (d && d > 10) totalDuration = Math.floor(d);
+                            renderRuler();
+                          }},
+                          onStateChange: function(e) {{
+                            const badge = document.getElementById("rulerStateBadge");
+                            if (e.data === 1) {{
+                              badge.textContent = "▶️ Reproduciendo — Regla sincronizada activa";
+                              badge.style.color = "#4ade80";
+                              startTick();
+                            }} else if (e.data === 2) {{
+                              badge.textContent = "⏸️ Video pausado — Conteo detenido";
+                              badge.style.color = "#facc15";
+                              stopTick();
+                              renderRuler();
+                            }} else if (e.data === 0) {{
+                              watchedSeconds = totalDuration;
+                              badge.textContent = "✅ Video completado al 100% (25.0 / 25.0 pts)";
+                              badge.style.color = "#4ade80";
+                              stopTick();
+                              renderRuler();
+                            }}
+                          }}
+                        }}
+                      }});
+                    }};
+
+                    if (window.YT && window.YT.Player) {{
+                      window.onYouTubeIframeAPIReady();
+                    }}
+                    renderRuler();
+                  }})();
+                </script>
+                """
+                components.html(yt_ruler_html, height=495)
+
+                # SINCRONIZACIÓN FINAL DE LOS MINUTOS COMPLETOS AL BOLETÍN (25%)
+                c_sync1, c_sync2 = st.columns([1.4, 1.0])
+                with c_sync1:
+                    min_leidos_manual = st.number_input(
+                        "⏱️ Minutos marcados en la regla superior (para guardar en Boletín):",
+                        min_value=0.0,
+                        max_value=float(dur_min_st),
+                        value=float(round(watched_st / 60.0, 2)),
+                        step=0.25,
+                        key="num_sync_video_minutes"
                     )
-                    components.html(mirror_iframe, height=400)
-                else:
-                    st.link_button("▶️ Abrir Video Directamente en YouTube", url=v_watch_url, type="primary", width="stretch")
-
-
-                st_c1, st_c2, st_c3 = st.columns(3)
-                st_c1.metric("Duración", f"{dur_min_st} min")
-                st_c2.metric("Visto", f"{round(watched_st / 60.0, 2)} min")
-                st_c3.metric("Puntos (25%)", f"{pts_v_st} / 25")
-
-                b_st1, b_st2 = st.columns(2)
-                with b_st1:
-                    if st.button("▶️ Iniciar Cronómetro", key="btn_stage_start_timer", width="stretch"):
-                        st.session_state["video_watch_started_ts"] = time.time()
-                        st.toast("⏱️ Cronómetro iniciado.")
-                with b_st2:
-                    if st.button("✅ Registrar Minutos (25%)", type="primary", key="btn_stage_save_timer", width="stretch"):
-                        t_ini = st.session_state.get("video_watch_started_ts")
-                        if t_ini:
-                            transcurrido = int(time.time() - float(t_ini))
-                            nuevo_w = min(dur_sec_st, max(watched_st, transcurrido))
-                            st.session_state["video_watch_started_ts"] = None
-                        else:
+                with c_sync2:
+                    st.write("")
+                    if st.button("✅ Guardar Progreso en Boletín (25%)", type="primary", key="btn_stage_save_timer", width="stretch"):
+                        nuevo_w = min(dur_sec_st, int(round(min_leidos_manual * 60)))
+                        if nuevo_w >= dur_sec_st - 5:
                             nuevo_w = dur_sec_st
-
                         nuevo_sc = min(100.0, round((nuevo_w / float(dur_sec_st)) * 100.0, 1))
                         st.session_state["video_watched_sec"] = nuevo_w
                         st.session_state["video_score_100"] = nuevo_sc
                         if st.session_state.current_folio:
                             save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
-                        st.success(f"✅ Acreditado: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25 pts).")
+                        st.success(f"✅ Acreditado en Boletín: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25.0 pts).")
                         st.rerun()
+                        st.link_button("🔗 Si tu red restringe YouTube, abrir video externamente", url=v_watch_url, width="stretch")
 
 # ==============================================================================
 # PARTE 16 — BLOQUE 2-B (FINAL): PANEL DERECHO DE WRITING SKILL (20%)
