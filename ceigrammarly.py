@@ -7464,6 +7464,36 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     pts_w_c = round((s_sc_c / 100.0) * 20.0, 2)
                     st.caption(f"**Resumen (120–125 palabras) + Cita APA 7 — Valor: 20% (`{pts_w_c} / 20.0 pts`)**")
 
+                    font_opts_w = {
+                        "Normal (16 px)": 16,
+                        "Mediana (19 px)": 19,
+                        "Grande (22 px)": 22,
+                        "Extra Grande (26 px)": 26
+                    }
+                    lista_fw = list(font_opts_w.keys())
+                    sel_prev_f = st.session_state.get("sb_lesson_font_size", "Normal (16 px)")
+                    idx_fw = lista_fw.index(sel_prev_f) if sel_prev_f in lista_fw else 0
+
+                    sel_fw = st.selectbox(
+                        "🔠 Tamaño de letra del Resumen:",
+                        lista_fw,
+                        index=idx_fw,
+                        key="sb_writing_font_size"
+                    )
+                    w_px = font_opts_w[sel_fw]
+                    st.markdown(
+                        f"""
+                        <style>
+                        textarea[aria-label*="summary"],
+                        textarea[aria-label*="APA"] {{
+                            font-size: {w_px}px !important;
+                            line-height: 1.6 !important;
+                        }}
+                        </style>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
                     res_central = st.text_area(
                         "Write your English summary while watching the video (strictly 120 to 125 words):",
                         value=st.session_state.get("video_summary_draft", ""),
@@ -7478,9 +7508,10 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(debe contener 120–125 palabras)*.")
 
                     vid_ref_c = st.session_state.get("current_lesson_video") or {}
+                    url_vid_apa = str(vid_ref_c.get("url") or "https://youtube.com")
                     ej_apa_c = (
                         f"{vid_ref_c.get('channel', 'Author/Channel')}. ({str(vid_ref_c.get('published_date', '2026'))[:4]}). "
-                        f"{vid_ref_c.get('title', 'Title of the video')} [Video]. YouTube. {vid_ref_c.get('url', 'https://youtube.com...')}"
+                        f"{vid_ref_c.get('title', 'Title of the video')} [Video]. YouTube. {url_vid_apa}"
                     )
                     apa_central = st.text_area(
                         "📚 Referencia Bibliográfica en Formato APA 7:",
