@@ -1,210 +1,281 @@
 # ==============================================================================
-# portal_afiliado.py — PARTE 1 DE 3: CONEXIÓN Y CONSULTAS POSTGRESQL
+# portal_afiliado.py — PARTE 1 DE 2: CONEXIÓN, QR CON ID OFICIAL Y PROYECCIÓN ZOOM
 # ==============================================================================
-import hashlib
+import base64
+import io
+import urllib.parse
 import pandas as pd
 import psycopg
-from psycopg.rows import dict_row
+import qrcode
 import streamlit as st
+import streamlit.components.v1 as components
+
+if hasattr(st, "iframe"):
+    components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
+        html_str, height=height or 150, width=width or "stretch"
+    )
+
+DEFAULT_INSCRIPTION_URL_AFF = "https://streamlit.app"
 
 
-def _find_secret(key_name: str) -> str:
+def _find_secret_portal(key_name: str) -> str:
     if key_name in st.secrets:
         return str(st.secrets[key_name]).strip()
-    for sec in st.secrets.values():
-        if isinstance(sec, dict) and key_name in sec:
-            return str(sec[key_name]).strip()
+    key_low = key_name.lower()
+    for k, v in st.secrets.items():
+        if str(k).lower() == key_low and not isinstance(v, dict):
+            return str(v).strip()
+        if isinstance(v, dict):
+            for sub_k, sub_v in v.items():
+                if str(sub_k).lower() == key_low:
+                    return str(sub_v).strip()
     return ""
 
 
 def _get_conn_portal():
-    pg_host = _find_secret("PG_HOST")
-    pg_user = _find_secret("PG_USER")
-    pg_pass = _find_secret("PG_PASSWORD")
-    pg_port = int(_find_secret("PG_PORT") or 6543)
-    pg_db = _find_secret("PG_DBNAME") or "postgres"
+    pg_host = _find_secret_portal("PG_HOST") or _find_secret_portal("DB_HOST") or _find_secret_portal("HOST")
+    pg_user = _find_secret_portal("PG_USER") or _find_secret_portal("DB_USER") or _find_secret_portal("USER")
+    pg_pass = _find_secret_portal("PG_PASSWORD") or _find_secret_portal("DB_PASSWORD") or _find_secret_portal("PASSWORD")
+    pg_port = int(_find_secret_portal("PG_PORT") or _find_secret_portal("DB_PORT") or 6543)
+    pg_db = _find_secret_portal("PG_DBNAME") or _find_secret_portal("DB_NAME") or "postgres"
 
     if pg_host and pg_user and pg_pass:
         return psycopg.connect(
-            host=pg_host,
-            port=pg_port,
-            dbname=pg_db,
-            user=pg_user,
-            password=pg_pass,
-            sslmode="require",
-            prepare_threshold=None
+            host=pg_host, port=pg_port, dbname=pg_db,
+            user=pg_user, password=pg_pass, sslmode="require",
+            connect_timeout=10, prepare_threshold=None
         )
-
-    db_url = _find_secret("SUPABASE_DB_URL") or _find_secret("DATABASE_URL")
-    if not db_url and "postgres" in st.secrets and isinstance(st.secrets["postgres"], dict):
-        db_url = str(st.secrets["postgres"].get("url", "")).strip()
-    if not db_url:
-        return None
-    if "sslmode=" not in db_url:
-        db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
-    return psycopg.connect(db_url, prepare_threshold=None)
+    db_url = _find_secret_portal("SUPABASE_DB_URL") or _find_secret_portal("DATABASE_URL")
+    if db_url and db_url.startswith("postgres"):
+        if "sslmode=" not in db_url:
+            db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
+        return psycopg.connect(db_url, connect_timeout=10, prepare_threshold=None)
+    return None
 
 
-def render_portal_socio_afiliado(affiliate_user: str):
-    """Panel completo del Socio Afiliado: alumnos inscritos, comisiones cobradas/por cobrar y calculadora."""
+def _obtener_url_inscripcion_vigente() -> str:
+    """Lee la URL oficial de inscripción publicada por Owner/Admin en Supabase."""
+    fallback = str(_find_secret_portal("STUDENT_INSCRIPTION_URL") or DEFAULT_INSCRIPTION_URL_AFF).strip().rstrip("/")
     conn = _get_conn_portal()
     if not conn:
-        st.error("❌ Sin conexión activa a Supabase PostgreSQL.")
-        return
-
-    perfil = None
-    estudiantes = []
-    comisiones = []
-
+        return fallback
     try:
-        with conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                try:
-                    cur.execute(
-                        "SELECT * FROM affiliate_partners WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s)) LIMIT 1;",
-                        (affiliate_user,)
-                    )
-                    perfil = cur.fetchone()
-                except Exception:
-                    conn.rollback()
-                    perfil = None
-
-                cur.execute("""
-                    SELECT usuario AS "Estudiante",
-                           COALESCE(nivel_cefr, 'B1') AS "Nivel CEFR",
-                           fecha_inicio_curso AS "Fecha Inicio",
-                           COALESCE(mensualidad_base, 1500.0) AS "Mensualidad Base ($)",
-                           COALESCE(aplicar_iva, FALSE) AS "Con IVA",
-                           COALESCE(porcentaje_comision, 0.0) AS "Comisión Asignada (%)",
-                           COALESCE(estatus, 'Activo') AS "Estatus Alumno"
-                    FROM users_padron
-                    WHERE LOWER(TRIM(afiliado_usuario)) = LOWER(TRIM(%s))
-                       OR afiliador_id = (
-                           SELECT id FROM users_padron
-                           WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s))
-                           LIMIT 1
-                       )
-                    ORDER BY usuario ASC;
-                """, (affiliate_user, affiliate_user))
-                estudiantes = [dict(r) for r in cur.fetchall()]
-
-                cur.execute("""
-                    SELECT student_user AS "Estudiante",
-                           ciclo_numero AS "Ciclo",
-                           monto_pagado AS "Monto Pagado ($)",
-                           porcentaje_aplicado AS "Comisión (%)",
-                           comision_ganada AS "Comisión ($)",
-                           estatus_pago_comision AS "Estatus",
-                           TO_CHAR(created_at AT TIME ZONE 'America/Hermosillo', 'YYYY-MM-DD') AS "Fecha Registro"
-                    FROM affiliate_commissions
-                    WHERE LOWER(TRIM(affiliate_user)) = LOWER(TRIM(%s))
-                    ORDER BY created_at DESC;
-                """, (affiliate_user,))
-                comisiones = [dict(r) for r in cur.fetchall()]
+        with conn.cursor() as cur:
+            cur.execute("SELECT contenido FROM cei_configuracion_legal WHERE clave = 'url_inscripcion_estudiantes' LIMIT 1;")
+            row = cur.fetchone()
+            if row and str(row[0] or "").strip():
+                return str(row[0]).strip().rstrip("/")
+    except Exception:
+        pass
     finally:
         try:
             conn.close()
         except Exception:
             pass
-# ==============================================================================
-# portal_afiliado.py — PARTE 2 DE 3: MÉTRICAS Y PESTAÑAS DEL PORTAL
-# ==============================================================================
-    pct_asignado = (
-        float(perfil["porcentaje_default"])
-        if perfil and perfil.get("porcentaje_default") is not None
-        else (float(estudiantes["Comisión Asignada (%)"]) if estudiantes else 10.0)
-    )
-    total_cobradas = round(
-        sum(float(c["Comisión ($)"]) for c in comisiones if str(c["Estatus"]).lower() in ["pagado", "cobrada", "liquidado"]),
-        2
-    )
-    total_por_cobrar = round(
-        sum(float(c["Comisión ($)"]) for c in comisiones if str(c["Estatus"]).lower() not in ["pagado", "cobrada", "liquidado"]),
-        2
-    )
-    total_historico = round(total_cobradas + total_por_cobrar, 2)
+    return fallback
 
-    st.markdown(f"## 🤝 Portal Oficial del Socio Afiliado: `{affiliate_user}`")
-    if perfil:
-        st.caption(
-            f"**Titular:** {perfil.get('nombre', '')} {perfil.get('apellido_paterno', '')} {perfil.get('apellido_materno', '')}  |  "
-            f"**Estatus:** `{perfil.get('estatus', 'Activo')}`  |  **Ingreso:** `{perfil.get('fecha_ingreso', '')}`  |  "
-            f"**Comisión Base Asignada:** `{pct_asignado:.2f}%`"
+
+def _cargar_perfil_afiliado(usuario_afiliado: str) -> dict:
+    """Obtiene el expediente e ID oficial del Socio Afiliado desde affiliate_partners."""
+    u_clean = str(usuario_afiliado or "").strip()
+    perfil = {
+        "affiliate_id": u_clean,
+        "usuario_login": u_clean,
+        "nombre_completo": u_clean,
+        "rfc": "",
+        "estatus": "Activo",
+        "porcentaje": 0.0
+    }
+    conn = _get_conn_portal()
+    if not conn:
+        return perfil
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COALESCE(NULLIF(TRIM(affiliate_id), ''), usuario_login),
+                       usuario_login,
+                       COALESCE(NULLIF(TRIM(nombre || ' ' || apellido_paterno), ''), usuario_login),
+                       COALESCE(rfc, ''),
+                       COALESCE(estatus, 'Activo'),
+                       COALESCE(porcentaje_default, 0.0)
+                FROM affiliate_partners
+                WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
+                   OR LOWER(TRIM(affiliate_id)) = LOWER(TRIM(%s))
+                LIMIT 1;
+            """, (u_clean, u_clean))
+            row = cur.fetchone()
+            if row:
+                perfil["affiliate_id"] = str(row[0]).strip()
+                perfil["usuario_login"] = str(row[1]).strip()
+                perfil["nombre_completo"] = str(row[2]).strip()
+                perfil["rfc"] = str(row[3]).strip()
+                perfil["estatus"] = str(row[4]).strip()
+                perfil["porcentaje"] = float(row[5] or 0.0)
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return perfil
+
+# ==============================================================================
+# portal_afiliado.py — PARTE 2 DE 2 (FINAL): PANEL FINANCIERO Y MODO STANDALONE
+# ==============================================================================
+def render_portal_socio_afiliado(usuario_afiliado: str):
+    """Renderiza el Portal del Socio Afiliado con QR oficial, métricas, alumnos y comisiones."""
+    perfil = _cargar_perfil_afiliado(usuario_afiliado)
+    aff_id_oficial = perfil["affiliate_id"]
+    aff_login = perfil["usuario_login"]
+    aff_nombre = perfil["nombre_completo"]
+    url_base_ins = _obtener_url_inscripcion_vigente()
+    url_qr_referido = f"{url_base_ins}/?ref_aff={urllib.parse.quote(aff_id_oficial)}"
+
+    buf_qr = io.BytesIO()
+    qrcode.make(url_qr_referido).save(buf_qr, format="PNG")
+    qr_bytes = buf_qr.getvalue()
+    zoom_key = f"portal_standalone_qr_zoom_{aff_id_oficial}"
+
+    # MODO PROYECCIÓN CENTRAL EN ZOOM (OCULTA TODA LA VENTANA AL DOBLE CLIC)
+    if st.session_state.get(zoom_key, False):
+        st.markdown(
+            "<div style='text-align:center; padding-top:10px;'>"
+            "<h2>📲 Escanea para Inscribirte en Career English Institute (CEI)</h2>"
+            "</div>",
+            unsafe_allow_html=True
         )
+        _, col_ctr, _ = st.columns([1.0, 1.4, 1.0])
+        with col_ctr:
+            st.image(qr_bytes, width=420)
+            st.info(
+                f"🤝 **Socio Afiliado Anfitrión:** {aff_nombre}\n\n"
+                f"🆔 **ID Oficial Ligado al QR:** `{aff_id_oficial}`\n\n"
+                f"🔗 `{url_qr_referido}`"
+            )
+            if st.button("✖️ CERRAR QR", type="primary", width="stretch", key=f"btn_close_fs_{aff_id_oficial}"):
+                st.session_state[zoom_key] = False
+                st.rerun()
+        st.stop()
+
+    # FICHA FISCAL Y DE COMISIÓN VIGENTE
+    st.info(
+        f"🤝 **Socio Afiliado:** {aff_nombre}  |  🆔 **ID Oficial:** `{aff_id_oficial}`  |  "
+        f"🧾 **RFC:** `{perfil['rfc'] or 'Pendiente'}`  |  💼 **Comisión Asignada:** **`{perfil['porcentaje']:.1f}%`**\n\n"
+        "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) de honorarios/comisiones dentro de los primeros 5 días hábiles del mes siguiente.*"
+    )
+
+    # TARJETA DE CÓDIGO QR OFICIAL PARA INVITAR ESTUDIANTES
+    with st.container(border=True):
+        c_q1, c_q2 = st.columns([1.1, 2.4])
+        with c_q1:
+            qr_b64 = base64.b64encode(qr_bytes).decode("ascii")
+            if st.button("🖥️ Ampliar QR", key=f"btn_trig_dbl_{aff_id_oficial}", width="stretch"):
+                st.session_state[zoom_key] = True
+                st.rerun()
+
+            components.html(
+                f"""
+                <div style="text-align:center;font-family:sans-serif;cursor:pointer;"
+                     ondblclick="
+                       const btns = window.parent.document.querySelectorAll('button');
+                       for (const b of btns) {{
+                         if (b.innerText && b.innerText.includes('Ampliar QR')) {{
+                           b.click();
+                           break;
+                         }}
+                       }}
+                     "
+                     title="Haz doble clic sobre el QR para abrirlo en el centro">
+                  <img src="data:image/png;base64,{qr_b64}" style="width:155px;height:155px;border-radius:10px;border:2px solid #0284c7;" />
+                  <div style="font-size:11px;color:#0284c7;font-weight:bold;margin-top:4px;">🖱️ Doble clic en el QR para proyectar</div>
+                </div>
+                """,
+                height=190
+            )
+        with c_q2:
+            st.markdown("#### 📲 Tu Código QR Oficial de Inscripción de Alumnos")
+            st.caption(
+                "Muestra este código QR en tus **reuniones de Zoom** o descárgalo para enviarlo por WhatsApp. "
+                "Al escanearlo, el formulario mostrará automáticamente tu **ID Oficial (`" + aff_id_oficial + "`)**."
+            )
+            st.code(url_qr_referido, language=None)
+            b1, b2 = st.columns(2)
+            with b1:
+                st.download_button(
+                    "⬇️ Descargar QR Inscripción (PNG)",
+                    data=qr_bytes,
+                    file_name=f"QR_Inscripcion_CEI_{aff_id_oficial}.png",
+                    mime="image/png",
+                    type="primary",
+                    width="stretch",
+                    key=f"btn_dl_qr_{aff_id_oficial}"
+                )
+            with b2:
+                if st.button("🖥️ Proyectar QR en Centro", type="secondary", width="stretch", key=f"btn_open_fs_{aff_id_oficial}"):
+                    st.session_state[zoom_key] = True
+                    st.rerun()
+
+    # CONSULTA DE ESTUDIANTES REFERIDOS Y COMISIONES EN POSTGRESQL
+    conn = _get_conn_portal()
+    estudiantes_rows = []
+    comisiones_rows = []
+    if conn:
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COALESCE(matricula, ''), usuario, COALESCE(nivel, 'A1'),
+                           COALESCE(estatus, 'Activo'), COALESCE(fecha_inscripcion::text, '')
+                    FROM users_padron
+                    WHERE LOWER(TRIM(COALESCE(socio_afiliado, ''))) IN (LOWER(TRIM(%s)), LOWER(TRIM(%s)))
+                    ORDER BY id DESC;
+                """, (aff_login, aff_id_oficial))
+                estudiantes_rows = cur.fetchall()
+
+                cur.execute("""
+                    SELECT COALESCE(student_user, ''), COALESCE(monto_base, 0),
+                           COALESCE(porcentaje, 0), COALESCE(monto_comision, 0),
+                           COALESCE(estatus_pago, 'Pendiente'), COALESCE(fecha_registro::text, '')
+                    FROM affiliate_commissions
+                    WHERE LOWER(TRIM(COALESCE(affiliate_user, ''))) IN (LOWER(TRIM(%s)), LOWER(TRIM(%s)))
+                    ORDER BY id DESC;
+                """, (aff_login, aff_id_oficial))
+                comisiones_rows = cur.fetchall()
+        except Exception:
+            pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    total_ganado = sum(float(r[3] or 0.0) for r in comisiones_rows)
+    total_pagado = sum(float(r[3] or 0.0) for r in comisiones_rows if str(r[4]).strip().lower() == "pagado")
+    total_pendiente = max(0.0, total_ganado - total_pagado)
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("🎓 Estudiantes Inscritos", len(estudiantes))
-    m2.metric("⏳ Comisiones Por Cobrar", f"${total_por_cobrar:,.2f} MXN")
-    m3.metric("✅ Comisiones Cobradas", f"${total_cobradas:,.2f} MXN")
-    m4.metric("💰 Acumulado Histórico", f"${total_historico:,.2f} MXN")
+    m1.metric("🎓 Alumnos Referidos", f"{len(estudiantes_rows)}")
+    m2.metric("💰 Total Comisiones", f"${total_ganado:,.2f} MXN")
+    m3.metric("⏳ Pendiente de Cobro", f"${total_pendiente:,.2f} MXN")
+    m4.metric("✅ Ya Liquidado", f"${total_pagado:,.2f} MXN")
 
-    st.divider()
-    tab_est, tab_com, tab_calc = st.tabs([
-        "🎓 Mis Estudiantes Inscritos",
-        "💵 Estado de Comisiones (Cobradas / Por Cobrar)",
-        "🧮 Calculadora de Proyección de Comisiones"
-    ])
-
-    with tab_est:
-        if estudiantes:
-            st.dataframe(pd.DataFrame(estudiantes), width="stretch", hide_index=True)
-        else:
-            st.info("Aún no tienes estudiantes inscritos bajo tu código de afiliado.")
-
-    with tab_com:
-        if comisiones:
-            df_c = pd.DataFrame(comisiones)
-            filtro_st = st.radio(
-                "Filtrar por estatus:",
-                ["Todas", "Por Cobrar (Pendiente)", "Cobradas (Pagado)"],
-                horizontal=True,
-                key=f"rad_com_st_{affiliate_user}"
-            )
-            if filtro_st == "Por Cobrar (Pendiente)":
-                df_c = df_c[df_c["Estatus"].str.lower() == "pendiente"]
-            elif filtro_st == "Cobradas (Pagado)":
-                df_c = df_c[df_c["Estatus"].str.lower() != "pendiente"]
-            st.dataframe(df_c, width="stretch", hide_index=True)
-        else:
-            st.info("Aún no hay movimientos de comisiones registrados.")
-
-    with tab_calc:
-        st.markdown("#### 🧮 Simulador de Ingresos por Estudiantes Inscritos")
-        st.caption("Calcula tus comisiones proyectadas con base en tu porcentaje asignado por el instituto y la mensualidad vigente.")
-        cc1, cc2, cc3 = st.columns(3)
-        cant_alumnos = cc1.number_input(
-            "Cantidad de Estudiantes Inscritos:",
-            min_value=1,
-            max_value=500,
-            value=max(1, len(estudiantes)),
-            step=1,
-            key=f"num_cant_al_{affiliate_user}"
+    if estudiantes_rows:
+        st.markdown("##### 🎓 Estudiantes Inscritos con tu Código / QR")
+        df_est = pd.DataFrame(
+            estudiantes_rows,
+            columns=["Matrícula", "Estudiante", "Nivel CEFR", "Estatus", "Fecha Inscripción"]
         )
-        mensualidad_vig = cc2.number_input(
-            "Mensualidad Vigente por Estudiante ($ MXN):",
-            min_value=100.0,
-            value=1500.0,
-            step=100.0,
-            key=f"num_mens_vig_{affiliate_user}"
-        )
-        pct_sim = cc3.number_input(
-            "Tu Porcentaje Asignado (%):",
-            min_value=0.0,
-            max_value=100.0,
-            value=pct_asignado,
-            step=0.5,
-            disabled=True,
-            key=f"num_pct_sim_{affiliate_user}"
-        )
+        st.dataframe(df_est, width="stretch", hide_index=True)
 
-        comision_por_alumno = round(mensualidad_vig * (pct_sim / 100.0), 2)
-        ingreso_mensual_est = round(comision_por_alumno * cant_alumnos, 2)
-        ingreso_semestral_est = round(ingreso_mensual_est * 6, 2)
+    if comisiones_rows:
+        st.markdown("##### 💵 Detalle de Comisiones Generadas")
+        df_com = pd.DataFrame(
+            comisiones_rows,
+            columns=["Estudiante", "Monto Base ($)", "% Comisión", "Comisión ($ MXN)", "Estatus Pago", "Fecha"]
+        )
+        st.dataframe(df_com, width="stretch", hide_index=True)
 
-        r1, r2, r3 = st.columns(3)
-        r1.metric("💵 Comisión por Estudiante / Mes", f"${comision_por_alumno:,.2f} MXN")
-        r2.metric("📅 Proyección Mensual Total", f"${ingreso_mensual_est:,.2f} MXN")
-        r3.metric("🏆 Proyección Semestral (6 Meses)", f"${ingreso_semestral_est:,.2f} MXN")
+
 # ==============================================================================
 # portal_afiliado.py — PARTE 3 DE 3 (FINAL): MODO INDEPENDIENTE (STANDALONE)
 # ==============================================================================
