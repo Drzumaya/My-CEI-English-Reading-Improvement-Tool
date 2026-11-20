@@ -4639,6 +4639,64 @@ def save_affiliate_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
         except Exception:
             pass
 
+def evaluar_pronunciacion_oral_ia(
+    media_bytes: bytes,
+    mime_type: str,
+    reference_text: str,
+    cefr_level: str,
+    grammar_topic: str
+) -> dict:
+    """Evalúa pronunciación, fluidez y gramática oral en audio o video usando Gemini Multimodal."""
+    gm = init_gemini_client()
+    clean_ref = re.sub(r"[*#`]", "", str(reference_text or "")).strip()[:2500]
+    prompt_eval = f"""
+    You are an expert CEFR English pronunciation, phonetics, and oral fluency examiner for Career English Institute (CEI).
+    Evaluate the student's spoken recording (audio or video) reading or discussing the following reference text.
+    - Target CEFR Level: {cefr_level}
+    - Target Grammar Topic: {grammar_topic}
+    - Reference Text:
+    \"\"\"{clean_ref}\"\"\"
+
+    Return strictly a valid JSON object (no markdown fences) with these exact keys:
+    {{
+      "score_percent": <number from 0 to 100>,
+      "cefr_performance": "<short label e.g. B1 Solid>",
+      "transcription": "<accurate transcription of what the student actually said>",
+      "phonetic_feedback": "<specific feedback in Spanish on English vowels, consonants, word stress, and mispronounced words>",
+      "fluency_prosody": "<specific feedback in Spanish on rhythm, intonation, pacing, and pauses>",
+      "grammar_accuracy": "<specific feedback in Spanish on oral grammar accuracy>",
+      "actionable_tips": ["<tip 1 in Spanish>", "<tip 2 in Spanish>", "<tip 3 in Spanish>"]
+    }}
+    """
+    try:
+        from google.genai import types
+        part_media = types.Part.from_bytes(data=media_bytes, mime_type=mime_type)
+        resp = gm.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[part_media, prompt_eval]
+        )
+        raw_txt = str(getattr(resp, "text", "") or "").strip()
+        raw_txt = re.sub(r"^```(?:json)?|```$", "", raw_txt, flags=re.MULTILINE).strip()
+        data = json.loads(raw_txt)
+        return {
+            "score_percent": round(float(data.get("score_percent", 75.0)), 1),
+            "cefr_performance": str(data.get("cefr_performance") or cefr_level),
+            "transcription": str(data.get("transcription") or ""),
+            "phonetic_feedback": str(data.get("phonetic_feedback") or "Articulación clara en general."),
+            "fluency_prosody": str(data.get("fluency_prosody") or "Ritmo adecuado al nivel."),
+            "grammar_accuracy": str(data.get("grammar_accuracy") or "Estructuras gramaticales consistentes."),
+            "actionable_tips": list(data.get("actionable_tips") or [])
+        }
+    except Exception as e:
+        return {
+            "score_percent": 0.0,
+            "cefr_performance": cefr_level,
+            "transcription": "",
+            "phonetic_feedback": f"No se pudo completar el análisis automático: {e}",
+            "fluency_prosody": "Intenta grabar nuevamente en un entorno silencioso.",
+            "grammar_accuracy": "Pendiente de evaluación.",
+            "actionable_tips": ["Verifica que el micrófono tenga permiso activo y habla con claridad."]
+        }
 
 
 # ==============================================================================
