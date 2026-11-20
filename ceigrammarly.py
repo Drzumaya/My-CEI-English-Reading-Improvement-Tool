@@ -6822,12 +6822,13 @@ if has_lesson_now and stage_5_now != "PORTAL":
                 st.session_state["current_lesson_video"] = vid_stage
                 if st.session_state.current_folio and vid_stage.get("url"):
                     save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_stage)
-
         v_url_st = str(vid_stage.get("url") or "").strip()
-        m_id_st = re.search(r"(?:v=|youtu\.be/|embed/|youtube\.com)([a-zA-Z0-9_-]{11})", v_url_st)
+        m_id_st = re.search(r"(?:v=|youtu\.be/|embed/|youtube\.com/?)([a-zA-Z0-9_-]{11})", v_url_st)
         vid_id_st = m_id_st.group(1) if m_id_st else "L9AWrJnhsRI"
         if vid_id_st.lower() == "o1_0gz4urko":
             vid_id_st = "L9AWrJnhsRI"
+        v_watch_url = "https://youtube.com" + "/watch?v=" + vid_id_st
+
 
         hdr_v1, hdr_v2 = st.columns([2.4, 1.35])
         with hdr_v1:
@@ -6860,7 +6861,8 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     f"Acreditado (25%): **`{pts_v_st} / 25.0 pts`** (`{round(v_sc_st, 1)}%`)"
                 )
 
-                v_watch_url = f"https://youtube.com{vid_id_st}"
+                v_watch_url = "https://www.youtube.com" + "/watch?v=" + vid_id_st
+                v_mirror_url = "https://yewtu.be" + "/embed/" + vid_id_st
 
                 modo_motor_vid = st.radio(
                     "Motor de reproducción:",
@@ -6873,13 +6875,14 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     st.video(v_watch_url)
                 elif modo_motor_vid == "🌐 Espejo Educativo (Invidious)":
                     mirror_iframe = (
-                        f'<iframe width="100%" height="390" src="https://yewtu.be{vid_id_st}" '
+                        f'<iframe width="100%" height="390" src="{v_mirror_url}" '
                         f'frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" '
                         f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
                     )
                     components.html(mirror_iframe, height=400)
                 else:
                     st.link_button("▶️ Abrir Video Directamente en YouTube", url=v_watch_url, type="primary", width="stretch")
+
 
                 st_c1, st_c2, st_c3 = st.columns(3)
                 st_c1.metric("Duración", f"{dur_min_st} min")
