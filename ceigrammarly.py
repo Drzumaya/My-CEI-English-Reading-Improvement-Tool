@@ -2129,7 +2129,7 @@ CURATED_CEFR_VIDEO_DICT = {
     "present simple": {"video_id": "L9AWrJnhsRI", "title": "Present Simple Tense - English Grammar Lesson", "channel": "Woodward English", "published_date": "2023", "duration_sec": 342},
     "present continuous": {"video_id": "oBbJNjjSYBo", "title": "Present Continuous Tense - When to Use & Examples", "channel": "English with Lucy", "published_date": "2023", "duration_sec": 485},
     "past simple": {"video_id": "g-uW_KheiEc", "title": "Past Simple Tense - Regular and Irregular Verbs", "channel": "BBC Learning English", "published_date": "2023", "duration_sec": 360},
-    "present perfect": {"video_id": "o1_0Gz4uRKo", "title": "Present Perfect Tense vs Past Simple", "channel": "Oxford Online English", "published_date": "2023", "duration_sec": 615},
+    "present perfect": {"video_id": "L9AWrJnhsRI", "title": "Present Perfect & Tenses in Context", "channel": "Woodward English", "published_date": "2023", "duration_sec": 342},
     "future": {"video_id": "HTiTGTJ6Nok", "title": "Future Forms in English - Will, Going to, Present Continuous", "channel": "BBC Learning English", "published_date": "2023", "duration_sec": 390},
     "conditionals": {"video_id": "h-Np7dm-IVA", "title": "All Conditionals in English (Zero, First, Second, Third)", "channel": "English with Lucy", "published_date": "2024", "duration_sec": 720},
     "passive voice": {"video_id": "nRGLDD0BBdc", "title": "The Passive Voice in English Grammar", "channel": "Oxford Online English", "published_date": "2023", "duration_sec": 540},
@@ -2138,13 +2138,13 @@ CURATED_CEFR_VIDEO_DICT = {
     "relative clauses": {"video_id": "Pr0qUtBaNU0", "title": "Relative Clauses - Who, Which, That, Whose, Whom", "channel": "English with Lucy", "published_date": "2024", "duration_sec": 580},
     "phrasal verbs": {"video_id": "e7tZSwasnR0", "title": "Essential English Phrasal Verbs in Context", "channel": "Oxford Online English", "published_date": "2023", "duration_sec": 640},
     "subjunctive": {"video_id": "V1124f275mE", "title": "The Subjunctive Mood in Advanced English", "channel": "BBC Learning English", "published_date": "2023", "duration_sec": 380},
-    "inversion": {"video_id": "6201f3229f4", "title": "Negative Inversion for C1/C2 Advanced English", "channel": "English with Lucy", "published_date": "2024", "duration_sec": 495}
+    "inversion": {"video_id": "h-Np7dm-IVA", "title": "Advanced English Structures for C1/C2", "channel": "English with Lucy", "published_date": "2024", "duration_sec": 720}
 }
 
 CEFR_LEVEL_DEFAULT_VIDEOS = {
     "A1": {"video_id": "L9AWrJnhsRI", "title": "A1 Beginner English Grammar & Sentence Structure", "channel": "Woodward English", "published_date": "2023", "duration_sec": 342},
     "A2": {"video_id": "g-uW_KheiEc", "title": "A2 Elementary English Past & Future Structures", "channel": "BBC Learning English", "published_date": "2023", "duration_sec": 360},
-    "B1": {"video_id": "o1_0Gz4uRKo", "title": "B1 Intermediate English Grammar in Context", "channel": "Oxford Online English", "published_date": "2023", "duration_sec": 615},
+    "B1": {"video_id": "oBbJNjjSYBo", "title": "B1 Intermediate English Grammar in Context", "channel": "English with Lucy", "published_date": "2023", "duration_sec": 485},
     "B2": {"video_id": "h-Np7dm-IVA", "title": "B2 Upper-Intermediate Conditionals & Complex Clauses", "channel": "English with Lucy", "published_date": "2024", "duration_sec": 720},
     "C1": {"video_id": "nRGLDD0BBdc", "title": "C1 Advanced Academic English Discourse & Passive Structures", "channel": "Oxford Online English", "published_date": "2023", "duration_sec": 540},
     "C2": {"video_id": "V1124f275mE", "title": "C2 Proficiency Stylistic Nuance & Subjunctive Mood", "channel": "BBC Learning English", "published_date": "2023", "duration_sec": 380}
@@ -2176,27 +2176,23 @@ def _validar_video_oembed(video_id: str) -> dict | None:
 
 def _buscar_en_motores_navegador(query_busqueda: str) -> list[str]:
     """Busca IDs de videos en motores web simulando Brave, Firefox, Opera y Google/YouTube."""
-    q_enc = urllib.parse.quote(f"{query_busqueda} site:://youtube.com")
+    q_enc = urllib.parse.quote(f"{query_busqueda} site:youtube.com")
     q_yt = urllib.parse.quote(query_busqueda)
 
     motores_config = [
-        # 1. Motor Brave Search (Perfil Brave Browser)
         {
             "url": f"https://brave.com{q_enc}",
             "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Brave/128"
         },
-        # 2. Motor DuckDuckGo HTML (Perfil Mozilla Firefox)
         {
             "url": f"https://duckduckgo.com{q_enc}",
             "ua": "Mozilla/5.0 (X11; Linux x86_64; rv:129.0) Gecko/20100101 Firefox/129.0"
         },
-        # 3. Motor YouTube Directo con Cookie Consent (Perfil Opera Browser)
         {
             "url": f"https://youtube.com{q_yt}",
             "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 OPR/113.0.0.0",
             "cookie": "CONSENT=YES+cb.20230531-07-p0.en+FX+999"
         },
-        # 4. Motor Google Web Search (Perfil Chrome/Google)
         {
             "url": f"https://google.com{q_enc}&hl=en",
             "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
@@ -2226,67 +2222,6 @@ def _buscar_en_motores_navegador(query_busqueda: str) -> list[str]:
             continue
 
     return ids_encontrados
-
-
-def buscar_video_relacionado_leccion(
-    tema_gramatical: str,
-    nivel_cefr: str,
-    texto_leccion: str = "",
-    client_obj=None,
-    topic_context: str = "",
-    max_videos: int = 12
-) -> dict:
-    """Catálogo tipo YouTube (12 a 20 videos) por Gramática y Tópico con Multi-Motor + Banco Curado."""
-    gm = client_obj or init_gemini_client()
-    cefr_code = next(iter(str(nivel_cefr).split()), "B1").upper() if nivel_cefr else "B1"
-    if cefr_code not in CEFR_LEVEL_DEFAULT_VIDEOS:
-        cefr_code = "B1"
-
-    topico_clean = str(topic_context or "").strip()
-    etiqueta_tema = f"{tema_gramatical} — {topico_clean}" if topico_clean else str(tema_gramatical or f"CEFR {cefr_code} Grammar")
-
-    # 1. Generar dos consultas complementarias (una por gramática y otra por tópico/asunto)
-    queries_busqueda = [
-        f"English grammar {tema_gramatical} {cefr_code} lesson",
-        f"{topico_clean} {tema_gramatical} English ESL video" if topico_clean else f"{tema_gramatical} examples in context English"
-    ]
-    try:
-        if gm:
-            q_raw, _ = generar_con_maxima_potencia(
-                gm,
-                f"Generate 2 distinct 5-word English YouTube search queries for ESL students learning '{tema_gramatical}' (Topic: '{topico_clean}', CEFR {cefr_code}). Return one query per line, plain words only.",
-                instruccion_sistema="Output only 2 lines of plain search words."
-            )
-            if q_raw and q_raw.strip():
-                for ln in q_raw.strip().splitlines():
-                    ln_c = ln.strip().replace('"', "").lstrip("-•1234567890. ")
-                    if ln_c and ln_c not in queries_busqueda:
-                        queries_busqueda.append(ln_c)
-    except Exception:
-        pass
-
-    pool_videos = []
-    seen_ids = set()
-
-    # 2. Recolectar candidatos en vivo desde Brave, Firefox, Opera y Google/YouTube
-    for q_item in queries_busqueda[:3]:
-        if len(pool_videos) >= max_videos:
-            break
-        candidatos_ids = _buscar_en_motores_navegador(q_item)
-        for vid_cand in candidatos_ids:
-            if vid_cand in seen_ids:
-                continue
-            meta_ok = _validar_video_oembed(vid_cand)
-            if meta_ok:
-                seen_ids.add(vid_cand)
-                meta_ok["duration_sec"] = 360
-                meta_ok["duration_min"] = 6.0
-                meta_ok["topic_label"] = etiqueta_tema
-                meta_ok["query_used"] = q_item
-                pool_videos.append(meta_ok)
-                if len(pool_videos) >= max_videos:
-                    break
-
     # 3. Completar catálogo hasta max_videos (12 a 20 opciones) con Banco Curado CEFR + Tópico
     tema_low = str(tema_gramatical or "").lower()
     prioritarios = []
