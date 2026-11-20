@@ -6851,29 +6851,26 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     f"Acreditado (25%): **`{pts_v_st} / 25.0 pts`** (`{round(v_sc_st, 1)}%`)"
                 )
 
+                v_watch_url = f"https://youtube.com{vid_id_st}"
+
                 modo_motor_vid = st.radio(
                     "Motor de reproducción:",
-                    ["🎥 Reproductor HD Embebido", "🌐 Espejo Educativo (Sin Bloqueo)", "🔗 Apertura Directa"],
+                    ["🎥 Reproductor Oficial Streamlit (HD)", "🌐 Espejo Educativo (Invidious)", "🔗 Abrir en YouTube"],
                     horizontal=True,
                     key="radio_dual_video_engine"
                 )
 
-                if modo_motor_vid == "🎥 Reproductor HD Embebido":
-                    yt_embed_html = (
-                        f'<iframe width="100%" height="390" src="https://youtube.com{vid_id_st}?rel=0" '
-                        f'frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" '
-                        f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
-                    )
-                    components.html(yt_embed_html, height=400)
-                elif modo_motor_vid == "🌐 Espejo Educativo (Sin Bloqueo)":
+                if modo_motor_vid == "🎥 Reproductor Oficial Streamlit (HD)":
+                    st.video(v_watch_url)
+                elif modo_motor_vid == "🌐 Espejo Educativo (Invidious)":
                     mirror_iframe = (
-                        f'<iframe width="100%" height="390" src="https://piped.video{vid_id_st}" '
+                        f'<iframe width="100%" height="390" src="https://yewtu.be{vid_id_st}" '
                         f'frameborder="0" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" '
                         f'allowfullscreen style="border-radius:10px;background:#000;"></iframe>'
                     )
                     components.html(mirror_iframe, height=400)
                 else:
-                    st.link_button("▶️ Abrir Video en Reproductor Externo", url=f"https://youtube.com{vid_id_st}", type="primary", width="stretch")
+                    st.link_button("▶️ Abrir Video Directamente en YouTube", url=v_watch_url, type="primary", width="stretch")
 
                 st_c1, st_c2, st_c3 = st.columns(3)
                 st_c1.metric("Duración", f"{dur_min_st} min")
