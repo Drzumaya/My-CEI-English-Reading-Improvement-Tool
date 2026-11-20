@@ -1696,7 +1696,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
             self.set_font("Times", "I", 8)
             self.set_text_color(90, 90, 90)
             self.set_x(12)
-            self.cell(186, 4, clean_pdf_text(f"© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti | APA 7th Ed. Standard | Page {self.page_no()}"), new_x="LMARGIN", new_y="NEXT", align="C")
+            self.cell(186, 4, clean_pdf_text(f"© 2026 CAREER ENGLISH INSTITUTE |Fundador CEI y Creador de 🎓 CEI ENGLISH LEARNING PLATFORM: Jacob Zumaya Prianti | APA 7th Ed. Standard | Page {self.page_no()}"), new_x="LMARGIN", new_y="NEXT", align="C")
             self.set_x(12)
             self.cell(186, 4, clean_pdf_text(addr_doc), new_x="LMARGIN", new_y="NEXT", align="C")
 
