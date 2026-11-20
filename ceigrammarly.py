@@ -5057,7 +5057,7 @@ else:
 
 
 # ==============================================================================
-# PARTE 13A1: SELECTOR DESPLEGABLE DE FOLIOS (BOTÓN ABRIR) — OCULTO EN CREADOR
+# PARTE 13A1-A: HELPERS DE CIERRE DE PANEL Y QR OFICIAL CON ID DE AFILIADO
 # ==============================================================================
 def _cerrar_panel_y_volver_leccion():
     st.session_state["active_admin_workspace"] = None
@@ -5068,6 +5068,130 @@ def _cerrar_panel_y_volver_leccion():
     st.session_state["active_stage_5"] = "READING"
 
 
+def _obtener_id_oficial_afiliado(usuario_o_id: str) -> tuple[str, str]:
+    """Busca el affiliate_id oficial (ej. AFIL-CEI-2026-1234) y nombre completo en affiliate_partners."""
+    val = str(usuario_o_id or "").strip()
+    if not val:
+        return "", ""
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return val, val
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COALESCE(NULLIF(TRIM(affiliate_id), ''), usuario_login),
+                       COALESCE(NULLIF(TRIM(nombre || ' ' || apellido_paterno), ''), usuario_login)
+                FROM affiliate_partners
+                WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
+                   OR LOWER(TRIM(affiliate_id)) = LOWER(TRIM(%s))
+                LIMIT 1;
+            """, (val, val))
+            row = cur.fetchone()
+            if row:
+                return str(row).strip(), str(row).strip()
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return val, val
+
+
+def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str = "qr_ins"):
+    """Muestra el QR de Inscripción de Alumnos ligado por defecto al ID oficial del Socio Afiliado."""
+    url_ins_base = str(
+        st.secrets.get("STUDENT_INSCRIPTION_URL", "https://streamlit.app")
+    ).strip().rstrip("/")
+    ref_raw = str(afiliado_ref or "").strip()
+    aff_id_oficial, aff_nombre_completo = _obtener_id_oficial_afiliado(ref_raw) if ref_raw else ("", "")
+
+    url_qr_final = f"{url_ins_base}/?ref_aff={urllib.parse.quote(aff_id_oficial)}" if aff_id_oficial else url_ins_base
+
+    buf_qr = io.BytesIO()
+    qrcode.make(url_qr_final).save(buf_qr, format="PNG")
+    qr_bytes = buf_qr.getvalue()
+    zoom_state_key = f"{key_prefix}_zoom_fullscreen"
+
+    if st.session_state.get(zoom_state_key, False):
+        st.markdown(
+            "<div style='text-align:center; padding-top:10px;'>"
+            "<h2>📲 Escanea para Inscribirte en Career English Institute (CEI)</h2>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+        _, col_ctr, _ = st.columns([1.0, 1.4, 1.0])
+        with col_ctr:
+            st.image(qr_bytes, width=420)
+            if aff_id_oficial:
+                st.info(
+                    f"🤝 **Socio Afiliado Anfitrión:** {aff_nombre_completo}\n\n"
+                    f"🆔 **ID Oficial Ligado al QR:** `{aff_id_oficial}`\n\n"
+                    f"🔗 `{url_qr_final}`"
+                )
+            else:
+                st.info(f"🏛️ **Inscripción Directa CEI (Agua Prieta, Sonora)**\n\n🔗 `{url_qr_final}`")
+            if st.button("✖️ CERRAR QR", type="primary", width="stretch", key=f"{key_prefix}_btn_close_fs"):
+                st.session_state[zoom_state_key] = False
+                st.rerun()
+        st.stop()
+
+    with st.container(border=True):
+        c_q1, c_q2 = st.columns([1.1, 2.4])
+        with c_q1:
+            qr_b64 = base64.b64encode(qr_bytes).decode("ascii")
+            if st.button("🖥️ Ampliar QR", key=f"{key_prefix}_btn_trigger_dbl", width="stretch"):
+                st.session_state[zoom_state_key] = True
+                st.rerun()
+
+            components.html(
+                f"""
+                <div style="text-align:center;font-family:sans-serif;cursor:pointer;"
+                     ondblclick="
+                       const btns = window.parent.document.querySelectorAll('button');
+                       for (const b of btns) {{
+                         if (b.innerText && b.innerText.includes('Ampliar QR')) {{
+                           b.click();
+                           break;
+                         }}
+                       }}
+                     "
+                     title="Haz doble clic sobre el QR para abrirlo en el centro">
+                  <img src="data:image/png;base64,{qr_b64}" style="width:155px;height:155px;border-radius:10px;border:2px solid #0284c7;" />
+                  <div style="font-size:11px;color:#0284c7;font-weight:bold;margin-top:4px;">🖱️ Doble clic en el QR para proyectar</div>
+                </div>
+                """,
+                height=190
+            )
+        with c_q2:
+            st.markdown("#### 📲 Código QR Oficial de Inscripción de Alumnos")
+            if aff_id_oficial:
+                st.success(f"🆔 **ID Oficial del Socio Afiliado Ligado:** `{aff_id_oficial}` ({aff_nombre_completo})")
+            st.caption(
+                "Al escanear este QR, el formulario de inscripción mostrará automáticamente el **ID del Socio Afiliado** "
+                "sin que el estudiante tenga que escribir nada."
+            )
+            st.code(url_qr_final, language=None)
+            b1, b2 = st.columns(2)
+            with b1:
+                sufijo_archivo = aff_id_oficial.replace(" ", "_") if aff_id_oficial else "Directo_CEI"
+                st.download_button(
+                    "⬇️ Descargar QR Inscripción (PNG)",
+                    data=qr_bytes,
+                    file_name=f"QR_Inscripcion_CEI_{sufijo_archivo}.png",
+                    mime="image/png",
+                    type="primary",
+                    width="stretch",
+                    key=f"{key_prefix}_btn_dl"
+                )
+            with b2:
+                if st.button("🖥️ Proyectar QR en Centro", type="secondary", width="stretch", key=f"{key_prefix}_btn_open_fs"):
+                    st.session_state[zoom_state_key] = True
+                    st.rerun()
+# ==============================================================================
+# PARTE 13A1-B: SELECTOR DE MÓDULOS DEL PORTAL Y DESPLEGABLE DE FOLIOS
+# ==============================================================================
 if st.session_state.get("active_stage_5") == "PORTAL":
     tiene_acceso_admin_portal = (
         es_admin_o_staff
@@ -5204,6 +5328,7 @@ if mostrar_barra_folios:
                     st.caption("Selecciona una lección de la lista y pulsa **📂 Abrir**.")
         else:
             st.caption("📭 Aún no hay folios guardados. Presiona **✨ GENERAR LECCIÓN** arriba para crear el primero.")
+
 
 
 # ==============================================================================
