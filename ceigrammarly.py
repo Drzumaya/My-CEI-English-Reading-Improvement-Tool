@@ -5059,12 +5059,27 @@ else:
 # ==============================================================================
 # PARTE 13A1: SELECTOR DESPLEGABLE DE FOLIOS (BOTÓN ABRIR) — OCULTO EN CREADOR
 # ==============================================================================
+def _cerrar_panel_y_volver_leccion():
+    st.session_state["active_admin_workspace"] = None
+    st.session_state["active_student_workspace"] = None
+    st.session_state["qr_zoom_fullscreen"] = False
+    st.session_state["show_gradebook_panel"] = False
+    st.session_state["show_student_payments_panel"] = False
+    st.session_state["active_stage_5"] = "READING"
+
+
 if st.session_state.get("active_stage_5") == "PORTAL":
     tiene_acceso_admin_portal = (
         es_admin_o_staff
         or can("Editar_Terminos_Afiliacion")
         or can("Gestionar_Comisiones_Afiliados")
     )
+    lbl_volver_edu = (
+        "🔙 CERRAR Y VOLVER A LA LECCIÓN"
+        if bool(str(st.session_state.get("generated_text") or "").strip())
+        else "🔙 CERRAR Y VOLVER AL PANEL EDUCATIVO"
+    )
+
     if tiene_acceso_admin_portal or es_socio_afiliado:
         if es_socio_afiliado:
             opciones_p_adm = ["🤝 Portal Socio Afiliado"]
@@ -5081,13 +5096,25 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 "🔄 Autoactualización de Librerías"
             ]
         idx_def_adm = 2 if (not is_owner and not es_socio_afiliado and can("Editar_Terminos_Afiliacion")) else 0
-        sel_adm = st.selectbox(
-            "Seleccionar módulo institucional:",
-            opciones_p_adm,
-            index=idx_def_adm,
-            key="sb_stage5_admin_mod"
-        )
-        st.session_state["active_admin_workspace"] = sel_adm
+        col_mod_sel, col_mod_back = st.columns([2.5, 1.3])
+        with col_mod_sel:
+            sel_adm = st.selectbox(
+                "Seleccionar módulo institucional:",
+                opciones_p_adm,
+                index=idx_def_adm,
+                key="sb_stage5_admin_mod"
+            )
+            if st.session_state.get("active_stage_5") == "PORTAL":
+                st.session_state["active_admin_workspace"] = sel_adm
+        with col_mod_back:
+            st.write("")
+            st.button(
+                lbl_volver_edu,
+                type="primary",
+                width="stretch",
+                key="btn_global_close_admin_back_lesson",
+                on_click=_cerrar_panel_y_volver_leccion
+            )
     else:
         opciones_p_est = [
             "💳 Mis Pagos (9 Bloques)",
@@ -5095,8 +5122,20 @@ if st.session_state.get("active_stage_5") == "PORTAL":
             "📚 Mis Lecciones y Folios",
             "🎧 Mis Audios y Pronunciación"
         ]
-        sel_est = st.selectbox("Seleccionar herramienta estudiantil:", opciones_p_est, key="sb_stage5_est_mod")
-        st.session_state["active_student_workspace"] = sel_est
+        col_est_sel, col_est_back = st.columns([2.5, 1.3])
+        with col_est_sel:
+            sel_est = st.selectbox("Seleccionar herramienta estudiantil:", opciones_p_est, key="sb_stage5_est_mod")
+            if st.session_state.get("active_stage_5") == "PORTAL":
+                st.session_state["active_student_workspace"] = sel_est
+        with col_est_back:
+            st.write("")
+            st.button(
+                lbl_volver_edu,
+                type="primary",
+                width="stretch",
+                key="btn_global_close_est_back_lesson",
+                on_click=_cerrar_panel_y_volver_leccion
+            )
 
 folio_input = ""
 buscar_folio_btn = False
