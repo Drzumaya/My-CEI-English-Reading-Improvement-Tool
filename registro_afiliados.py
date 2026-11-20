@@ -288,7 +288,7 @@ def render_formulario_registro_afiliado(
             st.rerun()
         return
 # ==============================================================================
-# registro_afiliados.py — PARTE 3 DE 4: FORMULARIO, TÉRMINOS Y GUARDADO
+# registro_afiliados.py — PARTE 3 DE 4: FORMULARIO (CON RFC), TÉRMINOS Y GUARDADO
 # ==============================================================================
     anio_actual = date.today().year
     id_sugerido = f"AFIL-CEI-{anio_actual}-{random.randint(1000, 9999)}"
@@ -301,6 +301,7 @@ def render_formulario_registro_afiliado(
         nombre = st.text_input("Nombre(s) *", placeholder="Ej. Carlos Alberto")
         ap_paterno = st.text_input("Apellido Paterno *", placeholder="Ej. Mendoza")
         ap_materno = st.text_input("Apellido Materno", placeholder="Ej. Ruiz")
+        rfc = st.text_input("🧾 RFC (Registro Federal de Contribuyentes — 12 o 13 caracteres) *", placeholder="Ej. MERC850101ABC", max_chars=13)
         telefono = st.text_input("Teléfono / WhatsApp *", placeholder="Ej. 633-123-4567")
         email = st.text_input("Correo Electrónico *", placeholder="afiliado@correo.com")
         clave_acceso = st.text_input("Contraseña Inicial *", type="password", placeholder="Mínimo 6 caracteres")
@@ -339,6 +340,10 @@ def render_formulario_registro_afiliado(
             if not affiliate_id.strip() or not nombre.strip() or not ap_paterno.strip() or not usuario_login.strip() or not clave_acceso.strip():
                 st.error("⚠️ Completa ID, Nombre, Apellido Paterno, Usuario y Contraseña.")
                 return
+            rfc_clean = rfc.strip().upper()
+            if len(rfc_clean) not in (12, 13) or not rfc_clean.isalnum():
+                st.error("⚠️ Ingresa un RFC válido de 12 (Persona Moral) o 13 (Persona Física) caracteres alfanuméricos.")
+                return
             if not ine_frente or not ine_reverso:
                 st.error("⚠️ Adjunta ambos lados de la Identificación Oficial (INE).")
                 return
@@ -362,22 +367,24 @@ def render_formulario_registro_afiliado(
                     with conn.cursor() as cur:
                         cur.execute("""
                             ALTER TABLE affiliate_partners
+                            ADD COLUMN IF NOT EXISTS rfc TEXT DEFAULT '',
                             ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
                             ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
                         """)
                         cur.execute("""
                             INSERT INTO affiliate_partners (
                                 affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
-                                telefono, email, domicilio, ine_anverso_b64, ine_reverso_b64,
+                                rfc, telefono, email, domicilio, ine_anverso_b64, ine_reverso_b64,
                                 fecha_ingreso, estatus, fecha_inactividad, fecha_baja,
                                 porcentaje_default, registrado_por,
                                 terminos_aceptados, terminos_aceptados_at
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW())
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW())
                             ON CONFLICT (usuario_login) DO UPDATE SET
                                 affiliate_id = EXCLUDED.affiliate_id,
                                 nombre = EXCLUDED.nombre,
                                 apellido_paterno = EXCLUDED.apellido_paterno,
                                 apellido_materno = EXCLUDED.apellido_materno,
+                                rfc = EXCLUDED.rfc,
                                 telefono = EXCLUDED.telefono,
                                 email = EXCLUDED.email,
                                 domicilio = EXCLUDED.domicilio,
@@ -392,7 +399,7 @@ def render_formulario_registro_afiliado(
                                 terminos_aceptados_at = NOW();
                         """, (
                             id_clean, u_clean, nombre.strip(), ap_paterno.strip(), ap_materno.strip(),
-                            telefono.strip(), email.strip(), domicilio.strip(),
+                            rfc_clean, telefono.strip(), email.strip(), domicilio.strip(),
                             ine_f_b64, ine_r_b64, fecha_ingreso, estatus,
                             fecha_inact if estatus == "Inactivo" else None,
                             fecha_baja if estatus == "Baja" else None,
@@ -410,9 +417,9 @@ def render_formulario_registro_afiliado(
                             RETURNING id, matricula;
                         """, (u_clean, clave_acceso.strip(), estatus_padron, float(pct_default)))
                         row_pad = cur.fetchone()
-                        if row_pad and not row_pad[1]:
-                            mat_gen = f"CEI-{anio_actual}-{int(row_pad[0]):04d}"
-                            cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_gen, row_pad[0]))
+                        if row_pad and not row_pad:
+                            mat_gen = f"CEI-{anio_actual}-{int(row_pad):04d}"
+                            cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_gen, row_pad))
 
                 if token_sesion_externa:
                     _consumir_token_qr(token_sesion_externa)
