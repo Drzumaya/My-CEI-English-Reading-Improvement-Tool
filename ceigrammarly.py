@@ -234,7 +234,7 @@ CEFR_MAP = {
 def normalize_cefr(raw_val) -> str:
     code = str(raw_val or "").strip().upper()[:2]
     return CEFR_MAP.get(code, "B1 (Intermediate)")
-
+ 
 CEFR_GRAMMAR_TOPICS = {
     "A1": [
         "Verb To Be & Personal Pronouns",
