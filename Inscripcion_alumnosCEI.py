@@ -1,5 +1,5 @@
 # ==============================================================================
-# Inscripcion_alumnosCEI.py — PARTE 1 DE 2: CONEXIÓN Y CABECERA INSTITUCIONAL
+# Inscripcion_alumnosCEI.py — BLOQUE 1 DE 2: CONEXIÓN, AFILIADO Y TÉRMINOS CEI
 # ==============================================================================
 from datetime import date, datetime
 import os
@@ -31,6 +31,31 @@ NIVELES_CEFR_INS = [
     "C1 (Advanced)",
     "C2 (Proficiency)"
 ]
+
+TERMINOS_INSCRIPCION_ALUMNOS_CEI = """TÉRMINOS, CONDICIONES Y REGLAMENTO ACADÉMICO DE INSCRIPCIÓN
+CAREER ENGLISH INSTITUTE (CEI) — AGUA PRIETA, SONORA, MÉXICO
+
+PRIMERA. NATURALEZA DEL SERVICIO (100% EN LÍNEA) Y MARCO LEGAL APLICABLE.
+Los presentes Términos y Condiciones regulan la prestación de servicios educativos privados de enseñanza del idioma inglés en modalidad 100% en línea (clases en vivo por videoconferencia y plataforma educativa interactiva), impartidos por Career English Institute (CEI), con sede administrativa en Agua Prieta, Sonora, México, de conformidad con la legislación civil, educativa y de protección al consumidor vigente en los Estados Unidos Mexicanos y en el Estado de Sonora.
+
+SEGUNDA. CALIBRACIÓN AL MARCO COMÚN EUROPEO (CEFR).
+Los programas académicos de CEI son flexibles y ajustables al nivel real del estudiante conforme al Marco Común Europeo de Referencia para las Lenguas (CEFR: A1, A2, B1, B2, C1 y C2). Al formalizar su inscripción, la plataforma educativa y todas las lecciones, audios, evaluaciones y ejercicios generados en ella quedarán calibrados automáticamente al nivel CEFR indicado en este formulario, pudiendo ajustarse previa valoración académica.
+
+TERCERA. DURACIÓN DEL PROGRAMA (9 PERIODOS) Y PERIODOS VACACIONALES ACTIVOS.
+1. Estructura del Nivel: Cada nivel académico está estructurado en nueve (9) periodos mensuales de cuatro (4) semanas cada uno.
+2. Periodos Vacacionales Activos (Verano e Invierno): Durante los recesos vacacionales largos de verano e invierno no se imparten clases en vivo en línea; sin embargo, la plataforma educativa permanecerá plenamente activa y disponible las 24 horas para que el estudiante continúe practicando y manteniendo su avance académico.
+3. Conclusión del Nivel: Al finalizar satisfactoriamente los 9 periodos y acreditar la rúbrica correspondiente, el estudiante obtiene su constancia o certificado institucional del nivel cursado.
+
+CUARTA. ASISTENCIA EN LÍNEA, INASISTENCIAS JUSTIFICADAS Y RECUPERACIÓN DE CLASES.
+1. Asistencia del Estudiante y Asignación de Trabajo (Homework): El estudiante se compromete a conectarse puntualmente a sus clases en línea. En caso de requerir ausentarse por causa justificada, deberá avisar con anticipación a la institución o docente para recibir su asignación de trabajo (homework). La entrega y cumplimiento oportuno de dicha asignación será suficiente para dar la clase por dada o satisfecha.
+2. Ausencia del Docente: En caso de que el docente deba ausentarse por causa justificada, se notificará con anticipación al estudiante y, por mutuo acuerdo entre ambas partes, se reprogramará y recuperará íntegramente la clase perdida sin costo adicional.
+
+QUINTA. RÚBRICA DE EVALUACIÓN POR CRITERIOS Y ACCESO AL BOLETÍN.
+1. Evaluación Integral: El estudiante deberá asegurarse de completar en tiempo y forma los criterios de la rúbrica de calificaciones acordes a su nivel (Reading & Quiz 30%, Viewing & Listening 25%, Alphabetical & Speaking 25% y Writing Skill APA 7 20%).
+2. Puntualidad en Mensualidades y Boletín: El estudiante (o su padre/tutor) se compromete a mantenerse al corriente en el pago de sus mensualidades (dentro de la 4ta semana de cada bloque) e informarlo oportunamente en la plataforma para conservar activo su acceso al Boletín Informativo de Calificaciones y avances.
+
+SEXTA. PROTECCIÓN DE DATOS PERSONALES Y JURISDICCIÓN.
+De conformidad con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP), los datos recabados se utilizarán exclusivamente para fines académicos, administrativos y de certificación interna. Para cualquier controversia derivada de la interpretación o cumplimiento de este acuerdo, las partes se someten a las leyes vigentes y a los tribunales competentes de Agua Prieta, Sonora, México."""
 
 
 def _find_secret_ins(key_name: str) -> str:
@@ -68,26 +93,26 @@ def _get_conn_ins():
     return None
 
 
-def _buscar_nombre_afiliado(ref_code: str) -> tuple[str, str]:
-    """Devuelve (usuario_login, nombre_completo) del Socio Afiliado que invitó al alumno."""
-    code = str(ref_code or "").strip()
-    if not code:
-        return "", ""
+def obtener_terminos_estudiantes_pg() -> str:
+    """Lee desde Supabase PostgreSQL los Términos y Condiciones de Estudiantes vigentes."""
     conn = _get_conn_ins()
     if not conn:
-        return code, code
+        return TERMINOS_INSCRIPCION_ALUMNOS_CEI
     try:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT usuario_login, COALESCE(nombre || ' ' || apellido_paterno, usuario_login)
-                FROM affiliate_partners
-                WHERE LOWER(TRIM(affiliate_id)) = LOWER(TRIM(%s))
-                   OR LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
-                LIMIT 1;
-            """, (code, code))
-            row = cur.fetchone()
-            if row:
-                return str(row).strip(), str(row).strip()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                        clave TEXT PRIMARY KEY,
+                        contenido TEXT NOT NULL,
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("SELECT contenido FROM cei_configuracion_legal WHERE clave = 'terminos_estudiantes' LIMIT 1;")
+                row = cur.fetchone()
+                if row and str(row[0] or "").strip():
+                    return str(row[0]).strip()
     except Exception:
         pass
     finally:
@@ -95,7 +120,39 @@ def _buscar_nombre_afiliado(ref_code: str) -> tuple[str, str]:
             conn.close()
         except Exception:
             pass
-    return code, code
+    return TERMINOS_INSCRIPCION_ALUMNOS_CEI
+
+
+def _buscar_datos_afiliado(ref_code: str) -> tuple[str, str, str]:
+    """Devuelve (affiliate_id, usuario_login, nombre_completo) del Socio Afiliado que invitó al alumno."""
+    code = str(ref_code or "").strip()
+    if not code:
+        return "", "", ""
+    conn = _get_conn_ins()
+    if not conn:
+        return code, code, code
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COALESCE(affiliate_id, usuario_login),
+                       usuario_login,
+                       COALESCE(nombre || ' ' || apellido_paterno, usuario_login)
+                FROM affiliate_partners
+                WHERE LOWER(TRIM(affiliate_id)) = LOWER(TRIM(%s))
+                   OR LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
+                LIMIT 1;
+            """, (code, code))
+            row = cur.fetchone()
+            if row:
+                return str(row[0]).strip(), str(row[1]).strip(), str(row[2]).strip()
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return code, code, code
 
 
 col_l, col_t = st.columns([0.9, 3.5])
@@ -107,15 +164,18 @@ with col_l:
 with col_t:
     st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE (CEI)")
     st.title("📝 Solicitud Oficial de Inscripción")
-    st.caption("Agua Prieta, Sonora, México  |  Marco Común Europeo de Referencia (CEFR A1 – C2)")
+    st.caption("Agua Prieta, Sonora, México  |  Modalidad 100% En Línea  |  Marco Común Europeo (CEFR A1 – C2)")
 
 ref_param = str(st.query_params.get("ref_aff") or st.query_params.get("ref") or "").strip()
-aff_user_vinculado, aff_nombre_mostrado = _buscar_nombre_afiliado(ref_param)
+aff_id_oficial, aff_user_vinculado, aff_nombre_mostrado = _buscar_datos_afiliado(ref_param)
 
 if aff_user_vinculado:
-    st.success(f"🤝 **Inscripción Referida por Socio Afiliado:** {aff_nombre_mostrado} (`{ref_param}`)")
+    st.success(
+        f"🤝 **Inscripción Referida por Socio Afiliado:** {aff_nombre_mostrado}\n\n"
+        f"🆔 **ID Oficial del Socio Afiliado:** `{aff_id_oficial}`"
+    )
 # ==============================================================================
-# Inscripcion_alumnosCEI.py — PARTE 2 DE 2: FORMULARIO Y REGISTRO EN SUPABASE
+# Inscripcion_alumnosCEI.py — BLOQUE 2 DE 2 (FINAL): FORMULARIO Y REGISTRO EN BD
 # ==============================================================================
 if st.session_state.get("ins_alumno_ok"):
     st.balloons()
@@ -123,6 +183,7 @@ if st.session_state.get("ins_alumno_ok"):
     st.info(
         f"• **🆔 Matrícula Oficial Asignada:** `{st.session_state.get('ins_alumno_mat', '')}`\n"
         f"• **👤 Usuario de Acceso:** `{st.session_state.get('ins_alumno_usr', '')}`\n"
+        f"• **🤝 Socio Afiliado Registrado:** `{st.session_state.get('ins_alumno_aff_id', 'Directo')}`\n"
         "• **📌 Siguiente Paso:** Conserva tu matrícula para incluirla como referencia en tu pago de inscripción y mensualidades."
     )
     if st.button("➕ Registrar Otro Estudiante", type="secondary"):
@@ -150,17 +211,27 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
     with ca1:
         grado_al = st.selectbox("Grado Académico Actual *", GRADOS_ACADEMICOS_INS, index=4)
         nivel_al = st.selectbox("Nivel de Inglés Estimado (CEFR) *", NIVELES_CEFR_INS, index=0)
-        modalidad_al = st.selectbox("Modalidad de Estudio *", ["Presencial (Agua Prieta)", "En Línea / Híbrido (Zoom + Plataforma IA)"])
+        modalidad_al = st.selectbox("Modalidad de Estudio *", ["100% En Línea (Clases en Vivo + Plataforma IA)"])
     with ca2:
         usr_al = st.text_input("Usuario Deseado para Plataforma *", placeholder="Ej. Sofia Ramirez")
         pwd_al = st.text_input("Crea tu Contraseña de Acceso *", type="password", placeholder="Mínimo 6 caracteres")
+        etiqueta_ref_default = f"{aff_id_oficial} — {aff_nombre_mostrado}" if aff_id_oficial else ""
         ref_manual = st.text_input(
-            "Código o Usuario de Socio Afiliado (si alguien te invitó):",
-            value=aff_user_vinculado,
-            disabled=bool(aff_user_vinculado)
+            "🆔 ID del Socio Afiliado que te invitó:",
+            value=etiqueta_ref_default,
+            placeholder="Ej. AFIL-CEI-2026-1234 (opcional si entras directo)",
+            disabled=bool(aff_id_oficial)
         )
 
-    acepta_reg = st.checkbox("✅ Confirmo que mis datos son verídicos y acepto el Reglamento Académico de Career English Institute (CEI) *")
+    st.divider()
+    st.markdown("#### 3️⃣ Términos, Condiciones y Reglamento Académico CEI")
+    with st.container(height=230, border=True):
+        st.markdown(obtener_terminos_estudiantes_pg())
+
+    acepta_reg = st.checkbox(
+        "✅ He leído, comprendo y acepto los Términos, Condiciones y el Reglamento Académico de Career English Institute (CEI) *",
+        key="chk_acepta_terminos_alumno_cei"
+    )
     enviar_ins = st.form_submit_button("🎓 Completar Inscripción Oficial", type="primary", width="stretch")
 
     if enviar_ins:
@@ -169,7 +240,7 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
         elif len(pwd_al.strip()) < 6:
             st.error("⚠️ La contraseña debe tener al menos 6 caracteres.")
         elif not acepta_reg:
-            st.error("⚠️ Debes confirmar y aceptar el Reglamento Académico para completar tu inscripción.")
+            st.error("⚠️ Debes leer y aceptar los Términos, Condiciones y el Reglamento Académico para completar tu inscripción.")
         else:
             conn = _get_conn_ins()
             if not conn:
@@ -180,7 +251,14 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                     hoy_str = datetime.now(ZoneInfo("America/Hermosillo")).strftime("%Y-%m-%d")
                     u_final = usr_al.strip()
                     n_completo = f"{nom_al.strip()} {pat_al.strip()} {mat_al.strip()}".strip()
-                    aff_final = (aff_user_vinculado or ref_manual).strip()
+                    aff_id_guardar = aff_id_oficial or ref_manual.strip()
+                    if aff_user_vinculado:
+                        aff_user_guardar = aff_user_vinculado
+                    elif ref_manual.strip():
+                        _, aff_u_res, _ = _buscar_datos_afiliado(ref_manual.strip())
+                        aff_user_guardar = aff_u_res
+                    else:
+                        aff_user_guardar = ""
                     nivel_code = next(iter(nivel_al.split()), "A1")
 
                     with conn:
@@ -200,8 +278,15 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                                     nivel_cefr TEXT,
                                     modalidad TEXT,
                                     socio_afiliado TEXT,
+                                    socio_afiliado_id TEXT,
+                                    terminos_aceptados BOOLEAN DEFAULT TRUE,
                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                                 );
+                            """)
+                            cur.execute("""
+                                ALTER TABLE inscripciones_web_cei
+                                ADD COLUMN IF NOT EXISTS socio_afiliado_id TEXT DEFAULT '',
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE;
                             """)
                             cur.execute("""
                                 INSERT INTO users_padron (
@@ -213,35 +298,38 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                                     grado_academico = EXCLUDED.grado_academico,
                                     socio_afiliado = COALESCE(NULLIF(EXCLUDED.socio_afiliado, ''), users_padron.socio_afiliado)
                                 RETURNING id, matricula;
-                            """, (u_final, pwd_al.strip(), nivel_code, grado_al, hoy_str, hoy_str, aff_final))
+                            """, (u_final, pwd_al.strip(), nivel_code, grado_al, hoy_str, hoy_str, aff_user_guardar))
                             r_pad = cur.fetchone()
-                            mat_oficial = str(r_pad or "")
+                            mat_oficial = str(r_pad[1] or "") if r_pad else ""
                             if r_pad and not mat_oficial:
-                                mat_oficial = f"CEI-{anio_act}-{int(r_pad):04d}"
-                                cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_oficial, r_pad))
+                                mat_oficial = f"CEI-{anio_act}-{int(r_pad[0]):04d}"
+                                cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_oficial, r_pad[0]))
 
                             cur.execute("""
                                 INSERT INTO inscripciones_web_cei (
                                     matricula, usuario, nombre_completo, fecha_nacimiento,
                                     telefono, email, tutor, domicilio, grado_academico,
-                                    nivel_cefr, modalidad, socio_afiliado
-                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    nivel_cefr, modalidad, socio_afiliado, socio_afiliado_id, terminos_aceptados
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
                                 ON CONFLICT (usuario) DO UPDATE SET
                                     matricula = EXCLUDED.matricula,
                                     nombre_completo = EXCLUDED.nombre_completo,
                                     telefono = EXCLUDED.telefono,
                                     email = EXCLUDED.email,
-                                    socio_afiliado = EXCLUDED.socio_afiliado;
+                                    socio_afiliado = EXCLUDED.socio_afiliado,
+                                    socio_afiliado_id = EXCLUDED.socio_afiliado_id,
+                                    terminos_aceptados = TRUE;
                             """, (
                                 mat_oficial, u_final, n_completo, fec_nac,
                                 tel_al.strip(), mail_al.strip(), tutor_al.strip(), dom_al.strip(),
-                                grado_al, nivel_code, modalidad_al, aff_final
+                                grado_al, nivel_code, modalidad_al, aff_user_guardar, aff_id_guardar
                             ))
 
                     st.session_state["ins_alumno_ok"] = True
                     st.session_state["ins_alumno_nom"] = n_completo
                     st.session_state["ins_alumno_mat"] = mat_oficial
                     st.session_state["ins_alumno_usr"] = u_final
+                    st.session_state["ins_alumno_aff_id"] = aff_id_guardar or "Directo"
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error al registrar inscripción: {e}")
@@ -250,4 +338,3 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                         conn.close()
                     except Exception:
                         pass
-
