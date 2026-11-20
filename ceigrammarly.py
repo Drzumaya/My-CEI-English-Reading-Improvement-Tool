@@ -4498,7 +4498,7 @@ if not st.session_state.authenticated:
         )
     st.stop()
 # ==============================================================================
-# PARTE 12A: EVALUACIÓN DE CAPACIDADES RBAC Y BARRA LATERAL DE PARÁMETROS
+# PARTE 12A: EVALUACIÓN DE CAPACIDADES RBAC Y TARJETA CREADORA CENTRAL
 # ==============================================================================
 user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
 def can(capability_name: str) -> bool:
@@ -4519,7 +4519,7 @@ is_faculty_desktop = is_owner or (can("Ver_Panel_Admin") and (not is_mobile))
 has_faculty_access = is_owner or can("Reuso_Ilimitado_Folios") or (curr_r_clean in ["teacher", "docente"])
 cefr_options = list(CEFR_MAP.values())
 
-# --- VALORES SEGUROS POR DEFECTO CUANDO LA BARRA IZQUIERDA ESTÁ OCULTA ---
+# --- VALORES SEGUROS POR DEFECTO (SIN BARRA LATERAL IZQUIERDA) ---
 generar_btn = False
 usuario = str(st.session_state.get("current_user") or "Usuario").strip()
 cefr_level = st.session_state.get("selected_cefr") or st.session_state.get("user_assigned_level") or "B1 (Intermediate)"
@@ -4533,136 +4533,24 @@ has_lesson_now = bool(str(st.session_state.get("generated_text") or "").strip())
 stage_5_now = st.session_state.get("active_stage_5", "READING")
 stage_now = stage_5_now
 
-# --- BARRA IZQUIERDA (PARÁMETROS ACADÉMICOS: SE ABRE AL 1ER CLIC Y SE CIERRA AL 2DO CLIC) ---
-if st.session_state.get("show_lesson_creator"):
-    with st.sidebar:
-        st.markdown("### 🏛️ CAREER ENGLISH INSTITUTE")
-        st.caption(f"📍 {institute_address}")
-        st.success(
-            f"👤 **{st.session_state.current_user}**\n\n"
-            f"🏷️ *{st.session_state.user_role}* | 🛡️ Perfil: **{st.session_state.user_permissions}**"
-        )
-        st.divider()
-
-        st.header("⚙️ Academic Parameters")
-        usuario = st.session_state.current_user
-
-        if is_owner or can("Previsualizar_A1_C2"):
-            st.subheader("🎯 Target Calibration (A1 - C2)")
-            default_idx = (
-                cefr_options.index(st.session_state.user_assigned_level)
-                if st.session_state.user_assigned_level in cefr_options else 2
-            )
-            cefr_level = st.selectbox("Select CEFR Level (A1 - C2):", cefr_options, index=default_idx, key="sb_cefr_sel")
-
-            g_idx = (
-                GRADOS_ACADEMICOS.index(st.session_state.user_academic_grade)
-                if st.session_state.user_academic_grade in GRADOS_ACADEMICOS else 4
-            )
-            academic_grade = st.selectbox("Select Academic Grade:", GRADOS_ACADEMICOS, index=g_idx, key="sb_grade_sel")
-        else:
-            cefr_level = st.session_state.user_assigned_level
-            academic_grade = st.session_state.user_academic_grade
-            st.info(f"🎯 **CEFR Level:** {cefr_level}\n\n🎓 **Academic Grade:** {academic_grade}")
-
-        st.session_state["selected_cefr"] = cefr_level
-        st.session_state["selected_academic_grade"] = academic_grade
-
-        st.subheader("1. Context & Characters (Español / English)")
-        contexto = st.text_input("Contexto / Lugar / Tema:", placeholder="Ej: En un aeropuerto en Londres / At an airport", key="sb_context_input")
-        personas = st.text_input("Personas / Personajes:", placeholder="Ej: Un turista y una azafata / A tourist and a pilot", key="sb_personas_input")
-
-        st.subheader("2. Subject Matter (Español / English)")
-        asunto = st.text_input("Asunto / Materia:", placeholder="Ej: Equipaje perdido / Lost luggage", key="sb_subject_input")
-
-        cefr_short_sb = next(iter(cefr_level.split()), "B1")
-        st.subheader(f"3. Grammar Topics ({cefr_short_sb})")
-        temas_nivel_actual = CEFR_GRAMMAR_TOPICS.get(cefr_short_sb, CEFR_GRAMMAR_TOPICS["B1"])
-        gramatica_b1 = st.selectbox(
-            "Selecciona el tema gramatical:",
-            temas_nivel_actual,
-            index=0,
-            key="selected_grammar_topic"
-        )
-        st.session_state["selected_grammar"] = gramatica_b1
-
-        st.subheader("4. Discourse Mode")
-        tipo_texto = st.selectbox(
-            "Formato de generación para el estudiante:",
-            [
-                "Preguntas (Comprehension & Grammar Questions)",
-                "Descripción (Detailed Description)",
-                "Narración (Narration)",
-                "Juicio (Critical Judgment / Opinion)",
-                "Explicación (Clear Explanation)",
-                "Historia (Short Story)",
-                "Storytelling (Engaging Narrative)"
-            ],
-            key="sb_tipo_texto_input"
-        )
-
-        st.markdown("---")
-        generar_btn = st.button(f"🚀 Generate {cefr_short_sb} Lesson", type="primary", width="stretch")
-
 if st.session_state.pop("trigger_generate_from_top", False):
     generar_btn = True
 
 # ==============================================================================
-# PARTE 12B: CABECERA INSTITUCIONAL Y BARRA ESCÉNICA PROGRESIVA (2 -> 5 BOTONES)
+# PARTE 12B — MITAD 1 DE 2: CABECERA INSTITUCIONAL Y BOTONES INICIALES
 # ==============================================================================
-try:
-    default_width = int(saved_cfg["Width"]) if (saved_cfg and saved_cfg.get("Width")) else 115
-except (ValueError, TypeError):
-    default_width = 115
+if "active_stage_5" not in st.session_state:
+    st.session_state["active_stage_5"] = "READING"
+if "show_lesson_creator" not in st.session_state:
+    st.session_state["show_lesson_creator"] = False
 
-default_shape = saved_cfg["Shape"] if (saved_cfg and saved_cfg.get("Shape")) else "Circular"
-shape_options = ["Original", "Redondeado", "Circular"]
-default_shape_idx = shape_options.index(default_shape) if default_shape in shape_options else 2
-
-col_logo, col_title, col_qr, col_exit = st.columns([1.6, 4.7, 1.9, 1.8])
-
+col_logo, col_title, col_logout = st.columns([0.9, 4.3, 0.9])
 with col_logo:
-    if (is_owner or can("Editar_Instituto_Logo")) and (not is_mobile):
-        with st.popover("✏️ Editar Logo", width="stretch"):
-            logo_file = st.file_uploader("Subir imagen (PNG/JPG):", type=["png", "jpg", "jpeg"], key="logo_uploader")
-            logo_width = st.slider("Tamaño (px):", min_value=60, max_value=220, value=default_width, step=5, key="logo_width_slider")
-            logo_shape = st.radio("Forma:", shape_options, index=default_shape_idx, horizontal=True, key="logo_shape_radio")
-
-            if st.button("💾 Guardar Logo Permanente", type="primary", width="stretch", key="btn_save_logo_perm"):
-                b64_to_save, mime_to_save = None, None
-                if logo_file is not None:
-                    b64_to_save, mime_to_save = compress_logo_to_base64(logo_file)
-                elif saved_cfg and saved_cfg.get("Logo_Base64"):
-                    b64_to_save, mime_to_save = saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"]
-                else:
-                    b64_to_save, mime_to_save = get_default_logo_b64()
-
-                if b64_to_save:
-                    try:
-                        with st.spinner("Guardando logo..."):
-                            save_permanent_config(b64_to_save, mime_to_save, logo_width, logo_shape, institute_address)
-                            st.success("✅ ¡Logo guardado!")
-                            st.rerun()
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+    logo_file = find_logo_path()
+    if logo_file:
+        st.image(logo_file, width=105)
     else:
-        logo_file = None
-        logo_width = default_width
-        logo_shape = default_shape
-
-    if logo_file is not None:
-        active_b64, active_mime = compress_logo_to_base64(logo_file)
-    elif saved_cfg and saved_cfg.get("Logo_Base64"):
-        active_b64, active_mime = saved_cfg["Logo_Base64"], saved_cfg["Mime_Type"]
-    else:
-        active_b64, active_mime = get_default_logo_b64()
-
-    if active_b64:
-        radius = "15px" if logo_shape == "Redondeado" else ("50%" if logo_shape == "Circular" else "0px")
-        st.markdown(
-            f'<div style="text-align: center;"><img src="data:{active_mime};base64,{active_b64}" style="width: {logo_width}px; height: auto; border-radius: {radius}; object-fit: cover;"></div>',
-            unsafe_allow_html=True
-        )
+        st.markdown("## 🎓")
 
 with col_title:
     cefr_raw = st.session_state.get("selected_cefr") or "B1"
@@ -4674,59 +4562,17 @@ with col_title:
         "Author: Jacob Zumaya Prianti  |  APA 7th Ed. Academic Standard"
     )
 
-with col_qr:
-    if is_owner and (not is_mobile):
-        show_qr_now = bool(st.session_state.get("show_qr", False))
-        btn_qr_txt = "🙈 Ocultar QR" if show_qr_now else "📱 Mostrar QR"
-        if st.button(btn_qr_txt, width="stretch", key="toggle_qr_btn"):
-            st.session_state.show_qr = not show_qr_now
-            st.rerun()
-
-        if st.session_state.get("show_qr", False):
-            app_url = str(st.secrets.get("APP_BASE_URL") or st.secrets.get("APP_PUBLIC_URL") or "https://streamlit.app").strip().rstrip("/")
-            if st.session_state.get("current_folio"):
-                app_url = f"{app_url}/?folio={urllib.parse.quote(str(st.session_state.current_folio))}"
-
-            qr = qrcode.QRCode(version=1, box_size=4, border=1)
-            qr.add_data(app_url)
-            qr.make(fit=True)
-            buf = io.BytesIO()
-            qr.make_image(fill_color="black", back_color="white").save(buf, format="PNG")
-            st.image(buf.getvalue(), caption="📱 Scan for Mobile View", width=110)
-
-with col_exit:
-    if st.button("🚪 Salir", type="secondary", width="stretch", key="btn_header_exit_app"):
-        st.session_state.app_exited = True
-        st.session_state.authenticated = False
-        st.session_state.just_logged_out = True
-        st.session_state.pending_ls_token = "REMOVE"
+with col_logout:
+    st.write("")
+    if st.button("🚪 Salir", type="secondary", width="stretch", key="btn_top_logout_clean"):
+        for k_out in list(st.session_state.keys()):
+            del st.session_state[k_out]
+        st.query_params.clear()
         st.rerun()
 
-# --- BARRA ESCÉNICA PROGRESIVA (2 BOTONES INICIALES -> 5 BOTONES AL GENERAR) ---
-if "active_stage_5" not in st.session_state:
-    st.session_state["active_stage_5"] = "READING"
-if "show_lesson_creator" not in st.session_state:
-    st.session_state["show_lesson_creator"] = False
-if "active_admin_workspace" not in st.session_state:
-    st.session_state["active_admin_workspace"] = None
-if "active_student_workspace" not in st.session_state:
-    st.session_state["active_student_workspace"] = None
-
-es_socio_afiliado = curr_r_clean in ["socio afiliado", "afiliado", "affiliate"]
-es_admin_o_staff = bool(
-    is_owner
-    or is_faculty_desktop
-    or can("Ver_Panel_Admin")
-    or can("Gestionar_Pagos_Cobranza")
-    or can("Registrar_Usuarios")
-    or can("Gestionar_Usuarios")
-)
-
-lbl_btn_portal = (
-    "🤝 PORTAL SOCIO AFILIADO"
-    if es_socio_afiliado
-    else ("🛡️ PANEL ADMINISTRATIVO" if es_admin_o_staff else "🎓 MI PANEL ESTUDIANTIL")
-)
+es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["teacher", "docente", "admin", "administrador", "propietario", "owner"])
+es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afiliado"])
+lbl_btn_portal = "🛡️ PANEL ADMINISTRATIVO" if (es_admin_o_staff or es_socio_afiliado) else "🎓 MI PANEL ESTUDIANTIL"
 
 tiene_leccion_activa = bool(str(st.session_state.get("generated_text") or "").strip())
 
@@ -4742,7 +4588,6 @@ if not tiene_leccion_activa:
             key="btn_init_2_generate"
         ):
             if not abierto_creador:
-                # PRIMER CLIC: Abre el formulario creador izquierdo
                 st.session_state["show_lesson_creator"] = True
                 st.session_state["active_stage_5"] = "READING"
                 st.session_state["active_admin_workspace"] = None
@@ -4750,34 +4595,21 @@ if not tiene_leccion_activa:
                 st.session_state["creator_missing_fields"] = []
                 st.rerun()
             else:
-                # SEGUNDO CLIC: Valida si faltan casillas por llenar o seleccionar
                 campos_faltantes = []
-                val_cefr = str(st.session_state.get("selected_cefr") or "").strip()
-                val_grade = str(st.session_state.get("selected_academic_grade") or "").strip()
-                val_context = str(st.session_state.get("sb_context_input") or st.session_state.get("current_topic") or "").strip()
-                val_subject = str(st.session_state.get("sb_subject_input") or "").strip()
-                val_grammar = str(st.session_state.get("selected_grammar") or "").strip()
-
-                if not val_cefr:
-                    campos_faltantes.append("🎯 **CEFR Level**")
-                if not val_grade:
-                    campos_faltantes.append("🎓 **Academic Grade**")
-                if not val_context:
+                if not str(st.session_state.get("sb_context_input") or "").strip():
                     campos_faltantes.append("1️⃣ **Contexto / Lugar / Tema**")
-                if not val_subject:
-                    campos_faltantes.append("2️⃣ **Asunto / Materia**")
-                if not val_grammar:
-                    campos_faltantes.append("3️⃣ **Tema Gramatical**")
+                if not str(st.session_state.get("sb_subject_input") or "").strip():
+                    campos_faltantes.append("3️⃣ **Asunto / Materia**")
+                if not str(st.session_state.get("selected_grammar") or "").strip():
+                    campos_faltantes.append("📐 **Tema Gramatical**")
 
                 if campos_faltantes:
                     st.session_state["creator_missing_fields"] = campos_faltantes
                     st.rerun()
                 else:
-                    # Todo completo: cierra el formulario, sube el encabezado y dispara la generación
                     st.session_state["creator_missing_fields"] = []
                     st.session_state["show_lesson_creator"] = False
-                    st.session_state["trigger_generate_from_top"] = True
-                    st.rerun()
+                    generar_btn = True
 
     with c_init2:
         if st.button(
@@ -4794,16 +4626,97 @@ if not tiene_leccion_activa:
             else:
                 st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
             st.rerun()
+# ==============================================================================
+# PARTE 12B — MITAD 2 DE 2 (FINAL): TARJETA CREADORA CENTRAL Y BOTONES MAESTROS
+# ==============================================================================
+    if st.session_state.get("show_lesson_creator") and st.session_state["active_stage_5"] != "PORTAL":
+        with st.container(border=True):
+            st.markdown("### ✨ Configurador Académico de Nueva Lección CEFR")
+            st.caption("Completa los parámetros pedagógicos en el centro para generar tu lección con Audio, Quiz y Video educativo.")
 
-    if st.session_state.get("creator_missing_fields"):
-        faltantes_txt = "  •  ".join(st.session_state["creator_missing_fields"])
-        st.warning(
-            f"⚠️ **Faltan casillas por llenar o seleccionar en el formulario izquierdo:**\n\n"
-            f"{faltantes_txt}\n\n"
-            f"👈 Por favor complétalas y vuelve a hacer clic en **✅ COMPLETAR Y GENERAR LECCIÓN**."
-        )
-    elif st.session_state.get("show_lesson_creator") and st.session_state["active_stage_5"] != "PORTAL":
-        st.info("👈 **Formulario Abierto:** Completa todas las casillas del panel izquierdo y haz clic nuevamente arriba en **✅ COMPLETAR Y GENERAR LECCIÓN**.")
+            col_c_izq, col_c_der = st.columns(2)
+            with col_c_izq:
+                if is_owner or can("Previsualizar_A1_C2"):
+                    default_idx = (
+                        cefr_options.index(st.session_state.user_assigned_level)
+                        if st.session_state.user_assigned_level in cefr_options else 2
+                    )
+                    cefr_level = st.selectbox("🎯 Nivel Objetivo (CEFR A1 - C2):", cefr_options, index=default_idx, key="sb_cefr_sel")
+
+                    g_idx = (
+                        GRADOS_ACADEMICOS.index(st.session_state.user_academic_grade)
+                        if st.session_state.user_academic_grade in GRADOS_ACADEMICOS else 4
+                    )
+                    academic_grade = st.selectbox("🎓 Grado Académico:", GRADOS_ACADEMICOS, index=g_idx, key="sb_grade_sel")
+                else:
+                    cefr_level = st.session_state.user_assigned_level
+                    academic_grade = st.session_state.user_academic_grade
+                    st.info(f"🎯 **Nivel CEFR:** {cefr_level}  |  🎓 **Grado:** {academic_grade}")
+
+                st.session_state["selected_cefr"] = cefr_level
+                st.session_state["selected_academic_grade"] = academic_grade
+
+                cefr_short_sb = next(iter(cefr_level.split()), "B1")
+                temas_nivel_actual = CEFR_GRAMMAR_TOPICS.get(cefr_short_sb, CEFR_GRAMMAR_TOPICS["B1"])
+                gramatica_b1 = st.selectbox(
+                    f"📐 Tema Gramatical ({cefr_short_sb}):",
+                    temas_nivel_actual,
+                    index=0,
+                    key="selected_grammar_topic"
+                )
+                st.session_state["selected_grammar"] = gramatica_b1
+
+                tipo_texto = st.selectbox(
+                    "📝 Formato Discursivo:",
+                    [
+                        "Preguntas (Comprehension & Grammar Questions)",
+                        "Descripción (Detailed Description)",
+                        "Narración (Narration)",
+                        "Juicio (Critical Judgment / Opinion)",
+                        "Explicación (Clear Explanation)",
+                        "Historia (Short Story)",
+                        "Storytelling (Engaging Narrative)"
+                    ],
+                    key="sb_tipo_texto_input"
+                )
+
+            with col_c_der:
+                contexto = st.text_input(
+                    "1️⃣ Contexto / Lugar / Tema (Español / English):",
+                    placeholder="Ej: En un aeropuerto en Londres / At an airport",
+                    key="sb_context_input"
+                )
+                personas = st.text_input(
+                    "2️⃣ Personas / Personajes (Español / English):",
+                    placeholder="Ej: Un turista y una azafata / A tourist and a pilot",
+                    key="sb_personas_input"
+                )
+                asunto = st.text_input(
+                    "3️⃣ Asunto / Materia (Español / English):",
+                    placeholder="Ej: Equipaje perdido / Lost luggage",
+                    key="sb_subject_input"
+                )
+
+            if st.session_state.get("creator_missing_fields"):
+                faltantes_txt = "  •  ".join(st.session_state["creator_missing_fields"])
+                st.warning(f"⚠️ **Por favor completa las siguientes casillas obligatorias:** {faltantes_txt}")
+
+            if st.button(f"🚀 CREAR Y DESPLEGAR LECCIÓN ({cefr_short_sb})", type="primary", width="stretch", key="btn_center_create_lesson"):
+                faltantes_now = []
+                if not str(contexto).strip():
+                    faltantes_now.append("1️⃣ **Contexto / Lugar / Tema**")
+                if not str(asunto).strip():
+                    faltantes_now.append("3️⃣ **Asunto / Materia**")
+                if not str(gramatica_b1).strip():
+                    faltantes_now.append("📐 **Tema Gramatical**")
+
+                if faltantes_now:
+                    st.session_state["creator_missing_fields"] = faltantes_now
+                    st.rerun()
+                else:
+                    st.session_state["creator_missing_fields"] = []
+                    st.session_state["show_lesson_creator"] = False
+                    generar_btn = True
 else:
     st.session_state["show_lesson_creator"] = False
     if st.session_state.get("active_stage_5") in ["SPEAKING", "WRITING"]:
