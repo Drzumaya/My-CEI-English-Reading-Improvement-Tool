@@ -6576,6 +6576,49 @@ if has_lesson_now and stage_5_now != "PORTAL":
                             else:
                                 st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
                         st.write("")
+                    c_qz1, c_qz2 = st.columns(2)
+                    with c_qz1:
+                        if st.button("✅ Calificar Quiz (30%)", type="primary", width="stretch", key="btn_grade_quiz_in_box"):
+                            correctas = 0
+                            total_q = len(st.session_state.quiz_data)
+                            for idx_g, item_g in enumerate(st.session_state.quiz_data):
+                                if st.session_state.quiz_user_answers.get(idx_g) == item_g.get("answer"):
+                                    correctas += 1
+                            st.session_state.quiz_graded = True
+                            st.session_state.quiz_score = f"{correctas}/{total_q}"
+                            if st.session_state.current_folio:
+                                save_quiz_and_best_score_pg(
+                                    st.session_state.current_folio,
+                                    st.session_state.quiz_score,
+                                    st.session_state.quiz_data,
+                                    st.session_state.quiz_user_answers
+                                )
+                            st.rerun()
+
+                    with c_qz2:
+                        if st.button("🔄 Nuevo Quiz / Cambiar Preguntas", type="secondary", width="stretch", key="btn_regen_quiz_in_box"):
+                            with st.spinner("Generando nuevas preguntas de evaluación..."):
+                                try:
+                                    q_new = generar_quiz_leccion(
+                                        st.session_state.generated_text,
+                                        gramatica_b1,
+                                        st.session_state.selected_cefr,
+                                        st.session_state.selected_academic_grade
+                                    )
+                                    st.session_state.quiz_data = q_new
+                                    st.session_state.quiz_graded = False
+                                    st.session_state.quiz_score = None
+                                    st.session_state.quiz_user_answers = {}
+                                    st.session_state.quiz_audio_bytes = None
+                                    if st.session_state.current_folio:
+                                        save_quiz_and_best_score_pg(st.session_state.current_folio, "", q_new, {})
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error al regenerar quiz: {e}")
+
+                    if st.session_state.quiz_graded and st.session_state.quiz_score:
+                        st.success(f"🏆 **Resultado del Quiz (30%):** `{st.session_state.quiz_score}` respuestas correctas.")
+
 # ==============================================================================
 # PARTE 16 — BLOQUE 1-B: PANEL DERECHO DE SPEAKING (25%) EN VISTA DIVIDIDA
 # ==============================================================================
