@@ -407,6 +407,94 @@ def pg_session(dict_rows: bool = False):
             conn.close()
         except Exception:
             pass
+
+DEFAULT_AFFILIATE_TERMS_TEXT = """TÉRMINOS Y CONDICIONES DEL PROGRAMA DE SOCIOS AFILIADOS
+CAREER ENGLISH INSTITUTE (CEI) — AGUA PRIETA, SONORA, MÉXICO
+
+PRIMERA. OBJETO Y NATURALEZA JURÍDICA DE LA AFILIACIÓN.
+Los presentes Términos y Condiciones regulan la incorporación y participación en el Programa de Socios Afiliados de Career English Institute (CEI), con sede en Agua Prieta, Sonora. La relación entre CEI y el Socio Afiliado es de carácter estrictamente mercantil e independiente (comisión mercantil y prestación de servicios independientes), regida por el Código de Comercio y el Código Civil Federal y del Estado de Sonora. En ningún caso constituirá relación laboral, subordinación, dependencia económica ni representación legal.
+
+SEGUNDA. REQUISITOS OBLIGATORIOS DE INSCRIPCIÓN Y EXPEDIENTE.
+1. Identificación Oficial Vigente: Copia digital legible por ambos lados (anverso y reverso) de INE o Pasaporte vigente.
+2. Registro Federal de Contribuyentes (RFC): Constancia de Situación Fiscal actualizada emitida por el SAT, habilitada para emitir CFDI por concepto de comisiones u honorarios mercantiles.
+3. Datos de Contacto y Cuenta Bancaria: Correo electrónico, teléfono/WhatsApp activo, domicilio completo y cuenta CLABE a nombre del titular.
+
+TERCERA. ACTIVIDADES Y COMPROMISOS DEL SOCIO AFILIADO.
+1. Invitar y canalizar prospectos interesados en los programas académicos de CEI.
+2. Motivar y acompañar a sus estudiantes referidos para mantener la constancia en su aprendizaje.
+3. Motivar oportunamente a sus estudiantes referidos para mantenerse al corriente con sus pagos mensuales.
+
+CUARTA. ESQUEMA DE COMISIONES Y FACTURACIÓN FISCAL (CFDI).
+Para recibir el pago de las comisiones liquidadas del mes inmediato anterior, el Socio Afiliado deberá expedir y entregar a CEI su Factura Electrónica (CFDI) de honorarios / comisiones mercantiles dentro de los primeros cinco (5) días hábiles del mes siguiente, cumpliendo con los requisitos del Código Fiscal de la Federación (CFF).
+
+QUINTA. LEGISLACIÓN APLICABLE Y JURISDICCIÓN.
+Para la interpretación y cumplimiento de los presentes Términos y Condiciones, las partes se someten a las leyes vigentes en los Estados Unidos Mexicanos y a la jurisdicción competente de los tribunales de Agua Prieta, Sonora, México."""
+
+
+def get_affiliate_terms_pg() -> dict:
+    """Obtiene los Términos y Condiciones de Afiliación vigentes desde PostgreSQL."""
+    conn = get_pg_connection()
+    if not conn:
+        return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Sistema", "updated_at": ""}
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                    clave TEXT PRIMARY KEY,
+                    contenido TEXT NOT NULL,
+                    updated_by TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            cur.execute("SELECT contenido, updated_by, updated_at FROM cei_configuracion_legal WHERE clave = 'terminos_afiliacion';")
+            row = cur.fetchone()
+            if not row:
+                cur.execute(
+                    "INSERT INTO cei_configuracion_legal (clave, contenido, updated_by) VALUES ('terminos_afiliacion', %s, 'Owner');",
+                    (DEFAULT_AFFILIATE_TERMS_TEXT,)
+                )
+                conn.commit()
+                return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Owner", "updated_at": ""}
+            conn.commit()
+            return {
+                "texto": str(row[0] or DEFAULT_AFFILIATE_TERMS_TEXT),
+                "updated_by": str(row[1] or ""),
+                "updated_at": str(row[2] or "")[:19]
+            }
+    except Exception:
+        return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Sistema", "updated_at": ""}
+
+
+def save_affiliate_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
+    """Guarda los Términos y Condiciones de Afiliación editados por el Owner/Admin autorizado."""
+    conn = get_pg_connection()
+    if not conn:
+        return False, "No hay conexión activa con Supabase PostgreSQL."
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
+                    clave TEXT PRIMARY KEY,
+                    contenido TEXT NOT NULL,
+                    updated_by TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            cur.execute("""
+                INSERT INTO cei_configuracion_legal (clave, contenido, updated_by, updated_at)
+                VALUES ('terminos_afiliacion', %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (clave) DO UPDATE SET
+                    contenido = EXCLUDED.contenido,
+                    updated_by = EXCLUDED.updated_by,
+                    updated_at = CURRENT_TIMESTAMP;
+            """, (nuevo_texto.strip(), autor))
+        conn.commit()
+        return True, "✅ Términos y Condiciones de Afiliación actualizados y publicados en vivo."
+    except Exception as e:
+        return False, f"Error al guardar términos: {e}"
+
+
+
 # ==============================================================================
 # PARTE 3A: GESTIÓN DE IMÁGENES, LOGOTIPO INSTITUCIONAL Y MATRIZ RBAC
 # ==============================================================================
