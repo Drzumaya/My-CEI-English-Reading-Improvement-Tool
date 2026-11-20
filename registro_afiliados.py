@@ -123,62 +123,39 @@ def obtener_terminos_afiliacion_pg() -> dict:
     return {"texto": DEFAULT_AFFILIATE_TERMS_FALLBACK, "updated_by": "CEI", "updated_at": ""}
 
 
-def _get_hmac_secret() -> bytes:
-    """Clave HMAC idéntica compartida entre el Panel CEI y el Formulario Público."""
-    custom_key = _find_secret("HMAC_SECRET_KEY")
-    if custom_key:
-        return custom_key.encode("utf-8")
-    return b"CEI_AGUA_PRIETA_SONORA_AFFILIATE_QR_2026"
-
-
 def generar_token_qr_7min() -> tuple[str, int]:
-    """Genera token con marca de tiempo exacta y rotación visual cada 7 minutos (420s)."""
+    """Genera un token único de QR con vigencia de 7 min (420s) y lo registra en PostgreSQL."""
+    import secrets
     ventana = 420
     ahora = int(time.time())
     restante = ventana - (ahora % ventana)
-    sig = hmac.new(_get_hmac_secret(), f"CEI_AFF_TS_{ahora}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
-    return f"{ahora}.{sig}", restante
 
+    tok_cache = str(st.session_state.get("_last_qr_tok") or "")
+    ts_cache = int(st.session_state.get("_last_qr_ts") or 0)
+    if tok_cache and (ahora - ts_cache) < 300:
+        return tok_cache, 420 - (ahora - ts_cache)
 
-def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
-    """Valida que el QR esté dentro de su ventana de 7 min (+2 min tolerancia) y sea de un solo uso."""
-    tok = urllib.parse.unquote(str(token_str or "").strip())
-    if not tok:
-        return True, "Sesión directa autorizada (20 min)"
-
-    if "." not in tok:
-        return False, "Enlace QR inválido o incompleto."
-    try:
-        ts_str, sig_in = tok.split(".", 1)
-        ts_num = int(ts_str)
-    except ValueError:
-        return False, "Formato de token QR incorrecto."
-
-    ahora = int(time.time())
-    antiguedad_seg = ahora - ts_num
-    # Válido hasta 9 minutos (540s) desde la generación/renovación del QR para ser escaneado
-    if antiguedad_seg < -120 or antiguedad_seg > 540:
-        return False, "⏳ Este código QR ha expirado (vigencia de 7 min para escaneo). Solicita y escanea el nuevo código QR vigente."
-
-    sig_esperada = hmac.new(_get_hmac_secret(), f"CEI_AFF_TS_{ts_num}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
-    if not hmac.compare_digest(sig_in, sig_esperada):
-        return False, "Firma de seguridad del QR no válida."
-
+    nuevo_tok = secrets.token_urlsafe(14)
     conn = _get_conn_afiliados()
     if conn:
         try:
             with conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        CREATE TABLE IF NOT EXISTS affiliate_used_tokens (
-                            token_hash TEXT PRIMARY KEY,
-                            used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                        CREATE TABLE IF NOT EXISTS affiliate_qr_sessions (
+                            token TEXT PRIMARY KEY,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                            scanned_at TIMESTAMP WITH TIME ZONE,
+                            used BOOLEAN DEFAULT FALSE
                         );
                     """)
-                    t_hash = hashlib.sha256(tok.encode("utf-8")).hexdigest()
-                    cur.execute("SELECT 1 FROM affiliate_used_tokens WHERE token_hash = %s LIMIT 1;", (t_hash,))
-                    if cur.fetchone():
-                        return False, "🔒 Este enlace de registro ya fue utilizado y ha quedado inhabilitado."
+                    cur.execute(
+                        "INSERT INTO affiliate_qr_sessions (token, created_at, used) VALUES (%s, NOW(), FALSE);",
+                        (nuevo_tok,)
+                    )
+            st.session_state["_last_qr_tok"] = nuevo_tok
+            st.session_state["_last_qr_ts"] = ahora
+            return nuevo_tok, 420
         except Exception:
             pass
         finally:
@@ -186,31 +163,86 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
                 conn.close()
             except Exception:
                 pass
-    return True, "Token válido"
+    return nuevo_tok, restante
 
+
+def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
+    """Valida el token del QR directamente contra PostgreSQL (7 min para escanear + 20 min de llenado)."""
+    tok = urllib.parse.unquote(str(token_str or "").strip())
+    if not tok:
+        return True, "Sesión directa autorizada (20 min)"
+
+    conn = _get_conn_afiliados()
+    if not conn:
+        return False, "No hay conexión con la base de datos para verificar el QR."
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS affiliate_qr_sessions (
+                        token TEXT PRIMARY KEY,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        scanned_at TIMESTAMP WITH TIME ZONE,
+                        used BOOLEAN DEFAULT FALSE
+                    );
+                """)
+                cur.execute("""
+                    SELECT EXTRACT(EPOCH FROM (NOW() - created_at)),
+                           EXTRACT(EPOCH FROM (NOW() - COALESCE(scanned_at, NOW()))),
+                           used,
+                           scanned_at IS NOT NULL
+                    FROM affiliate_qr_sessions
+                    WHERE token = %s
+                    LIMIT 1;
+                """, (tok,))
+                row = cur.fetchone()
+                if not row:
+                    return False, "El código QR no fue reconocido o pertenece a una sesión anterior. Genera y escanea un QR nuevo."
+
+                edad_creacion, edad_escaneo, ya_usado, ya_escaneado = float(row[0]), float(row[1]), bool(row[2]), bool(row[3])
+                if ya_usado:
+                    return False, "🔒 Este formulario ya fue enviado y el enlace quedó inhabilitado."
+
+                if not ya_escaneado:
+                    if edad_creacion > 450:
+                        return False, "⏳ Este código QR expiró (límite de 7 minutos para escanear). Solicita uno nuevo."
+                    cur.execute("UPDATE affiliate_qr_sessions SET scanned_at = NOW() WHERE token = %s;", (tok,))
+                else:
+                    if edad_escaneo > 1200:
+                        return False, "⏳ El tiempo de 20 minutos para llenar el formulario ha expirado."
+        return True, "Token válido"
+    except Exception as e:
+        return False, f"Error verificando QR: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # ==============================================================================
 # registro_afiliados.py — PARTE 2 DE 4: TEMPORIZADOR Y CABECERA DEL FORMULARIO
 # ==============================================================================
 def _consumir_token_qr(token_str: str):
-    """Inhabilita el token tras el envío del formulario."""
-    if not token_str:
+    """Inhabilita el token en PostgreSQL tras el envío del formulario."""
+    tok = urllib.parse.unquote(str(token_str or "").strip())
+    if not tok:
         return
     conn = _get_conn_afiliados()
     if not conn:
         return
     try:
-        t_hash = hashlib.sha256(token_str.strip().encode("utf-8")).hexdigest()
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    CREATE TABLE IF NOT EXISTS affiliate_used_tokens (
-                        token_hash TEXT PRIMARY KEY,
-                        used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    CREATE TABLE IF NOT EXISTS affiliate_qr_sessions (
+                        token TEXT PRIMARY KEY,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        scanned_at TIMESTAMP WITH TIME ZONE,
+                        used BOOLEAN DEFAULT FALSE
                     );
                 """)
-                cur.execute("INSERT INTO affiliate_used_tokens (token_hash) VALUES (%s) ON CONFLICT DO NOTHING;", (t_hash,))
+                cur.execute("UPDATE affiliate_qr_sessions SET used = TRUE WHERE token = %s;", (tok,))
     except Exception:
         pass
     finally:
