@@ -6989,31 +6989,40 @@ if has_lesson_now and stage_5_now != "PORTAL":
                 """
                 components.html(yt_ruler_html, height=495)
 
-                # SINCRONIZACIÓN FINAL DE LOS MINUTOS COMPLETOS AL BOLETÍN (25%)
-                c_sync1, c_sync2 = st.columns([1.4, 1.0])
-                with c_sync1:
-                    min_leidos_manual = st.number_input(
-                        "⏱️ Minutos marcados en la regla superior (para guardar en Boletín):",
-                        min_value=0.0,
-                        max_value=float(dur_min_st),
-                        value=float(round(watched_st / 60.0, 2)),
-                        step=0.25,
-                        key="num_sync_video_minutes"
+                # CANDADO DE ACREDITACIÓN: SI YA ESTÁ CALIFICADO AL 100%, MODO EXPLORACIÓN LIBRE
+                video_ya_acreditado = float(st.session_state.get("video_score_100") or 0.0) >= 100.0
+
+                if video_ya_acreditado:
+                    st.success(
+                        f"🏆 **Componente de Video ya acreditado al 100% ({pts_v_st} / 25.0 pts) en el Folio `{folio_vid_key}`.**\n\n"
+                        "Puedes reproducir libremente todos los demás videos del catálogo para seguir practicando; "
+                        "tu calificación ya quedó asegurada y no requiere volver a computarse ni registrarse."
                     )
-                with c_sync2:
-                    st.write("")
-                    if st.button("✅ Guardar Progreso en Boletín (25%)", type="primary", key="btn_stage_save_timer", width="stretch"):
-                        nuevo_w = min(dur_sec_st, int(round(min_leidos_manual * 60)))
-                        if nuevo_w >= dur_sec_st - 5:
-                            nuevo_w = dur_sec_st
-                        nuevo_sc = min(100.0, round((nuevo_w / float(dur_sec_st)) * 100.0, 1))
-                        st.session_state["video_watched_sec"] = nuevo_w
-                        st.session_state["video_score_100"] = nuevo_sc
-                        if st.session_state.current_folio:
-                            save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
-                        st.success(f"✅ Acreditado en Boletín: {round(nuevo_w / 60.0, 2)} min ({round((nuevo_sc/100.0)*25.0, 2)} / 25.0 pts).")
-                        st.rerun()
-                        st.link_button("🔗 Si tu red restringe YouTube, abrir video externamente", url=v_watch_url, width="stretch")
+                else:
+                    c_sync1, c_sync2 = st.columns([1.4, 1.0])
+                    with c_sync1:
+                        min_leidos_manual = st.number_input(
+                            "⏱️ Minutos marcados en la regla superior (para guardar en Boletín):",
+                            min_value=0.0,
+                            max_value=float(dur_min_st),
+                            value=float(round(watched_st / 60.0, 2)),
+                            step=0.25,
+                            key="num_sync_video_minutes"
+                        )
+                    with c_sync2:
+                        st.write("")
+                        if st.button("✅ Guardar Progreso en Boletín", type="primary", key="btn_stage_save_timer", width="stretch"):
+                            nuevo_w = min(dur_sec_st, int(round(min_leidos_manual * 60)))
+                            if nuevo_w >= dur_sec_st - 5:
+                                nuevo_w = dur_sec_st
+                            nuevo_sc = min(100.0, round((nuevo_w / float(dur_sec_st)) * 100.0, 1))
+                            st.session_state["video_watched_sec"] = nuevo_w
+                            st.session_state["video_score_100"] = nuevo_sc
+                            if st.session_state.current_folio:
+                                save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
+                            st.success(f"✅ Acreditado en Boletín: {round(nuevo_w / 60.0, 2)} min ({nuevo_sc}%).")
+                            st.rerun()
+
 
 # ==============================================================================
 # PARTE 16 — BLOQUE 2-B (FINAL): PANEL DERECHO DE WRITING SKILL (20%)
