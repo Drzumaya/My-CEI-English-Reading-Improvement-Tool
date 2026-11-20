@@ -5997,6 +5997,25 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 else:
                                     st.error(msg_st)
 
+                with st.expander("📲 Código QR Oficial de Auto-Inscripción de Alumnos (Zoom / WhatsApp)", expanded=False):
+                    padron_qr_st = load_padron_records()
+                    afiliados_qr_list = ["Inscripción Directa CEI (Sin Afiliado)"] + [
+                        str(r.get("Usuario", "")).strip()
+                        for r in padron_qr_st
+                        if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]
+                    ]
+                    sel_ref_qr_admin = st.selectbox(
+                        "Vincular QR a Socio Afiliado (para incrustar su ID oficial automáticamente):",
+                        afiliados_qr_list,
+                        index=0,
+                        key="sb_admin_inscripcion_qr_ref"
+                    )
+                    ref_qr_param = "" if sel_ref_qr_admin.startswith("Inscripción Directa") else sel_ref_qr_admin
+                    _render_qr_inscripcion_alumnos_box(
+                        afiliado_ref=ref_qr_param,
+                        key_prefix="admin_inscripcion_padron"
+                    )
+
                 permisos_disponibles = PERMISOS_LISTA if (is_owner or can("Editar_Permisos")) else ["Basico"]
                 default_perm_idx = permisos_disponibles.index("Basico") if "Basico" in permisos_disponibles else 0
                 hoy_hermosillo = datetime.now(ZoneInfo("America/Hermosillo")).date()
