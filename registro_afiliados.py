@@ -288,7 +288,7 @@ def render_formulario_registro_afiliado(
             st.rerun()
         return
 # ==============================================================================
-# registro_afiliados.py — PARTE 3 DE 4: FORMULARIO (CON RFC), TÉRMINOS Y GUARDADO
+# registro_afiliados.py — PARTE 3A: CAMPOS DEL FORMULARIO, RFC Y TÉRMINOS
 # ==============================================================================
     anio_actual = date.today().year
     id_sugerido = f"AFIL-CEI-{anio_actual}-{random.randint(1000, 9999)}"
@@ -301,16 +301,30 @@ def render_formulario_registro_afiliado(
         nombre = st.text_input("Nombre(s) *", placeholder="Ej. Carlos Alberto")
         ap_paterno = st.text_input("Apellido Paterno *", placeholder="Ej. Mendoza")
         ap_materno = st.text_input("Apellido Materno", placeholder="Ej. Ruiz")
-        rfc = st.text_input("🧾 RFC (Registro Federal de Contribuyentes — 12 o 13 caracteres) *", placeholder="Ej. MERC850101ABC", max_chars=13)
+        rfc = st.text_input(
+            "🧾 RFC (Registro Federal de Contribuyentes — 12 o 13 caracteres) *",
+            placeholder="Ej. MERC850101ABC",
+            max_chars=13
+        )
         telefono = st.text_input("Teléfono / WhatsApp *", placeholder="Ej. 633-123-4567")
         email = st.text_input("Correo Electrónico *", placeholder="afiliado@correo.com")
         clave_acceso = st.text_input("Contraseña Inicial *", type="password", placeholder="Mínimo 6 caracteres")
         domicilio = st.text_input("Domicilio Completo *", placeholder="Calle, Número, Colonia, Ciudad, Estado, C.P.")
 
         if es_externo:
-            pct_default, fecha_ingreso, estatus, fecha_inact, fecha_baja = 10.0, date.today(), "Activo", None, None
+            pct_default, fecha_ingreso, estatus, fecha_inact, fecha_baja = 0.0, date.today(), "Activo", None, None
+            st.info(
+                "💼 **Porcentaje de Comisión:** Será asignado oficialmente por el **Owner o Administrador** de CEI "
+                "una vez validado tu expediente (INE y RFC)."
+            )
         else:
-            pct_default = st.number_input("Porcentaje Comisión Base (%)", min_value=0.0, max_value=100.0, value=10.0, step=1.0)
+            pct_default = st.number_input(
+                "💼 Porcentaje Comisión Base (% — Asignado por Owner / Admin) *",
+                min_value=0.0,
+                max_value=100.0,
+                value=10.0,
+                step=1.0
+            )
             fecha_ingreso = st.date_input("Fecha de Ingreso *", value=date.today())
             estatus = st.selectbox("Estado del Afiliado *", ["Activo", "Inactivo", "Baja"])
             fecha_inact = st.date_input("Fecha Inactividad (si aplica)", value=None)
@@ -333,6 +347,9 @@ def render_formulario_registro_afiliado(
         )
 
         submitted = st.form_submit_button("💾 Enviar Registro y Finalizar", type="primary", width="stretch")
+# ==============================================================================
+# registro_afiliados.py — PARTE 3B: VALIDACIÓN Y GUARDADO TRANSACCIONAL
+# ==============================================================================
         if submitted:
             if es_externo and (time.time() - float(tiempo_inicio_escaneo)) > 1200:
                 st.error("🔒 El límite de 20 minutos expiró antes de enviar. Escanea el QR vigente nuevamente.")
@@ -394,7 +411,10 @@ def render_formulario_registro_afiliado(
                                 estatus = EXCLUDED.estatus,
                                 fecha_inactividad = EXCLUDED.fecha_inactividad,
                                 fecha_baja = EXCLUDED.fecha_baja,
-                                porcentaje_default = EXCLUDED.porcentaje_default,
+                                porcentaje_default = CASE
+                                    WHEN %s THEN affiliate_partners.porcentaje_default
+                                    ELSE EXCLUDED.porcentaje_default
+                                END,
                                 terminos_aceptados = TRUE,
                                 terminos_aceptados_at = NOW();
                         """, (
@@ -403,7 +423,8 @@ def render_formulario_registro_afiliado(
                             ine_f_b64, ine_r_b64, fecha_ingreso, estatus,
                             fecha_inact if estatus == "Inactivo" else None,
                             fecha_baja if estatus == "Baja" else None,
-                            float(pct_default), registrado_por
+                            float(pct_default), registrado_por,
+                            es_externo
                         ))
 
                         estatus_padron = "Activo" if estatus == "Activo" else "Inactivo"
@@ -413,9 +434,12 @@ def render_formulario_registro_afiliado(
                             ON CONFLICT (usuario) DO UPDATE SET
                                 rol = 'Socio Afiliado',
                                 estatus = EXCLUDED.estatus,
-                                porcentaje_comision = EXCLUDED.porcentaje_comision
+                                porcentaje_comision = CASE
+                                    WHEN %s THEN users_padron.porcentaje_comision
+                                    ELSE EXCLUDED.porcentaje_comision
+                                END
                             RETURNING id, matricula;
-                        """, (u_clean, clave_acceso.strip(), estatus_padron, float(pct_default)))
+                        """, (u_clean, clave_acceso.strip(), estatus_padron, float(pct_default), es_externo))
                         row_pad = cur.fetchone()
                         if row_pad and not row_pad:
                             mat_gen = f"CEI-{anio_actual}-{int(row_pad):04d}"
@@ -436,6 +460,7 @@ def render_formulario_registro_afiliado(
                     conn.close()
                 except Exception:
                     pass
+
 
 # ==============================================================================
 # registro_afiliados.py — PARTE 4 DE 4 (FINAL): MODO INDEPENDIENTE (STANDALONE)
