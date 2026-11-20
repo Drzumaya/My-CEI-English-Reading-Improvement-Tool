@@ -6910,7 +6910,7 @@ if generar_btn:
                 st.error(f"⚠️ Error al generar lección: {e}")
 
 # ==============================================================================
-# PARTE 16 — BLOQUE 1-A: VENTANA MAESTRA 1 (READING 30% + QUIZ)
+# PARTE 16 — BLOQUE 1-A: VENTANA MAESTRA 1 (READING 30% + TAMAÑO DE LETRA + QUIZ)
 # ==============================================================================
 if st.query_params.get("study_w"):
     st.session_state["study_mode_active"] = True
@@ -6956,34 +6956,30 @@ if has_lesson_now and stage_5_now != "PORTAL":
             col_spk_box = None
 
         with col_read_box:
-            if st.session_state.get("study_mode_active"):
-                with st.spinner("Analizando estructuras gramaticales, fonética y definiciones..."):
-                    payload_estudio = analyze_lesson_for_study_mode(
-                        st.session_state.generated_text,
-                        st.session_state.selected_cefr
-                    )
-                render_interactive_study_viewer(payload_estudio)
-            else:
-                with st.container(height=540, border=True):
-                    st.markdown(st.session_state.generated_text)
-
-            # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA — SINCRONIZADO CON TAMAÑO DE LETRA)
-            font_quiz_map = {
+            font_options_map = {
                 "Normal (16 px)": 16,
                 "Mediana (19 px)": 19,
                 "Grande (22 px)": 22,
                 "Extra Grande (26 px)": 26
             }
-            q_font_px = font_quiz_map.get(
-                st.session_state.get("sb_lesson_font_size", "Normal (16 px)"),
-                16
-            )
+            cf_1, cf_2 = st.columns([1.5, 2.3])
+            with cf_1:
+                sel_font_lbl = st.selectbox(
+                    "🔠 Tamaño de letra:",
+                    list(font_options_map.keys()),
+                    index=0,
+                    key="sb_lesson_font_size"
+                )
+            font_px = font_options_map[sel_font_lbl]
+
             st.markdown(
                 f"""
                 <style>
+                .cei-lesson-reader, .cei-lesson-reader p, .cei-lesson-reader li,
+                .cei-lesson-reader span, .cei-lesson-reader a,
                 .cei-quiz-box p, .cei-quiz-box label,
                 .cei-quiz-box div[data-testid="stRadio"] p {{
-                    font-size: {q_font_px}px !important;
+                    font-size: {font_px}px !important;
                     line-height: 1.65 !important;
                 }}
                 </style>
@@ -6991,6 +6987,23 @@ if has_lesson_now and stage_5_now != "PORTAL":
                 unsafe_allow_html=True
             )
 
+            if st.session_state.get("study_mode_active"):
+                with st.spinner("Analizando estructuras gramaticales, fonética y definiciones..."):
+                    payload_estudio = analyze_lesson_for_study_mode(
+                        st.session_state.generated_text,
+                        st.session_state.selected_cefr
+                    )
+                st.markdown("<div class='cei-lesson-reader'>", unsafe_allow_html=True)
+                render_interactive_study_viewer(payload_estudio)
+                st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                with st.container(height=540, border=True):
+                    st.markdown(
+                        f"<div class='cei-lesson-reader'>{st.session_state.generated_text}</div>",
+                        unsafe_allow_html=True
+                    )
+
+            # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA — SINCRONIZADO CON TAMAÑO DE LETRA)
             if st.session_state.quiz_data is None:
                 cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
                 if st.button(
@@ -7507,8 +7520,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     st.markdown(
                         f"""
                         <style>
-                        textarea[aria-label*="summary"],
-                        textarea[aria-label*="APA"] {{
+                        div[data-testid="stTextArea"] textarea {{
                             font-size: {w_px}px !important;
                             line-height: 1.6 !important;
                         }}
@@ -7572,6 +7584,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                     st.caption(f"📖 **Sugerencia APA 7:** {ev_w['apa7_corrected']}")
                             else:
                                 st.error(ev_w["feedback"])
+
 
 # ==============================================================================
 # PARTE 17 — BLOQUE 2A: CATÁLOGO DE VIDEOS (SOLO ACTIVO EN BOTÓN 2 VIEWING)
