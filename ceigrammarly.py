@@ -6708,35 +6708,97 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             if not is_owner:
                 st.warning("⛔ Solo el Propietario / Administrador Principal puede actualizar las librerías del servidor.")
             else:
-                st.markdown("#### 🔄 Gestor Automático de Librerías y Dependencias (PyPI)")
-                st.caption("Verifica las versiones activas en tu servidor y actualiza todas las librerías integradas con un solo clic.")
+                import importlib.metadata
+                import subprocess
+                import sys
+                import urllib.request
+
+                st.markdown("#### 🔄 Gestor Automático de Librerías y Dependencias (PyPI / Cloud)")
+                st.caption(
+                    "Verifica las versiones instaladas en el servidor, comprueba disponibilidad en PyPI y descarga el "
+                    "`requirements.txt` sincronizado para actualizar permanentemente en Streamlit Cloud."
+                )
+
+                paquetes_cei = [
+                    "streamlit", "google-genai", "gtts", "qrcode", "pillow",
+                    "fpdf2", "gspread", "google-auth", "pandas", "streamlit-js-eval",
+                    "psycopg", "deep-translator", "requests", "pypdfium2", "pydub", "static-ffmpeg"
+                ]
 
                 c_upd1, c_upd2 = st.columns([1.2, 2.0])
                 with c_upd1:
-                    if st.button("🔍 Comprobar Actualizaciones", width="stretch", key="btn_check_pypi_updates"):
-                        check_libraries_updates.clear()
-                        st.rerun()
-
-                estado_pkgs = check_libraries_updates()
-                pendientes = [p["pip_spec"] for p in estado_pkgs if "Nueva versión" in p["Estado"] or "Pendiente" in p["Estado"]]
-
+                    btn_check_pypi = st.button("🔍 Comprobar Actualizaciones", width="stretch", key="btn_check_pypi_updates")
                 with c_upd2:
-                    label_btn_upd = (
-                        f"⚡ Autoactualizar {len(pendientes)} Librería(s) Pendiente(s)"
-                        if pendientes
-                        else "⚡ Reinstalar / Actualizar Todas las Librerías"
+                    btn_run_upd = st.button(
+                        "⚡ Autoactualizar Librerías en Entorno",
+                        type="primary",
+                        width="stretch",
+                        key="btn_run_auto_upgrade"
                     )
-                    if st.button(label_btn_upd, type="primary", width="stretch", key="btn_run_auto_upgrade"):
-                        with st.spinner("Actualizando librerías desde PyPI (esto puede tardar 30-60 segundos)..."):
-                            ok_up, msg_up = upgrade_managed_libraries(pendientes or None)
-                            if ok_up:
-                                st.success(msg_up)
-                                st.rerun()
-                            else:
-                                st.error(msg_up)
 
-                df_pkgs = pd.DataFrame(estado_pkgs)[["Paquete", "Instalada", "Última PyPI", "Estado"]]
-                st.dataframe(df_pkgs, width="stretch", hide_index=True)
+                if btn_run_upd:
+                    with st.spinner("Actualizando librerías en el entorno activo (30-60 segundos)..."):
+                        try:
+                            res_pip = subprocess.run(
+                                [sys.executable, "-m", "pip", "install", "--upgrade", "--user"] + paquetes_cei,
+                                capture_output=True, text=True, timeout=90
+                            )
+                            if res_pip.returncode == 0:
+                                st.success("✅ Librerías actualizadas en el entorno. Reinicia la app para aplicar los cambios.")
+                            else:
+                                st.info(
+                                    "ℹ️ El entorno de Streamlit Cloud tiene bloqueada la escritura directa de paquetes (`pip`). "
+                                    "Usa el botón inferior para descargar el **`requirements.txt`** actualizado y súbelo a tu repositorio en GitHub."
+                                )
+                        except Exception as e_pip:
+                            st.info(f"ℹ️ Entorno Cloud de solo lectura ({e_pip}). Descarga el `requirements.txt` abajo para actualizar vía GitHub.")
+
+                filas_pkgs = []
+                lineas_req = []
+                for pkg in paquetes_cei:
+                    try:
+                        v_inst = importlib.metadata.version(pkg)
+                    except Exception:
+                        v_inst = "No instalado"
+
+                    v_latest = "— (Pulsa Comprobar)"
+                    estado_pkg = "✅ Operativa en servidor"
+                    if btn_check_pypi:
+                        try:
+                            req_p = urllib.request.Request(
+                                f"https://pypi.org{pkg}/json",
+                                headers={"User-Agent": "CEI-Platform-Updater/1.0"}
+                            )
+                            with urllib.request.urlopen(req_p, timeout=4) as resp_p:
+                                data_p = json.loads(resp_p.read().decode("utf-8"))
+                                v_latest = str(data_p.get("info", {}).get("version") or v_inst)
+                                if v_inst != "No instalado":
+                                    estado_pkg = "✅ Al día" if v_inst == v_latest else f"⬆️ Nueva versión: {v_latest}"
+                        except Exception:
+                            v_latest = v_inst
+                            estado_pkg = "✅ Activa (PyPI restringido en Cloud)"
+
+                    filas_pkgs.append({
+                        "Paquete": pkg,
+                        "Instalada": v_inst,
+                        "Última PyPI": v_latest,
+                        "Estado": estado_pkg
+                    })
+                    lineas_req.append(f"{pkg}>={v_inst}" if v_inst != "No instalado" else pkg)
+
+                st.dataframe(pd.DataFrame(filas_pkgs), width="stretch", hide_index=True)
+
+                req_txt_out = "\n".join(lineas_req) + "\n"
+                st.download_button(
+                    "📥 Descargar requirements.txt Actualizado para GitHub",
+                    data=req_txt_out,
+                    file_name="requirements.txt",
+                    mime="text/plain",
+                    type="primary",
+                    width="stretch",
+                    key="btn_dl_requirements_updated_cei"
+                )
+
 # ==============================================================================
 # PARTE 14D1: MÓDULOS FINANCIEROS SPA — COBRANZA MENSUAL, COMPROBANTES Y WHATSAPP
 # ==============================================================================
