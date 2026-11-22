@@ -5071,7 +5071,7 @@ def _cerrar_panel_y_volver_leccion():
     st.session_state["active_stage_5"] = "READING"
 
 # ==============================================================================
-# MOTOR DE CATEGORÍAS ESTUDIANTILES (BRONCE / PLATA / ORO) Y PLAN DE 9 PERIODOS
+# MOTOR DE CATEGORÍAS ESTUDIANTILES (BRONCE / PLATA / ORO) — BLOQUE A DE 2
 # ==============================================================================
 CRITERIOS_POR_NIVEL_CEFR = {
     "A1": [
@@ -5144,7 +5144,7 @@ CRITERIOS_POR_NIVEL_CEFR = {
 
 
 def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str = "B1") -> dict:
-    """Calcula automáticamente la categoría (Bronce, Plata, Oro) según lecciones completadas por criterio gramatical."""
+    """Calcula automáticamente la categoría (Bronce, Plata, Oro) según clases/lecciones completadas."""
     niv_code = next(iter(str(nivel_cefr or "B1").upper().split()), "B1")
     if niv_code not in CRITERIOS_POR_NIVEL_CEFR:
         niv_code = "B1"
@@ -5171,10 +5171,6 @@ def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str 
     criterios_cubiertos = len(conteo_por_tema)
     promedio_por_criterio = (total_lecciones / total_criterios) if total_criterios > 0 else 0.0
 
-    # Regla institucional:
-    # Oro: >= 3 lecciones promedio por criterio gramatical (o >= total_criterios * 3)
-    # Plata: >= 2 lecciones promedio por criterio gramatical (o >= total_criterios * 2)
-    # Bronce: >= 1 lección por criterio (o categoría base inicial)
     if total_lecciones >= (total_criterios * 3):
         cat_nombre = "🥇 Categoría Oro"
         cat_corto = "ORO"
@@ -5200,6 +5196,62 @@ def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str 
         "meta_mult": meta_mult,
         "conteo_por_tema": conteo_por_tema
     }
+# ==============================================================================
+# MOTOR DE CATEGORÍAS ESTUDIANTILES (BRONCE / PLATA / ORO) — BLOQUE B DE 2
+# ==============================================================================
+def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str = "B1"):
+    """Renderiza en pantalla principal Instrucciones, Plan del Curso (9 meses) y Categoría Estudiantil."""
+    datos_cat = calcular_categoria_automatica_estudiante(usuario_actual, nivel_cefr_actual)
+    niv_code = datos_cat["nivel"]
+    n_crit = datos_cat["total_criterios"]
+
+    with st.container(border=True):
+        c_gh1, c_gh2 = st.columns([3.2, 1.2])
+        with c_gh1:
+            st.markdown("### 📘 Guía Académica, Plan del Curso y Categoría Estudiantil")
+            st.caption(
+                f"Estudiante / Usuario: **{usuario_actual}**  |  "
+                f"Nivel Calibrado: **CEFR {niv_code}**  |  "
+                f"Insignia Actual: **{datos_cat['categoria_label']}**"
+            )
+        with c_gh2:
+            if st.button("✖️ Cerrar Guía y Volver", type="primary", width="stretch", key="btn_close_guia_plan_cat"):
+                st.session_state["guia_plan_seccion_activa"] = None
+                st.rerun()
+
+        opciones_radio = [
+            "📖 Instrucciones",
+            "📅 Plan del Curso (9 Meses)",
+            "🏅 Categoría Estudiantil (Bronce, Plata y Oro)"
+        ]
+        sel_act = st.session_state.get("guia_plan_seccion_activa") or "📖 Instrucciones"
+        idx_radio = opciones_radio.index(sel_act) if sel_act in opciones_radio else 0
+
+        opcion_guia = st.radio(
+            "Selecciona el apartado a consultar:",
+            opciones_radio,
+            index=idx_radio,
+            horizontal=True,
+            key="radio_guia_plan_categoria_main"
+        )
+        st.session_state["guia_plan_seccion_activa"] = opcion_guia
+        st.divider()
+
+        if opcion_guia == "📖 Instrucciones":
+            st.markdown("#### 👋 ¡Bienvenido(a) a tu Plataforma Educativa Career English Institute (CEI)!")
+            st.markdown(
+                "Esta plataforma está diseñada para acompañarte paso a paso en tu aprendizaje del idioma inglés **100 % en línea**, "
+                "combinando tus clases en vivo con práctica inteligente calibrada exactamente a tu nivel **CEFR**.\n\n"
+                "##### 🚀 ¿Cómo aprovechar cada lección al máximo?\n"
+                "1. **📖 1. Reading & Comprehension (30 %):** Lee el texto generado para tu nivel. Puedes cambiar el **tamaño de letra** "
+                "(16 px a 26 px) según tu comodidad visual y activar el **🧠 Modo Estudio IA** para escuchar la pronunciación y ver el significado de cada palabra.\n"
+                "2. **📝 Quiz de Comprensión:** Al terminar de leer, responde las preguntas de opción múltiple y pulsa **Calificar Quiz** para registrar tu puntaje.\n"
+                "3. **🎬 2. Viewing & Listening (25 %):** Observa el video contextual relacionado con el tema de tu lección para entrenar tu oído con inglés real.\n"
+                "4. **🎙️ 3. Alphabetical & Speaking (25 %):** Graba tu voz o video leyendo el texto en voz alta. Nuestra IA evaluará tu pronunciación, entonación y fluidez.\n"
+                "5. **✍️ 4. Writing Skill APA 7 (20 %):** Redacta un resumen en inglés de **120 a 125 palabras** sobre el video y agrega su referencia bibliográfica en formato **APA 7.ª Edición**.\n"
+                "6. **📊 Tu Boletín y Certificado:** Todas tus calificaciones y tu **Categoría Estudiantil (Bronce, Plata u Oro)** se actualizan automáticamente en tu Boletín Informativo."
+            )
+
         elif opcion_guia == "📅 Plan del Curso (9 Meses)":
             st.markdown(f"#### 📅 Plan Curricular de 9 Periodos (36 Semanas) — Nivel CEFR {niv_code}")
             st.info(
@@ -5219,7 +5271,7 @@ def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str 
             filas_plan = []
             for idx_m, crit_nom in enumerate(datos_cat["criterios"], start=1):
                 filas_plan.append({
-                    "Periodo (Mes)": f"Mes {idx_m} (Semanas {(idx_m-1)*4 + 1}–{idx_m*4})",
+                    "Periodo (Mes)": f"Mes {idx_m} (Semanas {(idx_m - 1) * 4 + 1}–{idx_m * 4})",
                     f"Criterio Gramatical ({niv_code})": crit_nom,
                     "🥉 Bronce (1x)": "1 clase / mes",
                     "🥈 Plata (2x)": "2 clases / mes",
@@ -5254,6 +5306,7 @@ def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str 
                 "✨ **Asignación Automática:** No necesitas solicitar tu categoría. Conforme avanzas y completas tus clases mensuales en cada periodo, "
                 "la plataforma actualiza tu insignia automáticamente y la imprime tanto en tu **Boletín Informativo** como en tu **Certificado Oficial**."
             )
+
 
 
 def get_student_inscription_url_pg() -> str:
