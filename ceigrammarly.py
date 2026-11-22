@@ -5200,73 +5200,30 @@ def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str 
         "meta_mult": meta_mult,
         "conteo_por_tema": conteo_por_tema
     }
-def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str = "B1"):
-    """Renderiza en pantalla principal Instrucciones, Plan del Curso (9 meses) y Categoría Estudiantil."""
-    datos_cat = calcular_categoria_automatica_estudiante(usuario_actual, nivel_cefr_actual)
-    niv_code = datos_cat["nivel"]
-    n_crit = datos_cat["total_criterios"]
-
-    with st.container(border=True):
-        c_gh1, c_gh2 = st.columns([3.2, 1.2])
-        with c_gh1:
-            st.markdown("### 📘 Guía Académica, Plan del Curso y Categoría Estudiantil")
-            st.caption(f"Estudiante / Usuario: **{usuario_actual}**  |  Nivel Calibrado: **CEFR {niv_code}**  |  Insignia Actual: **{datos_cat['categoria_label']}**")
-        with c_gh2:
-            if st.button("✖️ Cerrar Guía y Volver", type="primary", width="stretch", key="btn_close_guia_plan_cat"):
-                st.session_state["guia_plan_seccion_activa"] = None
-                st.rerun()
-
-        opcion_guia = st.radio(
-            "Selecciona el apartado a consultar:",
-            ["📖 Instrucciones", "📅 Plan del Curso (9 Meses)", "🏅 Categoría Estudiantil (Bronce, Plata y Oro)"],
-            index=["📖 Instrucciones", "📅 Plan del Curso (9 Meses)", "🏅 Categoría Estudiantil (Bronce, Plata y Oro)"].index(
-                st.session_state.get("guia_plan_seccion_activa") or "📖 Instrucciones"
-            ),
-            horizontal=True,
-            key="radio_guia_plan_categoria_main"
-        )
-        st.session_state["guia_plan_seccion_activa"] = opcion_guia
-        st.divider()
-
-        if opcion_guia == "📖 Instrucciones":
-            st.markdown("#### 👋 ¡Bienvenido(a) a tu Plataforma Educativa Career English Institute (CEI)!")
-            st.markdown(
-                "Esta plataforma está diseñada para acompañarte paso a paso en tu aprendizaje del idioma inglés **100 % en línea**, "
-                "combinando tus clases en vivo con práctica inteligente calibrada exactamente a tu nivel **CEFR**.\n\n"
-                "##### 🚀 ¿Cómo aprovechar cada lección al máximo?\n"
-                "1. **📖 1. Reading & Comprehension (30 %):** Lee el texto generado para tu nivel. Puedes cambiar el **tamaño de letra** "
-                "(16 px a 26 px) según tu comodidad visual y activar el **🧠 Modo Estudio IA** para escuchar la pronunciación y ver el significado de cada palabra.\n"
-                "2. **📝 Quiz de Comprensión:** Al terminar de leer, responde las preguntas de opción múltiple y pulsa **Calificar Quiz** para registrar tu puntaje.\n"
-                "3. **🎬 2. Viewing & Listening (25 %):** Observa el video contextual relacionado con el tema de tu lección para entrenar tu oído con inglés real.\n"
-                "4. **🎙️ 3. Alphabetical & Speaking (25 %):** Graba tu voz o video leyendo el texto en voz alta. Nuestra IA evaluará tu pronunciación, entonación y fluidez.\n"
-                "5. **✍️ 4. Writing Skill APA 7 (20 %):** Redacta un resumen en inglés de **120 a 125 palabras** sobre el video y agrega su referencia bibliográfica en formato **APA 7.ª Edición**.\n"
-                "6. **📊 Tu Boletín y Certificado:** Todas tus calificaciones y tu **Categoría Estudiantil (Bronce, Plata u Oro)** se actualizan automáticamente en tu Boletín Informativo."
-            )
-
         elif opcion_guia == "📅 Plan del Curso (9 Meses)":
             st.markdown(f"#### 📅 Plan Curricular de 9 Periodos (36 Semanas) — Nivel CEFR {niv_code}")
             st.info(
                 f"El programa completo del nivel **{niv_code}** consta de **9 periodos mensuales de 4 semanas (36 semanas en total)** "
                 f"y abarca **{n_crit} criterios gramaticales fundamentales** (1 criterio eje por mes).\n\n"
-                "El número total de clases/lecciones requeridas depende de la **Categoría Estudiantil** que desees alcanzar:"
+                "El número total de clases requeridas a lo largo de los 9 meses depende de la **Categoría Estudiantil** que desees alcanzar:"
             )
 
             col_p1, col_p2, col_p3 = st.columns(3)
             with col_p1:
-                st.metric("🥉 Meta Categoría Bronce", f"{n_crit * 1} lecciones", "1 lección por criterio (~1 por mes)")
+                st.metric("🥉 Meta Categoría Bronce", f"{n_crit * 1} clases en 9 meses", "1 clase por mes")
             with col_p2:
-                st.metric("🥈 Meta Categoría Plata", f"{n_crit * 2} lecciones", "2 lecciones por criterio (~2 por mes)")
+                st.metric("🥈 Meta Categoría Plata", f"{n_crit * 2} clases en 9 meses", "2 clases por mes")
             with col_p3:
-                st.metric("🥇 Meta Categoría Oro", f"{n_crit * 3} lecciones", "3 lecciones por criterio (~3 por mes)")
+                st.metric("🥇 Meta Categoría Oro", f"{n_crit * 3} clases en 9 meses", "3 clases por mes")
 
             filas_plan = []
             for idx_m, crit_nom in enumerate(datos_cat["criterios"], start=1):
                 filas_plan.append({
                     "Periodo (Mes)": f"Mes {idx_m} (Semanas {(idx_m-1)*4 + 1}–{idx_m*4})",
                     f"Criterio Gramatical ({niv_code})": crit_nom,
-                    "🥉 Bronce (1x)": "1 lección / clase",
-                    "🥈 Plata (2x)": "2 lecciones / clases",
-                    "🥇 Oro (3x)": "3 lecciones / clases"
+                    "🥉 Bronce (1x)": "1 clase / mes",
+                    "🥈 Plata (2x)": "2 clases / mes",
+                    "🥇 Oro (3x)": "3 clases / mes"
                 })
             st.dataframe(pd.DataFrame(filas_plan), width="stretch", hide_index=True)
 
@@ -5274,30 +5231,29 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
             st.markdown("#### 🏅 Sistema de Categorías Estudiantiles CEI")
             st.success(
                 f"Tu insignia actual calculada automáticamente es: **{datos_cat['categoria_label']}** "
-                f"(`{datos_cat['total_lecciones']}` lecciones completadas en el nivel **{niv_code}**)."
+                f"(`{datos_cat['total_lecciones']}` clases/lecciones completadas en el nivel **{niv_code}**)."
             )
             c_cat1, c_cat2, c_cat3 = st.columns(3)
             with c_cat1:
                 with st.container(border=True):
                     st.markdown("### 🥉 Categoría Bronce")
-                    st.markdown("**Requisito:** **1 lección** completada por cada criterio gramatical del nivel.")
-                    st.caption(f"Total en nivel {niv_code}: **{n_crit} lecciones** en los 9 periodos.")
+                    st.markdown("**Requisito:** **1 clase por mes** acreditada en cada periodo del curso.")
+                    st.caption(f"Total en nivel {niv_code}: **{n_crit} clases** en los 9 periodos.")
             with c_cat2:
                 with st.container(border=True):
                     st.markdown("### 🥈 Categoría Plata")
-                    st.markdown("**Requisito:** **2 lecciones** completadas por cada criterio gramatical del nivel.")
-                    st.caption(f"Total en nivel {niv_code}: **{n_crit * 2} lecciones** en los 9 periodos.")
+                    st.markdown("**Requisito:** **2 clases por mes** acreditadas en cada periodo del curso.")
+                    st.caption(f"Total en nivel {niv_code}: **{n_crit * 2} clases** en los 9 periodos.")
             with c_cat3:
                 with st.container(border=True):
                     st.markdown("### 🥇 Categoría Oro")
-                    st.markdown("**Requisito:** **3 lecciones** completadas por cada criterio gramatical del nivel.")
-                    st.caption(f"Total en nivel {niv_code}: **{n_crit * 3} lecciones** en los 9 periodos.")
+                    st.markdown("**Requisito:** **3 clases por mes** acreditadas en cada periodo del curso.")
+                    st.caption(f"Total en nivel {niv_code}: **{n_crit * 3} clases** en los 9 periodos.")
 
             st.info(
-                "✨ **Asignación Automática:** No necesitas solicitar tu categoría. Conforme avanzas y completas tus lecciones en cada criterio gramatical, "
+                "✨ **Asignación Automática:** No necesitas solicitar tu categoría. Conforme avanzas y completas tus clases mensuales en cada periodo, "
                 "la plataforma actualiza tu insignia automáticamente y la imprime tanto en tu **Boletín Informativo** como en tu **Certificado Oficial**."
             )
-
 
 
 def get_student_inscription_url_pg() -> str:
