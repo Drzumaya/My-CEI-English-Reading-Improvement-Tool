@@ -5997,6 +5997,16 @@ if st.session_state.get("active_student_workspace"):
         elif vista_est_sel == "📊 Mis Calificaciones y Boletín":
             st.subheader(f"📊 Mis Calificaciones y Boletín Oficial — {alumno_actual_ws}")
             gb_data = fetch_student_gradebook_pg(alumno_actual_ws)
+            info_cat_bol = calcular_categoria_automatica_estudiante(alumno_actual_ws, gb_data.get("nivel_cefr", "B1"))
+            gb_data["categoria_estudiantil"] = info_cat_bol["categoria_label"]
+            gb_data["categoria_corto"] = info_cat_bol["categoria_corto"]
+
+            st.success(
+                f"🏅 **Categoría Estudiantil Oficial:** **{info_cat_bol['categoria_label']}**  |  "
+                f"📚 **Lecciones Completadas:** `{info_cat_bol['total_lecciones']}` "
+                f"(Promedio `{info_cat_bol['promedio_por_criterio']}` lecciones por criterio gramatical en nivel **{info_cat_bol['nivel']}**)"
+            )
+
             lista_topicos_disp = ["Vista General"] + [t["Grammar Topic"] for t in gb_data["topic_summary"]]
             col_f_top, col_f_pdf = st.columns([2.1, 1.4])
             with col_f_top:
@@ -6039,11 +6049,12 @@ if st.session_state.get("active_student_workspace"):
             m1.metric("🏆 Promedio General", f"{gb_data['overall_avg']}%")
             m2.metric("🎯 Promedio Vista", f"{prom_v}%")
             m3.metric("📝 Escrito / 🎙️ Oral", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
-            m4.metric("📚 Lecciones Evaluadas", len(recs_f))
+            m4.metric("🏅 Categoría / Lecciones", f"{info_cat_bol['categoria_corto']} ({len(recs_f)})")
             if temas_f:
                 st.bar_chart(pd.DataFrame(temas_f).set_index("Grammar Topic")[["Dominio (%)"]], height=240)
             if recs_f:
                 st.dataframe(pd.DataFrame(recs_f), width="stretch", hide_index=True)
+
 # ==============================================================================
 # PARTE 14E — SECCIÓN 3 DE 3 (FINAL): MIS LECCIONES, AUDIOS Y CIERRE FOCUS MODE
 # ==============================================================================
@@ -6158,22 +6169,27 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             nombre_sel = str(datos_alumno.get("Usuario", "")).strip()
                             nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
                             grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
+                            cat_cert_info = calcular_categoria_automatica_estudiante(nombre_sel, nivel_sel)
+                            cat_cert_lbl = cat_cert_info["categoria_label"]
+                            cat_cert_corto = cat_cert_info["categoria_corto"]
+
                             st.info(
                                 f"**Titular:** {nombre_sel}\n\n"
                                 f"**Matrícula:** `{clave_sel}` | **Nivel CEFR:** {nivel_sel}\n\n"
-                                f"**Grado:** {grado_sel}"
+                                f"**Grado:** {grado_sel}\n\n"
+                                f"**Insignia Académica:** **{cat_cert_lbl}** (`{cat_cert_info['total_lecciones']}` lecciones)"
                             )
 
                         with col_c2:
                             programa_cert = st.text_input(
                                 "📚 Programa / Curso Acreditado:",
-                                value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse",
-                                key="cert_prog_input"
+                                value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse — CATEGORÍA {cat_cert_corto}",
+                                key=f"cert_prog_input_{clave_sel}_{cat_cert_corto}"
                             )
                             calif_cert = st.text_input(
                                 "🏆 Calificación / Resultado Final:",
-                                value="98.0% — Passed with Academic Distinction",
-                                key="cert_grade_input"
+                                value=f"98.0% — Passed with Academic Distinction ({cat_cert_lbl})",
+                                key=f"cert_grade_input_{clave_sel}_{cat_cert_corto}"
                             )
                             if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", width="stretch"):
                                 with st.spinner("Generando timbrado criptográfico HMAC-SHA256 y guardando en Supabase..."):
@@ -6202,7 +6218,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.session_state["last_cert_pdf"] = pdf_cert_bytes
                                     st.session_state["last_cert_name"] = f"Certificado_{folio_c}_{nombre_sel.replace(' ', '_')}.pdf"
                                     st.session_state["last_cert_folio"] = folio_c
-                                    st.success(f"✅ ¡Certificado timbrado y guardado en Supabase! Folio: **{folio_c}**")
+                                    st.success(f"✅ ¡Certificado timbrado ({cat_cert_lbl}) y guardado en Supabase! Folio: **{folio_c}**")
 
                         if st.session_state.get("last_cert_pdf"):
                             f_actual = st.session_state["last_cert_folio"]
@@ -6243,6 +6259,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.session_state["last_cert_folio"] = None
                                     st.session_state["last_cert_name"] = None
                                     st.rerun()
+                except Exception as e_cert:
+                    st.error(f"Error en módulo de certificados: {e_cert}")
+
 # ==============================================================================
 # PARTE 14A: CENTRO DE MANDO SPA — HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
 # ==============================================================================
