@@ -5070,6 +5070,235 @@ def _cerrar_panel_y_volver_leccion():
     st.session_state["show_student_payments_panel"] = False
     st.session_state["active_stage_5"] = "READING"
 
+# ==============================================================================
+# MOTOR DE CATEGORÍAS ESTUDIANTILES (BRONCE / PLATA / ORO) Y PLAN DE 9 PERIODOS
+# ==============================================================================
+CRITERIOS_POR_NIVEL_CEFR = {
+    "A1": [
+        "Verb To Be & Personal Pronouns",
+        "Simple Present & Daily Routines",
+        "Articles, Plurals & Demonstratives",
+        "There is / There are & Prepositions of Place",
+        "Present Continuous (Actions in Progress)",
+        "Can / Can't (Abilities & Permissions)",
+        "Simple Past (Regular & Irregular Verbs)",
+        "Countable / Uncountable Nouns & Quantifiers",
+        "Future with Going to (Plans & Intentions)"
+    ],
+    "A2": [
+        "Past Continuous vs. Simple Past",
+        "Comparatives & Superlatives",
+        "Present Perfect (Experiences: Ever / Never)",
+        "Modal Verbs (Should, Must, Have to)",
+        "Future Simple (Will vs. Going to)",
+        "First Conditional (Real Possibilities)",
+        "Object Pronouns & Possessive Pronouns",
+        "Adverbs of Manner & Frequency",
+        "Used to (Past Habits & States)"
+    ],
+    "B1": [
+        "Present Perfect Continuous (For / Since)",
+        "Past Perfect Simple (Narrative Sequence)",
+        "Second Conditional (Hypothetical Situations)",
+        "Passive Voice (Present & Past Simple)",
+        "Reported Speech (Statements & Questions)",
+        "Defining & Non-Defining Relative Clauses",
+        "Gerunds vs. Infinitives (Verb Patterns)",
+        "Modals of Deduction (Must, Might, Can't)",
+        "Tag Questions & Indirect Questions"
+    ],
+    "B2": [
+        "Third Conditional & Mixed Conditionals",
+        "Passive Voice (All Tenses & Causative Have/Get)",
+        "Future Perfect & Future Continuous",
+        "Wish / If Only (Regrets & Desires)",
+        "Advanced Reported Speech & Reporting Verbs",
+        "Participle Clauses & Cleft Sentences",
+        "Modal Perfects (Should have, Could have)",
+        "Inversion for Emphasis & Negative Adverbials",
+        "Academic Connectors & Discourse Markers"
+    ],
+    "C1": [
+        "Subjunctive Mood & Mandative Structures",
+        "Advanced Inversion & Fronting",
+        "Ellipsis & Substitution in Academic Prose",
+        "Complex Noun Phrases & Nominalization",
+        "Nuanced Modality & Epistemic Stance",
+        "Advanced Conditional Alternatives (Provided, Were it not)",
+        "Rhetorical Devices & Hedging in Research",
+        "Idiomatic Phrasal Verbs & Collocations",
+        "APA 7th Academic Synthesis & Critical Tone"
+    ],
+    "C2": [
+        "Mastery of Register, Nuance & Stylistic Shift",
+        "Complex Syntactic Embedding & Subordination",
+        "Archaisms, Legal & Diplomatic English Structures",
+        "Precision Lexical Collocations & Figurative Idioms",
+        "Advanced Discourse Cohesion & Pragmatics",
+        "Prosodic Stress & Phonological Subtlety",
+        "Critical Argumentation & Counter-Refutation",
+        "Cross-Cultural Rhetoric & Editorial Style",
+        "Publication-Grade Academic Writing (APA 7)"
+    ]
+}
+
+
+def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str = "B1") -> dict:
+    """Calcula automáticamente la categoría (Bronce, Plata, Oro) según lecciones completadas por criterio gramatical."""
+    niv_code = next(iter(str(nivel_cefr or "B1").upper().split()), "B1")
+    if niv_code not in CRITERIOS_POR_NIVEL_CEFR:
+        niv_code = "B1"
+    criterios_lista = CRITERIOS_POR_NIVEL_CEFR[niv_code]
+    total_criterios = len(criterios_lista)
+
+    lecciones_user = []
+    try:
+        todos_folios = load_lessons_history_pg() or []
+        lecciones_user = [
+            r for r in todos_folios
+            if str(r.get("Usuario", "")).strip().lower() == str(student_user or "").strip().lower()
+            and str(r.get("Folio") or "").strip()
+        ]
+    except Exception:
+        lecciones_user = []
+
+    conteo_por_tema = {}
+    for lec in lecciones_user:
+        tema_raw = str(lec.get("Gramatica") or lec.get("Tema") or "General").strip()
+        conteo_por_tema[tema_raw] = conteo_por_tema.get(tema_raw, 0) + 1
+
+    total_lecciones = len(lecciones_user)
+    criterios_cubiertos = len(conteo_por_tema)
+    promedio_por_criterio = (total_lecciones / total_criterios) if total_criterios > 0 else 0.0
+
+    # Regla institucional:
+    # Oro: >= 3 lecciones promedio por criterio gramatical (o >= total_criterios * 3)
+    # Plata: >= 2 lecciones promedio por criterio gramatical (o >= total_criterios * 2)
+    # Bronce: >= 1 lección por criterio (o categoría base inicial)
+    if total_lecciones >= (total_criterios * 3):
+        cat_nombre = "🥇 Categoría Oro"
+        cat_corto = "ORO"
+        meta_mult = 3
+    elif total_lecciones >= (total_criterios * 2):
+        cat_nombre = "🥈 Categoría Plata"
+        cat_corto = "PLATA"
+        meta_mult = 2
+    else:
+        cat_nombre = "🥉 Categoría Bronce"
+        cat_corto = "BRONCE"
+        meta_mult = 1
+
+    return {
+        "nivel": niv_code,
+        "criterios": criterios_lista,
+        "total_criterios": total_criterios,
+        "total_lecciones": total_lecciones,
+        "criterios_cubiertos": criterios_cubiertos,
+        "promedio_por_criterio": round(promedio_por_criterio, 2),
+        "categoria_label": cat_nombre,
+        "categoria_corto": cat_corto,
+        "meta_mult": meta_mult,
+        "conteo_por_tema": conteo_por_tema
+    }
+def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str = "B1"):
+    """Renderiza en pantalla principal Instrucciones, Plan del Curso (9 meses) y Categoría Estudiantil."""
+    datos_cat = calcular_categoria_automatica_estudiante(usuario_actual, nivel_cefr_actual)
+    niv_code = datos_cat["nivel"]
+    n_crit = datos_cat["total_criterios"]
+
+    with st.container(border=True):
+        c_gh1, c_gh2 = st.columns([3.2, 1.2])
+        with c_gh1:
+            st.markdown("### 📘 Guía Académica, Plan del Curso y Categoría Estudiantil")
+            st.caption(f"Estudiante / Usuario: **{usuario_actual}**  |  Nivel Calibrado: **CEFR {niv_code}**  |  Insignia Actual: **{datos_cat['categoria_label']}**")
+        with c_gh2:
+            if st.button("✖️ Cerrar Guía y Volver", type="primary", width="stretch", key="btn_close_guia_plan_cat"):
+                st.session_state["guia_plan_seccion_activa"] = None
+                st.rerun()
+
+        opcion_guia = st.radio(
+            "Selecciona el apartado a consultar:",
+            ["📖 Instrucciones", "📅 Plan del Curso (9 Meses)", "🏅 Categoría Estudiantil (Bronce, Plata y Oro)"],
+            index=["📖 Instrucciones", "📅 Plan del Curso (9 Meses)", "🏅 Categoría Estudiantil (Bronce, Plata y Oro)"].index(
+                st.session_state.get("guia_plan_seccion_activa") or "📖 Instrucciones"
+            ),
+            horizontal=True,
+            key="radio_guia_plan_categoria_main"
+        )
+        st.session_state["guia_plan_seccion_activa"] = opcion_guia
+        st.divider()
+
+        if opcion_guia == "📖 Instrucciones":
+            st.markdown("#### 👋 ¡Bienvenido(a) a tu Plataforma Educativa Career English Institute (CEI)!")
+            st.markdown(
+                "Esta plataforma está diseñada para acompañarte paso a paso en tu aprendizaje del idioma inglés **100 % en línea**, "
+                "combinando tus clases en vivo con práctica inteligente calibrada exactamente a tu nivel **CEFR**.\n\n"
+                "##### 🚀 ¿Cómo aprovechar cada lección al máximo?\n"
+                "1. **📖 1. Reading & Comprehension (30 %):** Lee el texto generado para tu nivel. Puedes cambiar el **tamaño de letra** "
+                "(16 px a 26 px) según tu comodidad visual y activar el **🧠 Modo Estudio IA** para escuchar la pronunciación y ver el significado de cada palabra.\n"
+                "2. **📝 Quiz de Comprensión:** Al terminar de leer, responde las preguntas de opción múltiple y pulsa **Calificar Quiz** para registrar tu puntaje.\n"
+                "3. **🎬 2. Viewing & Listening (25 %):** Observa el video contextual relacionado con el tema de tu lección para entrenar tu oído con inglés real.\n"
+                "4. **🎙️ 3. Alphabetical & Speaking (25 %):** Graba tu voz o video leyendo el texto en voz alta. Nuestra IA evaluará tu pronunciación, entonación y fluidez.\n"
+                "5. **✍️ 4. Writing Skill APA 7 (20 %):** Redacta un resumen en inglés de **120 a 125 palabras** sobre el video y agrega su referencia bibliográfica en formato **APA 7.ª Edición**.\n"
+                "6. **📊 Tu Boletín y Certificado:** Todas tus calificaciones y tu **Categoría Estudiantil (Bronce, Plata u Oro)** se actualizan automáticamente en tu Boletín Informativo."
+            )
+
+        elif opcion_guia == "📅 Plan del Curso (9 Meses)":
+            st.markdown(f"#### 📅 Plan Curricular de 9 Periodos (36 Semanas) — Nivel CEFR {niv_code}")
+            st.info(
+                f"El programa completo del nivel **{niv_code}** consta de **9 periodos mensuales de 4 semanas (36 semanas en total)** "
+                f"y abarca **{n_crit} criterios gramaticales fundamentales** (1 criterio eje por mes).\n\n"
+                "El número total de clases/lecciones requeridas depende de la **Categoría Estudiantil** que desees alcanzar:"
+            )
+
+            col_p1, col_p2, col_p3 = st.columns(3)
+            with col_p1:
+                st.metric("🥉 Meta Categoría Bronce", f"{n_crit * 1} lecciones", "1 lección por criterio (~1 por mes)")
+            with col_p2:
+                st.metric("🥈 Meta Categoría Plata", f"{n_crit * 2} lecciones", "2 lecciones por criterio (~2 por mes)")
+            with col_p3:
+                st.metric("🥇 Meta Categoría Oro", f"{n_crit * 3} lecciones", "3 lecciones por criterio (~3 por mes)")
+
+            filas_plan = []
+            for idx_m, crit_nom in enumerate(datos_cat["criterios"], start=1):
+                filas_plan.append({
+                    "Periodo (Mes)": f"Mes {idx_m} (Semanas {(idx_m-1)*4 + 1}–{idx_m*4})",
+                    f"Criterio Gramatical ({niv_code})": crit_nom,
+                    "🥉 Bronce (1x)": "1 lección / clase",
+                    "🥈 Plata (2x)": "2 lecciones / clases",
+                    "🥇 Oro (3x)": "3 lecciones / clases"
+                })
+            st.dataframe(pd.DataFrame(filas_plan), width="stretch", hide_index=True)
+
+        elif opcion_guia == "🏅 Categoría Estudiantil (Bronce, Plata y Oro)":
+            st.markdown("#### 🏅 Sistema de Categorías Estudiantiles CEI")
+            st.success(
+                f"Tu insignia actual calculada automáticamente es: **{datos_cat['categoria_label']}** "
+                f"(`{datos_cat['total_lecciones']}` lecciones completadas en el nivel **{niv_code}**)."
+            )
+            c_cat1, c_cat2, c_cat3 = st.columns(3)
+            with c_cat1:
+                with st.container(border=True):
+                    st.markdown("### 🥉 Categoría Bronce")
+                    st.markdown("**Requisito:** **1 lección** completada por cada criterio gramatical del nivel.")
+                    st.caption(f"Total en nivel {niv_code}: **{n_crit} lecciones** en los 9 periodos.")
+            with c_cat2:
+                with st.container(border=True):
+                    st.markdown("### 🥈 Categoría Plata")
+                    st.markdown("**Requisito:** **2 lecciones** completadas por cada criterio gramatical del nivel.")
+                    st.caption(f"Total en nivel {niv_code}: **{n_crit * 2} lecciones** en los 9 periodos.")
+            with c_cat3:
+                with st.container(border=True):
+                    st.markdown("### 🥇 Categoría Oro")
+                    st.markdown("**Requisito:** **3 lecciones** completadas por cada criterio gramatical del nivel.")
+                    st.caption(f"Total en nivel {niv_code}: **{n_crit * 3} lecciones** en los 9 periodos.")
+
+            st.info(
+                "✨ **Asignación Automática:** No necesitas solicitar tu categoría. Conforme avanzas y completas tus lecciones en cada criterio gramatical, "
+                "la plataforma actualiza tu insignia automáticamente y la imprime tanto en tu **Boletín Informativo** como en tu **Certificado Oficial**."
+            )
+
+
 
 def get_student_inscription_url_pg() -> str:
     """Obtiene desde PostgreSQL el enlace oficial del formulario de inscripción de estudiantes."""
@@ -5276,7 +5505,10 @@ if st.session_state.get("active_stage_5") == "PORTAL":
 
     if tiene_acceso_admin_portal or es_socio_afiliado:
         if es_socio_afiliado:
-            opciones_p_adm = ["🤝 Portal Socio Afiliado"]
+            opciones_p_adm = [
+                "🤝 Portal Socio Afiliado",
+                "📘 Guía, Plan y Categoría"
+            ]
         else:
             opciones_p_adm = [
                 "💳 Cobranza Mensual e IVA",
@@ -5287,6 +5519,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 "🔐 Matriz Global de Permisos",
                 "🏅 Certificados (Timbre y QR)",
                 "🏛️ Datos del Instituto",
+                "📘 Guía, Plan y Categoría",
                 "🔄 Autoactualización de Librerías"
             ]
         idx_def_adm = 2 if (not is_owner and not es_socio_afiliado and can("Editar_Terminos_Afiliacion")) else 0
@@ -5309,12 +5542,20 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 key="btn_global_close_admin_back_lesson",
                 on_click=_cerrar_panel_y_volver_leccion
             )
+
+        if st.session_state.get("active_admin_workspace") == "📘 Guía, Plan y Categoría":
+            render_guia_plan_categoria_view(
+                usuario_actual=str(st.session_state.get("current_user") or usuario),
+                nivel_cefr_actual=str(st.session_state.get("selected_cefr") or "B1")
+            )
+            st.stop()
     else:
         opciones_p_est = [
             "💳 Mis Pagos (9 Bloques)",
             "📊 Mis Calificaciones y Boletín",
             "📚 Mis Lecciones y Folios",
-            "🎧 Mis Audios y Pronunciación"
+            "🎧 Mis Audios y Pronunciación",
+            "📘 Guía, Plan y Categoría"
         ]
         col_est_sel, col_est_back = st.columns([2.5, 1.3])
         with col_est_sel:
@@ -5330,6 +5571,42 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 key="btn_global_close_est_back_lesson",
                 on_click=_cerrar_panel_y_volver_leccion
             )
+
+        if st.session_state.get("active_student_workspace") == "📘 Guía, Plan y Categoría":
+            render_guia_plan_categoria_view(
+                usuario_actual=str(st.session_state.get("current_user") or usuario),
+                nivel_cefr_actual=str(st.session_state.get("selected_cefr") or "B1")
+            )
+            st.stop()
+
+# DESPLEGABLE EN PANEL EDUCATIVO: INSTRUCCIONES, PLAN DEL CURSO Y CATEGORÍA ESTUDIANTIL
+if st.session_state.get("active_stage_5", "READING") == "READING" and not st.session_state.get("active_admin_workspace"):
+    opciones_guia_edu = [
+        "— Guía del Curso: Instrucciones, Plan y Categoría —",
+        "📖 Instrucciones",
+        "📅 Plan del Curso (9 Meses)",
+        "🏅 Categoría Estudiantil (Bronce, Plata y Oro)"
+    ]
+    sel_act_guia = st.session_state.get("guia_plan_seccion_activa")
+    idx_guia_def = opciones_guia_edu.index(sel_act_guia) if sel_act_guia in opciones_guia_edu else 0
+
+    sel_guia_edu = st.selectbox(
+        "📘 Guía Académica, Plan del Curso y Categoría Estudiantil:",
+        opciones_guia_edu,
+        index=idx_guia_def,
+        key="sb_edu_guia_plan_cat"
+    )
+    if sel_guia_edu != "— Guía del Curso: Instrucciones, Plan y Categoría —":
+        st.session_state["guia_plan_seccion_activa"] = sel_guia_edu
+    elif sel_act_guia is not None:
+        st.session_state["guia_plan_seccion_activa"] = None
+
+if st.session_state.get("guia_plan_seccion_activa") and st.session_state.get("active_stage_5", "READING") == "READING":
+    render_guia_plan_categoria_view(
+        usuario_actual=str(st.session_state.get("current_user") or usuario),
+        nivel_cefr_actual=str(st.session_state.get("selected_cefr") or "B1")
+    )
+    st.stop()
 
 folio_input = ""
 buscar_folio_btn = False
