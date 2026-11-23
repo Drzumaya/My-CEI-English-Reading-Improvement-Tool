@@ -59,15 +59,16 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# SOPORTE PROGRESSIVE WEB APP (PWA INSTALABLE EN iOS Y ANDROID)
+# SOPORTE PROGRESSIVE WEB APP (PWA INSTALABLE EN iOS Y ANDROID CON LOGO OFICIAL)
 st.markdown(
     """
     <link rel="manifest" href="/app/static/manifest.json">
+    <link rel="apple-touch-icon" href="/app/static/logo_cei_app.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CEI English">
-    <meta name="theme-color" content="#1E3A8A">
+    <meta name="theme-color" content="#0b2545">
     """,
     unsafe_allow_html=True
 )
