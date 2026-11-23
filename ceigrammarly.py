@@ -6245,87 +6245,48 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
-        # 14.1 PESTAÑA CERTIFICADOS
-        if seccion_inst_sel == "🏅 Certificados (Timbre y QR)":
-            if not (is_owner or can("Emitir_Certificados")):
-                st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
-            else:
-                st.markdown("#### 🏅 Emisión Oficial de Certificados con Firma Criptográfica (HMAC-SHA256) y Sello QR")
-                try:
-                    regs_cert = load_padron_records()
-                    opciones_claves = {
-                        f"{str(r.get('Matricula', '')).strip()} — {str(r.get('Usuario', '')).strip()} ({str(r.get('Nivel', 'B1')).strip()})": r
-                        for r in regs_cert if str(r.get("Matricula", "")).strip()
-                    }
+                        if st.session_state.get("last_cert_pdf"):
+                            f_actual = st.session_state["last_cert_folio"]
+                            link_cert_directo = _build_cert_verify_url(f_actual)
 
-# ==============================================================================
-# PARTE 14-B: CENTRO DE MANDO SPA — CERTIFICADOS (SELECCIÓN, TIMBRADO Y VISTA)
-# ==============================================================================
-                    if not opciones_claves:
-                        st.warning("No hay matrículas de estudiantes registradas en el padrón.")
-                    else:
-                        col_c1, col_c2 = st.columns([1.3, 1.7])
-                        with col_c1:
-                            sel_label = st.selectbox(
-                                "🎓 Seleccionar Matrícula Oficial:",
-                                list(opciones_claves.keys()),
-                                key="cert_select_clave"
-                            )
-                            datos_alumno = opciones_claves[sel_label]
-                            clave_sel = str(datos_alumno.get("Matricula", "")).strip()
-                            nombre_sel = str(datos_alumno.get("Usuario", "")).strip()
-                            nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
-                            grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
-                            cat_cert_info = calcular_categoria_automatica_estudiante(nombre_sel, nivel_sel)
-                            cat_cert_lbl = cat_cert_info["categoria_label"]
-                            cat_cert_corto = cat_cert_info["categoria_corto"]
+                            st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
+                            try:
+                                import pypdfium2 as pdfium
+                                pdf_doc = pdfium.PdfDocument(st.session_state["last_cert_pdf"])
+                                page = pdf_doc
+                                bitmap = page.render(scale=2.0)
+                                pil_image = bitmap.to_pil()
+                                st.image(pil_image, caption=f"Certificado Oficial Tamaño Carta — {f_actual}", width="stretch")
+                            except Exception:
+                                st.info("📄 Documento PDF listo. Usa el botón inferior para descargarlo o abrirlo en tu visor.")
 
-                            st.info(
-                                f"**Titular:** {nombre_sel}\n\n"
-                                f"**Matrícula:** `{clave_sel}` | **Nivel CEFR:** {nivel_sel}\n\n"
-                                f"**Grado:** {grado_sel}\n\n"
-                                f"**Insignia Académica:** **{cat_cert_lbl}** (`{cat_cert_info['total_lecciones']}` lecciones)"
-                            )
+                            col_b1, col_b2, col_b3 = st.columns([1.3, 1.4, 1.0])
+                            with col_b1:
+                                st.download_button(
+                                    label="📥 Descargar PDF",
+                                    data=st.session_state["last_cert_pdf"],
+                                    file_name=st.session_state["last_cert_name"],
+                                    mime="application/pdf",
+                                    type="primary",
+                                    width="stretch",
+                                    key="btn_dl_cert_preview"
+                                )
+                            with col_b2:
+                                if st.button("🔗 Guardar Link en Base de Datos", width="stretch", key="btn_save_link_cert"):
+                                    try:
+                                        update_certificate_link_pg(f_actual, link_cert_directo)
+                                        st.success(f"✅ Enlace guardado en Supabase: `{link_cert_directo}`")
+                                    except Exception as e_lk:
+                                        st.error(f"Error al guardar enlace: {e_lk}")
+                            with col_b3:
+                                if st.button("✖️ Cerrar Ventana", width="stretch", key="btn_close_cert_preview"):
+                                    st.session_state["last_cert_pdf"] = None
+                                    st.session_state["last_cert_folio"] = None
+                                    st.session_state["last_cert_name"] = None
+                                    st.rerun()
+                except Exception as e_cert:
+                    st.error(f"Error en módulo de certificados: {e_cert}")
 
-                        with col_c2:
-                            programa_cert = st.text_input(
-                                "📚 Programa / Curso Acreditado:",
-                                value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse — CATEGORÍA {cat_cert_corto}",
-                                key=f"cert_prog_input_{clave_sel}_{cat_cert_corto}"
-                            )
-                            calif_cert = st.text_input(
-                                "🏆 Calificación / Resultado Final:",
-                                value=f"98.0% — Passed with Academic Distinction ({cat_cert_lbl})",
-                                key=f"cert_grade_input_{clave_sel}_{cat_cert_corto}"
-                            )
-                            if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", width="stretch"):
-                                with st.spinner("Generando timbrado criptográfico HMAC-SHA256 y guardando en Supabase..."):
-                                    ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
-                                    folio_c = f"CERT-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
-                                    fecha_c = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
-
-                                    cadena_o, sello_h = generar_sello_digital(folio_c, clave_sel, nombre_sel, nivel_sel, fecha_c)
-
-                                    insert_certificate_pg(
-                                        folio_c=folio_c,
-                                        clave_sel=clave_sel,
-                                        nombre_sel=nombre_sel,
-                                        nivel_sel=nivel_sel,
-                                        grado_sel=grado_sel,
-                                        programa_c=programa_cert.strip(),
-                                        calif_c=calif_cert.strip(),
-                                        fecha_c=fecha_c,
-                                        sello_h=sello_h
-                                    )
-                                    pdf_cert_bytes = generar_pdf_certificado(
-                                        folio_c, clave_sel, nombre_sel, nivel_sel,
-                                        programa_cert.strip(), calif_cert.strip(), fecha_c,
-                                        cadena_o, sello_h, institute_address
-                                    )
-                                    st.session_state["last_cert_pdf"] = pdf_cert_bytes
-                                    st.session_state["last_cert_name"] = f"Certificado_{folio_c}_{nombre_sel.replace(' ', '_')}.pdf"
-                                    st.session_state["last_cert_folio"] = folio_c
-                                    st.success(f"✅ ¡Certificado timbrado ({cat_cert_lbl}) y guardado en Supabase! Folio: **{folio_c}**")
 
                         if st.session_state.get("last_cert_pdf"):
                             f_actual = st.session_state["last_cert_folio"]
