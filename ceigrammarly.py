@@ -6325,6 +6325,7 @@ CAPACIDADES_DELEGABLES_OWNER = [
     "Editar_Permisos",
     "Editar_Terminos_Afiliacion",
     "Gestionar_Comisiones_Afiliados",
+    "Ver_Racha_Referidos_WhatsApp",
     "Emitir_Certificados",
     "Gestionar_IVA_Mensualidad",
     "Editar_Fecha_Inicio_Curso"
@@ -7556,7 +7557,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     except ModuleNotFoundError:
                         st.warning("⚠️ Crea el archivo `registro_afiliados.py` en la raíz del proyecto para activar este formulario.")
 
-               # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2 — CON QR OFICIAL LIGADO AL ID)
+        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2 — CON QR OFICIAL LIGADO AL ID)
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
             url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
             aff_objetivo_portal = st.session_state.current_user
@@ -7623,37 +7624,104 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             conn_pf.close()
                         except Exception:
                             pass
-                # 14.6B EDITOR DE EXPEDIENTE (OWNER/ADMIN) Y TABLERO DEL SOCIO
+        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (PARTE 1 DE 2)
+        if seccion_inst_sel == "🤝 Portal Socio Afiliado":
+            url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
+            aff_objetivo_portal = st.session_state.current_user
+
+            if is_owner or puede_gestionar_afiliados:
+                padron_aff_view = load_padron_records()
+                lista_aff_view = [
+                    str(r.get("Usuario", "")).strip()
+                    for r in padron_aff_view
+                    if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]
+                ]
+                col_p_sel, col_p_qr = st.columns([2.6, 1.0])
+                with col_p_sel:
+                    if lista_aff_view:
+                        aff_objetivo_portal = st.selectbox("Portal del Socio Afiliado:", lista_aff_view, key="sel_prev_aff")
+                    else:
+                        aff_objetivo_portal = None
+                        st.info("Aún no hay Socios Afiliados registrados.")
+                with col_p_qr:
+                    if url_portal_aff:
+                        buf_qp = io.BytesIO()
+                        qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
+                        st.image(buf_qp.getvalue(), caption="📲 QR Portal Afiliados", width=120)
+                        st.download_button(
+                            "⬇️ Descargar QR Portal",
+                            data=buf_qp.getvalue(),
+                            file_name="QR_Portal_Afiliados_CEI.png",
+                            mime="image/png",
+                            width="stretch",
+                            key="btn_dl_qrportal_main"
+                        )
+
+            if aff_objetivo_portal:
+                _render_qr_inscripcion_alumnos_box(
+                    afiliado_ref=str(aff_objetivo_portal).strip(),
+                    key_prefix=f"portal_aff_{str(aff_objetivo_portal).strip().replace(' ', '_')}"
+                )
+
+                conn_pf = _open_legal_pg_conn()
+                s_dat = None
+                if conn_pf:
+                    try:
+                        with conn_pf.cursor() as cur:
+                            cur.execute("""
+                                ALTER TABLE affiliate_partners
+                                ADD COLUMN IF NOT EXISTS rfc TEXT DEFAULT '',
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE;
+                            """)
+                            cur.execute("""
+                                SELECT affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
+                                       COALESCE(rfc, ''), COALESCE(telefono, ''), COALESCE(email, ''),
+                                       COALESCE(domicilio, ''), COALESCE(estatus, 'Activo'),
+                                       COALESCE(porcentaje_default, 0.0), terminos_aceptados_at
+                                FROM affiliate_partners
+                                WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
+                                LIMIT 1;
+                            """, (aff_objetivo_portal,))
+                            s_dat = cur.fetchone()
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            conn_pf.close()
+                        except Exception:
+                            pass
+                # 14.6B EDITOR DE EXPEDIENTE Y RADAR DE RACHAS SEMANALES + WHATSAPP (PARTE 2 DE 2)
                 if s_dat:
                     st.info(
-                        f"🆔 **ID Afiliado:** `{s_dat[0]}`  |  🧾 **RFC:** `{s_dat[5] or 'Pendiente'}`  |  "
-                        f"💼 **Comisión Asignada:** **`{float(s_dat[10] or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat[9]}`\n\n"
+                        f"🆔 **ID Afiliado:** `{s_dat}`  |  🧾 **RFC:** `{s_dat or 'Pendiente'}`  |  "
+                        f"💼 **Comisión Asignada:** **`{float(s_dat or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat}`\n\n"
                         "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) de honorarios/comisiones dentro de los primeros 5 días hábiles del mes siguiente.*"
                     )
 
                     if is_owner or puede_gestionar_afiliados:
-                        with st.expander(f"✏️ Editar Datos, RFC y Comisión de {s_dat[2]} {s_dat[3]} (Owner / Admin)", expanded=False):
-                            if s_dat[11]:
-                                st.caption(f"🛡️ Términos y Condiciones aceptados el: `{str(s_dat[11])[:19]}`")
+                        with st.expander(f"✏️ Editar Datos, RFC y Comisión de {s_dat} {s_dat} (Owner / Admin)", expanded=False):
+                            if s_dat:
+                                st.caption(f"🛡️ Términos y Condiciones aceptados el: `{str(s_dat)[:19]}`")
                             with st.form(f"form_edit_aff_portal_{aff_objetivo_portal}"):
                                 c_e1, c_e2 = st.columns(2)
                                 with c_e1:
-                                    ed_id = st.text_input("🆔 ID de Afiliado:", value=str(s_dat[0] or ""))
-                                    ed_nom = st.text_input("Nombre(s):", value=str(s_dat[2] or ""))
-                                    ed_pat = st.text_input("Apellido Paterno:", value=str(s_dat[3] or ""))
-                                    ed_mat = st.text_input("Apellido Materno:", value=str(s_dat[4] or ""))
-                                    ed_rfc = st.text_input("🧾 RFC (12 o 13 caracteres):", value=str(s_dat[5] or ""), max_chars=13)
+                                    ed_id = st.text_input("🆔 ID de Afiliado:", value=str(s_dat or ""))
+                                    ed_nom = st.text_input("Nombre(s):", value=str(s_dat or ""))
+                                    ed_pat = st.text_input("Apellido Paterno:", value=str(s_dat or ""))
+                                    ed_mat = st.text_input("Apellido Materno:", value=str(s_dat or ""))
+                                    ed_rfc = st.text_input("🧾 RFC (12 o 13 caracteres):", value=str(s_dat or ""), max_chars=13)
                                 with c_e2:
-                                    ed_tel = st.text_input("Teléfono / WhatsApp:", value=str(s_dat[6] or ""))
-                                    ed_mail = st.text_input("Correo Electrónico:", value=str(s_dat[7] or ""))
-                                    ed_dom = st.text_input("Domicilio Completo:", value=str(s_dat[8] or ""))
+                                    ed_tel = st.text_input("Teléfono / WhatsApp:", value=str(s_dat or ""))
+                                    ed_mail = st.text_input("Correo Electrónico:", value=str(s_dat or ""))
+                                    ed_dom = st.text_input("Domicilio Completo:", value=str(s_dat or ""))
                                     ed_pct = st.number_input(
                                         "💼 Porcentaje Comisión Base (%):",
                                         min_value=0.0, max_value=100.0,
-                                        value=float(s_dat[10] or 0.0), step=1.0
+                                        value=float(s_dat or 0.0), step=1.0
                                     )
                                     estados_aff = ["Activo", "Inactivo", "Baja"]
-                                    idx_est = estados_aff.index(s_dat[9]) if s_dat[9] in estados_aff else 0
+                                    idx_est = estados_aff.index(s_dat) if s_dat in estados_aff else 0
                                     ed_est = st.selectbox("Estado del Afiliado:", estados_aff, index=idx_est)
 
                                 if st.form_submit_button("💾 Guardar Cambios y Comisión", type="primary", width="stretch"):
@@ -7698,24 +7766,64 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                             except Exception:
                                                 pass
 
+                # RADAR DE RACHAS SEMANALES Y MOTIVACIÓN WHATSAPP DE ESTUDIANTES REFERIDOS
+                puede_ver_racha_ref = (
+                    is_owner
+                    or can("Ver_Racha_Referidos_WhatsApp")
+                    or bool(PERMISSIONS_MATRIX.get("Socio Afiliado", {}).get("Ver_Racha_Referidos_WhatsApp"))
+                )
+                if puede_ver_racha_ref:
+                    with st.container(border=True):
+                        st.markdown("##### 🔥 Seguimiento de Rachas Semanales y Motivación WhatsApp (Tus Estudiantes Referidos)")
+                        st.caption(
+                            "Monitorea la constancia semanal de tus alumnos recomendados y envíales un mensaje motivacional "
+                            "con un clic para mantener su racha activa y al corriente sus bloques mensuales."
+                        )
+                        padron_aff_ref = load_padron_records()
+                        aff_id_cmp = str(s_dat).strip().lower() if s_dat else ""
+                        aff_usr_cmp = str(aff_objetivo_portal or "").strip().lower()
 
-                try:
-                    from portal_afiliado import render_portal_socio_afiliado
-                    render_portal_socio_afiliado(aff_objetivo_portal)
-                except ModuleNotFoundError:
-                    dash_aff = fetch_affiliate_dashboard_pg(aff_objetivo_portal)
-                    ka1, ka2, ka3 = st.columns(3)
-                    ka1.metric("💰 Total Ganado", f"${dash_aff['total_ganado']:,.2f} MXN")
-                    ka2.metric("⏳ Pendiente de Pago", f"${dash_aff['total_pendiente']:,.2f} MXN")
-                    ka3.metric("✅ Ya Pagado", f"${dash_aff['total_pagado']:,.2f} MXN")
-                    if dash_aff["students"]:
-                        st.markdown("##### 🎓 Estudiantes Referidos")
-                        st.dataframe(pd.DataFrame(dash_aff["students"]), width="stretch", hide_index=True)
-                    if dash_aff["commissions"]:
-                        st.markdown("##### 💵 Historial de Comisiones")
-                        st.dataframe(pd.DataFrame(dash_aff["commissions"]), width="stretch", hide_index=True)
+                        referidos_lista = [
+                            r for r in padron_aff_ref
+                            if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]
+                            and str(r.get("Socio_Afiliado") or r.get("Afiliado") or "").strip().lower() in [aff_usr_cmp, aff_id_cmp]
+                        ]
 
-    st.divider()
+                        if not referidos_lista:
+                            st.info("ℹ️ Aún no tienes estudiantes referidos registrados con tu código o QR.")
+                        else:
+                            for idx_ref, r_est in enumerate(referidos_lista):
+                                est_u = str(r_est.get("Usuario") or "").strip()
+                                est_nom = str(r_est.get("Nombre_Completo") or est_u).strip()
+                                est_niv = str(r_est.get("Nivel") or "B1").strip()
+                                est_tel = str(r_est.get("Telefono") or r_est.get("Whatsapp") or "").strip()
+
+                                gam_est = calcular_gamificacion_estudiante(est_u, est_niv)
+                                wa_mot_link = build_whatsapp_motivacion_racha(
+                                    student_user=est_nom,
+                                    gam_data=gam_est,
+                                    telefono_alumno=est_tel
+                                )
+
+                                c_r1, c_r2, c_r3 = st.columns([2.2, 1.4, 1.3])
+                                with c_r1:
+                                    st.markdown(f"**🎓 {est_nom}** (`{est_u}`) — Nivel **{est_niv}**")
+                                    st.caption(
+                                        f"🏅 {gam_est['categoria_label']}  •  "
+                                        f"📚 {gam_est['total_folios']} Folios  •  "
+                                        f"🎖️ {len(gam_est['insignias'])} Insignias"
+                                    )
+                                with c_r2:
+                                    est_fuego = "🔥 Activa esta semana" if gam_est["activo_esta_semana"] else "⏳ Pendiente esta semana"
+                                    st.metric("Racha", f"{gam_est['racha_semanas']} sem.", est_fuego)
+                                with c_r3:
+                                    st.write("")
+                                    st.link_button(
+                                        "📲 Motivar por WhatsApp",
+                                        url=wa_mot_link,
+                                        width="stretch"
+                                    )
+
     st.markdown(
         "<div style='text-align: center; color: #777; font-size: 13px; margin-top: 20px;'>"
         "📍 <b>" + str(institute_address) + "</b><br>"
