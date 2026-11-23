@@ -5706,6 +5706,8 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 "🤝 Portal Socio Afiliado",
                 "👥 Inscripción y Padrón",
             ]
+            if is_owner:
+                opciones_p_adm.append("🌎 Red de Franquicias")
             if is_owner or can("Editar_Permisos") or can("Gestionar_Usuarios"):
                 opciones_p_adm.append("🔐 Gestionar Permisos")
             opciones_p_adm.extend([
@@ -5771,6 +5773,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 nivel_cefr_actual=str(st.session_state.get("selected_cefr") or "B1")
             )
             st.stop()
+
 
 # TARJETA DE GAMIFICACIÓN: RACHA SEMANAL E INSIGNIAS DEL ESTUDIANTE
 if st.session_state.get("active_stage_5", "READING") == "READING" and not st.session_state.get("active_admin_workspace"):
@@ -6608,6 +6611,92 @@ def upsert_campus_pg(
         except Exception:
             pass
 
+def generar_tablero_franquicias_pg() -> dict:
+    """Consolida KPIs académicos, financieros y de retención por cada plantel/franquicia."""
+    sedes = list_campuses_pg() or []
+    padron_all = load_padron_records() or []
+    folios_all = []
+    certs_all = []
+    try:
+        folios_all = load_lessons_history_pg() or []
+    except Exception:
+        folios_all = []
+    try:
+        certs_all = load_certificates_pg() or []
+    except Exception:
+        certs_all = []
+
+    ranking_rows = []
+    total_alumnos_red = 0
+    total_folios_red = 0
+    total_certs_red = 0
+    total_ingresos_est_red = 0.0
+
+    for s in sedes:
+        cid = str(s.get("campus_id") or "CEI-AP-01").strip().upper()
+        alumnos_sede = [
+            r for r in padron_all
+            if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]
+            and str(r.get("campus_id") or "CEI-AP-01").strip().upper() == cid
+        ]
+        afiliados_sede = [
+            r for r in padron_all
+            if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]
+            and str(r.get("campus_id") or "CEI-AP-01").strip().upper() == cid
+        ]
+        usuarios_sede_set = {str(r.get("Usuario") or "").strip().lower() for r in alumnos_sede}
+
+        folios_sede = [
+            f for f in folios_all
+            if str(f.get("campus_id") or "").strip().upper() == cid
+            or str(f.get("Usuario") or "").strip().lower() in usuarios_sede_set
+        ]
+        certs_sede = [
+            c for c in certs_all
+            if str(c.get("campus_id") or "").strip().upper() == cid
+            or str(c.get("Nombre_Estudiante") or "").strip().lower() in usuarios_sede_set
+        ]
+
+        ingresos_sede = 0.0
+        for al in alumnos_sede:
+            try:
+                est_fin_al = evaluar_estado_financiero_alumno(str(al.get("Usuario") or "").strip())
+                if est_fin_al.get("ciclo_pagado"):
+                    ingresos_sede += float(est_fin_al.get("monto_a_pagar") or 0.0)
+            except Exception:
+                pass
+
+        n_al = len(alumnos_sede)
+        n_fol = len(folios_sede)
+        n_cert = len(certs_sede)
+        total_alumnos_red += n_al
+        total_folios_red += n_fol
+        total_certs_red += n_cert
+        total_ingresos_est_red += ingresos_sede
+
+        ranking_rows.append({
+            "ID Plantel": cid,
+            "Plantel / Franquicia": s.get("nombre_plantel", cid),
+            "Ciudad / Sede": s.get("ciudad_estado", ""),
+            "Director": s.get("director_usuario") or "Matriz CEI",
+            "Alumnos": n_al,
+            "Socios Afiliados": len(afiliados_sede),
+            "Folios Generados": n_fol,
+            "Certificados": n_cert,
+            "Ingreso Ciclo Cobrado": f"${ingresos_sede:,.2f} {s.get('moneda', 'MXN')}",
+            "Estatus": s.get("estatus", "Activo")
+        })
+
+    return {
+        "sedes": sedes,
+        "total_sedes": len(sedes),
+        "total_alumnos_red": total_alumnos_red,
+        "total_folios_red": total_folios_red,
+        "total_certs_red": total_certs_red,
+        "total_ingresos_est_red": total_ingresos_est_red,
+        "ranking_rows": ranking_rows
+    }
+
 
 if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("active_admin_workspace"):
     seccion_inst_sel = str(st.session_state["active_admin_workspace"]).strip()
@@ -7236,7 +7325,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
 
-        # 14.4 PESTAÑA DATOS DEL INSTITUTO
+        # 14.4 PESTAÑA DATOS DEL INSTITUTO (PARTE 1 DE 2)
         if seccion_inst_sel == "🏛️ Datos del Instituto":
             if not (is_owner or can("Editar_Instituto_Logo")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
@@ -7262,8 +7351,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 st.error(f"Error al guardar información: {e}")
                         else:
                             st.warning("⚠️ La dirección institucional no puede quedar vacía.")
-                            
-            # 14.4.1 Registrar nuevas sedes/franquicias, asignar un Director de Plantel y seleccionar qué sede está operando o auditando en tiempo real
+
             if is_owner:
                 st.divider()
                 st.markdown("#### 🐘 Migración a PostgreSQL (Supabase)")
@@ -7283,30 +7371,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             st.error(f"❌ Error durante la migración a Supabase: {e}")
 
                 st.divider()
-                st.markdown("#### 🌎 Red Multi-Sede y Franquicias CEI (`campus_id`)")
-                st.caption(
-                    "Administra tu sede matriz en Agua Prieta (`CEI-AP-01`) y escala hacia nuevas franquicias "
-                    "nacionales o internacionales con dirección fiscal, moneda e IVA independientes."
-                )
-
-                lista_sedes = list_campuses_pg()
-                if lista_sedes:
-                    df_sedes = pd.DataFrame(lista_sedes)
-                    st.dataframe(df_sedes, width="stretch", hide_index=True)
-
-                    mapa_sedes_sel = {
-                        f"{s['campus_id']} — {s['nombre_plantel']} ({s['ciudad_estado']})": s
-                        for s in lista_sedes
-                    }
-                    sede_activa_lbl = st.selectbox(
-                        "🏫 Plantel Activo en Sesión (para certificados y operación):",
-                        list(mapa_sedes_sel.keys()),
-                        key="sb_active_campus_session"
-                    )
-                    sede_obj_sel = mapa_sedes_sel[sede_activa_lbl]
-                    st.session_state["active_campus_id"] = sede_obj_sel["campus_id"]
-                    st.session_state["active_campus_address"] = sede_obj_sel["direccion_oficial"]
-
+                st.markdown("#### 🌎 Alta y Edición de Planteles / Franquicias (`campus_id`)")
                 with st.expander("➕ Registrar o Editar Plantel / Franquicia", expanded=False):
                     with st.form("form_upsert_campus_cei"):
                         fc1, fc2 = st.columns(2)
@@ -7339,6 +7404,74 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 st.rerun()
                             else:
                                 st.error(msg_c)
+        # 14.4C PESTAÑA TORRE DE CONTROL: RED DE FRANQUICIAS Y EXPANSIÓN MULTI-SEDE (PARTE 2 DE 2)
+        if seccion_inst_sel == "🌎 Red de Franquicias":
+            if not is_owner:
+                st.warning("⛔ Solo el Propietario Principal (Owner) puede auditar la Red Global de Franquicias.")
+            else:
+                st.markdown("#### 🌎 CEI Global Franchise Hub — Torre de Control Multi-Sede")
+                st.caption(
+                    "Supervisa el crecimiento de la Sede Matriz (Agua Prieta, Sonora) y cada franquicia nacional o internacional "
+                    "con métricas académicas, financieras y generación de QR exclusivo por plantel."
+                )
+
+                hub_data = generar_tablero_franquicias_pg()
+
+                k_f1, k_f2, k_f3, k_f4 = st.columns(4)
+                k_f1.metric("🏛️ Planteles Activos", f"{hub_data['total_sedes']} sedes", "Red CEI")
+                k_f2.metric("🎓 Matrícula Global", f"{hub_data['total_alumnos_red']} alumnos", "Todas las sedes")
+                k_f3.metric("📚 Producción Académica", f"{hub_data['total_folios_red']} Folios", f"{hub_data['total_certs_red']} Certificados")
+                k_f4.metric("💰 Recaudación Ciclo Red", f"${hub_data['total_ingresos_est_red']:,.2f}", "Consolidado")
+
+                st.divider()
+                st.markdown("##### 🏆 Ranking Comparativo de Planteles y Franquicias")
+                if hub_data["ranking_rows"]:
+                    st.dataframe(pd.DataFrame(hub_data["ranking_rows"]), width="stretch", hide_index=True)
+
+                st.divider()
+                st.markdown("##### 📲 Kit de Expansión Instantánea: QR Oficial y Sello por Franquicia")
+                if hub_data["sedes"]:
+                    mapa_hub_sedes = {
+                        f"{s['campus_id']} — {s['nombre_plantel']} ({s['ciudad_estado']})": s
+                        for s in hub_data["sedes"]
+                    }
+                    sel_hub_lbl = st.selectbox(
+                        "Selecciona una franquicia para generar su QR oficial de inscripción y activar su sede:",
+                        list(mapa_hub_sedes.keys()),
+                        key="sb_franchise_hub_qr_selector"
+                    )
+                    sede_hub_obj = mapa_hub_sedes[sel_hub_lbl]
+                    cid_hub = sede_hub_obj["campus_id"]
+
+                    c_hq1, c_hq2 = st.columns([2.2, 1.2])
+                    with c_hq1:
+                        st.info(
+                            f"**Plantel:** {sede_hub_obj['nombre_plantel']}\n\n"
+                            f"**Código Oficial:** `{cid_hub}`  |  **Ciudad:** {sede_hub_obj['ciudad_estado']}\n\n"
+                            f"**Dirección en Certificados:** {sede_hub_obj['direccion_oficial']}\n\n"
+                            f"**Moneda / IVA:** `{sede_hub_obj['moneda']}` ({sede_hub_obj['iva_pct']}%)"
+                        )
+                        if st.button(f"🎯 Operar Sesión bajo Sede {cid_hub}", type="primary", key="btn_activate_hub_campus"):
+                            st.session_state["active_campus_id"] = cid_hub
+                            st.session_state["active_campus_address"] = sede_hub_obj["direccion_oficial"]
+                            st.success(f"✅ Sesión vinculada al plantel **{cid_hub}**.")
+
+                    with c_hq2:
+                        base_app_url = str(
+                            st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")
+                        ).strip().rstrip("/")
+                        url_qr_campus = f"{base_app_url}/?campus={urllib.parse.quote(cid_hub)}"
+                        buf_qc = io.BytesIO()
+                        qrcode.make(url_qr_campus).save(buf_qc, format="PNG")
+                        st.image(buf_qc.getvalue(), caption=f"QR Inscripción {cid_hub}", width=150)
+                        st.download_button(
+                            f"⬇️ Descargar QR {cid_hub}",
+                            data=buf_qc.getvalue(),
+                            file_name=f"QR_Franquicia_{cid_hub}.png",
+                            mime="image/png",
+                            width="stretch",
+                            key=f"btn_dl_qr_campus_{cid_hub}"
+                        )
 
 
         # 14.4B PESTAÑA AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO)
@@ -7436,6 +7569,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     width="stretch",
                     key="btn_dl_requirements_updated_cei"
                 )
+
 
 # ==============================================================================
 # PARTE 14D1: MÓDULOS FINANCIEROS SPA — COBRANZA MENSUAL, COMPROBANTES Y WHATSAPP
