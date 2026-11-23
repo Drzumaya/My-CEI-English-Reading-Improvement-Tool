@@ -5203,6 +5203,17 @@ def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str 
 # ==============================================================================
 # MOTOR DE CATEGORÍAS ESTUDIANTILES (BRONCE / PLATA / ORO) — BLOQUE B DE 2
 # ==============================================================================
+def _cerrar_guia_y_volver():
+    st.session_state["guia_plan_seccion_activa"] = None
+    st.session_state["sb_edu_guia_plan_cat"] = "— Guía del Curso: Instrucciones, Plan y Categoría —"
+    if st.session_state.get("active_admin_workspace") == "📘 Guía, Plan y Categoría":
+        st.session_state["active_admin_workspace"] = None
+        st.session_state["active_stage_5"] = "READING"
+    if st.session_state.get("active_student_workspace") == "📘 Guía, Plan y Categoría":
+        st.session_state["active_student_workspace"] = None
+        st.session_state["active_stage_5"] = "READING"
+
+
 def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str = "B1"):
     """Renderiza en pantalla principal Instrucciones, Plan del Curso (9 meses) y Categoría Estudiantil."""
     datos_cat = calcular_categoria_automatica_estudiante(usuario_actual, nivel_cefr_actual)
