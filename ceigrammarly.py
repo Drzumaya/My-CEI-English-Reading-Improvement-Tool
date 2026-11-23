@@ -7404,15 +7404,16 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 st.rerun()
                             else:
                                 st.error(msg_c)
-        # 14.4C PESTAÑA TORRE DE CONTROL: RED DE FRANQUICIAS Y EXPANSIÓN MULTI-SEDE (PARTE 2 DE 2)
+                                
+        # 14.4C PESTAÑA TORRE DE CONTROL UNIFICADA: RED DE FRANQUICIAS Y EXPANSIÓN MULTI-SEDE
         if seccion_inst_sel == "🌎 Red de Franquicias":
             if not is_owner:
-                st.warning("⛔ Solo el Propietario Principal (Owner) puede auditar la Red Global de Franquicias.")
+                st.warning("⛔ Solo el Propietario Principal (Owner) puede auditar y administrar la Red Global de Franquicias.")
             else:
                 st.markdown("#### 🌎 CEI Global Franchise Hub — Torre de Control Multi-Sede")
                 st.caption(
-                    "Supervisa el crecimiento de la Sede Matriz (Agua Prieta, Sonora) y cada franquicia nacional o internacional "
-                    "con métricas académicas, financieras y generación de QR exclusivo por plantel."
+                    "Supervisa el crecimiento de la Sede Matriz (Agua Prieta, Sonora) y cada franquicia nacional o internacional, "
+                    "da de alta nuevos planteles y genera su QR exclusivo de inscripción."
                 )
 
                 hub_data = generar_tablero_franquicias_pg()
@@ -7427,6 +7428,39 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 st.markdown("##### 🏆 Ranking Comparativo de Planteles y Franquicias")
                 if hub_data["ranking_rows"]:
                     st.dataframe(pd.DataFrame(hub_data["ranking_rows"]), width="stretch", hide_index=True)
+
+                with st.expander("➕ Registrar o Editar Plantel / Franquicia (campus_id)", expanded=False):
+                    with st.form("form_upsert_campus_cei_hub"):
+                        fc1, fc2 = st.columns(2)
+                        with fc1:
+                            in_cid = st.text_input("🆔 Código de Plantel (`campus_id`):", placeholder="Ej: CEI-HMO-02")
+                            in_cnom = st.text_input("🏛️ Nombre Oficial del Plantel:", placeholder="Ej: Career English Institute — Hermosillo")
+                            in_cciud = st.text_input("📍 Ciudad y Estado / País:", placeholder="Ej: Hermosillo, Sonora, México")
+                            in_cdir = st.text_area("🏢 Dirección Oficial (aparece en Certificados PDF):", height=70)
+                        with fc2:
+                            in_ctel = st.text_input("📱 Teléfono / WhatsApp del Plantel:", placeholder="+52 ...")
+                            in_cmon = st.selectbox("💱 Moneda Local:", ["MXN", "USD", "CAD", "EUR"], index=0)
+                            in_civa = st.number_input("🧾 IVA / Impuesto Local (%):", min_value=0.0, max_value=30.0, value=16.0, step=0.5)
+                            in_cdir_u = st.text_input("👤 Usuario Director de Sede (opcional):", placeholder="Usuario en padrón")
+                            in_cest = st.selectbox("🏷️ Estatus Operativo:", ["Activo", "En Apertura", "Suspendido"])
+
+                        if st.form_submit_button("💾 Guardar Plantel / Franquicia en Red CEI", type="primary", width="stretch"):
+                            ok_c, msg_c = upsert_campus_pg(
+                                campus_id=in_cid,
+                                nombre_plantel=in_cnom,
+                                ciudad_estado=in_cciud,
+                                direccion_oficial=in_cdir,
+                                telefono_contacto=in_ctel,
+                                moneda=in_cmon,
+                                iva_pct=in_civa,
+                                director_usuario=in_cdir_u,
+                                estatus=in_cest
+                            )
+                            if ok_c:
+                                st.success(msg_c)
+                                st.rerun()
+                            else:
+                                st.error(msg_c)
 
                 st.divider()
                 st.markdown("##### 📲 Kit de Expansión Instantánea: QR Oficial y Sello por Franquicia")
@@ -7472,6 +7506,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             width="stretch",
                             key=f"btn_dl_qr_campus_{cid_hub}"
                         )
+
 
 
         # 14.4B PESTAÑA AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO)
