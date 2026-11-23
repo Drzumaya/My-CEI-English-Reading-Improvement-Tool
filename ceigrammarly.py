@@ -5251,7 +5251,6 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
                 on_click=_cerrar_guia_y_volver
             )
 
-
         opciones_radio = [
             "📖 Instrucciones",
             "📅 Plan del Curso (9 Meses)",
@@ -5284,6 +5283,28 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
                 "5. **✍️ 4. Writing Skill APA 7 (20 %):** Redacta un resumen en inglés de **120 a 125 palabras** sobre el video y agrega su referencia bibliográfica en formato **APA 7.ª Edición**.\n"
                 "6. **📊 Tu Boletín y Certificado:** Todas tus calificaciones y tu **Categoría Estudiantil (Bronce, Plata u Oro)** se actualizan automáticamente en tu Boletín Informativo."
             )
+
+            st.divider()
+            st.markdown("##### 📲 Instala la App Oficial CEI en tu Celular (iOS y Android)")
+            col_pwa1, col_pwa2 = st.columns(2)
+            with col_pwa1:
+                with st.container(border=True):
+                    st.markdown("**🍎 En iPhone / iPad (Safari):**")
+                    st.markdown(
+                        "1. Abre el enlace de la plataforma en **Safari**.\n"
+                        "2. Toca el botón **Compartir** (cuadro con flecha hacia arriba ⬆️).\n"
+                        "3. Selecciona **Agregar a inicio** (*Add to Home Screen*).\n"
+                        "4. Pulsa **Agregar** arriba a la derecha. ¡Listo!"
+                    )
+            with col_pwa2:
+                with st.container(border=True):
+                    st.markdown("**🤖 En Android (Google Chrome):**")
+                    st.markdown(
+                        "1. Abre el enlace de la plataforma en **Chrome**.\n"
+                        "2. Toca el menú de **tres puntos (⋮)** arriba a la derecha.\n"
+                        "3. Selecciona **Instalar aplicación** o **Agregar a la pantalla principal**.\n"
+                        "4. Confirma pulsando **Instalar**. ¡Listo!"
+                    )
 
         elif opcion_guia == "📅 Plan del Curso (9 Meses)":
             st.markdown(f"#### 📅 Plan Curricular de 9 Periodos (36 Semanas) — Nivel CEFR {niv_code}")
@@ -5339,6 +5360,7 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
                 "✨ **Asignación Automática:** No necesitas solicitar tu categoría. Conforme avanzas y completas tus clases mensuales en cada periodo, "
                 "la plataforma actualiza tu insignia automáticamente y la imprime tanto en tu **Boletín Informativo** como en tu **Certificado Oficial**."
             )
+
 
 # ==============================================================================
 # MOTOR DE GAMIFICACIÓN SOCIAL: RACHAS SEMANALES, INSIGNIAS Y WHATSAPP
