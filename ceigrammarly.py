@@ -121,10 +121,10 @@ st.iframe(
 )
 
 # ==============================================================================
-# PANTALLA DE INSTALACIÓN EN 1 CLIC (QR DE DESCARGA DE APP / APK / PWA)
+# PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
 # ==============================================================================
 def render_install_app_landing():
-    """Muestra la tarjeta de instalación en 1 clic al escanear el QR de la App Oficial CEI."""
+    """Muestra la tarjeta de instalación adaptada al dispositivo al escanear el QR oficial CEI."""
     apk_url = str(st.secrets.get("ANDROID_APK_URL", "")).strip()
     logo_path = "static/logo_cei_app.png" if os.path.exists("static/logo_cei_app.png") else "LOGO CEI APP.png"
 
@@ -139,7 +139,6 @@ def render_install_app_landing():
 
         st.divider()
 
-        # Botón nativo de instalación en 1 clic (Android / Chrome / Edge) + Detección automática iOS/Mac
         st.iframe(
             """
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 8px;">
@@ -154,24 +153,48 @@ def render_install_app_landing():
                     cursor: pointer;
                     box-shadow: 0 6px 18px rgba(11, 37, 69, 0.28);
                     width: 100%;
-                    max-width: 420px;
+                    max-width: 440px;
                 ">
-                    ⬇️ INSTALAR APP OFICIAL CEI AHORA (1 CLIC)
+                    📲 INSTALAR APP OFICIAL CEI
                 </button>
-                <p id="installHintCEI" style="color: #334155; font-size: 14px; margin-top: 12px; line-height: 1.5;"></p>
+                <div id="installHintCEI" style="
+                    color: #1e293b;
+                    background: #f1f5f9;
+                    border-radius: 10px;
+                    padding: 12px 16px;
+                    font-size: 14px;
+                    margin-top: 14px;
+                    line-height: 1.55;
+                    text-align: left;
+                "></div>
             </div>
             <script>
                 let deferredPromptCEI = null;
                 const btn = document.getElementById('btnNativeInstallCEI');
                 const hint = document.getElementById('installHintCEI');
                 const ua = navigator.userAgent || '';
+                const isInApp = /WhatsApp|Instagram|FBAN|FBAV|Line/i.test(ua);
                 const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+                const isAndroid = /Android/i.test(ua);
                 const isMacSafari = /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua);
+
+                if (isInApp) {
+                    hint.innerHTML = '⚠️ <b>Abriste este QR dentro de WhatsApp/Redes:</b> Toca los <b>3 puntos (⋮)</b> o el ícono de <b>brújula/navegador</b> y elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android) para poder instalar la app.';
+                } else if (isIOS) {
+                    hint.innerHTML = '🍎 <b>iPhone / iPad detectado (2 toques):</b><br>1. Toca el botón <b>Compartir (⬆️)</b> en la barra inferior de Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene cargado.';
+                } else if (isMacSafari) {
+                    hint.innerHTML = '💻 <b>Mac Safari detectado:</b> En la barra superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene preconfigurado.';
+                } else if (isAndroid) {
+                    hint.innerHTML = '🤖 <b>Android detectado:</b> Pulsa el botón azul superior para instalar en 1 clic, o toca el menú <b>(⋮) → "Instalar aplicación"</b>.';
+                } else {
+                    hint.innerHTML = '💻 <b>Navegador de Escritorio:</b> Pulsa el botón azul superior o haz clic en el ícono de <b>Instalar (⊕)</b> en la barra de direcciones.';
+                }
 
                 window.parent.addEventListener('beforeinstallprompt', (e) => {
                     e.preventDefault();
                     deferredPromptCEI = e;
-                    hint.innerHTML = '✅ <b>Dispositivo listo:</b> Pulsa el botón azul superior para instalar la app directamente con su logo oficial.';
+                    btn.innerText = '⬇️ INSTALAR APP OFICIAL CEI AHORA (1 CLIC)';
+                    hint.innerHTML = '✅ <b>Instalación directa disponible:</b> Pulsa el botón azul superior y confirma <b>"Instalar"</b>.';
                 });
 
                 btn.addEventListener('click', async () => {
@@ -179,20 +202,14 @@ def render_install_app_landing():
                         deferredPromptCEI.prompt();
                         const choice = await deferredPromptCEI.userChoice;
                         if (choice.outcome === 'accepted') {
-                            hint.innerHTML = '🎉 <b>¡Instalación completada!</b> Busca el escudo de CEI en tu pantalla de inicio.';
+                            hint.innerHTML = '🎉 <b>¡App Oficial CEI instalada!</b> Busca el escudo de Career English Institute en tu pantalla de inicio.';
                         }
                         deferredPromptCEI = null;
-                    } else if (isIOS) {
-                        hint.innerHTML = '🍎 <b>En tu iPhone / iPad:</b> Toca el botón <b>Compartir (⬆️)</b> en Safari y elige <b>"Agregar a inicio"</b>. El escudo de CEI ya viene preconfigurado.';
-                    } else if (isMacSafari) {
-                        hint.innerHTML = '💻 <b>En tu Mac:</b> En la barra superior de Safari haz clic en <b>Archivo → Agregar al Dock</b>. El escudo de CEI ya viene listo.';
-                    } else {
-                        hint.innerHTML = '📲 <b>En Android / Chrome:</b> Toca el menú <b>(⋮)</b> arriba a la derecha y pulsa <b>"Instalar aplicación"</b>.';
                     }
                 });
             </script>
             """,
-            height=145
+            height=210
         )
 
         if apk_url:
@@ -206,6 +223,7 @@ def render_install_app_landing():
         if st.button("➡️ Continuar al Inicio de Sesión Web", width="stretch", key="btn_skip_install_to_login"):
             st.query_params.clear()
             st.rerun()
+
 
 
 if str(st.query_params.get("install", "")).strip() in ["1", "true", "app"]:
