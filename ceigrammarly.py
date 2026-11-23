@@ -5327,6 +5327,130 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
                 "la plataforma actualiza tu insignia automáticamente y la imprime tanto en tu **Boletín Informativo** como en tu **Certificado Oficial**."
             )
 
+# ==============================================================================
+# MOTOR DE GAMIFICACIÓN SOCIAL: RACHAS SEMANALES, INSIGNIAS Y WHATSAPP
+# ==============================================================================
+def calcular_gamificacion_estudiante(student_user: str, nivel_cefr: str = "B1") -> dict:
+    """Calcula racha semanal consecutiva, insignias obtenidas por Folio y estado de actividad."""
+    u_clean = str(student_user or "").strip().lower()
+    hoy_local = datetime.now(ZoneInfo("America/Hermosillo")).date()
+    iso_hoy = hoy_local.isocalendar()
+    semana_actual_key = (iso_hoy[0], iso_hoy[1])
+
+    folios_u = []
+    try:
+        todos_f = load_lessons_history_pg() or []
+        folios_u = [
+            r for r in todos_f
+            if str(r.get("Usuario", "")).strip().lower() == u_clean
+            and str(r.get("Folio") or "").strip()
+        ]
+    except Exception:
+        folios_u = []
+
+    semanas_activas = set()
+    folios_completos = 0
+    speaking_elite = 0
+    apa_scholar = 0
+    quiz_perfecto = 0
+
+    for f in folios_u:
+        # 1. Extraer fecha para racha semanal
+        f_str = str(f.get("Fecha") or f.get("Created_At") or "").strip()[:10]
+        try:
+            d_obj = datetime.strptime(f_str, "%Y-%m-%d").date()
+            iso_d = d_obj.isocalendar()
+            semanas_activas.add((iso_d[0], iso_d[1]))
+        except Exception:
+            pass
+
+        # 2. Evaluar logros por Folio
+        try:
+            q_score = float(f.get("Quiz_Score") or f.get("Calificacion_Quiz") or 0)
+        except Exception:
+            q_score = 0.0
+        try:
+            s_score = float(f.get("Speaking_Score") or f.get("Calificacion_Speaking") or 0)
+        except Exception:
+            s_score = 0.0
+        try:
+            w_score = float(f.get("Writing_Score") or f.get("Calificacion_Writing") or 0)
+        except Exception:
+            w_score = 0.0
+
+        if q_score >= 95:
+            quiz_perfecto += 1
+        if s_score >= 90:
+            speaking_elite += 1
+        if w_score >= 90:
+            apa_scholar += 1
+        if q_score > 0 and s_score > 0 and w_score > 0:
+            folios_completos += 1
+
+    # 3. Calcular racha semanal consecutiva hacia atrás desde esta semana o la pasada
+    racha_semanas = 0
+    cursor_fecha = hoy_local
+    iso_cursor = cursor_fecha.isocalendar()
+    if (iso_cursor[0], iso_cursor[1]) not in semanas_activas:
+        cursor_fecha = hoy_local - timedelta(days=7)
+
+    while True:
+        iso_c = cursor_fecha.isocalendar()
+        if (iso_c[0], iso_c[1]) in semanas_activas:
+            racha_semanas += 1
+            cursor_fecha = cursor_fecha - timedelta(days=7)
+        else:
+            break
+
+    activo_esta_semana = semana_actual_key in semanas_activas
+
+    insignias = []
+    if len(folios_u) >= 1:
+        insignias.append("🚀 Primer Folio Creado")
+    if folios_completos >= 1:
+        insignias.append(f"🎯 Folio 360° Completo ({folios_completos})")
+    if quiz_perfecto >= 1:
+        insignias.append(f"🧠 Maestro Reading ({quiz_perfecto})")
+    if speaking_elite >= 1:
+        insignias.append(f"🎙️ Speaking Elite ({speaking_elite})")
+    if apa_scholar >= 1:
+        insignias.append(f"✍️ APA 7 Scholar ({apa_scholar})")
+    if racha_semanas >= 4:
+        insignias.append(f"🔥 Imparable {racha_semanas} Semanas")
+
+    cat_info = calcular_categoria_automatica_estudiante(student_user, nivel_cefr)
+
+    return {
+        "racha_semanas": racha_semanas,
+        "activo_esta_semana": activo_esta_semana,
+        "total_folios": len(folios_u),
+        "folios_completos": folios_completos,
+        "insignias": insignias,
+        "categoria_label": cat_info["categoria_label"],
+        "categoria_corto": cat_info["categoria_corto"]
+    }
+
+
+def build_whatsapp_motivacion_racha(student_user: str, gam_data: dict, telefono_alumno: str = "") -> str:
+    """Construye el enlace de WhatsApp con mensaje motivacional personalizado de racha e insignias."""
+    racha = int(gam_data.get("racha_semanas") or 0)
+    cat_lbl = gam_data.get("categoria_label") or "🥉 Categoría Bronce"
+    if gam_data.get("activo_esta_semana"):
+        msg = (
+            f"¡Hola {student_user}! 🔥 Te saludamos de Career English Institute (CEI) 🎓.\n\n"
+            f"¡Felicidades por mantener tu racha activa de *{racha} semana(s)* consecutiva(s) y tu *{cat_lbl}*! "
+            f"Sigue practicando tus 4 habilidades en la plataforma para alcanzar tu siguiente insignia. ¡Excelente trabajo!"
+        )
+    else:
+        msg = (
+            f"¡Hola {student_user}! 👋 Te saludamos de Career English Institute (CEI) 🎓.\n\n"
+            f"Esta semana aún no registras tu lección en la plataforma. ¡No pierdas el ritmo hacia tu *{cat_lbl}*! "
+            f"Ingresa hoy mismo, genera un nuevo Folio y mantén encendido tu progreso en inglés. 🚀"
+        )
+    tel_clean = _format_wa_phone(telefono_alumno) if "_format_wa_phone" in globals() else "".join(ch for ch in str(telefono_alumno or "") if ch.isdigit())
+    if tel_clean:
+        return f"https://wa.me{tel_clean}?text={urllib.parse.quote(msg)}"
+    return f"https://wa.me?text={urllib.parse.quote(msg)}"
 
 
 def get_student_inscription_url_pg() -> str:
@@ -5612,6 +5736,36 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 nivel_cefr_actual=str(st.session_state.get("selected_cefr") or "B1")
             )
             st.stop()
+
+# TARJETA DE GAMIFICACIÓN: RACHA SEMANAL E INSIGNIAS DEL ESTUDIANTE
+if st.session_state.get("active_stage_5", "READING") == "READING" and not st.session_state.get("active_admin_workspace"):
+    gam_curr = calcular_gamificacion_estudiante(
+        student_user=str(st.session_state.get("current_user") or usuario),
+        nivel_cefr=str(st.session_state.get("selected_cefr") or "B1")
+    )
+    with st.container(border=True):
+        g1, g2, g3, g4 = st.columns([1.2, 1.3, 2.2, 1.3])
+        with g1:
+            estado_fuego = "🔥 Activa esta semana" if gam_curr["activo_esta_semana"] else "⏳ Pendiente esta semana"
+            st.metric("🔥 Racha Semanal", f"{gam_curr['racha_semanas']} sem.", estado_fuego)
+        with g2:
+            st.metric("🏅 Categoría Actual", gam_curr["categoria_corto"], f"{gam_curr['total_folios']} Folios")
+        with g3:
+            st.markdown("**🎖️ Insignias Desbloqueadas:**")
+            if gam_curr["insignias"]:
+                st.caption("  •  ".join(gam_curr["insignias"]))
+            else:
+                st.caption("Completa tu primer Folio (Reading, Video, Speaking y Writing) para desbloquear tu primera medalla.")
+        with g4:
+            st.write("")
+            if has_faculty_access or is_owner:
+                wa_mot_url = build_whatsapp_motivacion_racha(
+                    student_user=str(st.session_state.get("current_user") or usuario),
+                    gam_data=gam_curr
+                )
+                st.link_button("📲 Motivar por WhatsApp", url=wa_mot_url, width="stretch")
+            else:
+                st.caption("🎯 ¡Completa 1 Folio esta semana para sumar +1 a tu racha!")
 
 # DESPLEGABLE EN PANEL EDUCATIVO: INSTRUCCIONES, PLAN DEL CURSO Y CATEGORÍA ESTUDIANTIL
 if st.session_state.get("active_stage_5", "READING") == "READING" and not st.session_state.get("active_admin_workspace"):
