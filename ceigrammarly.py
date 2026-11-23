@@ -54,7 +54,7 @@ except ImportError:
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
     page_title="CEI ENGLISH LEARNING PLATFORM — Career English Institute",
-    page_icon="🎓",
+    page_icon="static/logo_cei_app.png" if os.path.exists("static/logo_cei_app.png") else "LOGO CEI APP.png",
     layout="wide",
     initial_sidebar_state="auto"
 )
