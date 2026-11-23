@@ -6253,20 +6253,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         f"{str(r.get('Matricula', '')).strip()} — {str(r.get('Usuario', '')).strip()} ({str(r.get('Nivel', 'B1')).strip()})": r
                         for r in regs_cert if str(r.get("Matricula", "")).strip()
                     }
-# ==============================================================================
-# PARTE 14-A: HELPERS DE DELEGACIÓN Y CENTRO DE MANDO SPA (CERTIFICADOS 1/2)
-# ==============================================================================
-CAPACIDADES_DELEGABLES_OWNER = [
-    "Ver_Panel_Admin",
-    "Registrar_Usuarios",
-    "Gestionar_Usuarios",
-    "Editar_Permisos",
-    "Editar_Terminos_Afiliacion",
-    "Gestionar_Comisiones_Afiliados",
-    "Emitir_Certificados",
-    "Gestionar_IVA_Mensualidad",
-    "Editar_Fecha_Inicio_Curso"
-]
 
 
 def get_user_delegated_caps_pg(usuario_target: str) -> dict:
