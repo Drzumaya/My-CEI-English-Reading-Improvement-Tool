@@ -6427,7 +6427,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 if ok_st:
                                     st.success(msg_st)
                                 else:
-                                    st.error(msg_st)
+                                    st.error(msg_st) 
 
                 with st.expander("📲 Código QR Oficial de Auto-Inscripción de Alumnos (Zoom / WhatsApp)", expanded=False):
                     padron_qr_st = load_padron_records()
