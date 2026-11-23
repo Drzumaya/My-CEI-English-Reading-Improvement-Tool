@@ -6327,9 +6327,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.session_state["last_cert_folio"] = None
                                     st.session_state["last_cert_name"] = None
                                     st.rerun()
-                except Exception as e_cert:
-                    st.error(f"Error en módulo de certificados: {e_cert}")
-
+             
 
 # ==============================================================================
 # PARTE 14A: CENTRO DE MANDO SPA — HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
