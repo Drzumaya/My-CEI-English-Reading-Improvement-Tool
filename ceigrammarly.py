@@ -7553,9 +7553,11 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             except Exception as e:
                                 st.error(f"Error al guardar información: {e}")
                         else:
-                            st.warning("⚠️ La dirección institucional no puede quedar vacía.") 
-             st.divider()
+                            st.warning("⚠️ La dirección institucional no puede quedar vacía.")
+
+            st.divider()
             _render_qr_descarga_app_box(key_prefix="admin_datos_inst_app_qr")
+
                            
 
                                 
