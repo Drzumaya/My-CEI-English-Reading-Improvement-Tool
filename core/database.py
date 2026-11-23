@@ -31,6 +31,9 @@ def open_pg_conn():
         return None
 
 
+_open_legal_pg_conn = open_pg_conn
+
+
 def get_user_delegated_caps_pg(usuario_target: str) -> dict:
     """Fetches individually delegated capabilities for a specific user from Supabase."""
     u_clean = str(usuario_target or "").strip().lower()
