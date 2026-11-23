@@ -6570,6 +6570,179 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.session_state["last_cert_name"] = None
                                     st.rerun()
 
+
+# ==============================================================================
+# MOTOR SAAS MULTI-SEDE / FRANQUICIAS (CAMPUSES & CAMPUS_ID)
+# ==============================================================================
+DEFAULT_CAMPUS_ID = "CEI-AP-01"
+
+
+def ensure_multicampus_schema_pg():
+    """Crea la tabla maestra de planteles (campuses) y añade campus_id sin afectar datos previos."""
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS campuses (
+                        campus_id TEXT PRIMARY KEY,
+                        nombre_plantel TEXT NOT NULL,
+                        ciudad_estado TEXT NOT NULL,
+                        direccion_oficial TEXT NOT NULL,
+                        telefono_contacto TEXT DEFAULT '',
+                        moneda TEXT DEFAULT 'MXN',
+                        iva_pct NUMERIC(5,2) DEFAULT 16.00,
+                        director_usuario TEXT DEFAULT '',
+                        estatus TEXT DEFAULT 'Activo',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    INSERT INTO campuses (
+                        campus_id, nombre_plantel, ciudad_estado, direccion_oficial,
+                        telefono_contacto, moneda, iva_pct, estatus
+                    )
+                    VALUES (
+                        'CEI-AP-01',
+                        'Career English Institute — Sede Matriz Agua Prieta',
+                        'Agua Prieta, Sonora, México',
+                        %s,
+                        '',
+                        'MXN',
+                        16.00,
+                        'Activo'
+                    )
+                    ON CONFLICT (campus_id) DO NOTHING;
+                """, (str(globals().get("institute_address") or "Agua Prieta, Sonora, México"),))
+
+                for tabla_mc in ["users_padron", "affiliate_partners", "certificates", "lessons_history"]:
+                    try:
+                        cur.execute(f"""
+                            ALTER TABLE {tabla_mc}
+                            ADD COLUMN IF NOT EXISTS campus_id TEXT DEFAULT 'CEI-AP-01';
+                        """)
+                        cur.execute(f"""
+                            UPDATE {tabla_mc}
+                            SET campus_id = 'CEI-AP-01'
+                            WHERE campus_id IS NULL OR TRIM(campus_id) = '';
+                        """)
+                    except Exception:
+                        pass
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def list_campuses_pg() -> list[dict]:
+    """Devuelve todos los planteles/franquicias registrados en PostgreSQL."""
+    ensure_multicampus_schema_pg()
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return [{
+            "campus_id": "CEI-AP-01",
+            "nombre_plantel": "Career English Institute — Sede Matriz Agua Prieta",
+            "ciudad_estado": "Agua Prieta, Sonora, México",
+            "direccion_oficial": str(globals().get("institute_address") or "Agua Prieta, Sonora, México"),
+            "telefono_contacto": "",
+            "moneda": "MXN",
+            "iva_pct": 16.0,
+            "director_usuario": "",
+            "estatus": "Activo"
+        }]
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT campus_id, nombre_plantel, ciudad_estado, direccion_oficial,
+                       COALESCE(telefono_contacto, ''), COALESCE(moneda, 'MXN'),
+                       COALESCE(iva_pct, 16.0), COALESCE(director_usuario, ''), COALESCE(estatus, 'Activo')
+                FROM campuses
+                ORDER BY created_at ASC;
+            """)
+            rows = cur.fetchall() or []
+            return [
+                {
+                    "campus_id": r[0],
+                    "nombre_plantel": r[1],
+                    "ciudad_estado": r[2],
+                    "direccion_oficial": r[3],
+                    "telefono_contacto": r[4],
+                    "moneda": r[5],
+                    "iva_pct": float(r[6] or 16.0),
+                    "director_usuario": r[7],
+                    "estatus": r[8]
+                }
+                for r in rows
+            ]
+    except Exception:
+        return []
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def upsert_campus_pg(
+    campus_id: str,
+    nombre_plantel: str,
+    ciudad_estado: str,
+    direccion_oficial: str,
+    telefono_contacto: str = "",
+    moneda: str = "MXN",
+    iva_pct: float = 16.0,
+    director_usuario: str = "",
+    estatus: str = "Activo"
+) -> tuple[bool, str]:
+    """Crea o actualiza un plantel/franquicia en la red CEI."""
+    cid = str(campus_id or "").strip().upper()
+    if not cid or not str(nombre_plantel or "").strip():
+        return False, "El ID del plantel y el nombre son obligatorios."
+    ensure_multicampus_schema_pg()
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return False, "Sin conexión a Supabase PostgreSQL."
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO campuses (
+                        campus_id, nombre_plantel, ciudad_estado, direccion_oficial,
+                        telefono_contacto, moneda, iva_pct, director_usuario, estatus
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (campus_id) DO UPDATE SET
+                        nombre_plantel = EXCLUDED.nombre_plantel,
+                        ciudad_estado = EXCLUDED.ciudad_estado,
+                        direccion_oficial = EXCLUDED.direccion_oficial,
+                        telefono_contacto = EXCLUDED.telefono_contacto,
+                        moneda = EXCLUDED.moneda,
+                        iva_pct = EXCLUDED.iva_pct,
+                        director_usuario = EXCLUDED.director_usuario,
+                        estatus = EXCLUDED.estatus;
+                """, (
+                    cid, nombre_plantel.strip(), ciudad_estado.strip(), direccion_oficial.strip(),
+                    telefono_contacto.strip(), moneda.strip().upper(), float(iva_pct),
+                    director_usuario.strip(), estatus.strip()
+                ))
+        return True, f"✅ Plantel **{cid} — {nombre_plantel.strip()}** guardado correctamente."
+    except Exception as e:
+        return False, f"Error al guardar plantel: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+                    
+
                     # ==========================================================
                     # PARTE 14A: HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
                     # ==========================================================
