@@ -59,7 +59,7 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# OCULTAR BARRA SUPERIOR DE STREAMLIT, MENÚ DE DESARROLLADOR Y PIE DE PÁGINA
+# OCULTAR BARRA SUPERIOR Y OCULTAR "MANAGE APP" EXCLUSIVAMENTE EN MODO APP (STANDALONE)
 st.markdown(
     """
     <style>
@@ -68,24 +68,28 @@ st.markdown(
             background: transparent;
             height: 0px;
         }
-        [data-testid="stToolbar"] {
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        footer {
             display: none !important;
         }
-        [data-testid="stDecoration"] {
-            display: none !important;
-        }
-        footer {visibility: hidden;}
-        /* Oculta el badge flotante inferior en vistas de usuario */
-        .viewerBadge_container__r5tak,
-        .styles_viewerBadge__CvC9N,
-        [data-testid="manage-app-button"] {
-            display: none !important;
+
+        /* Ocultar 'Manage app' únicamente cuando se abre como App instalada (PWA / Dock / Inicio) */
+        @media all and (display-mode: standalone) {
+            [data-testid="manage-app-button"],
+            div[class*="viewerBadge"],
+            div[class*="StatusWidget"],
+            iframe[title="streamlit_badge"] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
         }
     </style>
     """,
     unsafe_allow_html=True
 )
-
 
 # SOPORTE PROGRESSIVE WEB APP (PWA INSTALABLE EN iOS Y ANDROID CON LOGO OFICIAL)
 st.markdown(
