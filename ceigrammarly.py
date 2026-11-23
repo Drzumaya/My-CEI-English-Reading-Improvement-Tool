@@ -51,7 +51,6 @@ except ImportError:
         add_script_run_ctx = None
         get_script_run_ctx = None
 
-
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
     page_title="CEI ENGLISH LEARNING PLATFORM — Career English Institute",
