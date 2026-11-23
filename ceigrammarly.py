@@ -50,6 +50,12 @@ except ImportError:
     except ImportError:
         add_script_run_ctx = None
         get_script_run_ctx = None
+from core.database import (
+    _open_legal_pg_conn, load_padron_records,
+    get_user_delegated_caps_pg, save_user_delegated_caps_pg
+)
+
+
 
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
