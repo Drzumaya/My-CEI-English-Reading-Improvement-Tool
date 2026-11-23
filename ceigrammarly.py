@@ -6593,42 +6593,6 @@ CAPACIDADES_DELEGABLES_OWNER = [
 ]
 
 
-def get_user_delegated_caps_pg(usuario_target: str) -> dict:
-    """Obtiene los permisos delegados individualmente por el Owner a un usuario en Supabase."""
-    u_clean = str(usuario_target or "").strip().lower()
-    if not u_clean:
-        return {}
-    conn = _open_legal_pg_conn()
-    if not conn:
-        return {}
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS user_custom_permissions (
-                        usuario_login TEXT PRIMARY KEY,
-                        permisos_json TEXT NOT NULL DEFAULT '{}',
-                        updated_by TEXT,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                """)
-                cur.execute(
-                    "SELECT permisos_json FROM user_custom_permissions WHERE LOWER(TRIM(usuario_login)) = %s LIMIT 1;",
-                    (u_clean,)
-                )
-                row = cur.fetchone()
-                if row and row[0]:
-                    return json.loads(str(row[0]))
-    except Exception:
-        pass
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-    return {}
-
-
 def save_user_delegated_caps_pg(usuario_target: str, caps_dict: dict, autor: str) -> tuple[bool, str]:
     """Guarda permisos delegados individualmente por el Owner para un usuario específico."""
     u_clean = str(usuario_target or "").strip()
