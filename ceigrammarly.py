@@ -59,7 +59,7 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# OCULTAR BARRA SUPERIOR Y OCULTAR "MANAGE APP" EXCLUSIVAMENTE EN MODO APP (STANDALONE)
+# OCULTAR BARRA SUPERIOR Y OCULTAR "MANAGE APP" EN MODO APP (MAC DOCK / iOS / ANDROID)
 st.markdown(
     """
     <style>
@@ -73,9 +73,7 @@ st.markdown(
         footer {
             display: none !important;
         }
-
-        /* Ocultar 'Manage app' únicamente cuando se abre como App instalada (PWA / Dock / Inicio) */
-        @media all and (display-mode: standalone) {
+        @media all and (display-mode: standalone), all and (display-mode: minimal-ui) {
             [data-testid="manage-app-button"],
             div[class*="viewerBadge"],
             div[class*="StatusWidget"],
@@ -83,13 +81,45 @@ st.markdown(
                 display: none !important;
                 visibility: hidden !important;
                 opacity: 0 !important;
-                pointer-events: none !important;
             }
         }
     </style>
     """,
     unsafe_allow_html=True
 )
+
+st.iframe(
+    """
+    <script>
+    (function() {
+        try {
+            const pWin = window.parent;
+            const isAppMode = (
+                pWin.matchMedia('(display-mode: standalone)').matches ||
+                pWin.matchMedia('(display-mode: minimal-ui)').matches ||
+                pWin.navigator.standalone === true ||
+                !pWin.menubar.visible
+            );
+            if (isAppMode) {
+                const hideBadge = () => {
+                    const docs = [pWin.document];
+                    try { if (pWin.parent && pWin.parent.document) docs.push(pWin.parent.document); } catch(e) {}
+                    docs.forEach(d => {
+                        d.querySelectorAll('[data-testid="manage-app-button"], [class*="viewerBadge"], [class*="StatusWidget"], button[kind="manageApp"]').forEach(el => {
+                            el.style.setProperty('display', 'none', 'important');
+                        });
+                    });
+                };
+                hideBadge();
+                setInterval(hideBadge, 1200);
+            }
+        } catch(e) {}
+    })();
+    </script>
+    """,
+    height=0
+)
+
 
 
 # SOPORTE PROGRESSIVE WEB APP (PWA INSTALABLE EN iOS Y ANDROID CON LOGO OFICIAL)
