@@ -5503,6 +5503,7 @@ def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str =
 if st.session_state.get("active_stage_5") == "PORTAL":
     tiene_acceso_admin_portal = (
         es_admin_o_staff
+        or can("Editar_Permisos")
         or can("Editar_Terminos_Afiliacion")
         or can("Gestionar_Comisiones_Afiliados")
     )
@@ -5512,6 +5513,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
         else "🔙 CERRAR Y VOLVER AL PANEL EDUCATIVO"
     )
 
+    if tiene_acceso_admin_portal or es_socio_afiliado:
         if es_socio_afiliado:
             opciones_p_adm = [
                 "🤝 Portal Socio Afiliado",
@@ -6628,44 +6630,138 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 # ==============================================================================
 # PARTE 14C: MATRIZ RBAC, DATOS DEL INSTITUTO Y AUTOACTUALIZACIÓN DE LIBRERÍAS
 # ==============================================================================
-        # 14.3 PESTAÑA MATRIZ GLOBAL DE PERMISOS RBAC
-        if seccion_inst_sel == "🔐 Matriz Global de Permisos":
-            st.markdown("#### 🔐 Matriz Estándar RBAC (Crea o ajusta perfiles de permisos en tiempo real)")
-            df_mat = pd.DataFrame([
-                {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
-                for k, v in PERMISSIONS_MATRIX.items()
-            ])
-            st.dataframe(df_mat, width="stretch", hide_index=True)
+        # 14.3 PESTAÑA GESTIÓN DE PERMISOS Y MATRIZ GLOBAL RBAC
+        if seccion_inst_sel in ["🔐 Gestión de Permisos", "🔐 Matriz Global de Permisos"]:
+            if not (is_owner or can("Editar_Permisos") or can("Gestionar_Usuarios")):
+                st.warning("⛔ Solo el Owner o un Administrador autorizado puede gestionar los permisos de usuario.")
+            else:
+                st.markdown("#### 🔐 Gestión de Permisos y Matriz Estándar RBAC")
+                df_mat = pd.DataFrame([
+                    {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
+                    for k, v in PERMISSIONS_MATRIX.items()
+                ])
+                st.dataframe(df_mat, width="stretch", hide_index=True)
 
-            if is_owner or can("Editar_Permisos"):
-                with st.form("form_nuevo_perfil_permiso", clear_on_submit=True):
-                    st.markdown("**➕ Crear o Actualizar Perfil de Permisos:**")
-                    nombre_perfil = st.text_input(
-                        "Nombre del Perfil (Ej: Coordinador, Recepcion, Supervisor):",
-                        placeholder="Ej: Coordinador"
-                    )
-                    cols_chk = st.columns(4)
-                    checks_vals = {}
-                    for i, cap in enumerate(CAPABILITY_COLS):
-                        with cols_chk[i % 4]:
-                            checks_vals[cap] = st.checkbox(cap.replace("_", " "), value=False, key=f"chk_{cap}")
+                padron_perm_users = load_padron_records()
+                with st.container(border=True):
+                    st.markdown("**👤 Asignar Perfil de Permisos a un Usuario Registrado:**")
+                    if padron_perm_users:
+                        mapa_u_perm = {
+                            f"{r.get('Usuario', '')} — Rol: {r.get('Rol', '')} (Permiso actual: {r.get('Permisos', 'Basico')})": r
+                            for r in padron_perm_users
+                            if str(r.get("Usuario", "")).strip()
+                        }
+                        cu_1, cu_2, cu_3 = st.columns([2.2, 1.3, 1.1])
+                        with cu_1:
+                            sel_u_perm_lbl = st.selectbox(
+                                "Seleccionar Usuario:",
+                                list(mapa_u_perm.keys()),
+                                key="sb_assign_perm_user_target"
+                            )
+                        u_obj_perm = mapa_u_perm[sel_u_perm_lbl]
+                        perfiles_disp_rb = list(PERMISSIONS_MATRIX.keys()) or PERMISOS_LISTA
+                        perm_act_u = str(u_obj_perm.get("Permisos") or "Basico").strip()
+                        idx_p_act = perfiles_disp_rb.index(perm_act_u) if perm_act_u in perfiles_disp_rb else 0
+                        with cu_2:
+                            nuevo_perfil_u = st.selectbox(
+                                "Nuevo Perfil:",
+                                perfiles_disp_rb,
+                                index=idx_p_act,
+                                key="sb_assign_perm_new_profile"
+                            )
+                        with cu_3:
+                            st.write("")
+                            if st.button("💾 Aplicar a Usuario", type="primary", width="stretch", key="btn_apply_perm_to_user"):
+                                u_target_name = str(u_obj_perm.get("Usuario") or "").strip()
+                                if u_target_name.lower() == str(OWNER_USER).strip().lower() and nuevo_perfil_u.lower() != "total":
+                                    st.error("⛔ No se puede degradar el perfil del Propietario Principal (Owner).")
+                                else:
+                                    try:
+                                        upsert_user_padron_pg(
+                                            usuario=u_target_name,
+                                            clave=str(u_obj_perm.get("Clave") or "").strip(),
+                                            rol=str(u_obj_perm.get("Rol") or "Estudiante").strip(),
+                                            grado=str(u_obj_perm.get("Grado_Academico") or "Licenciatura / Universidad").strip(),
+                                            nivel=str(u_obj_perm.get("Nivel") or "B1").strip(),
+                                            permisos=nuevo_perfil_u,
+                                            estatus=str(u_obj_perm.get("Estatus") or "Activo").strip()
+                                        )
+                                        st.success(f"✅ Permisos de **{u_target_name}** actualizados a **{nuevo_perfil_u}**.")
+                                        st.rerun()
+                                    except Exception as e_up_p:
+                                        st.error(f"Error al actualizar permisos del usuario: {e_up_p}")
 
-                    if st.form_submit_button("💾 Guardar Perfil en Supabase", type="primary"):
-                        perfil_limpio = nombre_perfil.strip()
-                        if perfil_limpio:
-                            if perfil_limpio.lower() == "total" and (
-                                not checks_vals.get("Ver_Panel_Admin") or not checks_vals.get("Editar_Permisos")
-                            ):
-                                st.error("⛔ Por seguridad, el perfil 'Total' debe conservar 'Ver Panel Admin' y 'Editar Permisos'.")
-                            else:
-                                try:
-                                    upsert_permission_profile_pg(perfil_limpio, checks_vals)
-                                    st.success(f"✅ Perfil '{perfil_limpio}' guardado correctamente en Supabase.")
+                if is_owner and padron_perm_users:
+                    with st.container(border=True):
+                        st.markdown("#### 🛡️ Delegación Individual de Capacidades por Usuario (Exclusivo Owner)")
+                        st.caption(
+                            "Delega permisos puntuales (como **Editar Términos y Condiciones** o **Gestión de Permisos**) "
+                            "a un usuario específico sin modificar el perfil global de los demás usuarios."
+                        )
+                        lista_u_delegar = [
+                            str(r.get("Usuario", "")).strip()
+                            for r in padron_perm_users
+                            if str(r.get("Usuario", "")).strip()
+                            and str(r.get("Usuario", "")).strip().lower() != str(OWNER_USER).strip().lower()
+                        ]
+                        if lista_u_delegar:
+                            u_del_sel = st.selectbox(
+                                "👤 Seleccionar usuario a delegar capacidades:",
+                                lista_u_delegar,
+                                key="sb_owner_delegate_user"
+                            )
+                            caps_actuales_u = get_user_delegated_caps_pg(u_del_sel)
+                            cols_del = st.columns(3)
+                            nuevas_caps_u = {}
+                            for idx_d, cap_nom in enumerate(CAPACIDADES_DELEGABLES_OWNER):
+                                with cols_del[idx_d % 3]:
+                                    nuevas_caps_u[cap_nom] = st.checkbox(
+                                        cap_nom.replace("_", " "),
+                                        value=bool(caps_actuales_u.get(cap_nom, False)),
+                                        key=f"chk_del_{u_del_sel}_{cap_nom}"
+                                    )
+                            if st.button("💾 Guardar Delegación Individual", type="primary", key="btn_save_owner_delegation"):
+                                ok_d, msg_d = save_user_delegated_caps_pg(
+                                    u_del_sel,
+                                    nuevas_caps_u,
+                                    str(st.session_state.current_user or "Owner")
+                                )
+                                if ok_d:
+                                    st.success(msg_d)
                                     st.rerun()
-                                except Exception as e:
-                                    st.error(f"Error al guardar perfil en Supabase: {e}")
-                        else:
-                            st.warning("⚠️ Escribe un nombre para el perfil.")
+                                else:
+                                    st.error(msg_d)
+
+                if is_owner or can("Editar_Permisos"):
+                    with st.form("form_nuevo_perfil_permiso", clear_on_submit=True):
+                        st.markdown("**➕ Crear o Actualizar Perfil de Permisos:**")
+                        nombre_perfil = st.text_input(
+                            "Nombre del Perfil (Ej: Coordinador, Recepcion, Supervisor):",
+                            placeholder="Ej: Coordinador"
+                        )
+                        cols_chk = st.columns(4)
+                        checks_vals = {}
+                        for i, cap in enumerate(CAPABILITY_COLS):
+                            with cols_chk[i % 4]:
+                                checks_vals[cap] = st.checkbox(cap.replace("_", " "), value=False, key=f"chk_{cap}")
+
+                        if st.form_submit_button("💾 Guardar Perfil en Supabase", type="primary"):
+                            perfil_limpio = nombre_perfil.strip()
+                            if perfil_limpio:
+                                if perfil_limpio.lower() == "total" and (
+                                    not checks_vals.get("Ver_Panel_Admin") or not checks_vals.get("Editar_Permisos")
+                                ):
+                                    st.error("⛔ Por seguridad, el perfil 'Total' debe conservar 'Ver Panel Admin' y 'Editar Permisos'.")
+                                else:
+                                    try:
+                                        upsert_permission_profile_pg(perfil_limpio, checks_vals)
+                                        st.success(f"✅ Perfil '{perfil_limpio}' guardado correctamente en Supabase.")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Error al guardar perfil en Supabase: {e}")
+                            else:
+                                st.warning("⚠️ Escribe un nombre para el perfil.")
+
 
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
         if seccion_inst_sel == "🏛️ Datos del Instituto":
