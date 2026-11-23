@@ -6760,8 +6760,6 @@ def save_user_delegated_caps_pg(usuario_target: str, caps_dict: dict, autor: str
             conn.close()
         except Exception:
             pass
-
-
         # 14.3 PESTAÑA GESTIÓN DE PERMISOS Y MATRIZ GLOBAL RBAC
         if seccion_inst_sel in ["🔐 Gestionar Permisos", "🔐 Gestión de Permisos", "🔐 Matriz Global de Permisos"]:
             if not (is_owner or can("Editar_Permisos") or can("Gestionar_Usuarios")):
