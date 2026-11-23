@@ -6786,11 +6786,13 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             "Delega o retira permisos puntuales (como **Editar Términos y Condiciones** o **Editar Permisos**) "
                             "a un usuario específico sin modificar el perfil global de los demás usuarios."
                         )
+                        curr_owner_clean = str(st.session_state.get("current_user") or "").strip().lower()
                         lista_u_delegar = [
                             str(r.get("Usuario", "")).strip()
                             for r in padron_perm_users
                             if str(r.get("Usuario", "")).strip()
-                            and str(r.get("Usuario", "")).strip().lower() != str(OWNER_USER).strip().lower()
+                            and str(r.get("Usuario", "")).strip().lower() != curr_owner_clean
+                            and str(r.get("Permisos", "")).strip().lower() != "total"
                         ]
                         if lista_u_delegar:
                             u_del_sel = st.selectbox(
