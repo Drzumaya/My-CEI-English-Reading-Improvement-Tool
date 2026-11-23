@@ -120,6 +120,97 @@ st.iframe(
     height=1
 )
 
+# ==============================================================================
+# PANTALLA DE INSTALACIÓN EN 1 CLIC (QR DE DESCARGA DE APP / APK / PWA)
+# ==============================================================================
+def render_install_app_landing():
+    """Muestra la tarjeta de instalación en 1 clic al escanear el QR de la App Oficial CEI."""
+    apk_url = str(st.secrets.get("ANDROID_APK_URL", "")).strip()
+    logo_path = "static/logo_cei_app.png" if os.path.exists("static/logo_cei_app.png") else "LOGO CEI APP.png"
+
+    with st.container(border=True):
+        c_l1, c_l2 = st.columns([1.0, 2.8])
+        with c_l1:
+            if os.path.exists(logo_path):
+                st.image(logo_path, width=110)
+        with c_l2:
+            st.markdown("### 📲 Instalar App Oficial — Career English Institute (CEI)")
+            st.caption("Versión Oficial Móvil y Escritorio • Escudo Institucional Preconfigurado • Acceso Directo")
+
+        st.divider()
+
+        # Botón nativo de instalación en 1 clic (Android / Chrome / Edge) + Detección automática iOS/Mac
+        st.iframe(
+            """
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 8px;">
+                <button id="btnNativeInstallCEI" style="
+                    background: linear-gradient(135deg, #0b2545 0%, #1e40af 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 12px;
+                    padding: 16px 28px;
+                    font-size: 17px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    box-shadow: 0 6px 18px rgba(11, 37, 69, 0.28);
+                    width: 100%;
+                    max-width: 420px;
+                ">
+                    ⬇️ INSTALAR APP OFICIAL CEI AHORA (1 CLIC)
+                </button>
+                <p id="installHintCEI" style="color: #334155; font-size: 14px; margin-top: 12px; line-height: 1.5;"></p>
+            </div>
+            <script>
+                let deferredPromptCEI = null;
+                const btn = document.getElementById('btnNativeInstallCEI');
+                const hint = document.getElementById('installHintCEI');
+                const ua = navigator.userAgent || '';
+                const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+                const isMacSafari = /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua);
+
+                window.parent.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    deferredPromptCEI = e;
+                    hint.innerHTML = '✅ <b>Dispositivo listo:</b> Pulsa el botón azul superior para instalar la app directamente con su logo oficial.';
+                });
+
+                btn.addEventListener('click', async () => {
+                    if (deferredPromptCEI) {
+                        deferredPromptCEI.prompt();
+                        const choice = await deferredPromptCEI.userChoice;
+                        if (choice.outcome === 'accepted') {
+                            hint.innerHTML = '🎉 <b>¡Instalación completada!</b> Busca el escudo de CEI en tu pantalla de inicio.';
+                        }
+                        deferredPromptCEI = null;
+                    } else if (isIOS) {
+                        hint.innerHTML = '🍎 <b>En tu iPhone / iPad:</b> Toca el botón <b>Compartir (⬆️)</b> en Safari y elige <b>"Agregar a inicio"</b>. El escudo de CEI ya viene preconfigurado.';
+                    } else if (isMacSafari) {
+                        hint.innerHTML = '💻 <b>En tu Mac:</b> En la barra superior de Safari haz clic en <b>Archivo → Agregar al Dock</b>. El escudo de CEI ya viene listo.';
+                    } else {
+                        hint.innerHTML = '📲 <b>En Android / Chrome:</b> Toca el menú <b>(⋮)</b> arriba a la derecha y pulsa <b>"Instalar aplicación"</b>.';
+                    }
+                });
+            </script>
+            """,
+            height=145
+        )
+
+        if apk_url:
+            st.link_button(
+                "🤖 Descarga Directa Paquete Android (.APK Oficial)",
+                url=apk_url,
+                type="primary",
+                width="stretch"
+            )
+
+        if st.button("➡️ Continuar al Inicio de Sesión Web", width="stretch", key="btn_skip_install_to_login"):
+            st.query_params.clear()
+            st.rerun()
+
+
+if str(st.query_params.get("install", "")).strip() in ["1", "true", "app"]:
+    render_install_app_landing()
+    st.stop()
 
 
 # SOPORTE PROGRESSIVE WEB APP (PWA INSTALABLE EN iOS Y ANDROID CON LOGO OFICIAL)
@@ -5739,6 +5830,55 @@ def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str =
                     st.session_state[zoom_state_key] = True
                     st.rerun()
 
+def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
+    """Muestra y permite proyectar/descargar el Código QR exclusivo para instalar la App Oficial CEI."""
+    base_url = str(
+        st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")
+    ).strip().rstrip("/")
+    url_install_app = f"{base_url}/?install=1"
+
+    buf_qa = io.BytesIO()
+    qrcode.make(url_install_app).save(buf_qa, format="PNG")
+    qa_bytes = buf_qa.getvalue()
+    qa_b64 = base64.b64encode(qa_bytes).decode("utf-8")
+
+    with st.container(border=True):
+        c_a1, c_a2 = st.columns([2.4, 1.1])
+        with c_a1:
+            st.markdown("##### 📲 QR Oficial de Descarga e Instalación de la App CEI")
+            st.caption(
+                "Comparte o proyecta este código QR para que estudiantes, docentes y socios afiliados instalen la App CEI "
+                "en su celular o Mac con su escudo oficial preconfigurado."
+            )
+            st.code(url_install_app, language="text")
+            st.download_button(
+                "⬇️ Descargar QR de la App (PNG)",
+                data=qa_bytes,
+                file_name="QR_Instalar_App_CEI.png",
+                mime="image/png",
+                key=f"dl_{key_prefix}"
+            )
+        with c_a2:
+            st.iframe(
+                f"""
+                <div style="text-align:center; font-family:sans-serif;">
+                    <img id="img_{key_prefix}" src="data:image/png;base64,{qa_b64}"
+                         title="Doble clic para proyectar en pantalla grande"
+                         ondblclick="
+                            const m = document.createElement('div');
+                            m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.94);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;';
+                            m.innerHTML = '<img src=\\'data:image/png;base64,{qa_b64}\\' style=\\'width:340px;height:340px;border-radius:16px;background:white;padding:14px;\\'><p style=\\'color:white;font-size:18px;margin-top:14px;font-weight:700;\\'>📲 Escanea para Instalar la App Oficial CEI</p><p style=\\'color:#cbd5e1;font-size:13px;\\'>Haz clic en cualquier lugar para cerrar</p>';
+                            m.onclick = () => m.remove();
+                            window.parent.document.body.appendChild(m);
+                         "
+                         style="width:130px;height:130px;border-radius:10px;border:2px solid #0b2545;padding:4px;background:white;cursor:zoom-in;" />
+                    <div style="font-size:11px;color:#475569;margin-top:4px;">🖱️ Doble clic para proyectar</div>
+                </div>
+                """,
+                height=168
+            )
+
+
 # ==============================================================================
 # PARTE 13A1-B: SELECTOR DE MÓDULOS DEL PORTAL Y DESPLEGABLE DE FOLIOS
 # ==============================================================================
@@ -7414,6 +7554,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 st.error(f"Error al guardar información: {e}")
                         else:
                             st.warning("⚠️ La dirección institucional no puede quedar vacía.") 
+             st.divider()
+            _render_qr_descarga_app_box(key_prefix="admin_datos_inst_app_qr")
+                           
 
                                 
         # 14.4C PESTAÑA TORRE DE CONTROL UNIFICADA: RED DE FRANQUICIAS Y EXPANSIÓN MULTI-SEDE
@@ -8001,7 +8144,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     except ModuleNotFoundError:
                         st.warning("⚠️ Crea el archivo `registro_afiliados.py` en la raíz del proyecto para activar este formulario.")
 
-        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2 — CON QR OFICIAL LIGADO AL ID)
+        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2 — CON QR OFICIAL LIGADO AL ID Y QR APP)
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
             url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
             aff_objetivo_portal = st.session_state.current_user
@@ -8039,6 +8182,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     afiliado_ref=str(aff_objetivo_portal).strip(),
                     key_prefix=f"portal_aff_{str(aff_objetivo_portal).strip().replace(' ', '_')}"
                 )
+                _render_qr_descarga_app_box(
+                    key_prefix=f"portal_aff_app_{str(aff_objetivo_portal).strip().replace(' ', '_')}"
+                )
 
                 conn_pf = _open_legal_pg_conn()
                 s_dat = None
@@ -8068,6 +8214,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             conn_pf.close()
                         except Exception:
                             pass
+
         # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (PARTE 1 DE 2)
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
             url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
