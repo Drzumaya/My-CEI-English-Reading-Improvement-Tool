@@ -5230,9 +5230,14 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
                 f"Insignia Actual: **{datos_cat['categoria_label']}**"
             )
         with c_gh2:
-            if st.button("✖️ Cerrar Guía y Volver", type="primary", width="stretch", key="btn_close_guia_plan_cat"):
-                st.session_state["guia_plan_seccion_activa"] = None
-                st.rerun()
+            st.button(
+                "✖️ Cerrar Guía y Volver",
+                type="primary",
+                width="stretch",
+                key="btn_close_guia_plan_cat",
+                on_click=_cerrar_guia_y_volver
+            )
+
 
         opciones_radio = [
             "📖 Instrucciones",
