@@ -6327,11 +6327,10 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.session_state["last_cert_folio"] = None
                                     st.session_state["last_cert_name"] = None
                                     st.rerun()
-             
 
-# ==============================================================================
-# PARTE 14A: CENTRO DE MANDO SPA — HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
-# ==============================================================================
+                    # ==========================================================
+                    # PARTE 14A: HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
+                    # ==========================================================
                     st.divider()
                     st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
                     certs_hist = load_certificates_pg()
