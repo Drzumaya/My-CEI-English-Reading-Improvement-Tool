@@ -6633,6 +6633,92 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 # ==============================================================================
 # PARTE 14C — PARTE 1 DE 2: GESTIÓN DE PERMISOS POR TIPO DE USUARIO
 # ==============================================================================
+CAPACIDADES_DELEGABLES_OWNER = [
+    "Ver_Panel_Admin",
+    "Registrar_Usuarios",
+    "Gestionar_Usuarios",
+    "Editar_Permisos",
+    "Editar_Terminos_Afiliacion",
+    "Gestionar_Comisiones_Afiliados",
+    "Emitir_Certificados",
+    "Gestionar_IVA_Mensualidad",
+    "Editar_Fecha_Inicio_Curso"
+]
+
+
+def get_user_delegated_caps_pg(usuario_target: str) -> dict:
+    """Obtiene los permisos delegados individualmente por el Owner a un usuario en Supabase."""
+    u_clean = str(usuario_target or "").strip().lower()
+    if not u_clean:
+        return {}
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return {}
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS user_custom_permissions (
+                        usuario_login TEXT PRIMARY KEY,
+                        permisos_json TEXT NOT NULL DEFAULT '{}',
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute(
+                    "SELECT permisos_json FROM user_custom_permissions WHERE LOWER(TRIM(usuario_login)) = %s LIMIT 1;",
+                    (u_clean,)
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return json.loads(str(row[0]))
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return {}
+
+
+def save_user_delegated_caps_pg(usuario_target: str, caps_dict: dict, autor: str) -> tuple[bool, str]:
+    """Guarda permisos delegados individualmente por el Owner para un usuario específico."""
+    u_clean = str(usuario_target or "").strip()
+    if not u_clean:
+        return False, "Usuario inválido."
+    conn = _open_legal_pg_conn()
+    if not conn:
+        return False, "No hay conexión con Supabase PostgreSQL."
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS user_custom_permissions (
+                        usuario_login TEXT PRIMARY KEY,
+                        permisos_json TEXT NOT NULL DEFAULT '{}',
+                        updated_by TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    INSERT INTO user_custom_permissions (usuario_login, permisos_json, updated_by, updated_at)
+                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (usuario_login) DO UPDATE SET
+                        permisos_json = EXCLUDED.permisos_json,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = CURRENT_TIMESTAMP;
+                """, (u_clean, json.dumps(caps_dict, ensure_ascii=False), autor))
+        return True, f"✅ Permisos delegados guardados para **{u_clean}**."
+    except Exception as e:
+        return False, f"Error al guardar delegación: {e}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
         # 14.3 PESTAÑA GESTIÓN DE PERMISOS Y MATRIZ GLOBAL RBAC
         if seccion_inst_sel in ["🔐 Gestionar Permisos", "🔐 Gestión de Permisos", "🔐 Matriz Global de Permisos"]:
             if not (is_owner or can("Editar_Permisos") or can("Gestionar_Usuarios")):
@@ -6684,6 +6770,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             st.rerun()
                         except Exception as e_tp:
                             st.error(f"Error al guardar permisos por tipo de usuario: {e_tp}")
+
 # ==============================================================================
 # PARTE 14C — PARTE 2 DE 2: DELEGACIÓN POR USUARIO Y MATRIZ RBAC
 # ==============================================================================
