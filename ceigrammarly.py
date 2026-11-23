@@ -7325,7 +7325,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
 
 
-        # 14.4 PESTAÑA DATOS DEL INSTITUTO (PARTE 1 DE 2)
+        # 14.4 PESTAÑA DATOS DEL INSTITUTO
         if seccion_inst_sel == "🏛️ Datos del Instituto":
             if not (is_owner or can("Editar_Instituto_Logo")):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para editar la información oficial.")
@@ -7350,60 +7350,8 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             except Exception as e:
                                 st.error(f"Error al guardar información: {e}")
                         else:
-                            st.warning("⚠️ La dirección institucional no puede quedar vacía.")
+                            st.warning("⚠️ La dirección institucional no puede quedar vacía.") 
 
-            if is_owner:
-                st.divider()
-                st.markdown("#### 🐘 Migración a PostgreSQL (Supabase)")
-                if st.button("🚀 Sincronizar y Migrar Todo a Supabase PostgreSQL", type="primary", width="stretch"):
-                    with st.spinner("Migrando permisos, padrón, folios, certificados y configuración a Supabase..."):
-                        try:
-                            stats_mig = migrar_sheets_a_supabase()
-                            st.success(
-                                f"✅ **¡Migración Exitosa a PostgreSQL!**\n\n"
-                                f"- **Perfiles RBAC:** {stats_mig['permisos']}\n"
-                                f"- **Usuarios del Padrón:** {stats_mig['usuarios']}\n"
-                                f"- **Lecciones y Folios:** {stats_mig['folios']}\n"
-                                f"- **Certificados Oficiales:** {stats_mig['certificados']}\n"
-                                f"- **Configuración Institucional:** {stats_mig['config']}"
-                            )
-                        except Exception as e:
-                            st.error(f"❌ Error durante la migración a Supabase: {e}")
-
-                st.divider()
-                st.markdown("#### 🌎 Alta y Edición de Planteles / Franquicias (`campus_id`)")
-                with st.expander("➕ Registrar o Editar Plantel / Franquicia", expanded=False):
-                    with st.form("form_upsert_campus_cei"):
-                        fc1, fc2 = st.columns(2)
-                        with fc1:
-                            in_cid = st.text_input("🆔 Código de Plantel (`campus_id`):", placeholder="Ej: CEI-HMO-02")
-                            in_cnom = st.text_input("🏛️ Nombre Oficial del Plantel:", placeholder="Ej: Career English Institute — Hermosillo")
-                            in_cciud = st.text_input("📍 Ciudad y Estado / País:", placeholder="Ej: Hermosillo, Sonora, México")
-                            in_cdir = st.text_area("🏢 Dirección Oficial (aparece en Certificados PDF):", height=70)
-                        with fc2:
-                            in_ctel = st.text_input("📱 Teléfono / WhatsApp del Plantel:", placeholder="+52 ...")
-                            in_cmon = st.selectbox("💱 Moneda Local:", ["MXN", "USD", "CAD", "EUR"], index=0)
-                            in_civa = st.number_input("🧾 IVA / Impuesto Local (%):", min_value=0.0, max_value=30.0, value=16.0, step=0.5)
-                            in_cdir_u = st.text_input("👤 Usuario Director de Sede (opcional):", placeholder="Usuario en padrón")
-                            in_cest = st.selectbox("🏷️ Estatus Operativo:", ["Activo", "En Apertura", "Suspendido"])
-
-                        if st.form_submit_button("💾 Guardar Plantel / Franquicia en Red CEI", type="primary", width="stretch"):
-                            ok_c, msg_c = upsert_campus_pg(
-                                campus_id=in_cid,
-                                nombre_plantel=in_cnom,
-                                ciudad_estado=in_cciud,
-                                direccion_oficial=in_cdir,
-                                telefono_contacto=in_ctel,
-                                moneda=in_cmon,
-                                iva_pct=in_civa,
-                                director_usuario=in_cdir_u,
-                                estatus=in_cest
-                            )
-                            if ok_c:
-                                st.success(msg_c)
-                                st.rerun()
-                            else:
-                                st.error(msg_c)
                                 
         # 14.4C PESTAÑA TORRE DE CONTROL UNIFICADA: RED DE FRANQUICIAS Y EXPANSIÓN MULTI-SEDE
         if seccion_inst_sel == "🌎 Red de Franquicias":
