@@ -6722,44 +6722,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 # ==============================================================================
 # PARTE 14C — PARTE 1 DE 2: GESTIÓN DE PERMISOS POR TIPO DE USUARIO
 # ==============================================================================
-
-
-
-def save_user_delegated_caps_pg(usuario_target: str, caps_dict: dict, autor: str) -> tuple[bool, str]:
-    """Guarda permisos delegados individualmente por el Owner para un usuario específico."""
-    u_clean = str(usuario_target or "").strip()
-    if not u_clean:
-        return False, "Usuario inválido."
-    conn = _open_legal_pg_conn()
-    if not conn:
-        return False, "No hay conexión con Supabase PostgreSQL."
-    try:
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS user_custom_permissions (
-                        usuario_login TEXT PRIMARY KEY,
-                        permisos_json TEXT NOT NULL DEFAULT '{}',
-                        updated_by TEXT,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                """)
-                cur.execute("""
-                    INSERT INTO user_custom_permissions (usuario_login, permisos_json, updated_by, updated_at)
-                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (usuario_login) DO UPDATE SET
-                        permisos_json = EXCLUDED.permisos_json,
-                        updated_by = EXCLUDED.updated_by,
-                        updated_at = CURRENT_TIMESTAMP;
-                """, (u_clean, json.dumps(caps_dict, ensure_ascii=False), autor))
-        return True, f"✅ Permisos delegados guardados para **{u_clean}**."
-    except Exception as e:
-        return False, f"Error al guardar delegación: {e}"
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
         # 14.3 PESTAÑA GESTIÓN DE PERMISOS Y MATRIZ GLOBAL RBAC
         if seccion_inst_sel in ["🔐 Gestionar Permisos", "🔐 Gestión de Permisos", "🔐 Matriz Global de Permisos"]:
             if not (is_owner or can("Editar_Permisos") or can("Gestionar_Usuarios")):
@@ -6811,6 +6773,7 @@ def save_user_delegated_caps_pg(usuario_target: str, caps_dict: dict, autor: str
                             st.rerun()
                         except Exception as e_tp:
                             st.error(f"Error al guardar permisos por tipo de usuario: {e_tp}")
+
 
 # ==============================================================================
 # PARTE 14C — PARTE 2 DE 2: DELEGACIÓN POR USUARIO Y MATRIZ RBAC
@@ -7488,38 +7451,37 @@ def save_user_delegated_caps_pg(usuario_target: str, caps_dict: dict, autor: str
                             conn_pf.close()
                         except Exception:
                             pass
-
                 # 14.6B EDITOR DE EXPEDIENTE (OWNER/ADMIN) Y TABLERO DEL SOCIO
                 if s_dat:
                     st.info(
-                        f"🆔 **ID Afiliado:** `{s_dat}`  |  🧾 **RFC:** `{s_dat or 'Pendiente'}`  |  "
-                        f"💼 **Comisión Asignada:** **`{float(s_dat):.1f}%`**  |  🏷️ **Estatus:** `{s_dat}`\n\n"
+                        f"🆔 **ID Afiliado:** `{s_dat[0]}`  |  🧾 **RFC:** `{s_dat[5] or 'Pendiente'}`  |  "
+                        f"💼 **Comisión Asignada:** **`{float(s_dat[10] or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat[9]}`\n\n"
                         "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) de honorarios/comisiones dentro de los primeros 5 días hábiles del mes siguiente.*"
                     )
 
                     if is_owner or puede_gestionar_afiliados:
-                        with st.expander(f"✏️ Editar Datos, RFC y Comisión de {s_dat} {s_dat} (Owner / Admin)", expanded=False):
-                            if s_dat:
-                                st.caption(f"🛡️ Términos y Condiciones aceptados el: `{str(s_dat)[:19]}`")
+                        with st.expander(f"✏️ Editar Datos, RFC y Comisión de {s_dat[2]} {s_dat[3]} (Owner / Admin)", expanded=False):
+                            if s_dat[11]:
+                                st.caption(f"🛡️ Términos y Condiciones aceptados el: `{str(s_dat[11])[:19]}`")
                             with st.form(f"form_edit_aff_portal_{aff_objetivo_portal}"):
                                 c_e1, c_e2 = st.columns(2)
                                 with c_e1:
-                                    ed_id = st.text_input("🆔 ID de Afiliado:", value=str(s_dat))
-                                    ed_nom = st.text_input("Nombre(s):", value=str(s_dat))
-                                    ed_pat = st.text_input("Apellido Paterno:", value=str(s_dat))
-                                    ed_mat = st.text_input("Apellido Materno:", value=str(s_dat))
-                                    ed_rfc = st.text_input("🧾 RFC (12 o 13 caracteres):", value=str(s_dat), max_chars=13)
+                                    ed_id = st.text_input("🆔 ID de Afiliado:", value=str(s_dat[0] or ""))
+                                    ed_nom = st.text_input("Nombre(s):", value=str(s_dat[2] or ""))
+                                    ed_pat = st.text_input("Apellido Paterno:", value=str(s_dat[3] or ""))
+                                    ed_mat = st.text_input("Apellido Materno:", value=str(s_dat[4] or ""))
+                                    ed_rfc = st.text_input("🧾 RFC (12 o 13 caracteres):", value=str(s_dat[5] or ""), max_chars=13)
                                 with c_e2:
-                                    ed_tel = st.text_input("Teléfono / WhatsApp:", value=str(s_dat))
-                                    ed_mail = st.text_input("Correo Electrónico:", value=str(s_dat))
-                                    ed_dom = st.text_input("Domicilio Completo:", value=str(s_dat))
+                                    ed_tel = st.text_input("Teléfono / WhatsApp:", value=str(s_dat[6] or ""))
+                                    ed_mail = st.text_input("Correo Electrónico:", value=str(s_dat[7] or ""))
+                                    ed_dom = st.text_input("Domicilio Completo:", value=str(s_dat[8] or ""))
                                     ed_pct = st.number_input(
                                         "💼 Porcentaje Comisión Base (%):",
                                         min_value=0.0, max_value=100.0,
-                                        value=float(s_dat), step=1.0
+                                        value=float(s_dat[10] or 0.0), step=1.0
                                     )
                                     estados_aff = ["Activo", "Inactivo", "Baja"]
-                                    idx_est = estados_aff.index(s_dat) if s_dat in estados_aff else 0
+                                    idx_est = estados_aff.index(s_dat[9]) if s_dat[9] in estados_aff else 0
                                     ed_est = st.selectbox("Estado del Afiliado:", estados_aff, index=idx_est)
 
                                 if st.form_submit_button("💾 Guardar Cambios y Comisión", type="primary", width="stretch"):
@@ -7563,6 +7525,7 @@ def save_user_delegated_caps_pg(usuario_target: str, caps_dict: dict, autor: str
                                                 conn_sv.close()
                                             except Exception:
                                                 pass
+
 
                 try:
                     from portal_afiliado import render_portal_socio_afiliado
