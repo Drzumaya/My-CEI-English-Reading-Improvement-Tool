@@ -36,6 +36,10 @@ import qrcode
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+if hasattr(st, "iframe"):
+    components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
+        html_str, height=height or 150, width=width or "stretch"
+    )
 from streamlit_js_eval import streamlit_js_eval
 
 try:
