@@ -6253,49 +6253,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             try:
                                 import pypdfium2 as pdfium
                                 pdf_doc = pdfium.PdfDocument(st.session_state["last_cert_pdf"])
-                                page = pdf_doc
-                                bitmap = page.render(scale=2.0)
-                                pil_image = bitmap.to_pil()
-                                st.image(pil_image, caption=f"Certificado Oficial Tamaño Carta — {f_actual}", width="stretch")
-                            except Exception:
-                                st.info("📄 Documento PDF listo. Usa el botón inferior para descargarlo o abrirlo en tu visor.")
-
-                            col_b1, col_b2, col_b3 = st.columns([1.3, 1.4, 1.0])
-                            with col_b1:
-                                st.download_button(
-                                    label="📥 Descargar PDF",
-                                    data=st.session_state["last_cert_pdf"],
-                                    file_name=st.session_state["last_cert_name"],
-                                    mime="application/pdf",
-                                    type="primary",
-                                    width="stretch",
-                                    key="btn_dl_cert_preview"
-                                )
-                            with col_b2:
-                                if st.button("🔗 Guardar Link en Base de Datos", width="stretch", key="btn_save_link_cert"):
-                                    try:
-                                        update_certificate_link_pg(f_actual, link_cert_directo)
-                                        st.success(f"✅ Enlace guardado en Supabase: `{link_cert_directo}`")
-                                    except Exception as e_lk:
-                                        st.error(f"Error al guardar enlace: {e_lk}")
-                            with col_b3:
-                                if st.button("✖️ Cerrar Ventana", width="stretch", key="btn_close_cert_preview"):
-                                    st.session_state["last_cert_pdf"] = None
-                                    st.session_state["last_cert_folio"] = None
-                                    st.session_state["last_cert_name"] = None
-                                    st.rerun()
-                except Exception as e_cert:
-                    st.error(f"Error en módulo de certificados: {e_cert}")
-
-
-                        if st.session_state.get("last_cert_pdf"):
-                            f_actual = st.session_state["last_cert_folio"]
-                            link_cert_directo = _build_cert_verify_url(f_actual)
-
-                            st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
-                            try:
-                                import pypdfium2 as pdfium
-                                pdf_doc = pdfium.PdfDocument(st.session_state["last_cert_pdf"])
                                 page = pdf_doc[0]
                                 bitmap = page.render(scale=2.0)
                                 pil_image = bitmap.to_pil()
@@ -6400,6 +6357,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     st.rerun()
                 except Exception as e:
                     st.error(f"Error en módulo de certificados: {e}")
+
 # ==============================================================================
 # PARTE 14B1: CENTRO DE MANDO SPA — INSCRIPCIÓN DE USUARIOS EN EL PADRÓN
 # ==============================================================================
