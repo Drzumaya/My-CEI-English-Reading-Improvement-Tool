@@ -61,7 +61,7 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# OCULTAR BARRA SUPERIOR Y OCULTAR "MANAGE APP" EN MODO APP (MAC DOCK / iOS / ANDROID)
+# OCULTAR BARRA SUPERIOR, "MANAGE APP" Y BADGE ROSA DE GITHUB EN MODO APP
 st.markdown(
     """
     <style>
@@ -79,10 +79,15 @@ st.markdown(
             [data-testid="manage-app-button"],
             div[class*="viewerBadge"],
             div[class*="StatusWidget"],
+            div[class*="_profileContainer"],
+            div[class*="_profilePreview"],
+            a[href*="streamlit.io/cloud"],
+            a[href*="github.com"],
             iframe[title="streamlit_badge"] {
                 display: none !important;
                 visibility: hidden !important;
                 opacity: 0 !important;
+                pointer-events: none !important;
             }
         }
     </style>
@@ -107,13 +112,24 @@ st.iframe(
                     const docs = [pWin.document];
                     try { if (pWin.parent && pWin.parent.document) docs.push(pWin.parent.document); } catch(e) {}
                     docs.forEach(d => {
-                        d.querySelectorAll('[data-testid="manage-app-button"], [class*="viewerBadge"], [class*="StatusWidget"], button[kind="manageApp"]').forEach(el => {
+                        d.querySelectorAll(
+                            '[data-testid="manage-app-button"], [class*="viewerBadge"], [class*="StatusWidget"], [class*="_profileContainer"], [class*="_profilePreview"], button[kind="manageApp"]'
+                        ).forEach(el => {
                             el.style.setProperty('display', 'none', 'important');
+                        });
+                        // Oculta también el botón flotante fijo en esquina inferior derecha (Manage app + ícono GitHub)
+                        d.querySelectorAll('div, a, button').forEach(el => {
+                            const st = pWin.getComputedStyle(el);
+                            if (st.position === 'fixed' && parseInt(st.bottom || '999') <= 30 && parseInt(st.right || '999') <= 40) {
+                                if ((el.innerText || '').includes('Manage app') || el.querySelector('svg')) {
+                                    el.style.setProperty('display', 'none', 'important');
+                                }
+                            }
                         });
                     });
                 };
                 hideBadge();
-                setInterval(hideBadge, 1200);
+                setInterval(hideBadge, 900);
             }
         } catch(e) {}
     })();
@@ -121,6 +137,7 @@ st.iframe(
     """,
     height=1
 )
+
 
 # ==============================================================================
 # PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
