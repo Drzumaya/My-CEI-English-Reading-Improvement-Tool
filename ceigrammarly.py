@@ -5512,7 +5512,6 @@ if st.session_state.get("active_stage_5") == "PORTAL":
         else "🔙 CERRAR Y VOLVER AL PANEL EDUCATIVO"
     )
 
-    if tiene_acceso_admin_portal or es_socio_afiliado:
         if es_socio_afiliado:
             opciones_p_adm = [
                 "🤝 Portal Socio Afiliado",
@@ -5525,12 +5524,13 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 "🤝 Alta de Socios Afiliados",
                 "🤝 Portal Socio Afiliado",
                 "👥 Inscripción y Padrón",
-                "🔐 Matriz Global de Permisos",
+                "🔐 Gestión de Permisos",
                 "🏅 Certificados (Timbre y QR)",
                 "🏛️ Datos del Instituto",
                 "📘 Guía, Plan y Categoría",
                 "🔄 Autoactualización de Librerías"
             ]
+
         idx_def_adm = 2 if (not is_owner and not es_socio_afiliado and can("Editar_Terminos_Afiliacion")) else 0
         col_mod_sel, col_mod_back = st.columns([2.5, 1.3])
         with col_mod_sel:
