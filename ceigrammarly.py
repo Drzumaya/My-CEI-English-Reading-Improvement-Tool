@@ -5343,21 +5343,11 @@ es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afi
 solo_socio_afiliado = es_socio_afiliado and not es_admin_o_staff
 
 if solo_socio_afiliado:
-    raw_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL") or "").strip()
-    url_portal_aff_redir = (
-        raw_portal_aff
-        if "ceiafiliados.streamlit.app" in raw_portal_aff
-        else "https://ceiafiliados.streamlit.app"
-    )
-    raw_app_aff = str(st.secrets.get("AFFILIATE_APP_INSTALL_URL") or "").strip()
-    url_app_aff_redir = (
-        raw_app_aff
-        if "drzumaya.github.io" in raw_app_aff
-        else "https://github.io"
-    )
+    url_portal_aff_redir = "https://streamlit.app"
+    url_app_aff_redir = "https://github.io"
 
     buf_qr_redir = io.BytesIO()
-    qrcode.make(url_app_aff_redir).save(buf_qr_redir, format="PNG")
+    qrcode.make(url_portal_aff_redir).save(buf_qr_redir, format="PNG")
 
     with st.container(border=True):
         st.warning("🤝 **Acceso Exclusivo de Socios Afiliados — Career English Institute (CEI)**")
@@ -5380,8 +5370,10 @@ if solo_socio_afiliado:
                 width="stretch"
             )
         with c_ra2:
-            st.image(buf_qr_redir.getvalue(), width=145, caption="QR App Portal Socios")
+            st.image(buf_qr_redir.getvalue(), width=145, caption="QR Portal Socios CEI")
+            st.caption(f"🔗 `{url_portal_aff_redir}`")
     st.stop()
+
 
 lbl_btn_portal = "🛡️ PANEL ADMINISTRATIVO" if es_admin_o_staff else "🎓 MI PANEL ESTUDIANTIL"
 tiene_leccion_activa = bool(str(st.session_state.get("generated_text") or "").strip())
