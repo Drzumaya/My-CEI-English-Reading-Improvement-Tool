@@ -8548,21 +8548,21 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         st.info("Aún no hay Socios Afiliados registrados.")
                 with col_p_qr:
                     url_portal_aff = str(
-                        st.secrets.get("AFFILIATE_REG_URL")
-                        or st.secrets.get("AFFILIATE_PORTAL_URL")
-                        or "https://streamlit.app"
+                        st.secrets.get("AFFILIATE_PORTAL_URL")
+                        or "https://ceiafiliados.streamlit.app"
                     ).strip().rstrip("/")
                     buf_qp = io.BytesIO()
                     qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
-                    st.image(buf_qp.getvalue(), caption="📲 QR Registro / Portal Afiliados", width=120)
+                    st.image(buf_qp.getvalue(), caption="📲 QR Portal Afiliados", width=120)
                     st.download_button(
-                        "⬇️ Descargar QR Afiliados",
+                        "⬇️ Descargar QR Portal",
                         data=buf_qp.getvalue(),
-                        file_name="QR_Afiliados_CEI.png",
+                        file_name="QR_Portal_Afiliados_CEI.png",
                         mime="image/png",
                         width="stretch",
                         key="btn_dl_qrportal_main"
                     )
+
 
 
             if aff_objetivo_portal:
