@@ -8622,9 +8622,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 # 14.6B EDITOR DE EXPEDIENTE Y RADAR DE RACHAS SEMANALES + WHATSAPP (PARTE 2 DE 2)
                 if s_dat:
                     st.info(
-                        f"🆔 **ID Afiliado:** `{s_dat}`  |  🧾 **RFC:** `{s_dat or 'Pendiente'}`  |  "
-                        f"💼 **Comisión Asignada:** **`{float(s_dat or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat}`\n\n"
-                        "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) de honorarios/comisiones dentro de los primeros 5 días hábiles del mes siguiente.*"
+                        f"🆔 **ID Afiliado:** `{s_dat[0]}`  |  🧾 **RFC:** `{s_dat[5] or 'No registrado'}`\n\n"
+                        f"💼 **Comisión Asignada:** **`{float(s_dat[10] or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat[9]}`\n\n"
+                        "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) vigente para cobro de comisiones.*"
                     )
 
                     if is_owner or puede_gestionar_afiliados:
