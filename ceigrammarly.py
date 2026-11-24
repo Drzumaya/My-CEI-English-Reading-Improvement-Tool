@@ -5346,13 +5346,13 @@ if solo_socio_afiliado:
     raw_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL") or "").strip()
     url_portal_aff_redir = (
         raw_portal_aff
-        if ("ceiafiliados.streamlit.app" in raw_portal_aff or (raw_portal_aff.startswith("https://") and raw_portal_aff != "https://streamlit.app"))
+        if "ceiafiliados.streamlit.app" in raw_portal_aff
         else "https://ceiafiliados.streamlit.app"
     )
     raw_app_aff = str(st.secrets.get("AFFILIATE_APP_INSTALL_URL") or "").strip()
     url_app_aff_redir = (
         raw_app_aff
-        if ("drzumaya.github.io" in raw_app_aff or (raw_app_aff.startswith("https://") and raw_app_aff != "https://github.io"))
+        if "drzumaya.github.io" in raw_app_aff
         else "https://github.io"
     )
     buf_qr_redir = io.BytesIO()
@@ -6183,25 +6183,26 @@ def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str =
 
 def get_cei_qr_link(tipo_qr: str, ref_code: str = "", campus_id: str = "") -> str:
     """
-    Devuelve el enlace oficial exacto para cada uno de los 3 Códigos QR de CEI:
+    Devuelve el enlace oficial exacto para cada uno de los Códigos QR de CEI:
       1. 'app'        -> https://github.io
-      2. 'estudiante' -> https://streamlit.app
-      3. 'socio'      -> https://streamlit.app
+      2. 'app_socio'  -> https://github.iosocio_app.html
+      3. 'estudiante' -> https://inscripcioncei.streamlit.app
+      4. 'socio'      -> https://ceisociosafiliados.streamlit.app
     """
     t = str(tipo_qr or "").strip().lower()
 
-    if t in ["app", "descarga", "install"]:
-        base = str(
-            st.secrets.get("APP_INSTALL_QR_URL", "https://github.io")
-        ).strip()
+    if t in ["app_socio", "socio_app", "install_socio"]:
+        raw = str(st.secrets.get("AFFILIATE_APP_INSTALL_URL", "")).strip()
+        base = raw if "drzumaya.github.io" in raw else "https://github.iosocio_app.html"
+    elif t in ["app", "descarga", "install"]:
+        raw = str(st.secrets.get("APP_INSTALL_QR_URL", "")).strip()
+        base = raw if "drzumaya.github.io" in raw else "https://github.io"
     elif t in ["socio", "afiliado", "partner"]:
-        base = str(
-            st.secrets.get("AFFILIATE_REG_URL", "https://streamlit.app")
-        ).strip()
+        raw = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip()
+        base = raw if "ceisociosafiliados.streamlit.app" in raw else "https://ceisociosafiliados.streamlit.app"
     else:
-        base = str(
-            st.secrets.get("STUDENT_REG_URL", "https://streamlit.app")
-        ).strip()
+        raw = str(st.secrets.get("STUDENT_REG_URL", "")).strip()
+        base = raw if "inscripcioncei.streamlit.app" in raw else "https://inscripcioncei.streamlit.app"
 
     extra_params = []
     if ref_code:
