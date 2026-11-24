@@ -5084,20 +5084,31 @@ if st.session_state.pop("trigger_generate_from_top", False):
 
 
 # ==============================================================================
-# PARTE 12B — MITAD 1 DE 2: CABECERA INSTITUCIONAL Y BOTONES INICIALES
+# PARTE 12B — MITAD 1 DE 2: CABECERA INSTITUCIONAL, VISOR DE USUARIO Y QR APP
 # ==============================================================================
 if "active_stage_5" not in st.session_state:
     st.session_state["active_stage_5"] = "READING"
 if "show_lesson_creator" not in st.session_state:
     st.session_state["show_lesson_creator"] = False
 
-col_logo, col_title, col_logout = st.columns([0.9, 4.3, 0.9])
+puede_ver_qr_hdr = is_owner or can("Mostrar_QR_App_Header")
+u_login_hdr = str(st.session_state.get("current_user") or usuario or "").strip()
+nom_hdr_mostrar = str(
+    st.session_state.get("current_user_fullname")
+    or st.session_state.get("nombre_completo")
+    or u_login_hdr
+    or "Usuario"
+).strip()
+rol_hdr_mostrar = "Propietario / Owner" if is_owner else str(st.session_state.get("user_role") or "Usuario").strip()
+
+col_logo, col_title, col_logout = st.columns([0.9, 4.3, 1.0])
 with col_logo:
     if os.path.exists("LOGO CEI APP.png"):
         st.image("LOGO CEI APP.png", width=105)
+    elif os.path.exists("static/logo_cei_app.png"):
+        st.image("static/logo_cei_app.png", width=105)
     else:
         st.markdown("## 🎓")
-
 
 with col_title:
     cefr_raw = st.session_state.get("selected_cefr") or "B1"
@@ -5108,6 +5119,10 @@ with col_title:
         f"**CEFR Level {cefr_badge} Integrated Competency Framework**  |  "
         "Author: Jacob Zumaya Prianti  |  APA 7th Ed. Academic Standard"
     )
+    st.markdown(
+        f"👤 **Sesión Activa:** **{nom_hdr_mostrar}** (`{u_login_hdr}`)  •  "
+        f"🏷️ **Tipo de Usuario:** **{rol_hdr_mostrar}**"
+    )
 
 with col_logout:
     st.write("")
@@ -5116,6 +5131,74 @@ with col_logout:
             del st.session_state[k_out]
         st.query_params.clear()
         st.rerun()
+    if puede_ver_qr_hdr:
+        mostrar_qr_hdr_now = st.toggle(
+            "📲 QR App",
+            value=False,
+            key="tgl_header_qr_app_visible",
+            help="Muestra u oculta el código QR para instalar la App Oficial CEI"
+        )
+    else:
+        mostrar_qr_hdr_now = False
+
+if puede_ver_qr_hdr and mostrar_qr_hdr_now:
+    with st.container(border=True):
+        base_url_hdr = str(
+            st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")
+        ).strip().rstrip("/")
+        url_install_hdr = f"{base_url_hdr}/?install=1"
+        buf_qh = io.BytesIO()
+        qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
+        qa_bytes_hdr = buf_qh.getvalue()
+        qh_b64 = base64.b64encode(qa_bytes_hdr).decode("utf-8")
+
+        c_q1, c_q2 = st.columns([2.5, 1.2])
+        with c_q1:
+            st.markdown("##### 📲 QR Oficial de Descarga e Instalación de la App CEI")
+            st.caption("Escanea para instalar en iPhone, Android o Mac. Haz doble clic en el QR o pulsa Expandir para proyectar.")
+            st.code(url_install_hdr, language="text")
+            st.download_button(
+                "⬇️ Descargar QR App (PNG)",
+                data=qa_bytes_hdr,
+                file_name="QR_Instalar_App_CEI.png",
+                mime="image/png",
+                key="btn_dl_hdr_qr_app"
+            )
+        with c_q2:
+            st.iframe(
+                f"""
+                <div style="text-align:center; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
+                    <img src="data:image/png;base64,{qh_b64}"
+                         title="Doble clic para proyectar QR de App CEI"
+                         ondblclick="expandirQRAppCEI()"
+                         style="width:115px;height:115px;border-radius:10px;border:2px solid #0b2545;padding:4px;background:white;cursor:zoom-in;" />
+                    <div style="margin-top:6px;">
+                        <button onclick="expandirQRAppCEI()" style="
+                            background:#0b2545;color:white;border:none;border-radius:7px;
+                            padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;
+                        ">🔍 Expandir QR</button>
+                    </div>
+                </div>
+                <script>
+                function expandirQRAppCEI() {{
+                    const pDoc = window.parent.document;
+                    const prev = pDoc.getElementById('modal_qr_app_cei_fs');
+                    if (prev) prev.remove();
+                    const m = pDoc.createElement('div');
+                    m.id = 'modal_qr_app_cei_fs';
+                    m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.96);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+                    m.innerHTML = `
+                        <img src="data:image/png;base64,{qh_b64}" style="width:350px;height:350px;border-radius:18px;background:white;padding:16px;box-shadow:0 12px 36px rgba(0,0,0,0.45);" />
+                        <p style="color:white;font-size:20px;margin-top:16px;font-weight:700;">📲 Escanea para Instalar la App Oficial CEI</p>
+                        <button style="margin-top:10px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">✖️ Cerrar Proyección</button>
+                    `;
+                    m.onclick = () => m.remove();
+                    pDoc.body.appendChild(m);
+                }}
+                </script>
+                """,
+                height=168
+            )
 
 es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["teacher", "docente", "admin", "administrador", "propietario", "owner"])
 es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afiliado"])
