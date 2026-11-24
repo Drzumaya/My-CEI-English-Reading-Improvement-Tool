@@ -5265,21 +5265,7 @@ else:
                 st.rerun()
 
 
-render_header_identidad_y_qr_app(
-    usuario_login=str(st.session_state.get("current_user") or ""),
-    nombre_completo=str(
-        st.session_state.get("current_user_fullname")
-        or st.session_state.get("nombre_completo")
-        or st.session_state.get("current_user")
-        or ""
-    ),
-    rol_usuario=str(
-        st.session_state.get("user_role")
-        or st.session_state.get("rol_usuario")
-        or ""
-    ),
-    is_owner=bool(is_owner),
-)
+
 
 # ==============================================================================
 # PARTE 13A1-A: HELPERS DE CIERRE DE PANEL Y QR OFICIAL CON ID DE AFILIADO
