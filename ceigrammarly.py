@@ -5180,10 +5180,10 @@ rol_hdr_mostrar = "Propietario / Owner" if is_owner else str(st.session_state.ge
 
 col_logo, col_title, col_logout = st.columns([0.9, 4.1, 1.3])
 with col_logo:
-    if os.path.exists("LOGO CEI APP.png"):
+    if os.path.exists("static/LOGO CEI APP.png"):
+        st.image("static/LOGO CEI APP.png", width=105)
+    elif os.path.exists("LOGO CEI APP.png"):
         st.image("LOGO CEI APP.png", width=105)
-    elif os.path.exists("static/logo_cei_app.png"):
-        st.image("static/logo_cei_app.png", width=105)
     else:
         st.markdown("## 🎓")
 
@@ -5220,7 +5220,9 @@ with col_logout:
             base_url_hdr = str(
                 st.secrets.get("PUBLIC_APP_URL", "https://myceigrammarly.streamlit.app")
             ).strip().rstrip("/")
-            url_install_hdr = f"{base_url_hdr}/?install=1"
+            url_install_hdr = str(
+                st.secrets.get("APP_INSTALL_QR_URL") or f"{base_url_hdr}/?install=1"
+            ).strip()
             buf_qh = io.BytesIO()
             qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
             qa_bytes_hdr = buf_qh.getvalue()
@@ -5269,7 +5271,6 @@ with col_logout:
                 width="stretch",
                 key="btn_dl_hdr_qr_app"
             )
-
 es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["teacher", "docente", "admin", "administrador", "propietario", "owner"])
 es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afiliado"])
 lbl_btn_portal = "🛡️ PANEL ADMINISTRATIVO" if (es_admin_o_staff or es_socio_afiliado) else "🎓 MI PANEL ESTUDIANTIL"
@@ -6063,9 +6064,11 @@ def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str =
 def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
     """Muestra y permite proyectar/descargar el Código QR exclusivo para instalar la App Oficial CEI."""
     base_url = str(
-        st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")
+        st.secrets.get("PUBLIC_APP_URL", "https://myceigrammarly.streamlit.app")
     ).strip().rstrip("/")
-    url_install_app = f"{base_url}/?install=1"
+    url_install_app = str(
+        st.secrets.get("APP_INSTALL_QR_URL") or f"{base_url}/?install=1"
+    ).strip()
 
     buf_qa = io.BytesIO()
     qrcode.make(url_install_app).save(buf_qa, format="PNG")
@@ -6091,21 +6094,37 @@ def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
         with c_a2:
             st.iframe(
                 f"""
-                <div style="text-align:center; font-family:sans-serif;">
+                <div style="text-align:center; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
                     <img id="img_{key_prefix}" src="data:image/png;base64,{qa_b64}"
                          title="Doble clic para proyectar en pantalla grande"
-                         ondblclick="
-                            const m = document.createElement('div');
-                            m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.94);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;';
-                            m.innerHTML = '<img src=\\'data:image/png;base64,{qa_b64}\\' style=\\'width:340px;height:340px;border-radius:16px;background:white;padding:14px;\\'><p style=\\'color:white;font-size:18px;margin-top:14px;font-weight:700;\\'>📲 Escanea para Instalar la App Oficial CEI</p><p style=\\'color:#cbd5e1;font-size:13px;\\'>Haz clic en cualquier lugar para cerrar</p>';
-                            m.onclick = () => m.remove();
-                            window.parent.document.body.appendChild(m);
-                         "
+                         ondblclick="expandirQRBoxCEI_{key_prefix}()"
                          style="width:130px;height:130px;border-radius:10px;border:2px solid #0b2545;padding:4px;background:white;cursor:zoom-in;" />
-                    <div style="font-size:11px;color:#475569;margin-top:4px;">🖱️ Doble clic para proyectar</div>
+                    <div style="margin-top:6px;">
+                        <button onclick="expandirQRBoxCEI_{key_prefix}()" style="
+                            background:#0b2545;color:white;border:none;border-radius:6px;
+                            padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;
+                        ">🔍 Expandir QR</button>
+                    </div>
                 </div>
+                <script>
+                function expandirQRBoxCEI_{key_prefix}() {{
+                    const pDoc = window.parent.document;
+                    const prev = pDoc.getElementById('modal_qr_box_{key_prefix}');
+                    if (prev) prev.remove();
+                    const m = pDoc.createElement('div');
+                    m.id = 'modal_qr_box_{key_prefix}';
+                    m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.95);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
+                    m.innerHTML = `
+                        <img src="data:image/png;base64,{qa_b64}" style="width:340px;height:340px;border-radius:16px;background:white;padding:14px;box-shadow:0 12px 36px rgba(0,0,0,0.45);" />
+                        <p style="color:white;font-size:19px;margin-top:14px;font-weight:700;">📲 Escanea para Instalar la App Oficial CEI</p>
+                        <button style="margin-top:10px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">✖️ Cerrar Proyección</button>
+                    `;
+                    m.onclick = () => m.remove();
+                    pDoc.body.appendChild(m);
+                }}
+                </script>
                 """,
-                height=168
+                height=175
             )
 
 def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, rol_usuario: str, is_owner: bool = False):
