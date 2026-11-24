@@ -629,7 +629,6 @@ def pg_session(dict_rows: bool = False):
             pass
 
 
-
 # ==============================================================================
 # PARTE 3A: GESTIÓN DE IMÁGENES, LOGOTIPO INSTITUCIONAL Y MATRIZ RBAC
 # ==============================================================================
