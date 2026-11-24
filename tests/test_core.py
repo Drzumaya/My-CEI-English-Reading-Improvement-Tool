@@ -27,3 +27,4 @@ def test_build_contextual_apa7_lesson_prompt():
     assert "B1" in p
     assert "Agua Prieta, Sonora" in p
     assert "APA 7" in p
+ 
