@@ -301,38 +301,46 @@ try:
             ADD COLUMN IF NOT EXISTS telefono TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS socio_afiliado TEXT DEFAULT '';
         """)
-        cur.execute("""
-            SELECT usuario,
-                   usuario AS nombre_completo,
-                   COALESCE(matricula, ''),
-                   COALESCE(nivel, 'B1'),
-                   COALESCE(telefono, '')
-            FROM users_padron
-            WHERE LOWER(TRIM(rol)) IN ('estudiante', 'student', 'alumno')
-              AND LOWER(TRIM(COALESCE(socio_afiliado, ''))) IN (LOWER(TRIM(%s)), LOWER(TRIM(%s)))
-            ORDER BY id DESC;
-        """, (aff_objetivo, aff_id_v))
-        referidos = cur.fetchall()
+        cur.execute("SELECT * FROM users_padron ORDER BY id DESC;")
+        col_names = [desc for desc in cur.description]
+        all_rows = cur.fetchall()
+
+    referidos = []
+    targets_aff = {str(aff_objetivo or "").strip().lower(), str(aff_id_v or "").strip().lower()} - {""}
+    for row_raw in all_rows:
+        r_dict = dict(zip(col_names, row_raw))
+        rol_val = str(r_dict.get("rol") or "").strip().lower()
+        aff_val = str(r_dict.get("socio_afiliado") or r_dict.get("afiliado") or "").strip().lower()
+        if rol_val in ("estudiante", "student", "alumno") and aff_val in targets_aff:
+            u_val = str(r_dict.get("usuario") or "").strip()
+            nom_val = str(r_dict.get("nombre_completo") or r_dict.get("nombre") or u_val).strip()
+            mat_val = str(r_dict.get("matricula") or "").strip()
+            niv_val = str(r_dict.get("nivel") or r_dict.get("nivel_cefr") or r_dict.get("cefr") or "B1").strip()
+            tel_val = str(r_dict.get("telefono") or r_dict.get("whatsapp") or "").strip()
+            referidos.append((u_val, nom_val, mat_val, niv_val, tel_val))
 
     pagos_map = {}
     try:
         with conn.cursor() as cur:
-            cur.execute("""
-                SELECT LOWER(TRIM(usuario_estudiante)),
-                       COUNT(*) FILTER (WHERE LOWER(COALESCE(estatus, 'pagado')) IN ('pagado', 'completado', 'activo')),
-                       COALESCE(SUM(monto_total) FILTER (WHERE LOWER(COALESCE(estatus, 'pagado')) IN ('pagado', 'completado', 'activo')), 0.0),
-                       MAX(fecha_pago)
-                FROM student_payments
-                GROUP BY LOWER(TRIM(usuario_estudiante));
-            """)
-            for u_pay, cnt_bloq, sum_monto, max_f in cur.fetchall():
-                pagos_map[str(u_pay)] = {
-                    "bloques": int(cnt_bloq or 0),
-                    "monto": float(sum_monto or 0.0),
-                    "ultimo": str(max_f or "")[:10]
-                }
+            cur.execute("SELECT * FROM student_payments;")
+            pay_cols = [desc for desc in cur.description]
+            pay_rows = cur.fetchall()
+            for pr_raw in pay_rows:
+                pd = dict(zip(pay_cols, pr_raw))
+                u_pay = str(pd.get("usuario_estudiante") or pd.get("usuario") or pd.get("student_user") or "").strip().lower()
+                est_p = str(pd.get("estatus") or "pagado").strip().lower()
+                if u_pay and est_p in ("pagado", "completado", "activo"):
+                    monto_p = float(pd.get("monto_total") or pd.get("monto") or pd.get("importe") or 0.0)
+                    fecha_p = str(pd.get("fecha_pago") or pd.get("created_at") or "")[:10]
+                    if u_pay not in pagos_map:
+                        pagos_map[u_pay] = {"bloques": 0, "monto": 0.0, "ultimo": ""}
+                    pagos_map[u_pay]["bloques"] += 1
+                    pagos_map[u_pay]["monto"] += monto_p
+                    if fecha_p > pagos_map[u_pay]["ultimo"]:
+                        pagos_map[u_pay]["ultimo"] = fecha_p
     except Exception:
         pass
+
 
     pct_com = float(aff_pct_v or 0.0)
     total_recaudado = 0.0
