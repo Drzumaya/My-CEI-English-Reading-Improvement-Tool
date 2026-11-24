@@ -152,10 +152,27 @@ st.iframe(
 
 
 # ==============================================================================
+# SOPORTE PROGRESSIVE WEB APP (SIEMPRE ANTES DE ?install=1 PARA CARGAR MANIFEST)
+# ==============================================================================
+st.markdown(
+    """
+    <link rel="manifest" href="/app/static/manifest.json">
+    <link rel="apple-touch-icon" href="/app/static/logo_cei_app.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CEI English">
+    <meta name="theme-color" content="#0b2545">
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ==============================================================================
 # PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
 # ==============================================================================
 def render_install_app_landing():
-    """Muestra únicamente la tarjeta oficial de instalación de la App CEI hasta la instrucción en amarillo."""
+    """Muestra únicamente la tarjeta oficial de instalación de la App CEI con respuesta inmediata al clic."""
     st.markdown(
         """
         <style>
@@ -204,19 +221,21 @@ def render_install_app_landing():
                     box-shadow: 0 6px 18px rgba(11, 37, 69, 0.28);
                     width: 100%;
                     max-width: 440px;
+                    transition: transform 0.15s ease;
                 ">
                     📲 INSTALAR APP OFICIAL CEI
                 </button>
                 <div id="installHintCEI" style="
                     color: #78350f;
                     background: #fef9c3;
-                    border: 1px solid #fde047;
+                    border: 1.5px solid #facc15;
                     border-radius: 10px;
-                    padding: 13px 16px;
+                    padding: 14px 16px;
                     font-size: 14px;
                     margin-top: 14px;
                     line-height: 1.55;
                     text-align: left;
+                    transition: all 0.25s ease;
                 "></div>
             </div>
             <script>
@@ -243,17 +262,20 @@ def render_install_app_landing():
                 const isAndroid = /Android/i.test(ua);
                 const isMacSafari = /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua);
 
-                if (isInApp) {
-                    hint.innerHTML = '⚠️ <b>Abriste este QR dentro de WhatsApp/Redes:</b> Toca los <b>3 puntos (⋮)</b> o el ícono de <b>brújula/navegador</b> y elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android) para instalar la app.';
-                } else if (isIOS) {
-                    hint.innerHTML = '🍎 <b>iPhone / iPad (2 toques):</b><br>1. Toca el botón <b>Compartir (⬆️)</b> en la barra inferior de Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene cargado.';
-                } else if (isMacSafari) {
-                    hint.innerHTML = '💻 <b>Mac Safari:</b> En la barra superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene preconfigurado.';
-                } else if (isAndroid) {
-                    hint.innerHTML = '🤖 <b>Android:</b> Pulsa el botón azul superior para instalar en 1 clic, o toca el menú <b>(⋮) → "Instalar aplicación"</b>.';
-                } else {
-                    hint.innerHTML = '💻 <b>Navegador de Escritorio:</b> Pulsa el botón azul superior o haz clic en el ícono de <b>Instalar (⊕)</b> en la barra de direcciones.';
-                }
+                const renderDefaultGuide = () => {
+                    if (isInApp) {
+                        hint.innerHTML = '⚠️ <b>Abriste este QR dentro de WhatsApp/Redes:</b> Toca los <b>3 puntos (⋮)</b> o el ícono de <b>brújula/navegador</b> y elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android) para instalar la app.';
+                    } else if (isIOS) {
+                        hint.innerHTML = '🍎 <b>iPhone / iPad (2 toques):</b><br>1. Toca el botón <b>Compartir (⬆️)</b> en la barra inferior de Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene cargado.';
+                    } else if (isMacSafari) {
+                        hint.innerHTML = '💻 <b>Mac Safari:</b> En la barra superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene preconfigurado.';
+                    } else if (isAndroid) {
+                        hint.innerHTML = '🤖 <b>Android (Chrome):</b> Toca el menú de <b>3 puntos (⋮)</b> arriba a la derecha y selecciona <b>"Instalar aplicación"</b> o <b>"Agregar a pantalla principal"</b>.';
+                    } else {
+                        hint.innerHTML = '💻 <b>Navegador de Escritorio:</b> Haz clic en el ícono de <b>Instalar (⊕)</b> en el extremo derecho de la barra de direcciones.';
+                    }
+                };
+                renderDefaultGuide();
 
                 window.parent.addEventListener('beforeinstallprompt', (e) => {
                     e.preventDefault();
@@ -263,18 +285,31 @@ def render_install_app_landing():
                 });
 
                 btn.addEventListener('click', async () => {
+                    btn.style.transform = 'scale(0.98)';
+                    setTimeout(() => { btn.style.transform = 'scale(1)'; }, 150);
+
                     if (deferredPromptCEI) {
                         deferredPromptCEI.prompt();
                         const choice = await deferredPromptCEI.userChoice;
                         if (choice.outcome === 'accepted') {
+                            hint.style.background = '#dcfce7';
+                            hint.style.borderColor = '#22c55e';
+                            hint.style.color = '#14532d';
                             hint.innerHTML = '🎉 <b>¡App Oficial CEI instalada!</b> Busca el escudo de Career English Institute en tu pantalla de inicio.';
                         }
                         deferredPromptCEI = null;
+                    } else {
+                        // Respuesta visual inmediata cuando el sistema requiere el gesto nativo del navegador
+                        hint.style.background = '#fef08a';
+                        hint.style.borderColor = '#eab308';
+                        hint.style.boxShadow = '0 0 0 4px rgba(250, 204, 21, 0.35)';
+                        setTimeout(() => { hint.style.boxShadow = 'none'; }, 900);
+                        renderDefaultGuide();
                     }
                 });
             </script>
             """,
-            height=210
+            height=225
         )
 
 
@@ -282,20 +317,6 @@ if str(st.query_params.get("install", "")).strip() in ["1", "true", "app"]:
     render_install_app_landing()
     st.stop()
 
-
-# SOPORTE PROGRESSIVE WEB APP (PWA INSTALABLE EN iOS Y ANDROID CON LOGO OFICIAL)
-st.markdown(
-    """
-    <link rel="manifest" href="/app/static/manifest.json">
-    <link rel="apple-touch-icon" href="/app/static/logo_cei_app.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="CEI English">
-    <meta name="theme-color" content="#0b2545">
-    """,
-    unsafe_allow_html=True
-)
 
 # --- 1B. MOTOR DE AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO) ---
 MANAGED_PACKAGES = [
