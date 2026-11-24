@@ -6139,35 +6139,6 @@ if st.session_state.get("active_stage_5", "READING") == "READING" and not st.ses
             else:
                 st.caption("🎯 ¡Completa 1 Folio esta semana para sumar +1 a tu racha!")
 
-# DESPLEGABLE EN PANEL EDUCATIVO: INSTRUCCIONES, PLAN DEL CURSO Y CATEGORÍA ESTUDIANTIL
-if st.session_state.get("active_stage_5", "READING") == "READING" and not st.session_state.get("active_admin_workspace"):
-    opciones_guia_edu = [
-        "— Guía del Curso: Instrucciones, Plan y Categoría —",
-        "📖 Instrucciones",
-        "📅 Plan del Curso (9 Meses)",
-        "🏅 Categoría Estudiantil (Bronce, Plata y Oro)"
-    ]
-    sel_act_guia = st.session_state.get("guia_plan_seccion_activa")
-    idx_guia_def = opciones_guia_edu.index(sel_act_guia) if sel_act_guia in opciones_guia_edu else 0
-
-    sel_guia_edu = st.selectbox(
-        "📘 Guía Académica, Plan del Curso y Categoría Estudiantil:",
-        opciones_guia_edu,
-        index=idx_guia_def,
-        key="sb_edu_guia_plan_cat"
-    )
-    if sel_guia_edu != "— Guía del Curso: Instrucciones, Plan y Categoría —":
-        st.session_state["guia_plan_seccion_activa"] = sel_guia_edu
-    elif sel_act_guia is not None:
-        st.session_state["guia_plan_seccion_activa"] = None
-
-if st.session_state.get("guia_plan_seccion_activa") and st.session_state.get("active_stage_5", "READING") == "READING":
-    render_guia_plan_categoria_view(
-        usuario_actual=str(st.session_state.get("current_user") or usuario),
-        nivel_cefr_actual=str(st.session_state.get("selected_cefr") or "B1")
-    )
-    st.stop()
-
 folio_input = ""
 buscar_folio_btn = False
 
@@ -6186,11 +6157,33 @@ if mostrar_barra_folios:
     except Exception:
         regs_folios_dd = []
 
+    ids_alumno_act = {
+        str(x).strip().lower()
+        for x in [
+            st.session_state.get("current_user"),
+            usuario,
+            st.session_state.get("current_user_fullname"),
+            st.session_state.get("nombre_completo"),
+        ]
+        if str(x or "").strip()
+    }
+
     if not (has_faculty_access or is_owner):
         regs_folios_dd = [
             r for r in regs_folios_dd
-            if str(r.get("Usuario", "")).strip().lower() == usuario.strip().lower()
+            if str(r.get("Usuario") or "").strip().lower() in ids_alumno_act
+            or str(r.get("Nombre_Estudiante") or "").strip().lower() in ids_alumno_act
         ]
+
+    # Garantizar que el folio recién generado en la sesión actual aparezca inmediatamente en la lista
+    curr_f_now = str(st.session_state.get("current_folio") or "").strip()
+    if curr_f_now and not any(str(r.get("Folio") or "").strip() == curr_f_now for r in regs_folios_dd):
+        regs_folios_dd.insert(0, {
+            "Folio": curr_f_now,
+            "Tema": str(st.session_state.get("current_topic") or st.session_state.get("lesson_topic") or "Lección Reciente").strip(),
+            "Nivel_CEFR": str(st.session_state.get("selected_cefr") or "B1").strip(),
+            "Usuario": str(st.session_state.get("current_user") or usuario).strip(),
+        })
 
     opciones_folios_map = {}
     for r_dd in regs_folios_dd:
@@ -6210,7 +6203,6 @@ if mostrar_barra_folios:
         if opciones_folios_map:
             lista_lbl_folios = list(opciones_folios_map.keys())
             idx_default_f = 0
-            curr_f_now = str(st.session_state.get("current_folio") or "").strip()
             for i_f, lbl_f in enumerate(lista_lbl_folios):
                 if opciones_folios_map[lbl_f] == curr_f_now:
                     idx_default_f = i_f
@@ -6237,7 +6229,6 @@ if mostrar_barra_folios:
             st.caption("📭 Aún no hay folios guardados. Presiona **✨ GENERAR LECCIÓN** arriba para crear el primero.")
 
 
-
 # ==============================================================================
 # PARTE 13A2: RECUPERACIÓN DE FOLIOS DESDE SUPABASE (POR URL O BÚSQUEDA)
 # ==============================================================================
@@ -6247,11 +6238,15 @@ auto_fetch_url_folio = bool(
     and not st.session_state.get("url_folio_checked", False)
 )
 
-if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
+folio_target_load = folio_input.strip() or (
+    str(st.session_state.get("current_folio") or "").strip() if auto_fetch_url_folio else ""
+)
+
+if (buscar_folio_btn or auto_fetch_url_folio) and folio_target_load:
     if auto_fetch_url_folio:
         st.session_state.url_folio_checked = True
 
-    folio_buscado = folio_input.strip().upper()
+    folio_buscado = folio_target_load.upper()
     try:
         with st.spinner(f"Buscando Folio {folio_buscado} en Supabase PostgreSQL..."):
             row_f = fetch_lesson_by_folio(folio_buscado)
@@ -6324,6 +6319,7 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_input.strip():
                 st.rerun()
     except Exception as e:
         st.error(f"Error al buscar folio en Supabase: {e}")
+
 
 # ==============================================================================
 # PARTE 14E — SECCIÓN 1A: PORTAL EXCLUSIVO DEL ESTUDIANTE (CABECERA Y MÉTRICAS)
