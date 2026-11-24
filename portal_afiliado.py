@@ -293,7 +293,11 @@ try:
             st.markdown("##### 📱 QR Oficial de Descarga de App Estudiantes")
             st.caption("Compártelo con tus alumnos inscritos para instalar la App CEI en su celular o Mac.")
             st.image(buf_q2.getvalue(), width=175)
-            st.code(url_qr_app, language="text")
+            st.link_button(
+                "📲 Abrir Instalador Oficial App CEI",
+                url=url_qr_app,
+                width="stretch"
+            )
             st.download_button(
                 "⬇️ Descargar QR App CEI (PNG)",
                 data=buf_q2.getvalue(),
@@ -301,6 +305,7 @@ try:
                 mime="image/png",
                 width="stretch"
             )
+
     # ==========================================================================
     # BLOQUE 2B DE 2 (FINAL): ALUMNOS INSCRITOS, RACHAS ORO, PAGOS Y WHATSAPP
     # ==========================================================================
