@@ -51,6 +51,18 @@ except ImportError:
         add_script_run_ctx = None
         get_script_run_ctx = None
 
+from core.database import (
+    _open_legal_pg_conn,
+    get_user_delegated_caps_pg,
+    save_user_delegated_caps_pg,
+)
+from modules.franchises import (
+    DEFAULT_CAMPUS_ID,
+    ensure_multicampus_schema_pg,
+    list_campuses_pg,
+    upsert_campus_pg,
+)
+
 
 
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
@@ -897,13 +909,25 @@ def _extract_numeric_score(score_str: str) -> float:
 
 
 def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
-    u_clean = str(usuario_name or "").strip()
+    u_clean = str(usuario_name or st.session_state.get("current_user") or "").strip()
+    f_clean = str(folio or "").strip().upper()
+    if not f_clean:
+        return
     with pg_session() as cur:
         cur.execute("""
             ALTER TABLE lessons_folios
-            ADD COLUMN IF NOT EXISTS usuario TEXT DEFAULT '';
+            ADD COLUMN IF NOT EXISTS usuario TEXT DEFAULT '',
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
         """)
-        cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (u_clean,))
+        cur.execute(
+            """
+            SELECT id FROM users_padron
+            WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s))
+               OR LOWER(TRIM(COALESCE(nombre_completo, ''))) = LOWER(TRIM(%s))
+            LIMIT 1;
+            """,
+            (u_clean, u_clean)
+        )
         u_row = cur.fetchone()
         if isinstance(u_row, dict):
             uid = int(u_row["id"])
@@ -912,28 +936,19 @@ def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str,
         else:
             uid = None
 
-        if uid is None and u_clean:
-            cur.execute("""
-                INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
-                VALUES (%s, 'AUTO_SESSION', 'Estudiante', 'Basico', 'Activo')
-                RETURNING id;
-            """, (u_clean,))
-            new_u = cur.fetchone()
-            if isinstance(new_u, dict):
-                uid = int(new_u["id"])
-            elif isinstance(new_u, (tuple, list)) and len(new_u) > 0:
-                uid = int(new_u)
-
         cur.execute("""
-            INSERT INTO lessons_folios (folio, user_id, usuario, tema, cefr_level, academic_grade, lesson_text, pdf_link)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO lessons_folios (folio, user_id, usuario, tema, cefr_level, academic_grade, lesson_text, pdf_link, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             ON CONFLICT (folio) DO UPDATE SET
                 user_id = COALESCE(EXCLUDED.user_id, lessons_folios.user_id),
                 usuario = EXCLUDED.usuario,
+                tema = EXCLUDED.tema,
+                cefr_level = EXCLUDED.cefr_level,
+                academic_grade = EXCLUDED.academic_grade,
                 lesson_text = EXCLUDED.lesson_text,
                 pdf_link = EXCLUDED.pdf_link,
-                updated_at = NOW();
-        """, (folio.strip().upper(), uid, u_clean, tema, cefr, grado, texto, pdf_link))
+                updated_at = CURRENT_TIMESTAMP;
+        """, (f_clean, uid, u_clean, tema, cefr, grado, texto, pdf_link))
     try:
         load_lessons_history_pg.clear()
     except Exception:
