@@ -6069,6 +6069,42 @@ def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str =
                     st.session_state[zoom_state_key] = True
                     st.rerun()
 
+def get_cei_qr_link(tipo_qr: str, ref_code: str = "", campus_id: str = "") -> str:
+    """
+    Devuelve el enlace oficial exacto para cada uno de los 3 Códigos QR de CEI:
+      1. 'app'        -> https://github.io
+      2. 'estudiante' -> https://streamlit.app
+      3. 'socio'      -> https://streamlit.app
+    """
+    t = str(tipo_qr or "").strip().lower()
+
+    if t in ["app", "descarga", "install"]:
+        base = str(
+            st.secrets.get("APP_INSTALL_QR_URL", "https://github.io")
+        ).strip()
+    elif t in ["socio", "afiliado", "partner"]:
+        base = str(
+            st.secrets.get("AFFILIATE_REG_URL", "https://streamlit.app")
+        ).strip()
+    else:
+        base = str(
+            st.secrets.get("STUDENT_REG_URL", "https://streamlit.app")
+        ).strip()
+
+    extra_params = []
+    if ref_code:
+        extra_params.append(f"ref={urllib.parse.quote(str(ref_code).strip())}")
+    if campus_id:
+        extra_params.append(f"campus={urllib.parse.quote(str(campus_id).strip())}")
+
+    if not extra_params:
+        return base
+
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}{'&'.join(extra_params)}"
+
+
+
 def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
     """Muestra y permite proyectar/descargar el Código QR exclusivo para instalar la App Oficial CEI."""
     base_url = str(
