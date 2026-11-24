@@ -385,14 +385,18 @@ def render_formulario_registro_afiliado(
     if st.session_state.get(state_submitted_key, False):
         id_asignado = st.session_state.get(state_id_key, "AFIL-CEI")
         nom_asignado = st.session_state.get(state_name_key, "Socio Afiliado")
-        url_app_socios = str(
-            _find_secret("AFFILIATE_APP_INSTALL_URL")
-            or "https://github.io"
-        ).strip()
-        url_portal_directo = str(
-            _find_secret("AFFILIATE_PORTAL_URL")
-            or "https://ceiafiliados.streamlit.app"
-        ).strip()
+        raw_app_soc = str(_find_secret("AFFILIATE_APP_INSTALL_URL") or "").strip()
+        url_app_socios = (
+            raw_app_soc
+            if "drzumaya.github.io" in raw_app_soc
+            else "https://github.io"
+        )
+        raw_port_soc = str(_find_secret("AFFILIATE_PORTAL_URL") or "").strip()
+        url_portal_directo = (
+            raw_port_soc
+            if "ceiafiliados.streamlit.app" in raw_port_soc
+            else "https://ceiafiliados.streamlit.app"
+        )
 
         buf_q_bienv = io.BytesIO()
         qrcode.make(url_app_socios).save(buf_q_bienv, format="PNG")
