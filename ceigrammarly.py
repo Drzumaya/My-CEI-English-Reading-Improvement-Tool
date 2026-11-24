@@ -68,7 +68,7 @@ from modules.franchises import (
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
     page_title="CEI ENGLISH LEARNING PLATFORM — Career English Institute",
-    page_icon="static/logo_cei_app.png" if os.path.exists("static/logo_cei_app.png") else "LOGO CEI APP.png",
+    page_icon="static/LOGO CEI APP.png" if os.path.exists("static/LOGO CEI APP.png") else "LOGO CEI APP.png",
     layout="wide",
     initial_sidebar_state="auto"
 )
@@ -113,6 +113,26 @@ st.iframe(
     (function() {
         try {
             const pWin = window.parent;
+            const pDoc = pWin.document;
+            const head = pDoc.head;
+            if (head) {
+                if (!head.querySelector('link[href="/app/static/manifest.json"]')) {
+                    const m = pDoc.createElement('link');
+                    m.rel = 'manifest';
+                    m.href = '/app/static/manifest.json';
+                    head.appendChild(m);
+                }
+                if (!head.querySelector('link[rel="apple-touch-icon"][href="/app/static/LOGO%20CEI%20APP.png"]')) {
+                    const a = pDoc.createElement('link');
+                    a.rel = 'apple-touch-icon';
+                    a.href = '/app/static/LOGO%20CEI%20APP.png';
+                    head.appendChild(a);
+                }
+                if ('serviceWorker' in pWin.navigator) {
+                    pWin.navigator.serviceWorker.register('/app/static/sw.js').catch(() => {});
+                }
+            }
+
             const isAppMode = (
                 pWin.matchMedia('(display-mode: standalone)').matches ||
                 pWin.matchMedia('(display-mode: minimal-ui)').matches ||
@@ -129,7 +149,6 @@ st.iframe(
                         ).forEach(el => {
                             el.style.setProperty('display', 'none', 'important');
                         });
-                        // Oculta también el botón flotante fijo en esquina inferior derecha (Manage app + ícono GitHub)
                         d.querySelectorAll('div, a, button').forEach(el => {
                             const st = pWin.getComputedStyle(el);
                             if (st.position === 'fixed' && parseInt(st.bottom || '999') <= 30 && parseInt(st.right || '999') <= 40) {
@@ -148,23 +167,6 @@ st.iframe(
     </script>
     """,
     height=1
-)
-
-
-# ==============================================================================
-# SOPORTE PROGRESSIVE WEB APP (SIN DESBORDAMIENTO EN MÓVIL)
-# ==============================================================================
-st.markdown(
-    """
-    <link rel="manifest" href="/app/static/manifest.json">
-    <link rel="apple-touch-icon" href="/app/static/logo_cei_app.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="CEI English">
-    <meta name="theme-color" content="#0b2545">
-    """,
-    unsafe_allow_html=True
 )
 
 
@@ -197,7 +199,7 @@ def render_install_app_landing():
         unsafe_allow_html=True
     )
 
-    logo_path = "static/logo_cei_app.png" if os.path.exists("static/logo_cei_app.png") else "LOGO CEI APP.png"
+    logo_path = "static/LOGO CEI APP.png" if os.path.exists("static/LOGO CEI APP.png") else "LOGO CEI APP.png"
 
     with st.container(border=True):
         c_l1, c_l2 = st.columns([1.0, 2.8])
