@@ -63,6 +63,14 @@ from modules.franchises import (
     upsert_campus_pg,
 )
 
+from modules.pedagogy import (
+    CEFR_DESCRIPTIONS,
+    CEFR_LEVELS_ORDER,
+    build_whatsapp_motivation_link,
+    calcular_categoria_automatica_estudiante,
+    calcular_racha_semanal,
+    normalize_cefr_code,
+)
 
  
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
