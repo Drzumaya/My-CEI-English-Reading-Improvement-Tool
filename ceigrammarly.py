@@ -41,7 +41,7 @@ if hasattr(st, "iframe"):
         html_str, height=height or 150, width=width or "stretch"
     )
 from streamlit_js_eval import streamlit_js_eval
- 
+  
 try:
     from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 except ImportError:
