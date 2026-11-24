@@ -252,18 +252,27 @@ try:
         "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) vigente para cobro de comisiones.*"
     )
 
-    url_ins_base = str(_find_secret("STUDENT_REG_URL") or ("https://" + "inscripcioncei.streamlit.app")).strip().rstrip("/")
+    raw_ins_base = str(_find_secret("STUDENT_REG_URL") or "").strip().rstrip("/")
+    url_ins_base = (
+        raw_ins_base
+        if "inscripcioncei.streamlit.app" in raw_ins_base
+        else ("https://" + "inscripcioncei.streamlit.app")
+    )
     sep_q = "&" if "?" in url_ins_base else "?"
     url_qr_alumnos = f"{url_ins_base}{sep_q}ref_aff={urllib.parse.quote(str(aff_id_v).strip())}"
-    url_qr_app = str(
-        _find_secret("APP_INSTALL_QR_URL")
-        or ("https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/")
-    ).strip()
+
+    raw_app_qr = str(_find_secret("APP_INSTALL_QR_URL") or "").strip()
+    url_qr_app = (
+        raw_app_qr
+        if "drzumaya.github.io" in raw_app_qr
+        else ("https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/")
+    )
 
     buf_q1 = io.BytesIO()
     qrcode.make(url_qr_alumnos).save(buf_q1, format="PNG")
     buf_q2 = io.BytesIO()
     qrcode.make(url_qr_app).save(buf_q2, format="PNG")
+
 
     c_qr_left, c_qr_right = st.columns(2)
     with c_qr_left:
