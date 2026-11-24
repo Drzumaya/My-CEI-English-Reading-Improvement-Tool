@@ -132,7 +132,7 @@ def upsert_campus_pg(
         return False, "Sin conexión a Supabase PostgreSQL."
     try:
         with conn:
-            with conn.cursor() as cur:
+            with conn.cursor() as cur: 
                 cur.execute("""
                     INSERT INTO campuses (
                         campus_id, nombre_plantel, ciudad_estado, direccion_oficial,
@@ -157,7 +157,7 @@ def upsert_campus_pg(
     except Exception as e:
         return False, f"Error al guardar plantel: {e}"
     finally:
-        try:
+        try: 
             conn.close()
         except Exception:
             pass
