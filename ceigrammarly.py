@@ -912,7 +912,7 @@ def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str,
     f_clean = str(folio or "").strip().upper()
     if not f_clean:
         return
-    with pg_session() as cur:
+    with pg_session(dict_rows=True) as cur:
         cur.execute("""
             ALTER TABLE lessons_folios
             ADD COLUMN IF NOT EXISTS usuario TEXT DEFAULT '',
@@ -922,18 +922,12 @@ def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str,
             """
             SELECT id FROM users_padron
             WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s))
-               OR LOWER(TRIM(COALESCE(nombre_completo, ''))) = LOWER(TRIM(%s))
             LIMIT 1;
             """,
-            (u_clean, u_clean)
+            (u_clean,)
         )
         u_row = cur.fetchone()
-        if isinstance(u_row, dict):
-            uid = int(u_row["id"])
-        elif isinstance(u_row, (tuple, list)) and len(u_row) > 0:
-            uid = int(u_row)
-        else:
-            uid = None
+        uid = int(u_row["id"]) if (isinstance(u_row, dict) and u_row.get("id") is not None) else None
 
         cur.execute("""
             INSERT INTO lessons_folios (folio, user_id, usuario, tema, cefr_level, academic_grade, lesson_text, pdf_link, updated_at)
@@ -952,6 +946,7 @@ def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str,
         load_lessons_history_pg.clear()
     except Exception:
         pass
+
 
 def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, user_ans: dict) -> tuple[bool, str, str]:
     f_clean = str(folio or "").strip().upper()
