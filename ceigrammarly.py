@@ -6075,6 +6075,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 "🤝 Portal Socio Afiliado",
                 "📘 Guía, Plan y Categoría"
             ]
+        else:
             opciones_p_adm = [
                 "💳 Cobranza Mensual e IVA",
                 "📊 Estados Financieros",
