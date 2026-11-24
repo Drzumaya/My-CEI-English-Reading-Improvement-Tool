@@ -222,20 +222,24 @@ def render_install_app_landing():
                     overflow-x: hidden;
                     padding: 4px;
                 }
+                @keyframes pulseCEI {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.02); }
+                    100% { transform: scale(1); }
+                }
             </style>
             <div style="width:100%; text-align:center;">
-                <button id="btnNativeInstallCEI" style="
+                <button id="btnNativeInstallCEI" type="button" style="
                     background: linear-gradient(135deg, #0b2545 0%, #1e40af 100%);
                     color: white;
                     border: none;
                     border-radius: 12px;
-                    padding: 15px 18px;
+                    padding: 16px 18px;
                     font-size: 16px;
                     font-weight: 700;
                     cursor: pointer;
-                    box-shadow: 0 4px 14px rgba(11, 37, 69, 0.25);
+                    box-shadow: 0 4px 14px rgba(11, 37, 69, 0.28);
                     width: 100%;
-                    max-width: 100%;
                     display: block;
                 ">
                     📲 INSTALAR APP OFICIAL CEI
@@ -256,9 +260,10 @@ def render_install_app_landing():
             </div>
             <script>
                 (function() {
+                    const pWin = window.parent;
                     const hideCloudBadges = () => {
-                        const docs = [document, window.parent.document];
-                        try { if (window.parent.parent && window.parent.parent.document) docs.push(window.parent.parent.document); } catch(e) {}
+                        const docs = [document, pWin.document];
+                        try { if (pWin.parent && pWin.parent.document) docs.push(pWin.parent.document); } catch(e) {}
                         docs.forEach(d => {
                             d.querySelectorAll(
                                 '[data-testid="manage-app-button"], [class*="viewerBadge"], [class*="StatusWidget"], [class*="_profileContainer"], [class*="_profilePreview"], a[href*="streamlit.io"], a[href*="github.com"]'
@@ -267,60 +272,72 @@ def render_install_app_landing():
                     };
                     hideCloudBadges();
                     setInterval(hideCloudBadges, 600);
-                })();
 
-                let deferredPromptCEI = null;
-                const btn = document.getElementById('btnNativeInstallCEI');
-                const hint = document.getElementById('installHintCEI');
-                const ua = navigator.userAgent || '';
-                const isInApp = /WhatsApp|Instagram|FBAN|FBAV|Line/i.test(ua);
-                const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-                const isAndroid = /Android/i.test(ua);
-                const isMacSafari = /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua);
+                    const btn = document.getElementById('btnNativeInstallCEI');
+                    const hint = document.getElementById('installHintCEI');
+                    const ua = navigator.userAgent || '';
+                    const isInApp = /WhatsApp|Instagram|FBAN|FBAV|Line/i.test(ua);
+                    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+                    const isAndroid = /Android/i.test(ua);
+                    const isMacSafari = /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua);
 
-                const renderDefaultGuide = () => {
-                    if (isInApp) {
-                        hint.innerHTML = '⚠️ <b>Abriste este QR en WhatsApp/Redes:</b> Toca los <b>3 puntos (⋮)</b> o la <b>brújula</b> y elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android).';
-                    } else if (isIOS) {
-                        hint.innerHTML = '🍎 <b>iPhone / iPad (2 toques):</b><br>1. Toca <b>Compartir (⬆️)</b> abajo en Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>.';
-                    } else if (isMacSafari) {
-                        hint.innerHTML = '💻 <b>Mac Safari:</b> En el menú superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>.';
-                    } else if (isAndroid) {
-                        hint.innerHTML = '🤖 <b>Android (Chrome):</b> Toca el menú <b>(⋮)</b> arriba a la derecha y elige <b>"Instalar aplicación"</b> o <b>"Agregar a pantalla principal"</b>.';
-                    } else {
-                        hint.innerHTML = '💻 <b>Escritorio:</b> Haz clic en el ícono de <b>Instalar (⊕)</b> en la barra de direcciones.';
-                    }
-                };
-                renderDefaultGuide();
-
-                window.parent.addEventListener('beforeinstallprompt', (e) => {
-                    e.preventDefault();
-                    deferredPromptCEI = e;
-                    btn.innerText = '⬇️ INSTALAR APP OFICIAL CEI (1 CLIC)';
-                    hint.innerHTML = '✅ <b>Listo:</b> Pulsa el botón azul superior y confirma <b>"Instalar"</b>.';
-                });
-
-                btn.addEventListener('click', async () => {
-                    if (deferredPromptCEI) {
-                        deferredPromptCEI.prompt();
-                        const choice = await deferredPromptCEI.userChoice;
-                        if (choice.outcome === 'accepted') {
-                            hint.style.background = '#dcfce7';
-                            hint.style.borderColor = '#22c55e';
-                            hint.style.color = '#14532d';
-                            hint.innerHTML = '🎉 <b>¡App Oficial CEI instalada!</b> Busca el escudo de CEI en tu pantalla de inicio.';
+                    const showStepGuide = (highlight) => {
+                        if (highlight) {
+                            hint.style.background = '#fef08a';
+                            hint.style.borderColor = '#eab308';
+                            hint.style.animation = 'pulseCEI 0.4s ease';
+                            setTimeout(() => { hint.style.animation = 'none'; }, 450);
                         }
-                        deferredPromptCEI = null;
-                    } else {
-                        hint.style.background = '#fef08a';
-                        hint.style.borderColor = '#eab308';
-                        renderDefaultGuide();
-                    }
-                });
+                        if (isInApp) {
+                            hint.innerHTML = '⚠️ <b>Abriste este QR dentro de WhatsApp/Redes:</b><br>1. Toca los <b>3 puntos (⋮)</b> o el ícono de <b>brújula</b>.<br>2. Elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android).';
+                        } else if (isIOS) {
+                            hint.innerHTML = '🍎 <b>Instalación en iPhone / iPad (2 pasos):</b><br>1. Toca el ícono <b>Compartir (⬆️)</b> en la barra inferior de Safari.<br>2. Desliza y toca <b>"Agregar a inicio"</b> → <b>Agregar</b>.';
+                        } else if (isMacSafari) {
+                            hint.innerHTML = '💻 <b>Instalación en Mac Safari:</b><br>En la barra superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>.';
+                        } else if (isAndroid) {
+                            hint.innerHTML = '🤖 <b>Instalación en Android (Chrome):</b><br>1. Toca el menú de <b>3 puntos (⋮)</b> arriba a la derecha.<br>2. Selecciona <b>"Instalar aplicación"</b> o <b>"Agregar a pantalla principal"</b>.';
+                        } else {
+                            hint.innerHTML = '💻 <b>Instalación en Computadora:</b><br>Haz clic en el ícono de <b>Instalar (⊕)</b> en el extremo derecho de la barra de direcciones.';
+                        }
+                    };
+                    showStepGuide(false);
+
+                    const onPromptReady = (e) => {
+                        e.preventDefault();
+                        pWin.__ceiDeferredPrompt = e;
+                        btn.innerText = '⬇️ INSTALAR APP OFICIAL CEI (1 CLIC)';
+                        hint.style.background = '#dbeafe';
+                        hint.style.borderColor = '#3b82f6';
+                        hint.style.color = '#1e3a8a';
+                        hint.innerHTML = '✅ <b>Instalación directa lista:</b> Pulsa el botón azul superior y confirma <b>"Instalar"</b>.';
+                    };
+
+                    window.addEventListener('beforeinstallprompt', onPromptReady);
+                    pWin.addEventListener('beforeinstallprompt', onPromptReady);
+
+                    btn.addEventListener('click', async () => {
+                        const promptEvt = pWin.__ceiDeferredPrompt;
+                        if (promptEvt) {
+                            promptEvt.prompt();
+                            const choice = await promptEvt.userChoice;
+                            if (choice.outcome === 'accepted') {
+                                hint.style.background = '#dcfce7';
+                                hint.style.borderColor = '#22c55e';
+                                hint.style.color = '#14532d';
+                                hint.innerHTML = '🎉 <b>¡App Oficial CEI instalada!</b> Busca el escudo de CEI en tu pantalla de inicio.';
+                            }
+                            pWin.__ceiDeferredPrompt = null;
+                        } else {
+                            btn.innerText = '👇 SIGUE ESTOS 2 PASOS ABAJO';
+                            showStepGuide(true);
+                        }
+                    });
+                })();
             </script>
             """,
             height=265
         )
+
 
 
 if str(st.query_params.get("install", "")).strip() in ["1", "true", "app"]:
