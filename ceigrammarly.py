@@ -4746,6 +4746,53 @@ if not st.session_state.authenticated and not st.session_state.get("just_logged_
         except Exception:
             pass
 
+
+# --- AUTO-RESTAURACIÓN DE SESIÓN RECORDADA (HMAC TOKEN EN URL / PWA) ---
+if not st.session_state.get("authenticated", False) and not st.session_state.get("just_logged_out", False):
+    tok_url_saved = str(st.query_params.get("cei_auth", "")).strip()
+    if tok_url_saved and "." in tok_url_saved:
+        try:
+            b64_payload, sig_hex = tok_url_saved.rsplit(".", 1)
+            raw_bytes = base64.urlsafe_b64decode(b64_payload.encode("ascii"))
+            secret_salt = str(st.secrets.get("OWNER_MASTER_KEY", "CEI_HMAC_2026")).encode("utf-8")
+            expected_sig = hmac.new(secret_salt, raw_bytes, hashlib.sha256).hexdigest()[:24]
+            if hmac.compare_digest(sig_hex, expected_sig):
+                u_saved, c_saved = raw_bytes.decode("utf-8").split("::", 1)
+                registros_auto = load_padron_records() or []
+                u_match_auto = next(
+                    (r for r in registros_auto
+                     if str(r.get("Usuario", "")).strip().lower() == u_saved.strip().lower()
+                     and hmac.compare_digest(str(r.get("Clave", "")).strip(), c_saved.strip())),
+                    None
+                )
+                if u_match_auto is None:
+                    m_u = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
+                    m_k = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
+                    if m_u and m_k and u_saved.strip().lower() == m_u.lower() and hmac.compare_digest(m_k, c_saved.strip()):
+                        u_match_auto = {
+                            "Usuario": m_u, "Clave": m_k, "Rol": "Propietario",
+                            "Permisos": "Total", "Nivel": "C2",
+                            "Grado_Academico": "Doctorado / Posgrado", "Estatus": "Activo"
+                        }
+                if u_match_auto and str(u_match_auto.get("Estatus", "Activo")).strip().lower() == "activo":
+                    r_auto = str(u_match_auto.get("Rol", "Estudiante")).strip()
+                    n_auto = normalize_cefr(u_match_auto.get("Nivel", "B1"))
+                    g_auto = str(u_match_auto.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = str(u_match_auto.get("Usuario", "")).strip()
+                    st.session_state.user_role = r_auto
+                    st.session_state.user_permissions = resolve_permission_profile(u_match_auto.get("Permisos", ""), r_auto, PERMISSIONS_MATRIX)
+                    st.session_state.user_assigned_level = n_auto
+                    st.session_state.selected_cefr = n_auto
+                    st.session_state.user_academic_grade = g_auto
+                    st.session_state.selected_academic_grade = g_auto
+                    st.rerun()
+        except Exception:
+            pass
+
+
+
+
 # --- PANTALLA DE LOGIN ---
 if not st.session_state.authenticated:
     col_l, col_c, col_r = st.columns([1, 1.5, 1])
@@ -4833,9 +4880,13 @@ if not st.session_state.authenticated:
                                     st.session_state.selected_academic_grade = g_db
 
                                     if remember_me:
-                                        st.session_state.pending_ls_token = _sign_session_token(u_db, c_db)
+                                        tok_signed = _sign_session_token(u_db, c_db)
+                                        st.session_state.pending_ls_token = tok_signed
+                                        st.query_params["cei_auth"] = tok_signed
                                     else:
                                         st.session_state.pending_ls_token = "REMOVE"
+                                        if "cei_auth" in st.query_params:
+                                            del st.query_params["cei_auth"]
                                     st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error de conexión al verificar credenciales: {e}") 
