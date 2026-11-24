@@ -1,24 +1,21 @@
-# ==============================================================================
-# portal_afiliado.py — PARTE 1 DE 3: CONEXIÓN, QR CON ID OFICIAL Y PROYECCIÓN ZOOM
-# ==============================================================================
 import base64
-import hashlib
+from datetime import datetime, timedelta
+import hmac
 import io
+import os
 import urllib.parse
-import pandas as pd
 import psycopg
 import qrcode
 import streamlit as st
-import streamlit.components.v1 as components
-if hasattr(st, "iframe"):
-    components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
-        html_str, height=height or 150, width=width or "stretch"
-    )
 
-DEFAULT_INSCRIPTION_URL_AFF = "https://inscripcioncei.streamlit.app"
+st.set_page_config(
+    page_title="Portal Oficial de Socios Afiliados — CEI",
+    page_icon="🤝",
+    layout="centered"
+)
 
 
-def _find_secret_portal(key_name: str) -> str:
+def _find_secret(key_name: str) -> str:
     if key_name in st.secrets:
         return str(st.secrets[key_name]).strip()
     key_low = key_name.lower()
@@ -32,312 +29,378 @@ def _find_secret_portal(key_name: str) -> str:
     return ""
 
 
-def _get_conn_portal():
-    pg_host = _find_secret_portal("PG_HOST") or _find_secret_portal("DB_HOST") or _find_secret_portal("HOST")
-    pg_user = _find_secret_portal("PG_USER") or _find_secret_portal("DB_USER") or _find_secret_portal("USER")
-    pg_pass = _find_secret_portal("PG_PASSWORD") or _find_secret_portal("DB_PASSWORD") or _find_secret_portal("PASSWORD")
-    pg_port = int(_find_secret_portal("PG_PORT") or _find_secret_portal("DB_PORT") or 6543)
-    pg_db = _find_secret_portal("PG_DBNAME") or _find_secret_portal("DB_NAME") or "postgres"
+def _open_pg_conn():
+    pg_host = _find_secret("PG_HOST") or _find_secret("DB_HOST")
+    pg_user = _find_secret("PG_USER") or _find_secret("DB_USER")
+    pg_pass = _find_secret("PG_PASSWORD") or _find_secret("DB_PASSWORD")
+    pg_port = int(_find_secret("PG_PORT") or _find_secret("DB_PORT") or 6543)
+    pg_db = _find_secret("PG_DBNAME") or _find_secret("DB_NAME") or "postgres"
 
     if pg_host and pg_user and pg_pass:
-        return psycopg.connect(
-            host=pg_host, port=pg_port, dbname=pg_db,
-            user=pg_user, password=pg_pass, sslmode="require",
-            connect_timeout=10, prepare_threshold=None
-        )
-    db_url = _find_secret_portal("SUPABASE_DB_URL") or _find_secret_portal("DATABASE_URL")
-    if db_url and db_url.startswith("postgres"):
-        if "sslmode=" not in db_url:
-            db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
-        return psycopg.connect(db_url, connect_timeout=10, prepare_threshold=None)
+        puertos = [pg_port, 6543] if pg_port != 6543 else [6543]
+        for p_try in puertos:
+            try:
+                return psycopg.connect(
+                    host=pg_host,
+                    port=p_try,
+                    dbname=pg_db,
+                    user=pg_user,
+                    password=pg_pass,
+                    sslmode="require",
+                    connect_timeout=10,
+                    prepare_threshold=None
+                )
+            except Exception:
+                pass
     return None
 
 
-def _obtener_url_inscripcion_vigente() -> str:
-    """Lee la URL oficial de inscripción publicada por Owner/Admin en Supabase."""
-    fallback = str(_find_secret_portal("STUDENT_INSCRIPTION_URL") or DEFAULT_INSCRIPTION_URL_AFF).strip().rstrip("/")
-    conn = _get_conn_portal()
-    if not conn:
-        return fallback
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT contenido FROM cei_configuracion_legal WHERE clave = 'url_inscripcion_estudiantes' LIMIT 1;")
-            row = cur.fetchone()
-            if row and str(row[0] or "").strip():
-                return str(row[0]).strip().rstrip("/")
-    except Exception:
-        pass
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-    return fallback
+def _get_logo_b64():
+    for path_try in ["static/LOGO CEI APP.png", "LOGO CEI APP.png"]:
+        if os.path.exists(path_try):
+            with open(path_try, "rb") as f:
+                return base64.b64encode(f.read()).decode("utf-8"), "image/png"
+    return "", ""
 
 
-def _cargar_perfil_afiliado(usuario_afiliado: str) -> dict:
-    """Obtiene el expediente e ID oficial del Socio Afiliado desde affiliate_partners."""
-    u_clean = str(usuario_afiliado or "").strip()
-    perfil = {
-        "affiliate_id": u_clean,
-        "usuario_login": u_clean,
-        "nombre_completo": u_clean,
-        "rfc": "",
-        "estatus": "Activo",
-        "porcentaje": 0.0
-    }
-    conn = _get_conn_portal()
-    if not conn:
-        return perfil
+def _calcular_racha_y_categoria(usuario_est: str, conn) -> dict:
+    total_folios = 0
+    prom_global = 0.0
+    semanas_activas = set()
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT COALESCE(NULLIF(TRIM(affiliate_id), ''), usuario_login),
-                       usuario_login,
-                       COALESCE(NULLIF(TRIM(nombre || ' ' || apellido_paterno), ''), usuario_login),
-                       COALESCE(rfc, ''),
-                       COALESCE(estatus, 'Activo'),
-                       COALESCE(porcentaje_default, 0.0)
-                FROM affiliate_partners
+                SELECT created_at, COALESCE(calificacion_global, 0.0)
+                FROM lessons_folios
                 WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
-                   OR LOWER(TRIM(affiliate_id)) = LOWER(TRIM(%s))
-                LIMIT 1;
-            """, (u_clean, u_clean))
-            row = cur.fetchone()
-            if row:
-                perfil["affiliate_id"] = str(row[0]).strip()
-                perfil["usuario_login"] = str(row[1]).strip()
-                perfil["nombre_completo"] = str(row[2]).strip()
-                perfil["rfc"] = str(row[3]).strip()
-                perfil["estatus"] = str(row[4]).strip()
-                perfil["porcentaje"] = float(row[5] or 0.0)
+                ORDER BY created_at DESC;
+            """, (usuario_est,))
+            rows = cur.fetchall()
+            total_folios = len(rows)
+            if total_folios > 0:
+                suma_c = 0.0
+                for fecha_dt, calif_val in rows:
+                    suma_c += float(calif_val or 0.0)
+                    if fecha_dt:
+                        iso_y, iso_w, _ = fecha_dt.isocalendar()
+                        semanas_activas.add((iso_y, iso_w))
+                prom_global = round(suma_c / total_folios, 1)
     except Exception:
         pass
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-    return perfil
+
+    hoy = datetime.now().date()
+    hoy_y, hoy_w, _ = hoy.isocalendar()
+    activo_semana = (hoy_y, hoy_w) in semanas_activas
+
+    racha = 0
+    cursor_d = hoy if activo_semana else (hoy - timedelta(days=7))
+    while True:
+        cy, cw, _ = cursor_d.isocalendar()
+        if (cy, cw) in semanas_activas:
+            racha += 1
+            cursor_d -= timedelta(days=7)
+        else:
+            break
+
+    if total_folios >= 15 and prom_global >= 90.0:
+        cat_lbl = "🥇 Categoría Oro"
+    elif total_folios >= 6 and prom_global >= 80.0:
+        cat_lbl = "🥈 Categoría Plata"
+    else:
+        cat_lbl = "🥉 Categoría Bronce"
+
+    return {
+        "total_folios": total_folios,
+        "promedio": prom_global,
+        "racha_semanas": racha,
+        "activo_esta_semana": activo_semana,
+        "categoria_label": cat_lbl
+    }
 
 
 # ==============================================================================
-# portal_afiliado.py — PARTE 2 DE 2 (FINAL): PANEL FINANCIERO Y MODO STANDALONE
+# 1. LOGIN EXCLUSIVO DE SOCIOS AFILIADOS
 # ==============================================================================
-def render_portal_socio_afiliado(usuario_afiliado: str):
-    """Renderiza el Portal del Socio Afiliado con QR oficial, métricas, alumnos y comisiones."""
-    perfil = _cargar_perfil_afiliado(usuario_afiliado)
-    aff_id_oficial = perfil["affiliate_id"]
-    aff_login = perfil["usuario_login"]
-    aff_nombre = perfil["nombre_completo"]
-    url_base_ins = _obtener_url_inscripcion_vigente()
-    url_qr_referido = f"{url_base_ins}/?ref_aff={urllib.parse.quote(aff_id_oficial)}"
+if "aff_portal_auth" not in st.session_state:
+    st.session_state["aff_portal_auth"] = False
+    st.session_state["aff_portal_user"] = ""
+    st.session_state["aff_portal_role"] = ""
 
-    buf_qr = io.BytesIO()
-    qrcode.make(url_qr_referido).save(buf_qr, format="PNG")
-    qr_bytes = buf_qr.getvalue()
-    zoom_key = f"portal_standalone_qr_zoom_{aff_id_oficial}"
-
-    # MODO PROYECCIÓN CENTRAL EN ZOOM (OCULTA TODA LA VENTANA AL DOBLE CLIC)
-    if st.session_state.get(zoom_key, False):
+if not st.session_state["aff_portal_auth"]:
+    b64_l, mime_l = _get_logo_b64()
+    if b64_l:
         st.markdown(
-            "<div style='text-align:center; padding-top:10px;'>"
-            "<h2>📲 Escanea para Inscribirte en Career English Institute (CEI)</h2>"
-            "</div>",
+            f'<div style="text-align:center;"><img src="data:{mime_l};base64,{b64_l}" style="width:105px;border-radius:20px;"></div>',
             unsafe_allow_html=True
         )
-        _, col_ctr, _ = st.columns([1.0, 1.4, 1.0])
-        with col_ctr:
-            st.image(qr_bytes, width=420)
-            st.info(
-                f"🤝 **Socio Afiliado Anfitrión:** {aff_nombre}\n\n"
-                f"🆔 **ID Oficial Ligado al QR:** `{aff_id_oficial}`\n\n"
-                f"🔗 `{url_qr_referido}`"
-            )
-            if st.button("✖️ CERRAR QR", type="primary", width="stretch", key=f"btn_close_fs_{aff_id_oficial}"):
-                st.session_state[zoom_key] = False
-                st.rerun()
-        st.stop()
+    st.markdown("<h4 style='text-align:center;margin-bottom:0;'>🏛️ CAREER ENGLISH INSTITUTE</h4>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;color:#0b2545;margin-top:4px;'>🤝 PORTAL DE SOCIOS AFILIADOS</h2>", unsafe_allow_html=True)
+    st.divider()
 
-    # FICHA FISCAL Y DE COMISIÓN VIGENTE
-    st.info(
-        f"🤝 **Socio Afiliado:** {aff_nombre}  |  🆔 **ID Oficial:** `{aff_id_oficial}`  |  "
-        f"🧾 **RFC:** `{perfil['rfc'] or 'Pendiente'}`  |  💼 **Comisión Asignada:** **`{perfil['porcentaje']:.1f}%`**\n\n"
-        "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) de honorarios/comisiones dentro de los primeros 5 días hábiles del mes siguiente.*"
-    )
-
-    # TARJETA DE CÓDIGO QR OFICIAL PARA INVITAR ESTUDIANTES
-    with st.container(border=True):
-        c_q1, c_q2 = st.columns([1.1, 2.4])
-        with c_q1:
-            qr_b64 = base64.b64encode(qr_bytes).decode("ascii")
-            if st.button("🖥️ Ampliar QR", key=f"btn_trig_dbl_{aff_id_oficial}", width="stretch"):
-                st.session_state[zoom_key] = True
-                st.rerun()
-
-            components.html(
-                f"""
-                <div style="text-align:center;font-family:sans-serif;cursor:pointer;"
-                     ondblclick="
-                       const btns = window.parent.document.querySelectorAll('button');
-                       for (const b of btns) {{
-                         if (b.innerText && b.innerText.includes('Ampliar QR')) {{
-                           b.click();
-                           break;
-                         }}
-                       }}
-                     "
-                     title="Haz doble clic sobre el QR para abrirlo en el centro">
-                  <img src="data:image/png;base64,{qr_b64}" style="width:155px;height:155px;border-radius:10px;border:2px solid #0284c7;" />
-                  <div style="font-size:11px;color:#0284c7;font-weight:bold;margin-top:4px;">🖱️ Doble clic en el QR para proyectar</div>
-                </div>
-                """,
-                height=190
-            )
-        with c_q2:
-            st.markdown("#### 📲 Tu Código QR Oficial de Inscripción de Alumnos")
-            st.caption(
-                "Muestra este código QR en tus **reuniones de Zoom** o descárgalo para enviarlo por WhatsApp. "
-                "Al escanearlo, el formulario mostrará automáticamente tu **ID Oficial (`" + aff_id_oficial + "`)**."
-            )
-            st.code(url_qr_referido, language=None)
-            b1, b2 = st.columns(2)
-            with b1:
-                st.download_button(
-                    "⬇️ Descargar QR Inscripción (PNG)",
-                    data=qr_bytes,
-                    file_name=f"QR_Inscripcion_CEI_{aff_id_oficial}.png",
-                    mime="image/png",
-                    type="primary",
-                    width="stretch",
-                    key=f"btn_dl_qr_{aff_id_oficial}"
-                )
-            with b2:
-                if st.button("🖥️ Proyectar QR en Centro", type="secondary", width="stretch", key=f"btn_open_fs_{aff_id_oficial}"):
-                    st.session_state[zoom_key] = True
+    with st.form("form_login_portal_socios"):
+        u_in = st.text_input("👤 Usuario de Socio Afiliado:")
+        p_in = st.text_input("🔑 Clave de Acceso:", type="password")
+        if st.form_submit_button("Ingresar a mi Portal", type="primary", width="stretch"):
+            if not u_in.strip() or not p_in.strip():
+                st.warning("⚠️ Ingresa tu usuario y clave de acceso.")
+            else:
+                m_u = _find_secret("OWNER_MASTER_USER")
+                m_k = _find_secret("OWNER_MASTER_KEY")
+                if m_u and m_k and u_in.strip().lower() == m_u.lower() and hmac.compare_digest(m_k, p_in.strip()):
+                    st.session_state["aff_portal_auth"] = True
+                    st.session_state["aff_portal_user"] = m_u
+                    st.session_state["aff_portal_role"] = "Propietario"
                     st.rerun()
 
-    # CONSULTA DE ESTUDIANTES REFERIDOS Y COMISIONES EN POSTGRESQL
-    conn = _get_conn_portal()
-    estudiantes_rows = []
-    comisiones_rows = []
-    if conn:
-        try:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT COALESCE(matricula, ''), usuario, COALESCE(nivel, 'A1'),
-                           COALESCE(estatus, 'Activo'), COALESCE(fecha_inscripcion::text, '')
-                    FROM users_padron
-                    WHERE LOWER(TRIM(COALESCE(socio_afiliado, ''))) IN (LOWER(TRIM(%s)), LOWER(TRIM(%s)))
-                    ORDER BY id DESC;
-                """, (aff_login, aff_id_oficial))
-                estudiantes_rows = cur.fetchall()
-
-                cur.execute("""
-                    SELECT COALESCE(student_user, ''), COALESCE(monto_base, 0),
-                           COALESCE(porcentaje, 0), COALESCE(monto_comision, 0),
-                           COALESCE(estatus_pago, 'Pendiente'), COALESCE(fecha_registro::text, '')
-                    FROM affiliate_commissions
-                    WHERE LOWER(TRIM(COALESCE(affiliate_user, ''))) IN (LOWER(TRIM(%s)), LOWER(TRIM(%s)))
-                    ORDER BY id DESC;
-                """, (aff_login, aff_id_oficial))
-                comisiones_rows = cur.fetchall()
-        except Exception:
-            pass
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
-
-    total_ganado = sum(float(r[3] or 0.0) for r in comisiones_rows)
-    total_pagado = sum(float(r[3] or 0.0) for r in comisiones_rows if str(r[4]).strip().lower() == "pagado")
-    total_pendiente = max(0.0, total_ganado - total_pagado)
-
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("🎓 Alumnos Referidos", f"{len(estudiantes_rows)}")
-    m2.metric("💰 Total Comisiones", f"${total_ganado:,.2f} MXN")
-    m3.metric("⏳ Pendiente de Cobro", f"${total_pendiente:,.2f} MXN")
-    m4.metric("✅ Ya Liquidado", f"${total_pagado:,.2f} MXN")
-
-    if estudiantes_rows:
-        st.markdown("##### 🎓 Estudiantes Inscritos con tu Código / QR")
-        df_est = pd.DataFrame(
-            estudiantes_rows,
-            columns=["Matrícula", "Estudiante", "Nivel CEFR", "Estatus", "Fecha Inscripción"]
-        )
-        st.dataframe(df_est, width="stretch", hide_index=True)
-
-    if comisiones_rows:
-        st.markdown("##### 💵 Detalle de Comisiones Generadas")
-        df_com = pd.DataFrame(
-            comisiones_rows,
-            columns=["Estudiante", "Monto Base ($)", "% Comisión", "Comisión ($ MXN)", "Estatus Pago", "Fecha"]
-        )
-        st.dataframe(df_com, width="stretch", hide_index=True)
-
-
+                conn_l = _open_pg_conn()
+                if not conn_l:
+                    st.error("❌ Sin conexión temporal con la base de datos institucional.")
+                else:
+                    try:
+                        with conn_l.cursor() as cur:
+                            cur.execute("""
+                                SELECT usuario, clave_hash, rol, estatus
+                                FROM users_padron
+                                WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s))
+                                LIMIT 1;
+                            """, (u_in.strip(),))
+                            r_u = cur.fetchone()
+                            if r_u:
+                                usr_db, clv_db, rol_db, est_db = [str(x or "").strip() for x in r_u]
+                                if hmac.compare_digest(clv_db, p_in.strip()):
+                                    if est_db.lower() != "activo":
+                                        st.error("⛔ Tu cuenta se encuentra Inactiva.")
+                                    elif rol_db.lower() not in ["socio afiliado", "afiliado", "socio", "partner", "propietario", "owner", "administrador", "admin"]:
+                                        st.error("⛔ Este portal es exclusivo para Socios Afiliados.")
+                                    else:
+                                        st.session_state["aff_portal_auth"] = True
+                                        st.session_state["aff_portal_user"] = usr_db
+                                        st.session_state["aff_portal_role"] = rol_db
+                                        st.rerun()
+                                else:
+                                    st.error("🚨 Usuario o clave incorrectos.")
+                            else:
+                                st.error("🚨 Usuario o clave incorrectos.")
+                    finally:
+                        conn_l.close()
+    st.stop()
 # ==============================================================================
-# portal_afiliado.py — PARTE 3 DE 3 (FINAL): MODO INDEPENDIENTE (STANDALONE)
+# 2. CABECERA INSTITUCIONAL Y PORTAL DE SOCIO AFILIADO (BLOQUE 2A DE 2)
 # ==============================================================================
-if __name__ == "__main__":
-    st.set_page_config(page_title="Portal Socio Afiliado — CEI", page_icon="🤝", layout="wide")
+u_actual = st.session_state["aff_portal_user"]
+rol_actual = st.session_state["aff_portal_role"]
+es_admin_view = rol_actual.lower() in ["propietario", "owner", "administrador", "admin"]
 
-    if "aff_logged_user" not in st.session_state:
-        st.session_state.aff_logged_user = ""
+c_h1, c_h2, c_h3 = st.columns([0.9, 4.2, 1.1])
+with c_h1:
+    b64_h, mime_h = _get_logo_b64()
+    if b64_h:
+        st.markdown(f'<img src="data:{mime_h};base64,{b64_h}" style="width:88px;border-radius:16px;">', unsafe_allow_html=True)
+with c_h2:
+    st.markdown("#### 🏛️ CAREER ENGLISH INSTITUTE — RED DE SOCIOS AFILIADOS")
+    st.title("🤝 Portal Oficial de Socio Afiliado")
+    st.caption(f"👤 Sesión Activa: **{u_actual}** • 🏷️ Rol: **{rol_actual}**")
+with c_h3:
+    if st.button("🚪 Salir", type="secondary", width="stretch"):
+        st.session_state["aff_portal_auth"] = False
+        st.session_state["aff_portal_user"] = ""
+        st.rerun()
 
-    if not st.session_state.aff_logged_user:
-        col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
-        with col_l2:
-            st.markdown("## 🤝 Career English Institute")
-            st.markdown("#### 🔐 Acceso Exclusivo — Portal de Socios Afiliados")
-            st.caption("Ingresa con tu usuario y contraseña asignados por la administración.")
+st.divider()
 
-            with st.form("login_aff_standalone", clear_on_submit=False):
-                u_in = st.text_input("👤 Usuario de Afiliado:", placeholder="Ej. Carlos Mendoza")
-                p_in = st.text_input("🔑 Contraseña:", type="password", placeholder="••••••••")
-                entrar = st.form_submit_button("Ingresar al Portal", type="primary", width="stretch")
+conn = _open_pg_conn()
+if not conn:
+    st.error("❌ Sin conexión con la base de datos institucional.")
+    st.stop()
 
-                if entrar:
-                    if not u_in.strip() or not p_in.strip():
-                        st.warning("⚠️ Ingresa tu usuario y contraseña.")
-                    else:
-                        conn_l = _get_conn_portal()
-                        if not conn_l:
-                            st.error("❌ Sin conexión con la base de datos institucional.")
-                        else:
-                            try:
-                                p_sha = hashlib.sha256(p_in.strip().encode("utf-8")).hexdigest()
-                                with conn_l:
-                                    with conn_l.cursor() as cur:
-                                        cur.execute("""
-                                            SELECT usuario FROM users_padron
-                                            WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s))
-                                              AND (clave_hash = %s OR clave_hash = %s)
-                                              AND LOWER(TRIM(rol)) IN ('socio afiliado', 'afiliado', 'affiliate')
-                                              AND LOWER(TRIM(estatus)) = 'activo'
-                                            LIMIT 1;
-                                        """, (u_in, p_in.strip(), p_sha))
-                                        row_u = cur.fetchone()
-                                        if row_u:
-                                            st.session_state.aff_logged_user = next(iter(row_u), u_in.strip())
-                                            st.rerun()
-                                        else:
-                                            st.error("❌ Credenciales incorrectas o cuenta de Socio Afiliado inactiva.")
-                            except Exception as e_log:
-                                st.error(f"Error al validar acceso: {e_log}")
-                            finally:
-                                try:
-                                    conn_l.close()
-                                except Exception:
-                                    pass
-    else:
-        col_top1, col_top2 = st.columns([5, 1])
-        with col_top1:
-            st.caption(f"Sesión activa: **{st.session_state.aff_logged_user}** | Portal de Socios Afiliados CEI")
-        with col_top2:
-            if st.button("🚪 Cerrar Sesión", width="stretch"):
-                st.session_state.aff_logged_user = ""
-                st.rerun()
+try:
+    aff_objetivo = u_actual
+    if es_admin_view:
+        with conn.cursor() as cur:
+            cur.execute("SELECT usuario_login FROM affiliate_partners ORDER BY nombre ASC;")
+            lista_s = [str(row_s[0]).strip() for row_s in cur.fetchall() if row_s and row_s[0]]
+        if lista_s:
+            aff_objetivo = st.selectbox("Seleccionar Socio Afiliado a visualizar:", lista_s)
 
-        render_portal_socio_afiliado(st.session_state.aff_logged_user)
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
+                   COALESCE(rfc, ''), COALESCE(telefono, ''), COALESCE(email, ''),
+                   COALESCE(domicilio, ''), COALESCE(estatus, 'Activo'),
+                   COALESCE(porcentaje_default, 0.0), terminos_aceptados_at
+            FROM affiliate_partners
+            WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
+            LIMIT 1;
+        """, (aff_objetivo,))
+        s_dat = cur.fetchone()
+
+    if not s_dat:
+        st.warning("ℹ️ No se encontró expediente de Socio Afiliado para este usuario.")
+        st.stop()
+
+    (
+        aff_id_v, _aff_usr_v, aff_nom_v, aff_pat_v, aff_mat_v,
+        aff_rfc_v, aff_tel_v, aff_mail_v, aff_dom_v,
+        aff_est_v, aff_pct_v, _aff_terms_v
+    ) = (list(s_dat) + ["", "", "", "", "", "", "", "", "", "Activo", 0.0, None])[:12]
+
+    st.info(
+        f"🆔 **ID Afiliado:** `{aff_id_v}`  |  👤 **Titular:** **{aff_nom_v} {aff_pat_v} {aff_mat_v or ''}**\n\n"
+        f"🧾 **RFC:** `{aff_rfc_v or 'No registrado'}`  |  📞 **Tel:** `{aff_tel_v or '—'}`  |  ✉️ **Email:** `{aff_mail_v or '—'}`\n\n"
+        f"📍 **Domicilio:** {aff_dom_v or 'No registrado'}\n\n"
+        f"💼 **Comisión Asignada:** **`{float(aff_pct_v or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{aff_est_v}`\n\n"
+        "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) vigente para cobro de comisiones.*"
+    )
+
+    url_ins_base = str(_find_secret("STUDENT_REG_URL") or ("https://" + "inscripcioncei.streamlit.app")).strip().rstrip("/")
+    sep_q = "&" if "?" in url_ins_base else "?"
+    url_qr_alumnos = f"{url_ins_base}{sep_q}ref_aff={urllib.parse.quote(str(aff_id_v).strip())}"
+    url_qr_app = str(
+        _find_secret("APP_INSTALL_QR_URL")
+        or ("https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/")
+    ).strip()
+
+    buf_q1 = io.BytesIO()
+    qrcode.make(url_qr_alumnos).save(buf_q1, format="PNG")
+    buf_q2 = io.BytesIO()
+    qrcode.make(url_qr_app).save(buf_q2, format="PNG")
+
+    c_qr_left, c_qr_right = st.columns(2)
+    with c_qr_left:
+        with st.container(border=True):
+            st.markdown("##### 📲 Tu QR Oficial de Inscripción de Alumnos")
+            st.caption(f"Ligado automáticamente a tu ID **`{aff_id_v}`** para acreditar tus comisiones.")
+            st.image(buf_q1.getvalue(), width=175)
+            st.code(url_qr_alumnos, language="text")
+            st.download_button(
+                "⬇️ Descargar QR Inscripción (PNG)",
+                data=buf_q1.getvalue(),
+                file_name=f"QR_Inscripcion_{aff_id_v}.png",
+                mime="image/png",
+                width="stretch"
+            )
+    with c_qr_right:
+        with st.container(border=True):
+            st.markdown("##### 📱 QR Oficial de Descarga de App Estudiantes")
+            st.caption("Compártelo con tus alumnos inscritos para instalar la App CEI en su celular o Mac.")
+            st.image(buf_q2.getvalue(), width=175)
+            st.code(url_qr_app, language="text")
+            st.download_button(
+                "⬇️ Descargar QR App CEI (PNG)",
+                data=buf_q2.getvalue(),
+                file_name="QR_Instalar_App_CEI.png",
+                mime="image/png",
+                width="stretch"
+            )
+    # ==========================================================================
+    # BLOQUE 2B DE 2 (FINAL): ALUMNOS INSCRITOS, RACHAS ORO, PAGOS Y WHATSAPP
+    # ==========================================================================
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT usuario, COALESCE(nombre_completo, usuario), COALESCE(matricula, ''),
+                   COALESCE(nivel, 'B1'), COALESCE(telefono, '')
+            FROM users_padron
+            WHERE LOWER(TRIM(rol)) IN ('estudiante', 'student', 'alumno')
+              AND LOWER(TRIM(COALESCE(socio_afiliado, ''))) IN (LOWER(TRIM(%s)), LOWER(TRIM(%s)))
+            ORDER BY id DESC;
+        """, (aff_objetivo, aff_id_v))
+        referidos = cur.fetchall()
+
+    pagos_map = {}
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT LOWER(TRIM(usuario_estudiante)),
+                       COUNT(*) FILTER (WHERE LOWER(COALESCE(estatus, 'pagado')) IN ('pagado', 'completado', 'activo')),
+                       COALESCE(SUM(monto_total) FILTER (WHERE LOWER(COALESCE(estatus, 'pagado')) IN ('pagado', 'completado', 'activo')), 0.0),
+                       MAX(fecha_pago)
+                FROM student_payments
+                GROUP BY LOWER(TRIM(usuario_estudiante));
+            """)
+            for u_pay, cnt_bloq, sum_monto, max_f in cur.fetchall():
+                pagos_map[str(u_pay)] = {
+                    "bloques": int(cnt_bloq or 0),
+                    "monto": float(sum_monto or 0.0),
+                    "ultimo": str(max_f or "")[:10]
+                }
+    except Exception:
+        pass
+
+    pct_com = float(aff_pct_v or 0.0)
+    total_recaudado = 0.0
+    gam_cache = {}
+    oro_count = 0
+
+    for est_u_raw, _nom, _mat, _niv, _tel in referidos:
+        est_key = str(est_u_raw or "").strip()
+        total_recaudado += pagos_map.get(est_key.lower(), {}).get("monto", 0.0)
+        g_e = _calcular_racha_y_categoria(est_key, conn)
+        gam_cache[est_key] = g_e
+        if "oro" in g_e["categoria_label"].lower():
+            oro_count += 1
+
+    comision_total = round(total_recaudado * (pct_com / 100.0), 2)
+
+    st.divider()
+    k1, k2 = st.columns(2)
+    k1.metric("🎓 Alumnos Inscritos", f"{len(referidos)}")
+    k2.metric("🥇 En Categoría Oro", f"{oro_count} / {len(referidos)}")
+    k3, k4 = st.columns(2)
+    k3.metric("💼 Tasa Comisión", f"{pct_com:.1f}%")
+    k4.metric("💰 Comisión Generada", f"${comision_total:,.2f}")
+
+    with st.container(border=True):
+        st.markdown("##### 🔥 Seguimiento 200%: Rachas Oro, Pagos (9 Bloques) y WhatsApp Directo")
+        if not referidos:
+            st.info("ℹ️ Aún no tienes estudiantes inscritos con tu Código QR oficial.")
+        else:
+            app_pub = str(_find_secret("PUBLIC_APP_URL") or ("https://" + "myceigrammarly.streamlit.app")).strip()
+            for r_est in referidos:
+                est_u, est_nom, est_mat, est_niv, est_tel = [str(x or "").strip() for x in r_est]
+                g_est = gam_cache[est_u]
+                p_est = pagos_map.get(est_u.lower(), {"bloques": 0, "monto": 0.0, "ultimo": ""})
+                bloq = min(9, p_est["bloques"])
+                com_ind = round(p_est["monto"] * (pct_com / 100.0), 2)
+
+                semaforo = (
+                    "🏆 Liquidado (9/9)" if bloq >= 9
+                    else (f"🟢 Al Corriente ({bloq}/9)" if bloq >= 1 else "🟡 Pendiente 1er Bloque (0/9)")
+                )
+
+                digs = "".join(c for c in est_tel if c.isdigit())
+                if len(digs) == 10:
+                    digs = f"52{digs}"
+
+                msg_mot = (
+                    f"¡Hola {est_nom}! 👋 Te saluda tu asesor de *Career English Institute (CEI)*. "
+                    f"¡Excelente avance! Llevas *{g_est['racha_semanas']} semana(s)* de racha, *{g_est['total_folios']} lecciones* "
+                    f"y estás en *{g_est['categoria_label']}*. ¡Sigue practicando esta semana para alcanzar la *Categoría Oro*! 🚀 {app_pub}"
+                )
+                msg_pag = (
+                    f"¡Hola {est_nom}! 👋 Te saluda tu asesor de *Career English Institute (CEI)*. "
+                    f"Vas en *{bloq}/9 bloques* y categoría *{g_est['categoria_label']}*. "
+                    f"Recuerda mantener al corriente tu siguiente bloque para conservar tus beneficios y seguir sumando hacia *Oro*. {app_pub}"
+                )
+                wa_mot = f"https://wa.me{digs}?text={urllib.parse.quote(msg_mot)}" if digs else f"https://wa.me?text={urllib.parse.quote(msg_mot)}"
+                wa_pag = f"https://wa.me{digs}?text={urllib.parse.quote(msg_pag)}" if digs else f"https://wa.me?text={urllib.parse.quote(msg_pag)}"
+
+                with st.container(border=True):
+                    st.markdown(
+                        f"**🎓 {est_nom}** (`{est_u}`)"
+                        + (f" • 🆔 `{est_mat}`" if est_mat else "")
+                        + f" • Nivel **{est_niv}**"
+                    )
+                    fuego_txt = "🔥 Activa" if g_est["activo_esta_semana"] else "⏳ Pendiente"
+                    st.markdown(
+                        f"🏅 **{g_est['categoria_label']}** | 🔥 Racha: **{g_est['racha_semanas']} sem.** ({fuego_txt}) | "
+                        f"📚 Folios: **{g_est['total_folios']}**\n\n"
+                        f"💳 **Pagos:** {semaforo} | 💰 **Comisión generada:** **`${com_ind:,.2f}`**"
+                        + (f" *(Último pago: `{p_est['ultimo']}`)*" if p_est["ultimo"] else "")
+                    )
+                    cb1, cb2 = st.columns(2)
+                    with cb1:
+                        st.link_button("🔥 Motivar Meta Oro (WhatsApp)", url=wa_mot, width="stretch")
+                    with cb2:
+                        st.link_button("💳 Seguimiento Pago (WhatsApp)", url=wa_pag, width="stretch")
+finally:
+    conn.close()
