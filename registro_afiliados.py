@@ -385,15 +385,59 @@ def render_formulario_registro_afiliado(
     if st.session_state.get(state_submitted_key, False):
         id_asignado = st.session_state.get(state_id_key, "AFIL-CEI")
         nom_asignado = st.session_state.get(state_name_key, "Socio Afiliado")
+        url_app_socios = str(
+            _find_secret("AFFILIATE_APP_INSTALL_URL")
+            or "https://github.io"
+        ).strip()
+        url_portal_directo = str(
+            _find_secret("AFFILIATE_PORTAL_URL")
+            or "https://ceiafiliados.streamlit.app"
+        ).strip()
+
+        buf_q_bienv = io.BytesIO()
+        qrcode.make(url_app_socios).save(buf_q_bienv, format="PNG")
+        qr_bienv_bytes = buf_q_bienv.getvalue()
+
         st.balloons()
-        st.success(f"🎉 **¡Felicitaciones, {nom_asignado}! Tu Registro Oficial se completó con éxito.**")
-        st.info(f"• **🆔 ID Oficial Asignado:** `{id_asignado}`\n• **🔒 Estado:** **Formulario cerrado e inhabilitado**.")
+        st.success(f"🎉 **¡Bienvenido(a) oficialmente a Career English Institute, {nom_asignado}!**")
+        st.info(
+            f"• **🆔 ID Oficial Asignado:** `{id_asignado}`\n"
+            f"• **🔒 Estado del Formulario:** **Cerrado e inhabilitado por seguridad**\n"
+            f"• **🌐 Acceso Web Directo:** [{url_portal_directo}]({url_portal_directo})"
+        )
+
+        with st.container(border=True):
+            st.markdown("#### 📲 Instala tu App Oficial del Portal de Socios Afiliados CEI")
+            st.caption(
+                "Escanea o guarda este Código QR para instalar la App del Portal de Asociados con el escudo oficial de CEI "
+                "en tu celular (iPhone / Android) o computadora (Mac / Windows)."
+            )
+            c_b1, c_b2 = st.columns([1.2, 2.0])
+            with c_b1:
+                st.image(qr_bienv_bytes, width=180, caption="QR App Portal Socios")
+            with c_b2:
+                st.link_button(
+                    "📲 Abrir e Instalar App Portal Socios",
+                    url=url_app_socios,
+                    type="primary",
+                    width="stretch"
+                )
+                st.download_button(
+                    "⬇️ Descargar QR de mi Portal (PNG)",
+                    data=qr_bienv_bytes,
+                    file_name=f"QR_App_Portal_Socio_{id_asignado}.png",
+                    mime="image/png",
+                    width="stretch",
+                    key=f"{key_prefix}_dl_qr_bienvenida"
+                )
+
         if tiempo_inicio_escaneo is not None:
-            st.caption("✅ Ya puedes cerrar esta ventana.")
+            st.caption("✅ Guarda tu QR o instala tu app ahora. Ya puedes cerrar esta ventana de registro.")
         elif st.button("➕ Habilitar Nuevo Registro", key=f"{key_prefix}_reset_admin"):
             st.session_state[state_submitted_key] = False
             st.rerun()
         return
+
 # ==============================================================================
 # registro_afiliados.py — PARTE 3A: CAMPOS DEL FORMULARIO, RFC Y TÉRMINOS
 # ==============================================================================
