@@ -1968,8 +1968,13 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     fecha_gen = timbre["fecha_generacion"]
     sello_hmac = timbre["sello_hmac"]
 
-    app_base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
-    verify_url = f"{app_base_url}/?verify_transcript={urllib.parse.quote(folio_bol)}" if app_base_url else f"/?verify_transcript={urllib.parse.quote(folio_bol)}"
+    app_base_url = str(
+        st.secrets.get("PUBLIC_APP_URL")
+        or st.secrets.get("APP_PUBLIC_URL")
+        or st.secrets.get("APP_BASE_URL")
+        or "https://streamlit.app"
+    ).strip().rstrip("/")
+    verify_url = f"{app_base_url}/?verify_transcript={urllib.parse.quote(folio_bol)}"
 
     qr_buf = io.BytesIO()
     qrcode.make(verify_url).save(qr_buf, format="PNG")
@@ -1984,9 +1989,12 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
             logo_src = None
     if logo_src is None:
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
-        if os.path.exists(local_logo):
-            logo_src = local_logo
+        for rel_p in ["LOGO CEI APP.png", os.path.join("static", "LOGO CEI APP.png")]:
+            cand_logo = os.path.join(base_dir, rel_p)
+            if os.path.exists(cand_logo):
+                logo_src = cand_logo
+                break
+
 
     addr_doc = st.session_state.get("institute_address") or DEFAULT_ADDRESS
 
@@ -5982,11 +5990,21 @@ def _obtener_id_oficial_afiliado(usuario_o_id: str) -> tuple[str, str]:
 
 def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str = "qr_ins"):
     """Muestra el QR de Inscripción de Alumnos ligado por defecto al ID oficial del Socio Afiliado."""
-    url_ins_base = get_student_inscription_url_pg()
+    url_ins_secret = str(st.secrets.get("STUDENT_REG_URL", "")).strip().rstrip("/")
+    url_ins_db = str(get_student_inscription_url_pg() or "").strip().rstrip("/")
+    if url_ins_secret:
+        url_ins_base = url_ins_secret
+    elif url_ins_db and "streamlit.app" in url_ins_db and url_ins_db != "https://streamlit.app":
+        url_ins_base = url_ins_db
+    else:
+        url_ins_base = "https://streamlit.app"
+
     ref_raw = str(afiliado_ref or "").strip()
     aff_id_oficial, aff_nombre_completo = _obtener_id_oficial_afiliado(ref_raw) if ref_raw else ("", "")
 
-    url_qr_final = f"{url_ins_base}/?ref_aff={urllib.parse.quote(aff_id_oficial)}" if aff_id_oficial else url_ins_base
+    sep_q = "&" if "?" in url_ins_base else "?"
+    url_qr_final = f"{url_ins_base}{sep_q}ref_aff={urllib.parse.quote(aff_id_oficial)}" if aff_id_oficial else url_ins_base
+
 
     buf_qr = io.BytesIO()
     qrcode.make(url_qr_final).save(buf_qr, format="PNG")
@@ -6205,9 +6223,11 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
         if puede_ver_qr_hdr and mostrar_qr_ahora:
             st.divider()
             base_url = str(
-                st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")
+                st.secrets.get("PUBLIC_APP_URL", "https://myceigrammarly.streamlit.app")
             ).strip().rstrip("/")
-            url_install_app = f"{base_url}/?install=1"
+            url_install_app = str(
+                st.secrets.get("APP_INSTALL_QR_URL") or f"{base_url}/?install=1"
+            ).strip()
             buf_qh = io.BytesIO()
             qrcode.make(url_install_app).save(buf_qh, format="PNG")
             qa_bytes = buf_qh.getvalue()
@@ -7848,10 +7868,13 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             st.success(f"✅ Sesión vinculada al plantel **{cid_hub}**.")
 
                     with c_hq2:
-                        base_app_url = str(
-                            st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")
+                        base_ins_campus = str(
+                            st.secrets.get("STUDENT_REG_URL")
+                            or st.secrets.get("PUBLIC_APP_URL")
+                            or "https://inscripcioncei.streamlit.app"
                         ).strip().rstrip("/")
-                        url_qr_campus = f"{base_app_url}/?campus={urllib.parse.quote(cid_hub)}"
+                        sep_c = "&" if "?" in base_ins_campus else "?"
+                        url_qr_campus = f"{base_ins_campus}{sep_c}campus={urllib.parse.quote(cid_hub)}"
                         buf_qc = io.BytesIO()
                         qrcode.make(url_qr_campus).save(buf_qc, format="PNG")
                         st.image(buf_qc.getvalue(), caption=f"QR Inscripción {cid_hub}", width=150)
@@ -7863,6 +7886,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             width="stretch",
                             key=f"btn_dl_qr_campus_{cid_hub}"
                         )
+
 
         # 14.4D PESTAÑA AUDITORÍA ACADÉMICA: VER LECCIONES CREADAS POR USUARIO, MATRÍCULA O NIVEL
         if seccion_inst_sel == "📚 Ver Lecciones Creadas":
@@ -8501,7 +8525,11 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
         # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2 — CON QR OFICIAL LIGADO AL ID Y QR APP)
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
-            url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
+            url_portal_aff = str(
+                st.secrets.get("AFFILIATE_PORTAL_URL")
+                or st.secrets.get("PUBLIC_APP_URL")
+                or "https://streamlit.app"
+            ).strip().rstrip("/")
             aff_objetivo_portal = st.session_state.current_user
 
             if is_owner or puede_gestionar_afiliados:
@@ -8519,18 +8547,23 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         aff_objetivo_portal = None
                         st.info("Aún no hay Socios Afiliados registrados.")
                 with col_p_qr:
-                    if url_portal_aff:
-                        buf_qp = io.BytesIO()
-                        qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
-                        st.image(buf_qp.getvalue(), caption="📲 QR Portal Afiliados", width=120)
-                        st.download_button(
-                            "⬇️ Descargar QR Portal",
-                            data=buf_qp.getvalue(),
-                            file_name="QR_Portal_Afiliados_CEI.png",
-                            mime="image/png",
-                            width="stretch",
-                            key="btn_dl_qrportal_main"
-                        )
+                    url_portal_aff = str(
+                        st.secrets.get("AFFILIATE_REG_URL")
+                        or st.secrets.get("AFFILIATE_PORTAL_URL")
+                        or "https://streamlit.app"
+                    ).strip().rstrip("/")
+                    buf_qp = io.BytesIO()
+                    qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
+                    st.image(buf_qp.getvalue(), caption="📲 QR Registro / Portal Afiliados", width=120)
+                    st.download_button(
+                        "⬇️ Descargar QR Afiliados",
+                        data=buf_qp.getvalue(),
+                        file_name="QR_Afiliados_CEI.png",
+                        mime="image/png",
+                        width="stretch",
+                        key="btn_dl_qrportal_main"
+                    )
+
 
             if aff_objetivo_portal:
                 _render_qr_inscripcion_alumnos_box(
@@ -8570,73 +8603,8 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         except Exception:
                             pass
 
-        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (PARTE 1 DE 2)
-        if seccion_inst_sel == "🤝 Portal Socio Afiliado":
-            url_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL", "")).strip().rstrip("/")
-            aff_objetivo_portal = st.session_state.current_user
 
-            if is_owner or puede_gestionar_afiliados:
-                padron_aff_view = load_padron_records()
-                lista_aff_view = [
-                    str(r.get("Usuario", "")).strip()
-                    for r in padron_aff_view
-                    if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]
-                ]
-                col_p_sel, col_p_qr = st.columns([2.6, 1.0])
-                with col_p_sel:
-                    if lista_aff_view:
-                        aff_objetivo_portal = st.selectbox("Portal del Socio Afiliado:", lista_aff_view, key="sel_prev_aff")
-                    else:
-                        aff_objetivo_portal = None
-                        st.info("Aún no hay Socios Afiliados registrados.")
-                with col_p_qr:
-                    if url_portal_aff:
-                        buf_qp = io.BytesIO()
-                        qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
-                        st.image(buf_qp.getvalue(), caption="📲 QR Portal Afiliados", width=120)
-                        st.download_button(
-                            "⬇️ Descargar QR Portal",
-                            data=buf_qp.getvalue(),
-                            file_name="QR_Portal_Afiliados_CEI.png",
-                            mime="image/png",
-                            width="stretch",
-                            key="btn_dl_qrportal_main"
-                        )
 
-            if aff_objetivo_portal:
-                _render_qr_inscripcion_alumnos_box(
-                    afiliado_ref=str(aff_objetivo_portal).strip(),
-                    key_prefix=f"portal_aff_{str(aff_objetivo_portal).strip().replace(' ', '_')}"
-                )
-
-                conn_pf = _open_legal_pg_conn()
-                s_dat = None
-                if conn_pf:
-                    try:
-                        with conn_pf.cursor() as cur:
-                            cur.execute("""
-                                ALTER TABLE affiliate_partners
-                                ADD COLUMN IF NOT EXISTS rfc TEXT DEFAULT '',
-                                ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
-                                ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE;
-                            """)
-                            cur.execute("""
-                                SELECT affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
-                                       COALESCE(rfc, ''), COALESCE(telefono, ''), COALESCE(email, ''),
-                                       COALESCE(domicilio, ''), COALESCE(estatus, 'Activo'),
-                                       COALESCE(porcentaje_default, 0.0), terminos_aceptados_at
-                                FROM affiliate_partners
-                                WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
-                                LIMIT 1;
-                            """, (aff_objetivo_portal,))
-                            s_dat = cur.fetchone()
-                    except Exception:
-                        pass
-                    finally:
-                        try:
-                            conn_pf.close()
-                        except Exception:
-                            pass
                 # 14.6B EDITOR DE EXPEDIENTE Y RADAR DE RACHAS SEMANALES + WHATSAPP (PARTE 2 DE 2)
                 if s_dat:
                     st.info(
