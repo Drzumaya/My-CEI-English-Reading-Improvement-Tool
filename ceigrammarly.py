@@ -5343,13 +5343,18 @@ es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afi
 solo_socio_afiliado = es_socio_afiliado and not es_admin_o_staff
 
 if solo_socio_afiliado:
-    url_portal_aff_redir = str(
-        st.secrets.get("AFFILIATE_PORTAL_URL") or "https://streamlit.app"
-    ).strip()
-    url_app_aff_redir = str(
-        st.secrets.get("AFFILIATE_APP_INSTALL_URL")
-        or "https://github.io"
-    ).strip()
+    raw_portal_aff = str(st.secrets.get("AFFILIATE_PORTAL_URL") or "").strip()
+    url_portal_aff_redir = (
+        raw_portal_aff
+        if ("ceiafiliados.streamlit.app" in raw_portal_aff or (raw_portal_aff.startswith("https://") and raw_portal_aff != "https://streamlit.app"))
+        else "https://ceiafiliados.streamlit.app"
+    )
+    raw_app_aff = str(st.secrets.get("AFFILIATE_APP_INSTALL_URL") or "").strip()
+    url_app_aff_redir = (
+        raw_app_aff
+        if ("drzumaya.github.io" in raw_app_aff or (raw_app_aff.startswith("https://") and raw_app_aff != "https://github.io"))
+        else "https://github.io"
+    )
     buf_qr_redir = io.BytesIO()
     qrcode.make(url_app_aff_redir).save(buf_qr_redir, format="PNG")
 
