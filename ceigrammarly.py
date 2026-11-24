@@ -6075,14 +6075,15 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 "🤝 Portal Socio Afiliado",
                 "📘 Guía, Plan y Categoría"
             ]
-        else:
             opciones_p_adm = [
                 "💳 Cobranza Mensual e IVA",
                 "📊 Estados Financieros",
                 "🤝 Alta de Socios Afiliados",
                 "🤝 Portal Socio Afiliado",
                 "👥 Inscripción y Padrón",
+                "📚 Ver Lecciones Creadas",
             ]
+
             if is_owner:
                 opciones_p_adm.append("🌎 Red de Franquicias")
             if is_owner or can("Editar_Permisos") or can("Gestionar_Usuarios"):
@@ -7594,6 +7595,137 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             key=f"btn_dl_qr_campus_{cid_hub}"
                         )
 
+        # 14.4D PESTAÑA AUDITORÍA ACADÉMICA: VER LECCIONES CREADAS POR USUARIO, MATRÍCULA O NIVEL
+        if seccion_inst_sel == "📚 Ver Lecciones Creadas":
+            if not (is_owner or has_faculty_access or can("Ver_Panel_Admin")):
+                st.warning("⛔ Tu perfil actual no tiene permiso para auditar el historial de lecciones.")
+            else:
+                st.markdown("#### 📚 Auditoría de Lecciones Creadas y Folios por Usuario")
+                st.caption(
+                    "Busca cualquier estudiante, docente o usuario registrado por **Nombre, Usuario, Matrícula o Nivel CEFR**, "
+                    "consulta todas sus lecciones generadas y ábrelas directamente en el visor de lectura."
+                )
+
+                if st.button("🔄 Actualizar Historial desde Supabase", key="btn_refresh_folios_admin_tab"):
+                    try:
+                        load_lessons_history_pg.clear()
+                    except Exception:
+                        pass
+                    st.rerun()
+
+                padron_aud = load_padron_records() or []
+                folios_aud = load_lessons_history_pg() or []
+
+                c_bus1, c_bus2 = st.columns([2.2, 1.2])
+                with c_bus1:
+                    q_busq_u = st.text_input(
+                        "🔍 Buscar por Nombre, Usuario o Matrícula:",
+                        placeholder="Ej: juan, CEI-2026-001, Maria...",
+                        key="txt_admin_search_lessons_user"
+                    ).strip().lower()
+                with c_bus2:
+                    niveles_filtro = ["Todos los Niveles", "A1", "A2", "B1", "B2", "C1", "C2"]
+                    sel_niv_aud = st.selectbox(
+                        "🎯 Filtrar por Nivel CEFR:",
+                        niveles_filtro,
+                        key="sb_admin_search_lessons_cefr"
+                    )
+
+                usuarios_filtrados_aud = []
+                for r_u in padron_aud:
+                    u_log = str(r_u.get("Usuario") or "").strip()
+                    if not u_log:
+                        continue
+                    nom_c = str(r_u.get("Nombre_Completo") or r_u.get("Nombre") or u_log).strip()
+                    mat_c = str(r_u.get("Matricula") or r_u.get("ID") or "").strip()
+                    rol_c = str(r_u.get("Rol") or "Estudiante").strip()
+                    niv_c = normalize_cefr(r_u.get("Nivel") or "B1")
+
+                    if sel_niv_aud != "Todos los Niveles" and niv_c != sel_niv_aud:
+                        continue
+                    if q_busq_u:
+                        blob_u = f"{u_log} {nom_c} {mat_c} {rol_c} {niv_c}".lower()
+                        if q_busq_u not in blob_u:
+                            continue
+
+                    usuarios_filtrados_aud.append({
+                        "usuario": u_log,
+                        "nombre": nom_c,
+                        "matricula": mat_c,
+                        "rol": rol_c,
+                        "nivel": niv_c,
+                        "label": f"{nom_c} (@{u_log}) • {rol_c} • Nivel {niv_c}" + (f" • Mat: {mat_c}" if mat_c else "")
+                    })
+
+                opciones_selector_aud = ["🌐 Todos los Usuarios Coincidentes"] + [u["label"] for u in usuarios_filtrados_aud]
+                sel_usuario_aud_lbl = st.selectbox(
+                    f"👤 Seleccionar Usuario ({len(usuarios_filtrados_aud)} encontrados en padrón):",
+                    opciones_selector_aud,
+                    key="sb_admin_pick_user_lessons"
+                )
+
+                folios_mostrados = []
+                if sel_usuario_aud_lbl == "🌐 Todos los Usuarios Coincidentes":
+                    set_u_validos = {u["usuario"].lower() for u in usuarios_filtrados_aud}
+                    set_n_validos = {u["nombre"].lower() for u in usuarios_filtrados_aud}
+                    for f_item in folios_aud:
+                        fu = str(f_item.get("Usuario") or "").strip().lower()
+                        fniv = normalize_cefr(f_item.get("Nivel_CEFR") or "B1")
+                        if sel_niv_aud != "Todos los Niveles" and fniv != sel_niv_aud:
+                            continue
+                        if not q_busq_u or fu in set_u_validos or fu in set_n_validos or q_busq_u in str(f_item.get("Tema") or "").lower() or q_busq_u in str(f_item.get("Folio") or "").lower():
+                            folios_mostrados.append(f_item)
+                else:
+                    u_obj_sel = next((u for u in usuarios_filtrados_aud if u["label"] == sel_usuario_aud_lbl), None)
+                    if u_obj_sel:
+                        ids_match = {u_obj_sel["usuario"].lower(), u_obj_sel["nombre"].lower()}
+                        folios_mostrados = [
+                            f_item for f_item in folios_aud
+                            if str(f_item.get("Usuario") or "").strip().lower() in ids_match
+                        ]
+
+                st.divider()
+                st.markdown(f"##### 📄 Lecciones y Folios Encontrados: `{len(folios_mostrados)}`")
+
+                if not folios_mostrados:
+                    st.info("📭 No se encontraron lecciones guardadas para los criterios seleccionados.")
+                else:
+                    df_aud_folios = pd.DataFrame([
+                        {
+                            "Folio": f.get("Folio", ""),
+                            "Usuario": f.get("Usuario", ""),
+                            "Tema": f.get("Tema", ""),
+                            "Nivel CEFR": f.get("Nivel_CEFR", ""),
+                            "Grado": f.get("Grado_Academico", ""),
+                            "Quiz": f.get("Mejor_Calificacion_PDF", "—"),
+                            "Speaking": f"{float(f.get('Speaking_Score') or 0):.1f}" if float(f.get("Speaking_Score") or -1) >= 0 else "—",
+                            "Fecha": f.get("Fecha_de_subida", "")
+                        }
+                        for f in folios_mostrados
+                    ])
+                    st.dataframe(df_aud_folios, width="stretch", hide_index=True)
+
+                    mapa_abrir_aud = {
+                        f"{f.get('Folio')} — {str(f.get('Tema') or '')[:55]} ({f.get('Usuario')})": str(f.get("Folio") or "").strip()
+                        for f in folios_mostrados if str(f.get("Folio") or "").strip()
+                    }
+                    c_op1, c_op2 = st.columns([2.8, 1.2])
+                    with c_op1:
+                        sel_f_open_lbl = st.selectbox(
+                            "Seleccionar Folio para abrir en el Panel Educativo:",
+                            list(mapa_abrir_aud.keys()),
+                            key="sb_admin_open_specific_folio"
+                        )
+                    with c_op2:
+                        st.write("")
+                        if st.button("📂 Abrir Lección en Visor", type="primary", width="stretch", key="btn_admin_open_folio_go"):
+                            f_go = mapa_abrir_aud[sel_f_open_lbl]
+                            st.session_state["current_folio"] = f_go
+                            st.session_state["generated_text"] = ""
+                            st.session_state["url_folio_checked"] = False
+                            st.session_state["active_admin_workspace"] = None
+                            st.session_state["active_stage_5"] = "READING"
+                            st.rerun()
 
 
         # 14.4B PESTAÑA AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO)
