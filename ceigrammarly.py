@@ -64,7 +64,7 @@ from modules.franchises import (
 )
 
 
-
+ 
 # --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
 st.set_page_config(
     page_title="CEI ENGLISH LEARNING PLATFORM — Career English Institute",
