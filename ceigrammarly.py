@@ -897,32 +897,47 @@ def _extract_numeric_score(score_str: str) -> float:
 
 
 def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
+    u_clean = str(usuario_name or "").strip()
     with pg_session() as cur:
-        cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (usuario_name.strip(),))
+        cur.execute("""
+            ALTER TABLE lessons_folios
+            ADD COLUMN IF NOT EXISTS usuario TEXT DEFAULT '';
+        """)
+        cur.execute("SELECT id FROM users_padron WHERE LOWER(TRIM(usuario)) = LOWER(TRIM(%s)) LIMIT 1;", (u_clean,))
         u_row = cur.fetchone()
-        uid = int(u_row) if u_row else None
-        if uid is None:
+        if isinstance(u_row, dict):
+            uid = int(u_row["id"])
+        elif isinstance(u_row, (tuple, list)) and len(u_row) > 0:
+            uid = int(u_row)
+        else:
+            uid = None
+
+        if uid is None and u_clean:
             cur.execute("""
                 INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus)
                 VALUES (%s, 'AUTO_SESSION', 'Estudiante', 'Basico', 'Activo')
                 RETURNING id;
-            """, (usuario_name.strip(),))
+            """, (u_clean,))
             new_u = cur.fetchone()
-            uid = int(new_u) if new_u else None
+            if isinstance(new_u, dict):
+                uid = int(new_u["id"])
+            elif isinstance(new_u, (tuple, list)) and len(new_u) > 0:
+                uid = int(new_u)
 
         cur.execute("""
-            INSERT INTO lessons_folios (folio, user_id, tema, cefr_level, academic_grade, lesson_text, pdf_link)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO lessons_folios (folio, user_id, usuario, tema, cefr_level, academic_grade, lesson_text, pdf_link)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (folio) DO UPDATE SET
+                user_id = COALESCE(EXCLUDED.user_id, lessons_folios.user_id),
+                usuario = EXCLUDED.usuario,
                 lesson_text = EXCLUDED.lesson_text,
                 pdf_link = EXCLUDED.pdf_link,
                 updated_at = NOW();
-        """, (folio.strip().upper(), uid, tema, cefr, grado, texto, pdf_link))
+        """, (folio.strip().upper(), uid, u_clean, tema, cefr, grado, texto, pdf_link))
     try:
         load_lessons_history_pg.clear()
     except Exception:
         pass
-
 
 def save_quiz_and_best_score_pg(folio: str, nota_actual: str, quiz_items: list, user_ans: dict) -> tuple[bool, str, str]:
     f_clean = str(folio or "").strip().upper()
