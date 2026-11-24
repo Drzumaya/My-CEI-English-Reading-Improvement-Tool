@@ -152,7 +152,7 @@ st.iframe(
 
 
 # ==============================================================================
-# SOPORTE PROGRESSIVE WEB APP (SIEMPRE ANTES DE ?install=1 PARA CARGAR MANIFEST)
+# SOPORTE PROGRESSIVE WEB APP (SIN DESBORDAMIENTO EN MÓVIL)
 # ==============================================================================
 st.markdown(
     """
@@ -172,10 +172,14 @@ st.markdown(
 # PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
 # ==============================================================================
 def render_install_app_landing():
-    """Muestra únicamente la tarjeta oficial de instalación de la App CEI con respuesta inmediata al clic."""
+    """Muestra la tarjeta oficial de instalación de la App CEI 100% ajustada a pantalla móvil."""
     st.markdown(
         """
         <style>
+            html, body, [data-testid="stAppViewContainer"] {
+                overflow-x: hidden !important;
+                max-width: 100vw !important;
+            }
             #MainMenu, footer, header[data-testid="stHeader"],
             [data-testid="stToolbar"], [data-testid="stDecoration"],
             [data-testid="manage-app-button"],
@@ -199,29 +203,38 @@ def render_install_app_landing():
         c_l1, c_l2 = st.columns([1.0, 2.8])
         with c_l1:
             if os.path.exists(logo_path):
-                st.image(logo_path, width=110)
+                st.image(logo_path, width=95)
         with c_l2:
             st.markdown("### 📲 Instalar App Oficial — Career English Institute (CEI)")
-            st.caption("Versión Oficial Móvil y Escritorio • Escudo Institucional Preconfigurado • Acceso Directo")
+            st.caption("Versión Oficial Móvil y Escritorio • Escudo Institucional Preconfigurado")
 
         st.divider()
 
         st.iframe(
             """
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 8px;">
+            <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    width: 100%;
+                    overflow-x: hidden;
+                    padding: 4px;
+                }
+            </style>
+            <div style="width:100%; text-align:center;">
                 <button id="btnNativeInstallCEI" style="
                     background: linear-gradient(135deg, #0b2545 0%, #1e40af 100%);
                     color: white;
                     border: none;
                     border-radius: 12px;
-                    padding: 16px 28px;
-                    font-size: 17px;
+                    padding: 15px 18px;
+                    font-size: 16px;
                     font-weight: 700;
                     cursor: pointer;
-                    box-shadow: 0 6px 18px rgba(11, 37, 69, 0.28);
+                    box-shadow: 0 4px 14px rgba(11, 37, 69, 0.25);
                     width: 100%;
-                    max-width: 440px;
-                    transition: transform 0.15s ease;
+                    max-width: 100%;
+                    display: block;
                 ">
                     📲 INSTALAR APP OFICIAL CEI
                 </button>
@@ -230,12 +243,13 @@ def render_install_app_landing():
                     background: #fef9c3;
                     border: 1.5px solid #facc15;
                     border-radius: 10px;
-                    padding: 14px 16px;
-                    font-size: 14px;
-                    margin-top: 14px;
-                    line-height: 1.55;
+                    padding: 12px 14px;
+                    font-size: 13.5px;
+                    margin-top: 12px;
+                    line-height: 1.5;
                     text-align: left;
-                    transition: all 0.25s ease;
+                    width: 100%;
+                    word-wrap: break-word;
                 "></div>
             </div>
             <script>
@@ -250,7 +264,7 @@ def render_install_app_landing():
                         });
                     };
                     hideCloudBadges();
-                    setInterval(hideCloudBadges, 500);
+                    setInterval(hideCloudBadges, 600);
                 })();
 
                 let deferredPromptCEI = null;
@@ -264,15 +278,15 @@ def render_install_app_landing():
 
                 const renderDefaultGuide = () => {
                     if (isInApp) {
-                        hint.innerHTML = '⚠️ <b>Abriste este QR dentro de WhatsApp/Redes:</b> Toca los <b>3 puntos (⋮)</b> o el ícono de <b>brújula/navegador</b> y elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android) para instalar la app.';
+                        hint.innerHTML = '⚠️ <b>Abriste este QR en WhatsApp/Redes:</b> Toca los <b>3 puntos (⋮)</b> o la <b>brújula</b> y elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android).';
                     } else if (isIOS) {
-                        hint.innerHTML = '🍎 <b>iPhone / iPad (2 toques):</b><br>1. Toca el botón <b>Compartir (⬆️)</b> en la barra inferior de Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene cargado.';
+                        hint.innerHTML = '🍎 <b>iPhone / iPad (2 toques):</b><br>1. Toca <b>Compartir (⬆️)</b> abajo en Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>.';
                     } else if (isMacSafari) {
-                        hint.innerHTML = '💻 <b>Mac Safari:</b> En la barra superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene preconfigurado.';
+                        hint.innerHTML = '💻 <b>Mac Safari:</b> En el menú superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>.';
                     } else if (isAndroid) {
-                        hint.innerHTML = '🤖 <b>Android (Chrome):</b> Toca el menú de <b>3 puntos (⋮)</b> arriba a la derecha y selecciona <b>"Instalar aplicación"</b> o <b>"Agregar a pantalla principal"</b>.';
+                        hint.innerHTML = '🤖 <b>Android (Chrome):</b> Toca el menú <b>(⋮)</b> arriba a la derecha y elige <b>"Instalar aplicación"</b> o <b>"Agregar a pantalla principal"</b>.';
                     } else {
-                        hint.innerHTML = '💻 <b>Navegador de Escritorio:</b> Haz clic en el ícono de <b>Instalar (⊕)</b> en el extremo derecho de la barra de direcciones.';
+                        hint.innerHTML = '💻 <b>Escritorio:</b> Haz clic en el ícono de <b>Instalar (⊕)</b> en la barra de direcciones.';
                     }
                 };
                 renderDefaultGuide();
@@ -280,14 +294,11 @@ def render_install_app_landing():
                 window.parent.addEventListener('beforeinstallprompt', (e) => {
                     e.preventDefault();
                     deferredPromptCEI = e;
-                    btn.innerText = '⬇️ INSTALAR APP OFICIAL CEI AHORA (1 CLIC)';
-                    hint.innerHTML = '✅ <b>Instalación directa disponible:</b> Pulsa el botón azul superior y confirma <b>"Instalar"</b>.';
+                    btn.innerText = '⬇️ INSTALAR APP OFICIAL CEI (1 CLIC)';
+                    hint.innerHTML = '✅ <b>Listo:</b> Pulsa el botón azul superior y confirma <b>"Instalar"</b>.';
                 });
 
                 btn.addEventListener('click', async () => {
-                    btn.style.transform = 'scale(0.98)';
-                    setTimeout(() => { btn.style.transform = 'scale(1)'; }, 150);
-
                     if (deferredPromptCEI) {
                         deferredPromptCEI.prompt();
                         const choice = await deferredPromptCEI.userChoice;
@@ -295,27 +306,25 @@ def render_install_app_landing():
                             hint.style.background = '#dcfce7';
                             hint.style.borderColor = '#22c55e';
                             hint.style.color = '#14532d';
-                            hint.innerHTML = '🎉 <b>¡App Oficial CEI instalada!</b> Busca el escudo de Career English Institute en tu pantalla de inicio.';
+                            hint.innerHTML = '🎉 <b>¡App Oficial CEI instalada!</b> Busca el escudo de CEI en tu pantalla de inicio.';
                         }
                         deferredPromptCEI = null;
                     } else {
-                        // Respuesta visual inmediata cuando el sistema requiere el gesto nativo del navegador
                         hint.style.background = '#fef08a';
                         hint.style.borderColor = '#eab308';
-                        hint.style.boxShadow = '0 0 0 4px rgba(250, 204, 21, 0.35)';
-                        setTimeout(() => { hint.style.boxShadow = 'none'; }, 900);
                         renderDefaultGuide();
                     }
                 });
             </script>
             """,
-            height=225
+            height=265
         )
 
 
 if str(st.query_params.get("install", "")).strip() in ["1", "true", "app"]:
     render_install_app_landing()
     st.stop()
+
 
 
 # --- 1B. MOTOR DE AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO) ---
