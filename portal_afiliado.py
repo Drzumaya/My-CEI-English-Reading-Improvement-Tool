@@ -297,8 +297,16 @@ try:
     # ==========================================================================
     with conn.cursor() as cur:
         cur.execute("""
-            SELECT usuario, COALESCE(nombre_completo, usuario), COALESCE(matricula, ''),
-                   COALESCE(nivel, 'B1'), COALESCE(telefono, '')
+            ALTER TABLE users_padron
+            ADD COLUMN IF NOT EXISTS telefono TEXT DEFAULT '',
+            ADD COLUMN IF NOT EXISTS socio_afiliado TEXT DEFAULT '';
+        """)
+        cur.execute("""
+            SELECT usuario,
+                   usuario AS nombre_completo,
+                   COALESCE(matricula, ''),
+                   COALESCE(nivel, 'B1'),
+                   COALESCE(telefono, '')
             FROM users_padron
             WHERE LOWER(TRIM(rol)) IN ('estudiante', 'student', 'alumno')
               AND LOWER(TRIM(COALESCE(socio_afiliado, ''))) IN (LOWER(TRIM(%s)), LOWER(TRIM(%s)))
