@@ -154,11 +154,8 @@ st.iframe(
 # ==============================================================================
 # PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
 # ==============================================================================
-# ==============================================================================
-# PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
-# ==============================================================================
 def render_install_app_landing():
-    """Muestra únicamente la tarjeta oficial de instalación de la App CEI sin botones extra ni badges de Streamlit/GitHub."""
+    """Muestra únicamente la tarjeta oficial de instalación de la App CEI hasta la instrucción en amarillo."""
     st.markdown(
         """
         <style>
@@ -179,7 +176,6 @@ def render_install_app_landing():
         unsafe_allow_html=True
     )
 
-    apk_url = str(st.secrets.get("ANDROID_APK_URL", "")).strip()
     logo_path = "static/logo_cei_app.png" if os.path.exists("static/logo_cei_app.png") else "LOGO CEI APP.png"
 
     with st.container(border=True):
@@ -212,10 +208,11 @@ def render_install_app_landing():
                     📲 INSTALAR APP OFICIAL CEI
                 </button>
                 <div id="installHintCEI" style="
-                    color: #1e293b;
-                    background: #f1f5f9;
+                    color: #78350f;
+                    background: #fef9c3;
+                    border: 1px solid #fde047;
                     border-radius: 10px;
-                    padding: 12px 16px;
+                    padding: 13px 16px;
                     font-size: 14px;
                     margin-top: 14px;
                     line-height: 1.55;
@@ -234,7 +231,7 @@ def render_install_app_landing():
                         });
                     };
                     hideCloudBadges();
-                    setInterval(hideCloudBadges, 600);
+                    setInterval(hideCloudBadges, 500);
                 })();
 
                 let deferredPromptCEI = null;
@@ -279,19 +276,6 @@ def render_install_app_landing():
             """,
             height=210
         )
-
-        if apk_url:
-            st.link_button(
-                "🤖 Descarga Directa Paquete Android (.APK Oficial)",
-                url=apk_url,
-                type="primary",
-                width="stretch"
-            )
-
-        if st.button("➡️ Continuar al Inicio de Sesión Web", width="stretch", key="btn_skip_install_to_login"):
-            st.query_params.clear()
-            st.rerun()
-
 
 
 if str(st.query_params.get("install", "")).strip() in ["1", "true", "app"]:
