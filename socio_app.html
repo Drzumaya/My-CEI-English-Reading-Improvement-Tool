@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CEI Portal Socios Afiliados</title>
+  <meta name="theme-color" content="#0b2545" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CEI Socios" />
+  <link rel="icon" type="image/png" href="./static/LOGO%20CEI%20APP.png" />
+  <link rel="apple-touch-icon" href="./static/LOGO%20CEI%20APP.png" />
+  <link rel="manifest" href="./manifest_socio.json" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html {
+      width: 100%; height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0b2545;
+      overflow: hidden;
+    }
+    #installScreen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 24px; background: #f8fafc; text-align: center;
+    }
+    .card {
+      background: white; border-radius: 18px; padding: 28px 22px; max-width: 440px; width: 100%;
+      box-shadow: 0 10px 30px rgba(11, 37, 69, 0.14); border: 1px solid #e2e8f0;
+    }
+    .logo { width: 110px; height: 110px; border-radius: 22px; margin-bottom: 14px; object-fit: cover; }
+    h1 { font-size: 20px; color: #0b2545; margin-bottom: 6px; }
+    p.sub { font-size: 13.5px; color: #475569; margin-bottom: 20px; }
+    #btnInstall {
+      background: linear-gradient(135deg, #0b2545 0%, #1e40af 100%);
+      color: white; border: none; border-radius: 12px; padding: 16px 20px;
+      font-size: 16px; font-weight: 700; width: 100%; cursor: pointer;
+      box-shadow: 0 6px 18px rgba(11, 37, 69, 0.28);
+    }
+    .btn-open {
+      display: block; margin-top: 12px; color: #1e40af; font-size: 13.5px;
+      font-weight: 700; text-decoration: none;
+    }
+    #hint {
+      margin-top: 14px; background: #fef9c3; border: 1.5px solid #facc15;
+      color: #78350f; border-radius: 10px; padding: 12px; font-size: 13.5px;
+      line-height: 1.5; text-align: left;
+    }
+    #appFrame { display: none; width: 100vw; height: 100vh; border: none; }
+  </style>
+</head>
+<body>
+  <div id="installScreen">
+    <div class="card">
+      <img class="logo" src="./static/LOGO%20CEI%20APP.png" alt="Logo CEI" />
+      <h1>🤝 Instalar App Portal Socios CEI</h1>
+      <p class="sub">Career English Institute • Acceso Exclusivo Asociados</p>
+      <button id="btnInstall">⬇️ INSTALAR APP PORTAL SOCIOS (1 CLIC)</button>
+      <a class="btn-open" href="https://ceiafiliados.streamlit.app" target="_blank">🌐 Abrir Portal en Navegador →</a>
+      <div id="hint"></div>
+    </div>
+  </div>
+  <iframe id="appFrame" src="https://streamlit.app"></iframe>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+    }
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const params = new URLSearchParams(window.location.search);
+    if (isStandalone && !params.get('install')) {
+      document.getElementById('installScreen').style.display = 'none';
+      document.getElementById('appFrame').style.display = 'block';
+    }
+
+    let deferredPrompt = null;
+    const btn = document.getElementById('btnInstall');
+    const hint = document.getElementById('hint');
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const isAndroid = /Android/i.test(ua);
+
+    const showInstructions = () => {
+      if (isIOS) {
+        hint.innerHTML = '🍎 <b>iPhone / iPad:</b> Toca <b>Compartir (⬆️)</b> abajo en Safari → <b>"Agregar a inicio"</b> → <b>Agregar</b>.';
+      } else if (isAndroid) {
+        hint.innerHTML = '🤖 <b>Android (Chrome):</b> Toca los <b>3 puntos (⋮)</b> arriba a la derecha → <b>"Instalar aplicación"</b>.';
+      } else {
+        hint.innerHTML = '💻 <b>Mac / PC:</b> Haz clic en <b>Archivo → Agregar al Dock</b> (Mac Safari) o en <b>Instalar (⊕)</b> en la barra de direcciones.';
+      }
+    };
+    showInstructions();
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      hint.style.background = '#dbeafe';
+      hint.style.borderColor = '#3b82f6';
+      hint.style.color = '#1e3a8a';
+      hint.innerHTML = '✅ <b>¡Instalación directa lista!</b> Pulsa el botón azul superior y confirma <b>"Instalar"</b>.';
+    });
+
+    btn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          hint.style.background = '#dcfce7';
+          hint.style.borderColor = '#22c55e';
+          hint.style.color = '#14532d';
+          hint.innerHTML = '🎉 <b>¡App Portal Socios CEI instalada!</b> Búscala en tu pantalla de inicio o cajón de aplicaciones como <b>"CEI Socios"</b>.';
+        }
+        deferredPrompt = null;
+      } else {
+        showInstructions();
+      }
+    });
+  </script>
+</body>
+</html>
