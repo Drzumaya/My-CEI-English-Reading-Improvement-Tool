@@ -4715,7 +4715,7 @@ if not st.session_state.authenticated:
                                         st.session_state.pending_ls_token = "REMOVE"
                                     st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Error de conexión al verificar credenciales: {e}")
+                        st.error(f"❌ Error de conexión al verificar credenciales: {e}") 
 
         st.markdown(
             f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>",
