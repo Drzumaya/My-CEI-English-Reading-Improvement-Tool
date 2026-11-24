@@ -8664,12 +8664,13 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             pass
 
 
-
-                # 14.6B EDITOR DE EXPEDIENTE Y RADAR DE RACHAS SEMANALES + WHATSAPP (PARTE 2 DE 2)
+                # 14.6B EDITOR DE EXPEDIENTE Y RADAR DE RACHAS SEMANALES + WHATSAPP (PARTE 2 DE 2 — MITAD 1)
                 if s_dat:
                     st.info(
-                        f"🆔 **ID Afiliado:** `{s_dat[0]}`  |  🧾 **RFC:** `{s_dat[5] or 'No registrado'}`\n\n"
-                        f"💼 **Comisión Asignada:** **`{float(s_dat[10] or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat[9]}`\n\n"
+                        f"🆔 **ID Afiliado:** `{s_dat}`  |  👤 **Titular:** **{s_dat} {s_dat} {s_dat or ''}**\n\n"
+                        f"🧾 **RFC:** `{s_dat or 'No registrado'}`  |  📞 **Tel:** `{s_dat or '—'}`  |  ✉️ **Email:** `{s_dat or '—'}`\n\n"
+                        f"📍 **Domicilio:** {s_dat or 'No registrado'}\n\n"
+                        f"💼 **Comisión Asignada:** **`{float(s_dat or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat}`\n\n"
                         "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) vigente para cobro de comisiones.*"
                     )
 
@@ -8740,63 +8741,155 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                             except Exception:
                                                 pass
 
-                # RADAR DE RACHAS SEMANALES Y MOTIVACIÓN WHATSAPP DE ESTUDIANTES REFERIDOS
+
+                # RADAR DE RACHAS SEMANALES, HISTORIAL DE PAGOS (9 BLOQUES) Y WHATSAPP 200%
                 puede_ver_racha_ref = (
                     is_owner
                     or can("Ver_Racha_Referidos_WhatsApp")
                     or bool(PERMISSIONS_MATRIX.get("Socio Afiliado", {}).get("Ver_Racha_Referidos_WhatsApp"))
                 )
                 if puede_ver_racha_ref:
-                    with st.container(border=True):
-                        st.markdown("##### 🔥 Seguimiento de Rachas Semanales y Motivación WhatsApp (Tus Estudiantes Referidos)")
-                        st.caption(
-                            "Monitorea la constancia semanal de tus alumnos recomendados y envíales un mensaje motivacional "
-                            "con un clic para mantener su racha activa y al corriente sus bloques mensuales."
-                        )
-                        padron_aff_ref = load_padron_records()
-                        aff_id_cmp = str(s_dat).strip().lower() if s_dat else ""
-                        aff_usr_cmp = str(aff_objetivo_portal or "").strip().lower()
+                    padron_aff_ref = load_padron_records() or []
+                    aff_id_cmp = str(s_dat[0]).strip().lower() if s_dat else ""
+                    aff_usr_cmp = str(aff_objetivo_portal or "").strip().lower()
+                    pct_com_socio = float(s_dat[10] or 0.0) if s_dat else 0.0
 
-                        referidos_lista = [
-                            r for r in padron_aff_ref
-                            if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]
-                            and str(r.get("Socio_Afiliado") or r.get("Afiliado") or "").strip().lower() in [aff_usr_cmp, aff_id_cmp]
-                        ]
+                    referidos_lista = [
+                        r for r in padron_aff_ref
+                        if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]
+                        and str(r.get("Socio_Afiliado") or r.get("Afiliado") or "").strip().lower() in [aff_usr_cmp, aff_id_cmp]
+                    ]
+
+                    pagos_por_alumno = {}
+                    conn_pay_aff = _open_legal_pg_conn()
+                    if conn_pay_aff:
+                        try:
+                            with conn_pay_aff.cursor() as cur:
+                                cur.execute("""
+                                    SELECT LOWER(TRIM(usuario_estudiante)),
+                                           COUNT(*) FILTER (WHERE LOWER(COALESCE(estatus, 'pagado')) IN ('pagado', 'completado', 'activo')),
+                                           COALESCE(SUM(monto_total) FILTER (WHERE LOWER(COALESCE(estatus, 'pagado')) IN ('pagado', 'completado', 'activo')), 0.0),
+                                           MAX(fecha_pago)
+                                    FROM student_payments
+                                    GROUP BY LOWER(TRIM(usuario_estudiante));
+                                """)
+                                for row_p in cur.fetchall():
+                                    pagos_por_alumno[str(row_p[0])] = {
+                                        "bloques_pagados": int(row_p[1] or 0),
+                                        "monto_pagado": float(row_p[2] or 0.0),
+                                        "ultimo_pago": str(row_p[3] or "")[:10]
+                                    }
+                        except Exception:
+                            pass
+                        finally:
+                            try:
+                                conn_pay_aff.close()
+                            except Exception:
+                                pass
+
+                    total_recaudado_ref = sum(
+                        pagos_por_alumno.get(str(r.get("Usuario") or "").strip().lower(), {}).get("monto_pagado", 0.0)
+                        for r in referidos_lista
+                    )
+                    comision_ganada_mxn = round(total_recaudado_ref * (pct_com_socio / 100.0), 2)
+                    alumnos_oro_cnt = 0
+                    resumen_gam_cache = {}
+                    for r_tmp in referidos_lista:
+                        u_tmp = str(r_tmp.get("Usuario") or "").strip()
+                        n_tmp = str(r_tmp.get("Nivel") or "B1").strip()
+                        g_tmp = calcular_gamificacion_estudiante(u_tmp, n_tmp)
+                        resumen_gam_cache[u_tmp] = g_tmp
+                        if "oro" in str(g_tmp.get("categoria_label", "")).lower():
+                            alumnos_oro_cnt += 1
+
+                    # KPIs superiores en 2 pares responsivos
+                    k_s1, k_s2 = st.columns(2)
+                    k_s1.metric("🎓 Alumnos Inscritos", f"{len(referidos_lista)}")
+                    k_s2.metric("🥇 En Categoría Oro", f"{alumnos_oro_cnt} / {len(referidos_lista)}")
+
+                    k_s3, k_s4 = st.columns(2)
+                    k_s3.metric("💼 Tasa Comisión", f"{pct_com_socio:.1f}%")
+                    k_s4.metric("💰 Comisión Generada", f"${comision_ganada_mxn:,.2f}")
+
+                    with st.container(border=True):
+                        st.markdown("##### 🔥 Acompañamiento 200%: Rachas Oro, Pagos (9 Bloques) y WhatsApp")
+                        st.caption(
+                            "Impulsa a cada estudiante hacia la Categoría Oro y mantén al corriente sus 9 bloques "
+                            "con mensajes personalizados en un clic."
+                        )
 
                         if not referidos_lista:
                             st.info("ℹ️ Aún no tienes estudiantes referidos registrados con tu código o QR.")
                         else:
+                            app_link_pub = str(st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")).strip()
                             for idx_ref, r_est in enumerate(referidos_lista):
                                 est_u = str(r_est.get("Usuario") or "").strip()
                                 est_nom = str(r_est.get("Nombre_Completo") or est_u).strip()
+                                est_mat = str(r_est.get("Matricula") or r_est.get("ID") or "").strip()
                                 est_niv = str(r_est.get("Nivel") or "B1").strip()
                                 est_tel = str(r_est.get("Telefono") or r_est.get("Whatsapp") or "").strip()
 
-                                gam_est = calcular_gamificacion_estudiante(est_u, est_niv)
+                                gam_est = resumen_gam_cache.get(est_u) or calcular_gamificacion_estudiante(est_u, est_niv)
                                 wa_mot_link = build_whatsapp_motivacion_racha(
                                     student_user=est_nom,
                                     gam_data=gam_est,
                                     telefono_alumno=est_tel
                                 )
 
-                                c_r1, c_r2, c_r3 = st.columns([2.2, 1.4, 1.3])
-                                with c_r1:
-                                    st.markdown(f"**🎓 {est_nom}** (`{est_u}`) — Nivel **{est_niv}**")
-                                    st.caption(
-                                        f"🏅 {gam_est['categoria_label']}  •  "
-                                        f"📚 {gam_est['total_folios']} Folios  •  "
-                                        f"🎖️ {len(gam_est['insignias'])} Insignias"
+                                info_pago = pagos_por_alumno.get(est_u.lower(), {"bloques_pagados": 0, "monto_pagado": 0.0, "ultimo_pago": ""})
+                                bloq_pag = min(9, int(info_pago["bloques_pagados"]))
+                                monto_est = float(info_pago["monto_pagado"])
+                                com_est = round(monto_est * (pct_com_socio / 100.0), 2)
+
+                                if bloq_pag >= 9:
+                                    semaforo_pago = "🏆 Liquidado (9/9)"
+                                elif bloq_pag >= 1:
+                                    semaforo_pago = f"🟢 Al Corriente ({bloq_pag}/9)"
+                                else:
+                                    semaforo_pago = "🟡 Pendiente 1er Bloque (0/9)"
+
+                                digits_tel = "".join(ch for ch in est_tel if ch.isdigit())
+                                if len(digits_tel) == 10:
+                                    digits_tel = f"52{digits_tel}"
+                                msg_pago_wa = (
+                                    f"¡Hola {est_nom}! 👋 Te saluda tu asesor de *Career English Institute (CEI)*. "
+                                    f"Revisando tu avance vas en *{bloq_pag}/9 bloques* y categoría *{gam_est['categoria_label']}* 🏅. "
+                                    f"Recuerda mantener al corriente tu siguiente bloque para conservar tus beneficios y seguir sumando hacia *Categoría Oro*. "
+                                    f"Ingresa aquí a tu plataforma: {app_link_pub}"
+                                )
+                                wa_pago_link = (
+                                    f"https://wa.me{digits_tel}?text={urllib.parse.quote(msg_pago_wa)}"
+                                    if digits_tel else f"https://wa.me?text={urllib.parse.quote(msg_pago_wa)}"
+                                )
+
+                                with st.container(border=True):
+                                    st.markdown(
+                                        f"**🎓 {est_nom}** (`{est_u}`)"
+                                        + (f" • 🆔 `{est_mat}`" if est_mat else "")
+                                        + f" • Nivel **{est_niv}**"
                                     )
-                                with c_r2:
-                                    est_fuego = "🔥 Activa esta semana" if gam_est["activo_esta_semana"] else "⏳ Pendiente esta semana"
-                                    st.metric("Racha", f"{gam_est['racha_semanas']} sem.", est_fuego)
-                                with c_r3:
-                                    st.write("")
-                                    st.link_button(
-                                        "📲 Motivar por WhatsApp",
-                                        url=wa_mot_link,
-                                        width="stretch"
+                                    est_fuego = "🔥 Activa" if gam_est["activo_esta_semana"] else "⏳ Pendiente"
+                                    st.markdown(
+                                        f"🏅 **{gam_est['categoria_label']}** | "
+                                        f"🔥 Racha: **{gam_est['racha_semanas']} sem.** ({est_fuego}) | "
+                                        f"📚 Folios: **{gam_est['total_folios']}**\n\n"
+                                        f"💳 **Pagos:** {semaforo_pago} | "
+                                        f"💰 **Comisión generada:** **`${com_est:,.2f}`**"
+                                        + (f" *(Último pago: `{info_pago['ultimo_pago']}`)*" if info_pago["ultimo_pago"] else "")
                                     )
+                                    c_b1, c_b2 = st.columns(2)
+                                    with c_b1:
+                                        st.link_button(
+                                            "🔥 Motivar Meta Oro (WhatsApp)",
+                                            url=wa_mot_link,
+                                            width="stretch"
+                                        )
+                                    with c_b2:
+                                        st.link_button(
+                                            "💳 Seguimiento Pago (WhatsApp)",
+                                            url=wa_pago_link,
+                                            width="stretch"
+                                        )
 
     st.markdown(
         "<div style='text-align: center; color: #777; font-size: 13px; margin-top: 20px;'>"
