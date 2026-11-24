@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CEI English Learning Platform</title>
+  <meta name="theme-color" content="#0b2545" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="CEI English" />
+  <link rel="icon" type="image/png" href="./static/LOGO%20CEI%20APP.png" />
+  <link rel="apple-touch-icon" href="./static/LOGO%20CEI%20APP.png" />
+  <link rel="manifest" href="./manifest.json" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html {
+      width: 100%; height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0b2545;
+      overflow: hidden;
+    }
+    #installScreen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 24px; background: #f8fafc; text-align: center;
+    }
+    .card {
+      background: white; border-radius: 18px; padding: 28px 22px; max-width: 440px; width: 100%;
+      box-shadow: 0 10px 30px rgba(11, 37, 69, 0.14); border: 1px solid #e2e8f0;
+    }
+    .logo { width: 110px; height: 110px; border-radius: 22px; margin-bottom: 14px; }
+    h1 { font-size: 20px; color: #0b2545; margin-bottom: 6px; }
+    p.sub { font-size: 13.5px; color: #475569; margin-bottom: 20px; }
+    #btnInstall {
+      background: linear-gradient(135deg, #0b2545 0%, #1e40af 100%);
+      color: white; border: none; border-radius: 12px; padding: 16px 20px;
+      font-size: 16px; font-weight: 700; width: 100%; cursor: pointer;
+      box-shadow: 0 6px 18px rgba(11, 37, 69, 0.28);
+    }
+    #hint {
+      margin-top: 14px; background: #fef9c3; border: 1.5px solid #facc15;
+      color: #78350f; border-radius: 10px; padding: 12px; font-size: 13.5px;
+      line-height: 1.5; text-align: left;
+    }
+    #appFrame {
+      display: none; width: 100vw; height: 100vh; border: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="installScreen">
+    <div class="card">
+      <img class="logo" src="./static/LOGO%20CEI%20APP.png" alt="Logo CEI" />
+      <h1>📲 Instalar App Oficial CEI</h1>
+      <p class="sub">Career English Institute • Escudo Institucional Oficial</p>
+      <button id="btnInstall">⬇️ INSTALAR APP OFICIAL CEI (1 CLIC)</button>
+      <div id="hint"></div>
+    </div>
+  </div>
+  <iframe id="appFrame" src="https://streamlit.app"></iframe>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const params = new URLSearchParams(window.location.search);
+
+    if (isStandalone && !params.get('install')) {
+      document.getElementById('installScreen').style.display = 'none';
+      document.getElementById('appFrame').style.display = 'block';
+    }
+
+    let deferredPrompt = null;
+    const btn = document.getElementById('btnInstall');
+    const hint = document.getElementById('hint');
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const isAndroid = /Android/i.test(ua);
+
+    if (isIOS) {
+      hint.innerHTML = '🍎 <b>iPhone / iPad:</b> Toca <b>Compartir (⬆️)</b> abajo en Safari → <b>"Agregar a inicio"</b> → <b>Agregar</b>.';
+    } else if (isAndroid) {
+      hint.innerHTML = '🤖 <b>Android:</b> Pulsa el botón azul o toca <b>(⋮) → "Instalar aplicación"</b>.';
+    } else {
+      hint.innerHTML = '💻 <b>Escritorio:</b> Pulsa el botón azul o el ícono <b>Instalar (⊕)</b> en la barra superior.';
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      hint.innerHTML = '✅ <b>¡Listo!</b> Toca el botón azul para instalar con el escudo oficial de CEI.';
+    });
+
+    btn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+      }
+    });
+  </script>
+</body>
+</html>
