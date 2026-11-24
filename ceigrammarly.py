@@ -1146,15 +1146,27 @@ def fetch_lesson_by_folio(folio_code: str) -> dict | None:
     return None
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def load_lessons_history_pg() -> list[dict]:
     ensure_video_summary_schema_pg()
     try:
         with pg_session(dict_rows=True) as cur:
             cur.execute("""
+                ALTER TABLE lessons_folios
+                ADD COLUMN IF NOT EXISTS usuario TEXT DEFAULT '';
+            """)
+            cur.execute("""
+                UPDATE lessons_folios f
+                SET user_id = u.id
+                FROM users_padron u
+                WHERE f.user_id IS NULL
+                  AND TRIM(COALESCE(f.usuario, '')) <> ''
+                  AND LOWER(TRIM(f.usuario)) = LOWER(TRIM(u.usuario));
+            """)
+            cur.execute("""
                 SELECT
                     f.folio AS "Folio",
-                    COALESCE(u.usuario, 'Usuario') AS "Usuario",
+                    COALESCE(NULLIF(TRIM(u.usuario), ''), NULLIF(TRIM(f.usuario), ''), 'Usuario') AS "Usuario",
                     f.tema AS "Tema",
                     f.cefr_level AS "Nivel_CEFR",
                     f.academic_grade AS "Grado_Academico",
@@ -1170,11 +1182,12 @@ def load_lessons_history_pg() -> list[dict]:
                 FROM lessons_folios f
                 LEFT JOIN users_padron u ON f.user_id = u.id
                 ORDER BY f.created_at DESC
-                LIMIT 120;
+                LIMIT 200;
             """)
             return cur.fetchall()
     except Exception:
         return []
+
 def fetch_student_gradebook_pg(target_usuario: str) -> dict:
     """Calcula promedios y rúbrica oficial (Quiz 35%, Audio 25%, Video 25%, Resumen APA 7 15%)."""
     default_res = {
