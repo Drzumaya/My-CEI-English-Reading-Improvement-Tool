@@ -1,0 +1,16 @@
+{
+  "name": "CEI Portal Socios Afiliados",
+  "short_name": "CEI Socios",
+  "description": "Portal Oficial de Socios Afiliados — Career English Institute",
+  "start_url": "./socio_app.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b2545",
+  "theme_color": "#0b2545",
+  "icons": [
+    { "src": "./static/LOGO%20CEI%20APP.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./static/LOGO%20CEI%20APP.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./static/LOGO%20CEI%20APP.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
