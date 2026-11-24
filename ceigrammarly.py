@@ -6659,12 +6659,54 @@ if st.session_state.get("active_student_workspace"):
 # PARTE 14E — SECCIÓN 3 DE 3 (FINAL): MIS LECCIONES, AUDIOS Y CIERRE FOCUS MODE
 # ==============================================================================
         elif vista_est_sel == "📚 Mis Lecciones y Folios":
-            st.subheader(f"📚 Mis Lecciones y Folios Guardados — {alumno_actual_ws}")
-            regs_all = load_lessons_history_pg()
+            c_ml1, c_ml2 = st.columns([2.8, 1.2])
+            with c_ml1:
+                st.subheader(f"📚 Mis Lecciones y Folios Guardados — {alumno_actual_ws}")
+            with c_ml2:
+                if st.button("🔄 Actualizar Lista", width="stretch", key="btn_refresh_mis_lecciones_ws"):
+                    try:
+                        load_lessons_history_pg.clear()
+                    except Exception:
+                        pass
+                    st.rerun()
+
+            ids_est_ws = {
+                str(x).strip().lower()
+                for x in [
+                    alumno_actual_ws,
+                    st.session_state.get("current_user"),
+                    st.session_state.get("current_user_fullname"),
+                    st.session_state.get("nombre_completo"),
+                ]
+                if str(x or "").strip()
+            }
+
+            # Si hay una lección recién generada en memoria, asegurar su persistencia en PostgreSQL
+            fol_mem = str(st.session_state.get("current_folio") or "").strip().upper()
+            txt_mem = str(st.session_state.get("generated_text") or "").strip()
+            if fol_mem and txt_mem:
+                try:
+                    regs_pre = load_lessons_history_pg() or []
+                    ya_en_bd = any(str(r.get("Folio") or "").strip().upper() == fol_mem for r in regs_pre)
+                    if not ya_en_bd:
+                        save_lesson_to_postgres(
+                            folio=fol_mem,
+                            usuario_name=str(st.session_state.get("current_user") or alumno_actual_ws).strip(),
+                            tema=str(st.session_state.get("current_topic") or st.session_state.get("lesson_topic") or "Lección CEI").strip(),
+                            cefr=str(st.session_state.get("selected_cefr") or "B1").strip(),
+                            grado=str(st.session_state.get("selected_academic_grade") or "Licenciatura / Universidad").strip(),
+                            texto=txt_mem,
+                            pdf_link=str(st.session_state.get("current_pdf_link") or "").strip()
+                        )
+                except Exception as e_sync_l:
+                    st.warning(f"⚠️ No se pudo sincronizar el folio activo con Supabase: {e_sync_l}")
+
+            regs_all = load_lessons_history_pg() or []
             mis_lecciones = [
                 r for r in regs_all
-                if str(r.get("Usuario") or "").strip().lower() == alumno_actual_ws.lower()
+                if str(r.get("Usuario") or "").strip().lower() in ids_est_ws
             ]
+
             if not mis_lecciones:
                 st.info("Aún no tienes lecciones guardadas. Presiona **✖️ CERRAR** arriba para generar tu primera lección con IA.")
             else:
@@ -6687,6 +6729,7 @@ if st.session_state.get("active_student_workspace"):
                                 st.session_state.study_mode_active = False
                                 st.session_state["active_student_workspace"] = None
                                 st.rerun()
+
 
         elif vista_est_sel == "🎧 Mis Audios y Pronunciación":
             st.subheader(f"🎧 Mis Audios y Práctica de Pronunciación — {alumno_actual_ws}")
