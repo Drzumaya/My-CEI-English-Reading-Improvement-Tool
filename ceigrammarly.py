@@ -8666,38 +8666,45 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
                 # 14.6B EDITOR DE EXPEDIENTE Y RADAR DE RACHAS SEMANALES + WHATSAPP (PARTE 2 DE 2 — MITAD 1)
                 if s_dat:
+                    (
+                        aff_id_v, _aff_usr_v, aff_nom_v, aff_pat_v, aff_mat_v,
+                        aff_rfc_v, aff_tel_v, aff_mail_v, aff_dom_v,
+                        aff_est_v, aff_pct_v, aff_terms_v
+                    ) = (list(s_dat) + ["", "", "", "", "", "", "", "", "", "Activo", 0.0, None])[:12]
+
                     st.info(
-                        f"🆔 **ID Afiliado:** `{s_dat}`  |  👤 **Titular:** **{s_dat} {s_dat} {s_dat or ''}**\n\n"
-                        f"🧾 **RFC:** `{s_dat or 'No registrado'}`  |  📞 **Tel:** `{s_dat or '—'}`  |  ✉️ **Email:** `{s_dat or '—'}`\n\n"
-                        f"📍 **Domicilio:** {s_dat or 'No registrado'}\n\n"
-                        f"💼 **Comisión Asignada:** **`{float(s_dat or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat}`\n\n"
+                        f"🆔 **ID Afiliado:** `{aff_id_v}`  |  👤 **Titular:** **{aff_nom_v} {aff_pat_v} {aff_mat_v or ''}**\n\n"
+                        f"🧾 **RFC:** `{aff_rfc_v or 'No registrado'}`  |  📞 **Tel:** `{aff_tel_v or '—'}`  |  ✉️ **Email:** `{aff_mail_v or '—'}`\n\n"
+                        f"📍 **Domicilio:** {aff_dom_v or 'No registrado'}\n\n"
+                        f"💼 **Comisión Asignada:** **`{float(aff_pct_v or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{aff_est_v}`\n\n"
                         "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) vigente para cobro de comisiones.*"
                     )
 
                     if is_owner or puede_gestionar_afiliados:
-                        with st.expander(f"✏️ Editar Datos, RFC y Comisión de {s_dat} {s_dat} (Owner / Admin)", expanded=False):
-                            if s_dat:
-                                st.caption(f"🛡️ Términos y Condiciones aceptados el: `{str(s_dat)[:19]}`")
+                        with st.expander(f"✏️ Editar Datos, RFC y Comisión de {aff_nom_v} {aff_pat_v} (Owner / Admin)", expanded=False):
+                            if aff_terms_v:
+                                st.caption(f"🛡️ Términos y Condiciones aceptados el: `{str(aff_terms_v)[:19]}`")
                             with st.form(f"form_edit_aff_portal_{aff_objetivo_portal}"):
                                 c_e1, c_e2 = st.columns(2)
                                 with c_e1:
-                                    ed_id = st.text_input("🆔 ID de Afiliado:", value=str(s_dat or ""))
-                                    ed_nom = st.text_input("Nombre(s):", value=str(s_dat or ""))
-                                    ed_pat = st.text_input("Apellido Paterno:", value=str(s_dat or ""))
-                                    ed_mat = st.text_input("Apellido Materno:", value=str(s_dat or ""))
-                                    ed_rfc = st.text_input("🧾 RFC (12 o 13 caracteres):", value=str(s_dat or ""), max_chars=13)
+                                    ed_id = st.text_input("🆔 ID de Afiliado:", value=str(aff_id_v or ""))
+                                    ed_nom = st.text_input("Nombre(s):", value=str(aff_nom_v or ""))
+                                    ed_pat = st.text_input("Apellido Paterno:", value=str(aff_pat_v or ""))
+                                    ed_mat = st.text_input("Apellido Materno:", value=str(aff_mat_v or ""))
+                                    ed_rfc = st.text_input("🧾 RFC (12 o 13 caracteres):", value=str(aff_rfc_v or ""), max_chars=13)
                                 with c_e2:
-                                    ed_tel = st.text_input("Teléfono / WhatsApp:", value=str(s_dat or ""))
-                                    ed_mail = st.text_input("Correo Electrónico:", value=str(s_dat or ""))
-                                    ed_dom = st.text_input("Domicilio Completo:", value=str(s_dat or ""))
+                                    ed_tel = st.text_input("Teléfono / WhatsApp:", value=str(aff_tel_v or ""))
+                                    ed_mail = st.text_input("Correo Electrónico:", value=str(aff_mail_v or ""))
+                                    ed_dom = st.text_input("Domicilio Completo:", value=str(aff_dom_v or ""))
                                     ed_pct = st.number_input(
                                         "💼 Porcentaje Comisión Base (%):",
                                         min_value=0.0, max_value=100.0,
-                                        value=float(s_dat or 0.0), step=1.0
+                                        value=float(aff_pct_v or 0.0), step=1.0
                                     )
                                     estados_aff = ["Activo", "Inactivo", "Baja"]
-                                    idx_est = estados_aff.index(s_dat) if s_dat in estados_aff else 0
+                                    idx_est = estados_aff.index(aff_est_v) if aff_est_v in estados_aff else 0
                                     ed_est = st.selectbox("Estado del Afiliado:", estados_aff, index=idx_est)
+
 
                                 if st.form_submit_button("💾 Guardar Cambios y Comisión", type="primary", width="stretch"):
                                     conn_sv = _open_legal_pg_conn()
