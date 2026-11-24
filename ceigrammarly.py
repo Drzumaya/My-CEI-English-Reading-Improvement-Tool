@@ -5343,15 +5343,44 @@ es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afi
 solo_socio_afiliado = es_socio_afiliado and not es_admin_o_staff
 
 if solo_socio_afiliado:
-    st.session_state["active_stage_5"] = "PORTAL"
-    st.session_state["active_admin_workspace"] = "🤝 Portal Socio Afiliado"
-    st.session_state["show_lesson_creator"] = False
-    st.session_state["generated_text"] = ""
+    url_portal_aff_redir = str(
+        st.secrets.get("AFFILIATE_PORTAL_URL") or "https://streamlit.app"
+    ).strip()
+    url_app_aff_redir = str(
+        st.secrets.get("AFFILIATE_APP_INSTALL_URL")
+        or "https://github.io"
+    ).strip()
+    buf_qr_redir = io.BytesIO()
+    qrcode.make(url_app_aff_redir).save(buf_qr_redir, format="PNG")
+
+    with st.container(border=True):
+        st.warning("🤝 **Acceso Exclusivo de Socios Afiliados — Career English Institute (CEI)**")
+        st.markdown(
+            "Esta aplicación está reservada para **Estudiantes, Docentes y Administración Académica**.\n\n"
+            "Como **Socio Afiliado**, accede a tu **Portal Oficial de Asociados** para gestionar tus códigos QR de inscripción, "
+            "monitorear las rachas de tus alumnos y revisar tus comisiones:"
+        )
+        c_ra1, c_ra2 = st.columns([2.2, 1.1])
+        with c_ra1:
+            st.link_button(
+                "🚀 Entrar a mi Portal Oficial de Socios Afiliados",
+                url=url_portal_aff_redir,
+                type="primary",
+                width="stretch"
+            )
+            st.link_button(
+                "📲 Instalar App Portal Socios en mi Celular / PC",
+                url=url_app_aff_redir,
+                width="stretch"
+            )
+        with c_ra2:
+            st.image(buf_qr_redir.getvalue(), width=145, caption="QR App Portal Socios")
+    st.stop()
 
 lbl_btn_portal = "🛡️ PANEL ADMINISTRATIVO" if es_admin_o_staff else "🎓 MI PANEL ESTUDIANTIL"
 tiene_leccion_activa = bool(str(st.session_state.get("generated_text") or "").strip())
 
-if not tiene_leccion_activa and not solo_socio_afiliado:
+if not tiene_leccion_activa:
     c_init1, c_init2 = st.columns(2)
     with c_init1:
         en_panel_edu = (st.session_state.get("active_stage_5", "READING") != "PORTAL")
