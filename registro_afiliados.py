@@ -312,7 +312,7 @@ def render_formulario_registro_afiliado(
         _render_cuenta_regresiva_20min(restante_20m)
 
     if mostrar_qr_dinamico:
-        base_url_aff = str(_find_secret("AFFILIATE_REG_URL")).strip().rstrip("/")
+        base_url_aff = str(_find_secret("AFFILIATE_REG_URL") or "https://streamlit.app").strip().rstrip("/")
         token_actual, seg_restantes = generar_token_qr_7min()
         min_rest, sec_rest = divmod(seg_restantes, 60)
 
@@ -548,9 +548,9 @@ def render_formulario_registro_afiliado(
                             RETURNING id, matricula;
                         """, (u_clean, clave_acceso.strip(), estatus_padron, float(pct_default), es_externo))
                         row_pad = cur.fetchone()
-                        if row_pad and not row_pad:
-                            mat_gen = f"CEI-{anio_actual}-{int(row_pad):04d}"
-                            cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_gen, row_pad))
+                        if row_pad and not row_pad[1]:
+                            mat_gen = f"CEI-{anio_actual}-{int(row_pad[0]):04d}"
+                            cur.execute("UPDATE users_padron SET matricula = %s WHERE id = %s;", (mat_gen, row_pad[0]))
 
                 if token_sesion_externa:
                     _consumir_token_qr(token_sesion_externa)
