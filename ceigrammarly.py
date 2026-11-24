@@ -8898,15 +8898,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                             width="stretch"
                                         )
 
-                if s_dat:
-                    st.info(
-                        f"🆔 **ID Afiliado:** `{s_dat[0]}`  |  👤 **Titular:** **{s_dat[2]} {s_dat[3]} {s_dat[4] or ''}**\n\n"
-                        f"🧾 **RFC:** `{s_dat[5] or 'No registrado'}`  |  📞 **Tel:** `{s_dat[6] or '—'}`  |  ✉️ **Email:** `{s_dat[7] or '—'}`\n\n"
-                        f"📍 **Domicilio:** {s_dat[8] or 'No registrado'}\n\n"
-                        f"💼 **Comisión Asignada:** **`{float(s_dat[10] or 0.0):.1f}%`**  |  🏷️ **Estatus:** `{s_dat[9]}`\n\n"
-                        "📄 *Recordatorio Fiscal: Expedir factura electrónica (CFDI) vigente para cobro de comisiones.*"
-                    )
-
+  
 
 # ==============================================================================
 # PARTE 15: PROCESAMIENTO Y GENERACIÓN DE LECCIÓN (VALIDACIÓN Y PROMPT GEMINI)
