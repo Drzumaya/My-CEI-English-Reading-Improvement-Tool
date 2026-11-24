@@ -5355,6 +5355,8 @@ if solo_socio_afiliado:
         if "drzumaya.github.io" in raw_app_aff
         else "https://github.io"
     )
+
+    )
     buf_qr_redir = io.BytesIO()
     qrcode.make(url_app_aff_redir).save(buf_qr_redir, format="PNG")
 
