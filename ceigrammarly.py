@@ -5093,15 +5093,22 @@ if "show_lesson_creator" not in st.session_state:
 
 puede_ver_qr_hdr = is_owner or can("Mostrar_QR_App_Header")
 u_login_hdr = str(st.session_state.get("current_user") or usuario or "").strip()
+reg_padron_hdr = next(
+    (r for r in (load_padron_records() or [])
+     if str(r.get("Usuario") or "").strip().lower() == u_login_hdr.lower()),
+    {}
+)
+mat_hdr_mostrar = str(reg_padron_hdr.get("Matricula") or reg_padron_hdr.get("ID") or "").strip()
 nom_hdr_mostrar = str(
-    st.session_state.get("current_user_fullname")
-    or st.session_state.get("nombre_completo")
+    reg_padron_hdr.get("Nombre_Completo")
+    or reg_padron_hdr.get("Nombre")
+    or st.session_state.get("current_user_fullname")
     or u_login_hdr
     or "Usuario"
 ).strip()
 rol_hdr_mostrar = "Propietario / Owner" if is_owner else str(st.session_state.get("user_role") or "Usuario").strip()
 
-col_logo, col_title, col_logout = st.columns([0.9, 4.3, 1.0])
+col_logo, col_title, col_logout = st.columns([0.9, 4.1, 1.3])
 with col_logo:
     if os.path.exists("LOGO CEI APP.png"):
         st.image("LOGO CEI APP.png", width=105)
@@ -5120,62 +5127,46 @@ with col_title:
         "Author: Jacob Zumaya Prianti  |  APA 7th Ed. Academic Standard"
     )
     st.markdown(
-        f"👤 **Sesión Activa:** **{nom_hdr_mostrar}** (`{u_login_hdr}`)  •  "
-        f"🏷️ **Tipo de Usuario:** **{rol_hdr_mostrar}**"
+        f"👤 **Sesión Activa:** **{nom_hdr_mostrar}** (`{u_login_hdr}`)"
+        + (f"  •  🆔 **Matrícula:** `{mat_hdr_mostrar}`" if mat_hdr_mostrar else "")
+        + f"  •  🏷️ **Tipo:** **{rol_hdr_mostrar}**"
     )
 
 with col_logout:
-    st.write("")
     if st.button("🚪 Salir", type="secondary", width="stretch", key="btn_top_logout_clean"):
         for k_out in list(st.session_state.keys()):
             del st.session_state[k_out]
         st.query_params.clear()
         st.rerun()
+
     if puede_ver_qr_hdr:
         mostrar_qr_hdr_now = st.toggle(
             "📲 QR App",
             value=False,
             key="tgl_header_qr_app_visible",
-            help="Muestra u oculta el código QR para instalar la App Oficial CEI"
+            help="Muestra u oculta el QR oficial para instalar la App CEI"
         )
-    else:
-        mostrar_qr_hdr_now = False
+        if mostrar_qr_hdr_now:
+            base_url_hdr = str(
+                st.secrets.get("PUBLIC_APP_URL", "https://myceigrammarly.streamlit.app")
+            ).strip().rstrip("/")
+            url_install_hdr = f"{base_url_hdr}/?install=1"
+            buf_qh = io.BytesIO()
+            qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
+            qa_bytes_hdr = buf_qh.getvalue()
+            qh_b64 = base64.b64encode(qa_bytes_hdr).decode("utf-8")
 
-if puede_ver_qr_hdr and mostrar_qr_hdr_now:
-    with st.container(border=True):
-        base_url_hdr = str(
-            st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")
-        ).strip().rstrip("/")
-        url_install_hdr = f"{base_url_hdr}/?install=1"
-        buf_qh = io.BytesIO()
-        qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
-        qa_bytes_hdr = buf_qh.getvalue()
-        qh_b64 = base64.b64encode(qa_bytes_hdr).decode("utf-8")
-
-        c_q1, c_q2 = st.columns([2.5, 1.2])
-        with c_q1:
-            st.markdown("##### 📲 QR Oficial de Descarga e Instalación de la App CEI")
-            st.caption("Escanea para instalar en iPhone, Android o Mac. Haz doble clic en el QR o pulsa Expandir para proyectar.")
-            st.code(url_install_hdr, language="text")
-            st.download_button(
-                "⬇️ Descargar QR App (PNG)",
-                data=qa_bytes_hdr,
-                file_name="QR_Instalar_App_CEI.png",
-                mime="image/png",
-                key="btn_dl_hdr_qr_app"
-            )
-        with c_q2:
             st.iframe(
                 f"""
-                <div style="text-align:center; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
+                <div style="text-align:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:6px; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
                     <img src="data:image/png;base64,{qh_b64}"
                          title="Doble clic para proyectar QR de App CEI"
                          ondblclick="expandirQRAppCEI()"
-                         style="width:115px;height:115px;border-radius:10px;border:2px solid #0b2545;padding:4px;background:white;cursor:zoom-in;" />
-                    <div style="margin-top:6px;">
+                         style="width:86px;height:86px;border-radius:8px;border:2px solid #0b2545;padding:3px;background:white;cursor:zoom-in;" />
+                    <div style="margin-top:4px;">
                         <button onclick="expandirQRAppCEI()" style="
-                            background:#0b2545;color:white;border:none;border-radius:7px;
-                            padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;
+                            background:#0b2545;color:white;border:none;border-radius:6px;
+                            padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;width:100%;
                         ">🔍 Expandir QR</button>
                     </div>
                 </div>
@@ -5188,16 +5179,25 @@ if puede_ver_qr_hdr and mostrar_qr_hdr_now:
                     m.id = 'modal_qr_app_cei_fs';
                     m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.96);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
                     m.innerHTML = `
-                        <img src="data:image/png;base64,{qh_b64}" style="width:350px;height:350px;border-radius:18px;background:white;padding:16px;box-shadow:0 12px 36px rgba(0,0,0,0.45);" />
-                        <p style="color:white;font-size:20px;margin-top:16px;font-weight:700;">📲 Escanea para Instalar la App Oficial CEI</p>
-                        <button style="margin-top:10px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">✖️ Cerrar Proyección</button>
+                        <img src="data:image/png;base64,{qh_b64}" style="width:340px;height:340px;border-radius:18px;background:white;padding:16px;box-shadow:0 12px 36px rgba(0,0,0,0.45);" />
+                        <p style="color:white;font-size:20px;margin-top:16px;font-weight:700;">📲 QR Oficial de Descarga e Instalación de la App CEI</p>
+                        <p style="color:#cbd5e1;font-size:13px;max-width:440px;text-align:center;">Comparte o proyecta este código QR para instalar la App CEI en celular o Mac con su escudo oficial.</p>
+                        <button style="margin-top:12px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">✖️ Cerrar Proyección</button>
                     `;
                     m.onclick = () => m.remove();
                     pDoc.body.appendChild(m);
                 }}
                 </script>
                 """,
-                height=168
+                height=138
+            )
+            st.download_button(
+                "⬇️ PNG",
+                data=qa_bytes_hdr,
+                file_name="QR_Instalar_App_CEI.png",
+                mime="image/png",
+                width="stretch",
+                key="btn_dl_hdr_qr_app"
             )
 
 es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["teacher", "docente", "admin", "administrador", "propietario", "owner"])
@@ -6279,32 +6279,43 @@ if mostrar_barra_folios:
     except Exception:
         regs_folios_dd = []
 
-    ids_alumno_act = {
+    # Buscar datos exactos del usuario activo en el padrón (usuario, nombre completo y matrícula)
+    u_sesion_act = str(st.session_state.get("current_user") or usuario or "").strip()
+    reg_padron_act = next(
+        (r for r in (load_padron_records() or [])
+         if str(r.get("Usuario") or "").strip().lower() == u_sesion_act.lower()),
+        {}
+    )
+    mat_usuario_act = str(reg_padron_act.get("Matricula") or reg_padron_act.get("ID") or "").strip()
+    nom_usuario_act = str(
+        reg_padron_act.get("Nombre_Completo")
+        or reg_padron_act.get("Nombre")
+        or st.session_state.get("current_user_fullname")
+        or u_sesion_act
+    ).strip()
+
+    ids_personales_estrictos = {
         str(x).strip().lower()
-        for x in [
-            st.session_state.get("current_user"),
-            usuario,
-            st.session_state.get("current_user_fullname"),
-            st.session_state.get("nombre_completo"),
-        ]
+        for x in [u_sesion_act, nom_usuario_act, mat_usuario_act, usuario]
         if str(x or "").strip()
     }
 
-    if not (has_faculty_access or is_owner):
-        regs_folios_dd = [
-            r for r in regs_folios_dd
-            if str(r.get("Usuario") or "").strip().lower() in ids_alumno_act
-            or str(r.get("Nombre_Estudiante") or "").strip().lower() in ids_alumno_act
-        ]
+    # Filtrar estrictamente para mostrar solo las lecciones de este usuario (nombre / matrícula)
+    regs_folios_dd = [
+        r for r in regs_folios_dd
+        if str(r.get("Usuario") or "").strip().lower() in ids_personales_estrictos
+        or str(r.get("Nombre_Estudiante") or "").strip().lower() in ids_personales_estrictos
+        or (mat_usuario_act and str(r.get("Matricula") or "").strip().lower() == mat_usuario_act.lower())
+    ]
 
-    # Garantizar que el folio recién generado en la sesión actual aparezca inmediatamente en la lista
+    # Garantizar que el folio recién generado en sesión aparezca primero
     curr_f_now = str(st.session_state.get("current_folio") or "").strip()
     if curr_f_now and not any(str(r.get("Folio") or "").strip() == curr_f_now for r in regs_folios_dd):
         regs_folios_dd.insert(0, {
             "Folio": curr_f_now,
-            "Tema": str(st.session_state.get("current_topic") or st.session_state.get("lesson_topic") or "Lección Reciente").strip(),
+            "Tema": str(st.session_state.get("current_topic") or "Lección Activa").strip(),
             "Nivel_CEFR": str(st.session_state.get("selected_cefr") or "B1").strip(),
-            "Usuario": str(st.session_state.get("current_user") or usuario).strip(),
+            "Usuario": u_sesion_act,
         })
 
     opciones_folios_map = {}
@@ -6316,8 +6327,7 @@ if mostrar_barra_folios:
         if len(tema_dd) > 65:
             tema_dd = tema_dd[:62] + "..."
         cefr_dd = str(r_dd.get("Nivel_CEFR") or "").strip()
-        usr_dd = str(r_dd.get("Usuario") or "").strip()
-        etiqueta_dd = f"{f_cod} — {tema_dd} ({cefr_dd})" + (f" • {usr_dd}" if (has_faculty_access or is_owner) else "")
+        etiqueta_dd = f"{f_cod} — {tema_dd} ({cefr_dd})"
         if etiqueta_dd not in opciones_folios_map:
             opciones_folios_map[etiqueta_dd] = f_cod
 
@@ -6346,9 +6356,14 @@ if mostrar_barra_folios:
                 if st.session_state.current_folio and st.session_state.generated_text:
                     st.info(f"📄 `{st.session_state.current_folio}` | `{st.session_state.current_creation_date}`")
                 else:
-                    st.caption("Selecciona una lección de la lista y pulsa **📂 Abrir**.")
+                    st.caption(
+                        f"Lecciones de **{nom_usuario_act}**"
+                        + (f" (`Mat: {mat_usuario_act}`)" if mat_usuario_act else "")
+                        + ". Elige una y pulsa **📂 Abrir**."
+                    )
         else:
-            st.caption("📭 Aún no hay folios guardados. Presiona **✨ GENERAR LECCIÓN** arriba para crear el primero.")
+            st.caption("📭 Aún no tienes lecciones guardadas. Presiona **✨ GENERAR LECCIÓN** arriba para crear la primera.")
+
 
 
 # ==============================================================================
