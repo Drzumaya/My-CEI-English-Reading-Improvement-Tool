@@ -5343,8 +5343,15 @@ es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afi
 solo_socio_afiliado = es_socio_afiliado and not es_admin_o_staff
 
 if solo_socio_afiliado:
-    url_portal_aff_redir = "https://streamlit.app"
-    url_app_aff_redir = "https://github.io"
+    url_portal_aff_redir = str(
+        st.secrets.get("AFFILIATE_PORTAL_URL")
+        or ("https://" + "ceiafiliados.streamlit.app")
+    ).strip()
+    url_app_aff_redir = str(
+        st.secrets.get("AFFILIATE_APP_INSTALL_URL")
+        or ("https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/socio_app.html")
+    ).strip()
+
 
     buf_qr_redir = io.BytesIO()
     qrcode.make(url_portal_aff_redir).save(buf_qr_redir, format="PNG")
