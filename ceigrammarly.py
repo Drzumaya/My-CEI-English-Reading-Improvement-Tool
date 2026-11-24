@@ -5340,22 +5340,18 @@ with col_logout:
             )
 es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["teacher", "docente", "admin", "administrador", "propietario", "owner"])
 es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afiliado"])
+solo_socio_afiliado = es_socio_afiliado and not es_admin_o_staff
 
-if es_socio_afiliado and not es_admin_o_staff and not st.session_state.get("_socio_auto_routed", False):
+if solo_socio_afiliado:
     st.session_state["active_stage_5"] = "PORTAL"
     st.session_state["active_admin_workspace"] = "🤝 Portal Socio Afiliado"
     st.session_state["show_lesson_creator"] = False
-    st.session_state["_socio_auto_routed"] = True
+    st.session_state["generated_text"] = ""
 
-lbl_btn_portal = (
-    "🛡️ PANEL ADMINISTRATIVO"
-    if es_admin_o_staff
-    else ("🤝 MI PORTAL DE AFILIADO" if es_socio_afiliado else "🎓 MI PANEL ESTUDIANTIL")
-)
-
+lbl_btn_portal = "🛡️ PANEL ADMINISTRATIVO" if es_admin_o_staff else "🎓 MI PANEL ESTUDIANTIL"
 tiene_leccion_activa = bool(str(st.session_state.get("generated_text") or "").strip())
 
-if not tiene_leccion_activa:
+if not tiene_leccion_activa and not solo_socio_afiliado:
     c_init1, c_init2 = st.columns(2)
     with c_init1:
         en_panel_edu = (st.session_state.get("active_stage_5", "READING") != "PORTAL")
@@ -5380,9 +5376,7 @@ if not tiene_leccion_activa:
             st.session_state["active_stage_5"] = "PORTAL"
             st.session_state["show_lesson_creator"] = False
             st.session_state["creator_missing_fields"] = []
-            if es_socio_afiliado and not es_admin_o_staff:
-                st.session_state["active_admin_workspace"] = "🤝 Portal Socio Afiliado"
-            elif es_admin_o_staff:
+            if es_admin_o_staff:
                 st.session_state["active_admin_workspace"] = st.session_state.get("active_admin_workspace") or "💳 Cobranza Mensual e IVA"
             else:
                 st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
@@ -5405,6 +5399,7 @@ if not tiene_leccion_activa:
                     st.rerun()
             with c_edu_sep:
                 st.caption("Crea una lección nueva con IA o selecciona abajo una lección guardada por Folio para abrirla.")
+
 
 
 
