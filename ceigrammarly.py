@@ -154,8 +154,31 @@ st.iframe(
 # ==============================================================================
 # PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
 # ==============================================================================
+# ==============================================================================
+# PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
+# ==============================================================================
 def render_install_app_landing():
-    """Muestra la tarjeta de instalación adaptada al dispositivo al escanear el QR oficial CEI."""
+    """Muestra únicamente la tarjeta oficial de instalación de la App CEI sin botones extra ni badges de Streamlit/GitHub."""
+    st.markdown(
+        """
+        <style>
+            #MainMenu, footer, header[data-testid="stHeader"],
+            [data-testid="stToolbar"], [data-testid="stDecoration"],
+            [data-testid="manage-app-button"],
+            div[class*="viewerBadge"], div[class*="StatusWidget"],
+            div[class*="_profileContainer"], div[class*="_profilePreview"],
+            a[href*="streamlit.io"], a[href*="github.com"],
+            iframe[title="streamlit_badge"] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     apk_url = str(st.secrets.get("ANDROID_APK_URL", "")).strip()
     logo_path = "static/logo_cei_app.png" if os.path.exists("static/logo_cei_app.png") else "LOGO CEI APP.png"
 
@@ -200,6 +223,20 @@ def render_install_app_landing():
                 "></div>
             </div>
             <script>
+                (function() {
+                    const hideCloudBadges = () => {
+                        const docs = [document, window.parent.document];
+                        try { if (window.parent.parent && window.parent.parent.document) docs.push(window.parent.parent.document); } catch(e) {}
+                        docs.forEach(d => {
+                            d.querySelectorAll(
+                                '[data-testid="manage-app-button"], [class*="viewerBadge"], [class*="StatusWidget"], [class*="_profileContainer"], [class*="_profilePreview"], a[href*="streamlit.io"], a[href*="github.com"]'
+                            ).forEach(el => el.style.setProperty('display', 'none', 'important'));
+                        });
+                    };
+                    hideCloudBadges();
+                    setInterval(hideCloudBadges, 600);
+                })();
+
                 let deferredPromptCEI = null;
                 const btn = document.getElementById('btnNativeInstallCEI');
                 const hint = document.getElementById('installHintCEI');
@@ -210,13 +247,13 @@ def render_install_app_landing():
                 const isMacSafari = /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome/.test(ua);
 
                 if (isInApp) {
-                    hint.innerHTML = '⚠️ <b>Abriste este QR dentro de WhatsApp/Redes:</b> Toca los <b>3 puntos (⋮)</b> o el ícono de <b>brújula/navegador</b> y elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android) para poder instalar la app.';
+                    hint.innerHTML = '⚠️ <b>Abriste este QR dentro de WhatsApp/Redes:</b> Toca los <b>3 puntos (⋮)</b> o el ícono de <b>brújula/navegador</b> y elige <b>"Abrir en Safari"</b> (iPhone) o <b>"Abrir en Chrome"</b> (Android) para instalar la app.';
                 } else if (isIOS) {
-                    hint.innerHTML = '🍎 <b>iPhone / iPad detectado (2 toques):</b><br>1. Toca el botón <b>Compartir (⬆️)</b> en la barra inferior de Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene cargado.';
+                    hint.innerHTML = '🍎 <b>iPhone / iPad (2 toques):</b><br>1. Toca el botón <b>Compartir (⬆️)</b> en la barra inferior de Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene cargado.';
                 } else if (isMacSafari) {
-                    hint.innerHTML = '💻 <b>Mac Safari detectado:</b> En la barra superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene preconfigurado.';
+                    hint.innerHTML = '💻 <b>Mac Safari:</b> En la barra superior haz clic en <b>Archivo → Agregar al Dock</b> y pulsa <b>Agregar</b>. El escudo de CEI ya viene preconfigurado.';
                 } else if (isAndroid) {
-                    hint.innerHTML = '🤖 <b>Android detectado:</b> Pulsa el botón azul superior para instalar en 1 clic, o toca el menú <b>(⋮) → "Instalar aplicación"</b>.';
+                    hint.innerHTML = '🤖 <b>Android:</b> Pulsa el botón azul superior para instalar en 1 clic, o toca el menú <b>(⋮) → "Instalar aplicación"</b>.';
                 } else {
                     hint.innerHTML = '💻 <b>Navegador de Escritorio:</b> Pulsa el botón azul superior o haz clic en el ícono de <b>Instalar (⊕)</b> en la barra de direcciones.';
                 }
@@ -7742,9 +7779,10 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     "consulta todas sus lecciones generadas y ábrelas directamente en el visor de lectura."
                 )
 
-                if st.button("🔄 Actualizar Historial desde Supabase", key="btn_refresh_folios_admin_tab"):
+                if st.button("🔄 Actualizar Historial y Padrón desde Supabase", key="btn_refresh_folios_admin_tab"):
                     try:
                         load_lessons_history_pg.clear()
+                        load_padron_records.clear()
                     except Exception:
                         pass
                     st.rerun()
@@ -7752,11 +7790,21 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 padron_aud = load_padron_records() or []
                 folios_aud = load_lessons_history_pg() or []
 
+                def _get_ci(d_obj: dict, *keys) -> str:
+                    if not isinstance(d_obj, dict):
+                        return ""
+                    low_map = {str(k).lower(): v for k, v in d_obj.items()}
+                    for k in keys:
+                        val = low_map.get(str(k).lower())
+                        if val is not None and str(val).strip():
+                            return str(val).strip()
+                    return ""
+
                 c_bus1, c_bus2 = st.columns([2.2, 1.2])
                 with c_bus1:
                     q_busq_u = st.text_input(
                         "🔍 Buscar por Nombre, Usuario o Matrícula:",
-                        placeholder="Ej: juan, CEI-2026-001, Maria...",
+                        placeholder="Ej: Vicente, CEI-2026-001, Maria...",
                         key="txt_admin_search_lessons_user"
                     ).strip().lower()
                 with c_bus2:
@@ -7768,19 +7816,24 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     )
 
                 usuarios_filtrados_aud = []
-                for r_u in padron_aud:
-                    u_log = str(r_u.get("Usuario") or "").strip()
-                    if not u_log:
-                        continue
-                    nom_c = str(r_u.get("Nombre_Completo") or r_u.get("Nombre") or u_log).strip()
-                    mat_c = str(r_u.get("Matricula") or r_u.get("ID") or "").strip()
-                    rol_c = str(r_u.get("Rol") or "Estudiante").strip()
-                    niv_c = normalize_cefr(r_u.get("Nivel") or "B1")
+                seen_users_aud = set()
 
-                    if sel_niv_aud != "Todos los Niveles" and niv_c != sel_niv_aud:
+                for r_u in padron_aud:
+                    u_log = _get_ci(r_u, "Usuario", "usuario_login", "user")
+                    if not u_log or u_log.lower() in seen_users_aud:
+                        continue
+                    seen_users_aud.add(u_log.lower())
+
+                    nom_c = _get_ci(r_u, "Nombre_Completo", "Nombre", "full_name") or u_log
+                    mat_c = _get_ci(r_u, "Matricula", "ID", "id")
+                    rol_c = _get_ci(r_u, "Rol", "role") or "Estudiante"
+                    niv_raw = _get_ci(r_u, "Nivel", "cefr_level") or "B1"
+                    niv_sigla = next((n for n in ["A1", "A2", "B1", "B2", "C1", "C2"] if n in niv_raw.upper()), "B1")
+
+                    if sel_niv_aud != "Todos los Niveles" and niv_sigla != sel_niv_aud:
                         continue
                     if q_busq_u:
-                        blob_u = f"{u_log} {nom_c} {mat_c} {rol_c} {niv_c}".lower()
+                        blob_u = f"{u_log} {nom_c} {mat_c} {rol_c} {niv_sigla}".lower()
                         if q_busq_u not in blob_u:
                             continue
 
@@ -7789,11 +7842,11 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         "nombre": nom_c,
                         "matricula": mat_c,
                         "rol": rol_c,
-                        "nivel": niv_c,
-                        "label": f"{nom_c} (@{u_log}) • {rol_c} • Nivel {niv_c}" + (f" • Mat: {mat_c}" if mat_c else "")
+                        "nivel": niv_sigla,
+                        "label": f"{nom_c} (@{u_log}) • {rol_c} • Nivel {niv_sigla}" + (f" • Mat: {mat_c}" if mat_c else "")
                     })
 
-                opciones_selector_aud = ["🌐 Todos los Usuarios Coincidentes"] + [u["label"] for u in usuarios_filtrados_aud]
+                opciones_selector_aud = ["🌐 Todos los Usuarios y Lecciones"] + [u["label"] for u in usuarios_filtrados_aud]
                 sel_usuario_aud_lbl = st.selectbox(
                     f"👤 Seleccionar Usuario ({len(usuarios_filtrados_aud)} encontrados en padrón):",
                     opciones_selector_aud,
@@ -7801,23 +7854,28 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 )
 
                 folios_mostrados = []
-                if sel_usuario_aud_lbl == "🌐 Todos los Usuarios Coincidentes":
-                    set_u_validos = {u["usuario"].lower() for u in usuarios_filtrados_aud}
-                    set_n_validos = {u["nombre"].lower() for u in usuarios_filtrados_aud}
+                if sel_usuario_aud_lbl == "🌐 Todos los Usuarios y Lecciones":
                     for f_item in folios_aud:
-                        fu = str(f_item.get("Usuario") or "").strip().lower()
-                        fniv = normalize_cefr(f_item.get("Nivel_CEFR") or "B1")
-                        if sel_niv_aud != "Todos los Niveles" and fniv != sel_niv_aud:
+                        fu = _get_ci(f_item, "Usuario")
+                        ftema = _get_ci(f_item, "Tema")
+                        ffolio = _get_ci(f_item, "Folio")
+                        fniv_raw = _get_ci(f_item, "Nivel_CEFR") or "B1"
+                        fniv_sigla = next((n for n in ["A1", "A2", "B1", "B2", "C1", "C2"] if n in fniv_raw.upper()), "B1")
+
+                        if sel_niv_aud != "Todos los Niveles" and fniv_sigla != sel_niv_aud:
                             continue
-                        if not q_busq_u or fu in set_u_validos or fu in set_n_validos or q_busq_u in str(f_item.get("Tema") or "").lower() or q_busq_u in str(f_item.get("Folio") or "").lower():
-                            folios_mostrados.append(f_item)
+                        if q_busq_u:
+                            blob_f = f"{fu} {ftema} {ffolio} {fniv_sigla}".lower()
+                            if q_busq_u not in blob_f:
+                                continue
+                        folios_mostrados.append(f_item)
                 else:
                     u_obj_sel = next((u for u in usuarios_filtrados_aud if u["label"] == sel_usuario_aud_lbl), None)
                     if u_obj_sel:
                         ids_match = {u_obj_sel["usuario"].lower(), u_obj_sel["nombre"].lower()}
                         folios_mostrados = [
                             f_item for f_item in folios_aud
-                            if str(f_item.get("Usuario") or "").strip().lower() in ids_match
+                            if _get_ci(f_item, "Usuario").lower() in ids_match
                         ]
 
                 st.divider()
@@ -7828,22 +7886,22 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 else:
                     df_aud_folios = pd.DataFrame([
                         {
-                            "Folio": f.get("Folio", ""),
-                            "Usuario": f.get("Usuario", ""),
-                            "Tema": f.get("Tema", ""),
-                            "Nivel CEFR": f.get("Nivel_CEFR", ""),
-                            "Grado": f.get("Grado_Academico", ""),
-                            "Quiz": f.get("Mejor_Calificacion_PDF", "—"),
+                            "Folio": _get_ci(f, "Folio"),
+                            "Usuario": _get_ci(f, "Usuario"),
+                            "Tema": _get_ci(f, "Tema"),
+                            "Nivel CEFR": _get_ci(f, "Nivel_CEFR"),
+                            "Grado": _get_ci(f, "Grado_Academico"),
+                            "Quiz": _get_ci(f, "Mejor_Calificacion_PDF") or "—",
                             "Speaking": f"{float(f.get('Speaking_Score') or 0):.1f}" if float(f.get("Speaking_Score") or -1) >= 0 else "—",
-                            "Fecha": f.get("Fecha_de_subida", "")
+                            "Fecha": _get_ci(f, "Fecha_de_subida")
                         }
                         for f in folios_mostrados
                     ])
                     st.dataframe(df_aud_folios, width="stretch", hide_index=True)
 
                     mapa_abrir_aud = {
-                        f"{f.get('Folio')} — {str(f.get('Tema') or '')[:55]} ({f.get('Usuario')})": str(f.get("Folio") or "").strip()
-                        for f in folios_mostrados if str(f.get("Folio") or "").strip()
+                        f"{_get_ci(f, 'Folio')} — {_get_ci(f, 'Tema')[:55]} ({_get_ci(f, 'Usuario')})": _get_ci(f, "Folio")
+                        for f in folios_mostrados if _get_ci(f, "Folio")
                     }
                     c_op1, c_op2 = st.columns([2.8, 1.2])
                     with c_op1:
