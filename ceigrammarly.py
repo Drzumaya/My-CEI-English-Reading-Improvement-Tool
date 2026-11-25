@@ -451,6 +451,7 @@ GRADOS_ACADEMICOS = [
 ]
 
 CAPABILITY_COLS = [
+    "Ver_Panel_Educativo",
     "Ver_Panel_Admin",
     "Registrar_Usuarios",
     "Gestionar_Usuarios",
@@ -467,9 +468,11 @@ CAPABILITY_COLS = [
     "Editar_Terminos_Afiliacion"
 ]
 
+
 DEFAULT_PERMISSIONS_MATRIX = {
     "Total": {c: True for c in CAPABILITY_COLS},
     "Academico": {
+        "Ver_Panel_Educativo": True,
         "Ver_Panel_Admin": True,
         "Registrar_Usuarios": True,
         "Gestionar_Usuarios": True,
@@ -486,6 +489,7 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Editar_Terminos_Afiliacion": False
     },
     "Certificador": {
+        "Ver_Panel_Educativo": True,
         "Ver_Panel_Admin": True,
         "Registrar_Usuarios": False,
         "Gestionar_Usuarios": False,
@@ -502,6 +506,7 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Editar_Terminos_Afiliacion": False
     },
     "Auditoria": {
+        "Ver_Panel_Educativo": True,
         "Ver_Panel_Admin": True,
         "Registrar_Usuarios": False,
         "Gestionar_Usuarios": False,
@@ -517,8 +522,12 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Gestionar_Pagos_Cobranza": False,
         "Editar_Terminos_Afiliacion": False
     },
-    "Basico": {c: False for c in CAPABILITY_COLS}
+    "Basico": {
+        **{c: False for c in CAPABILITY_COLS},
+        "Ver_Panel_Educativo": True
+    }
 }
+
 
 CEFR_MAP = {
     "A1": "A1 (Beginner)",
