@@ -7298,6 +7298,45 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
+        # 14.0A PLANTILLA DOCENTE (ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
+        if seccion_inst_sel == "🧑‍🏫 Plantilla y Portal Docente":
+            if not (is_owner or can("Ver_Panel_Admin") or can("Registrar_Usuarios")):
+                st.warning("⛔ Tu perfil actual no tiene acceso a la gestión de Plantilla Docente.")
+            else:
+                tab_doc_reg, tab_doc_audit = st.tabs([
+                    "➕ Registrar / Actualizar Docente",
+                    "🔍 Auditar Portal y Bóveda Fiscal Docente"
+                ])
+                with tab_doc_reg:
+                    from registro_docentes import render_formulario_registro_docente
+                    render_formulario_registro_docente(
+                        registrado_por=u_login_hdr,
+                        key_prefix="admin_doc_reg",
+                        es_registro_externo=False
+                    )
+                with tab_doc_audit:
+                    from portal_docente import render_portal_docente_cei
+                    render_portal_docente_cei(
+                        usuario_actual=u_login_hdr,
+                        rol_actual="Propietario" if is_owner else curr_r_clean,
+                        puede_ver_estudiantes=True,
+                        puede_motivar_wa=True,
+                        puede_retroalimentar=True,
+                        puede_ver_comisiones=True,
+                        es_admin_o_owner=True,
+                        dia_corte_cfdi=25,
+                        institute_address=str(institute_address or "Agua Prieta, Sonora, México")
+                    )
+
+        # 14.0B CENTRO DE COMPLIANCE, VIGILANCIA LEGAL SEMANAL Y RELOJ SLA
+        if seccion_inst_sel == "⚖️ Compliance y Vigilancia Legal":
+            from compliance_engine import render_panel_compliance_gerencial
+            render_panel_compliance_gerencial(
+                usuario_actual=u_login_hdr,
+                puede_gestionar=bool(is_owner or can("Gestionar_Compliance_Legal"))
+            )
+
+
         # 14.1 PESTAÑA CERTIFICADOS
         if seccion_inst_sel == "🏅 Certificados (Timbre y QR)":
             if not (is_owner or can("Emitir_Certificados")):
