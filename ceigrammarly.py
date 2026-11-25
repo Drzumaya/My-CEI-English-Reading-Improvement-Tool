@@ -452,6 +452,11 @@ GRADOS_ACADEMICOS = [
 
 CAPABILITY_COLS = [
     "Ver_Panel_Educativo",
+    "Ver_Portal_Docente",
+    "Ver_Mis_Estudiantes_Docente",
+    "Motivar_Estudiantes_WhatsApp",
+    "Asignar_Retroalimentacion_Docente",
+    "Ver_Comisiones_Pagos_Docente",
     "Ver_Panel_Admin",
     "Registrar_Usuarios",
     "Gestionar_Usuarios",
@@ -468,65 +473,58 @@ CAPABILITY_COLS = [
     "Editar_Terminos_Afiliacion"
 ]
 
-
 DEFAULT_PERMISSIONS_MATRIX = {
     "Total": {c: True for c in CAPABILITY_COLS},
     "Academico": {
+        **{c: False for c in CAPABILITY_COLS},
         "Ver_Panel_Educativo": True,
+        "Ver_Portal_Docente": True,
+        "Ver_Mis_Estudiantes_Docente": True,
+        "Motivar_Estudiantes_WhatsApp": True,
+        "Asignar_Retroalimentacion_Docente": True,
+        "Ver_Comisiones_Pagos_Docente": True,
         "Ver_Panel_Admin": True,
         "Registrar_Usuarios": True,
         "Gestionar_Usuarios": True,
-        "Editar_Permisos": False,
         "Emitir_Certificados": True,
-        "Revocar_Certificados": False,
-        "Editar_Instituto_Logo": False,
         "Previsualizar_A1_C2": True,
-        "Reuso_Ilimitado_Folios": True,
-        "Editar_Fecha_Inicio_Curso": False,
-        "Gestionar_Comisiones_Afiliados": False,
-        "Gestionar_IVA_Mensualidad": False,
-        "Gestionar_Pagos_Cobranza": False,
-        "Editar_Terminos_Afiliacion": False
+        "Reuso_Ilimitado_Folios": True
+    },
+    "Docente": {
+        **{c: False for c in CAPABILITY_COLS},
+        "Ver_Panel_Educativo": True,
+        "Ver_Portal_Docente": True,
+        "Ver_Mis_Estudiantes_Docente": True,
+        "Motivar_Estudiantes_WhatsApp": True,
+        "Asignar_Retroalimentacion_Docente": True,
+        "Ver_Comisiones_Pagos_Docente": True,
+        "Previsualizar_A1_C2": True,
+        "Reuso_Ilimitado_Folios": True
     },
     "Certificador": {
+        **{c: False for c in CAPABILITY_COLS},
         "Ver_Panel_Educativo": True,
         "Ver_Panel_Admin": True,
-        "Registrar_Usuarios": False,
-        "Gestionar_Usuarios": False,
-        "Editar_Permisos": False,
         "Emitir_Certificados": True,
         "Revocar_Certificados": True,
-        "Editar_Instituto_Logo": False,
-        "Previsualizar_A1_C2": False,
-        "Reuso_Ilimitado_Folios": True,
-        "Editar_Fecha_Inicio_Curso": False,
-        "Gestionar_Comisiones_Afiliados": False,
-        "Gestionar_IVA_Mensualidad": False,
-        "Gestionar_Pagos_Cobranza": False,
-        "Editar_Terminos_Afiliacion": False
+        "Reuso_Ilimitado_Folios": True
     },
     "Auditoria": {
+        **{c: False for c in CAPABILITY_COLS},
         "Ver_Panel_Educativo": True,
+        "Ver_Portal_Docente": True,
+        "Ver_Mis_Estudiantes_Docente": True,
+        "Ver_Comisiones_Pagos_Docente": True,
         "Ver_Panel_Admin": True,
-        "Registrar_Usuarios": False,
-        "Gestionar_Usuarios": False,
-        "Editar_Permisos": False,
-        "Emitir_Certificados": False,
-        "Revocar_Certificados": False,
-        "Editar_Instituto_Logo": False,
         "Previsualizar_A1_C2": True,
-        "Reuso_Ilimitado_Folios": True,
-        "Editar_Fecha_Inicio_Curso": False,
-        "Gestionar_Comisiones_Afiliados": False,
-        "Gestionar_IVA_Mensualidad": False,
-        "Gestionar_Pagos_Cobranza": False,
-        "Editar_Terminos_Afiliacion": False
+        "Reuso_Ilimitado_Folios": True
     },
     "Basico": {
         **{c: False for c in CAPABILITY_COLS},
         "Ver_Panel_Educativo": True
     }
 }
+
 
 
 CEFR_MAP = {
