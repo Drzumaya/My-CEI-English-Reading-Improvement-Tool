@@ -25,12 +25,49 @@ DEFAULT_TERMS_BY_ROLE = {
 3. ÍNDICE ESTADÍSTICO DE COMPLIANCE Y CONFIANZA: El expediente del Socio Afiliado está sujeto al monitoreo continuo del Índice de Compliance Institucional (0–100 pts). El uso de publicidad engañosa, alteración de tarifas oficiales o captación fraudulenta causará la revocación inmediata del ID de Afiliado.
 4. PROTECCIÓN DE DATOS PERSONALES (LFPDPPP): El Socio Afiliado se obliga a resguardar la privacidad de los prospectos y a utilizar exclusivamente los canales oficiales de inscripción de CEI.""",
 
-    "estudiante": """REGLAMENTO ACADÉMICO, TÉRMINOS DE USO Y COMPLIANCE ESTUDIANTIL — CAREER ENGLISH INSTITUTE (CEI)
+TERMINOS_INSCRIPCION_ALUMNOS_CEI = """### Términos, Condiciones y Reglamento Académico de Inscripción
 
-1. COMPROMISO ACADÉMICO E INTEGRIDAD: El Estudiante se compromete a realizar de forma personal y honesta sus lecturas, prácticas de pronunciación y evaluaciones por Folio dentro de la plataforma CEI, manteniendo su racha semanal activa.
-2. REGULARIDAD ADMINISTRATIVA Y PAGOS (9 BLOQUES): El acceso continuo a los módulos y la emisión de certificados con timbre digital HMAC-SHA256 y Código QR están sujetos al cumplimiento oportuno de los bloques de colegiatura correspondientes.
-3. ÍNDICE DE COMPLIANCE Y CONFIANZA: El progreso académico, disciplina de estudio y regularidad administrativa alimentan el Índice Estadístico de Confianza del Estudiante dentro de la institución.
-4. PRIVACIDAD Y USO DE PLATAFORMA: Las credenciales de acceso son personales e intransferibles. Los datos personales recabados son tratados conforme al Aviso de Privacidad de Career English Institute y la LFPDPPP."""
+**Career English Institute (CEI) — Agua Prieta, Sonora, México**
+
+**Primera. Naturaleza del Servicio (Modalidad 100 % en Línea) y Marco Legal Aplicable**
+
+Los presentes Términos y Condiciones regulan la prestación de servicios educativos privados de enseñanza del idioma inglés en modalidad 100 % en línea, mediante clases sincrónicas por videoconferencia y plataforma educativa interactiva, impartidos por Career English Institute (CEI), con sede administrativa en Agua Prieta, Sonora, México. Este acuerdo se rige por las disposiciones aplicables del Código Civil Federal, la Ley General de Educación y la Ley Federal de Protección al Consumidor vigentes en los Estados Unidos Mexicanos y en el Estado de Sonora.
+
+**Segunda. Calibración al Marco Común Europeo de Referencia para las Lenguas (CEFR)**
+
+Los programas académicos de CEI son flexibles y ajustables al dominio real del estudiante conforme al Marco Común Europeo de Referencia para las Lenguas (CEFR, por sus siglas en inglés: niveles A1, A2, B1, B2, C1 y C2; Council of Europe, 2020). Al formalizar la inscripción, la plataforma educativa y la totalidad de las lecciones, audios, evaluaciones y ejercicios generados en ella quedarán calibrados automáticamente al nivel CEFR declarado en este formulario, pudiendo ajustarse previa valoración académica institucional.
+
+**Tercera. Duración del Programa (Nueve Periodos) y Periodos Vacacionales Activos**
+
+1. *Estructura del nivel.* Cada nivel académico está organizado en nueve (9) periodos mensuales de cuatro (4) semanas cada uno.
+2. *Periodos vacacionales activos (verano e invierno).* Durante los recesos vacacionales prolongados de verano e invierno no se imparten clases sincrónicas en línea; no obstante, la plataforma educativa permanecerá plenamente operativa las 24 horas para que el estudiante continúe practicando y conserve su continuidad académica.
+3. *Conclusión y acreditación del nivel.* Al concluir satisfactoriamente los nueve (9) periodos y acreditar la rúbrica institucional correspondiente, el estudiante obtiene su constancia o certificado académico del nivel cursado.
+
+**Cuarta. Asistencia en Línea, Inasistencias Justificadas y Recuperación de Sesiones**
+
+1. *Asistencia del estudiante y asignación de trabajo (homework).* El estudiante se compromete a conectarse puntualmente a sus sesiones sincrónicas en línea. En caso de requerir ausentarse por causa justificada, deberá notificar con anticipación a la institución o al docente titular para recibir su asignación de trabajo (*homework*). La entrega y el cumplimiento oportuno de dicha asignación acreditarán la sesión correspondiente.
+2. *Ausencia justificada del docente.* En caso de que el docente deba ausentarse por causa justificada, se notificará oportunamente al estudiante y, por mutuo acuerdo entre ambas partes, se reprogramará y recuperará íntegramente la sesión sin costo adicional.
+
+**Quinta. Rúbrica de Evaluación por Criterios y Acceso al Boletín Informativo**
+
+1. *Evaluación integral por competencias.* El estudiante deberá completar en tiempo y forma los criterios de la rúbrica de evaluación correspondientes a su nivel: *Reading & Quiz* (30 %), *Viewing & Listening* (25 %), *Alphabetical & Speaking* (25 %) y *Writing Skill APA 7* (20 %).
+2. *Puntualidad en colegiaturas y acceso al boletín.* El estudiante —o su padre, madre o tutor legal— se compromete a mantenerse al corriente en el pago de sus mensualidades dentro de la cuarta semana de cada bloque y a reportarlo oportunamente en la plataforma para conservar activo su acceso al Boletín Informativo de Calificaciones y avances.
+
+**Sexta. Protección de Datos Personales y Jurisdicción**
+
+De conformidad con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP, 2010), los datos personales recabados se tratarán exclusivamente para fines académicos, administrativos y de certificación interna. Para cualquier controversia derivada de la interpretación o el cumplimiento de este instrumento, las partes se someten a las leyes vigentes y a los tribunales competentes de Agua Prieta, Sonora, México.
+
+**Séptima. Compliance Institucional, Índice Estadístico de Confianza e Integridad Digital**
+
+El estudiante reconoce que su continuidad académica, disciplina de estudio y regularidad administrativa alimentan el Índice Estadístico de Compliance y Confianza Institucional (escala de 0 a 100 puntos). Las credenciales de acceso son estrictamente personales e intransferibles; cualquier suplantación de identidad o alteración de folios o certificados protegidos mediante sello criptográfico HMAC-SHA256 constituirá causal de baja definitiva.
+
+---
+
+**Referencias Normativas y Académicas (Formato APA, 7.ª ed.)**
+
+* Council of Europe. (2020). *Common European Framework of Reference for Languages: Learning, teaching, assessment – Companion volume*. Council of Europe Publishing. https://coe.int
+* Ley Federal de Protección de Datos Personales en Posesión de los Particulares [LFPDPPP]. (2010, 5 de julio). *Diario Oficial de la Federación*. https://diputados.gob.mx
+* Ley General de Educación [LGE]. (2019, 30 de septiembre). *Diario Oficial de la Federación*. https://diputados.gob.mx"""
 }
 
 
