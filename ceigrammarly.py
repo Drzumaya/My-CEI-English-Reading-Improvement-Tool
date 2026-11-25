@@ -8512,9 +8512,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             ])
                             st.dataframe(df_b9, width="stretch", hide_index=True)
 
-# ==============================================================================
-# PARTE 14D2: ESTADOS FINANCIEROS CONSOLIDADOS, ALTA Y PORTAL SOCIO AFILIADO
-# ==============================================================================
         # 14.5B PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
         if seccion_inst_sel == "📊 Estados Financieros":
             if not (is_owner or can("Ver_Panel_Admin")):
@@ -8569,14 +8566,89 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
                     st.dataframe(df_ef, width="stretch", hide_index=True)
 
-                    csv_ef = df_ef.to_csv(index=False).encode("utf-8-sig")
-                    st.download_button(
-                        label="📥 Exportar Reporte Financiero (CSV / Excel)",
-                        data=csv_ef,
-                        file_name=f"Estado_Financiero_CEI_{datetime.now(ZoneInfo('America/Hermosillo')).strftime('%Y%m%d')}.csv",
-                        mime="text/csv",
-                        key="btn_dl_ef_csv"
-                    )
+                    # Preparar datos ejecutivos para el PDF de Alta Gerencia (Board Pack NIF/IFRS)
+                    ing_bruto = float(ef_data.get("ingresos_cobrados_hist", 0.0))
+                    com_aff = float(ef_data.get("comisiones_generadas_hist", 0.0))
+                    util_neta = float(ef_data.get("ingreso_neto_post_comision", ing_bruto - com_aff))
+                    iva_pct_sede = float(st.session_state.get("active_campus_iva", 8.0))
+                    subtotal_sin_iva = round(ing_bruto / (1.0 + (iva_pct_sede / 100.0)), 2) if ing_bruto > 0 else 0.0
+                    iva_trasladado = round(ing_bruto - subtotal_sin_iva, 2)
+
+                    campus_pdf_info = {
+                        "campus_id": str(st.session_state.get("active_campus_id", "CEI-AP-01")),
+                        "nombre_plantel": str(st.session_state.get("active_campus_name", "Career English Institute — Sede Central")),
+                        "direccion_oficial": str(institute_address or "Agua Prieta, Sonora, Mexico"),
+                        "moneda": str(st.session_state.get("active_campus_currency", "MXN")),
+                    }
+                    resumen_kpis_pdf = {
+                        "ingresos_brutos": ing_bruto,
+                        "iva_total": iva_trasladado,
+                        "egresos_totales": com_aff,
+                        "utilidad_neta": util_neta,
+                    }
+                    lineas_pnl_pdf = [
+                        {"concepto": "Ingresos Brutos Cobrados (Colegiaturas e Inscripciones)", "monto": ing_bruto, "pct": 100.0, "es_total": False},
+                        {"concepto": f"(-) IVA Trasladado Desglosado ({iva_pct_sede:.0f}%)", "monto": iva_trasladado, "pct": round((iva_trasladado / ing_bruto * 100.0), 1) if ing_bruto else 0.0, "es_total": False},
+                        {"concepto": "Ingresos Netos Antes de Comisiones", "monto": subtotal_sin_iva, "pct": round((subtotal_sin_iva / ing_bruto * 100.0), 1) if ing_bruto else 0.0, "es_total": True},
+                        {"concepto": "(-) Provision y Liquidacion Comisiones Socios Afiliados", "monto": com_aff, "pct": round((com_aff / ing_bruto * 100.0), 1) if ing_bruto else 0.0, "es_total": False},
+                        {"concepto": "UTILIDAD NETA OPERATIVA DEL PERIODO", "monto": util_neta, "pct": round((util_neta / ing_bruto * 100.0), 1) if ing_bruto else 0.0, "es_total": True},
+                    ]
+                    detalle_rubros_pdf = [
+                        {
+                            "rubro": "Colegiaturas Cobradas (Alumnos Al Corriente)",
+                            "movimientos": int(ef_data.get("conteo_al_corriente", 0)),
+                            "subtotal": subtotal_sin_iva,
+                            "total": ing_bruto,
+                        },
+                        {
+                            "rubro": "Cartera Vigente por Cobrar (Semanas 1-4)",
+                            "movimientos": max(0, int(ef_data.get("total_alumnos", 0)) - int(ef_data.get("conteo_al_corriente", 0)) - int(ef_data.get("conteo_moratorios", 0))),
+                            "subtotal": round(float(ef_data.get("cartera_por_cobrar_vigente", 0.0)) / (1.0 + (iva_pct_sede / 100.0)), 2),
+                            "total": float(ef_data.get("cartera_por_cobrar_vigente", 0.0)),
+                        },
+                        {
+                            "rubro": "Cartera Vencida en Mora (Requiere Seguimiento)",
+                            "movimientos": int(ef_data.get("conteo_moratorios", 0)),
+                            "subtotal": round(float(ef_data.get("cartera_vencida_moratoria", 0.0)) / (1.0 + (iva_pct_sede / 100.0)), 2),
+                            "total": float(ef_data.get("cartera_vencida_moratoria", 0.0)),
+                        },
+                    ]
+
+                    col_exp1, col_exp2 = st.columns(2)
+                    with col_exp1:
+                        try:
+                            from financial_report_pdf import generar_pdf_estado_financiero_gerencial
+                            periodo_hoy = datetime.now(ZoneInfo("America/Hermosillo")).strftime("%B %Y").upper()
+                            pdf_ef_bytes, folio_ef_pdf = generar_pdf_estado_financiero_gerencial(
+                                campus_info=campus_pdf_info,
+                                periodo_label=periodo_hoy,
+                                resumen_kpis=resumen_kpis_pdf,
+                                lineas_pnl=lineas_pnl_pdf,
+                                detalle_conceptos=detalle_rubros_pdf,
+                                emisor_nombre="Jacob Zumaya Prianti"
+                            )
+                            st.download_button(
+                                label="🏛️ Descargar Estado Financiero Gerencial (PDF)",
+                                data=pdf_ef_bytes,
+                                file_name=f"Estado_Financiero_Gerencial_CEI_{folio_ef_pdf}.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                width="stretch",
+                                key="btn_dl_ef_pdf_gerencial"
+                            )
+                        except Exception as e_pdf:
+                            st.warning(f"⚠️ No se pudo generar el PDF gerencial: {e_pdf}")
+
+                    with col_exp2:
+                        csv_ef = df_ef.to_csv(index=False).encode("utf-8-sig")
+                        st.download_button(
+                            label="📥 Exportar Auxiliar de Cartera (CSV / Excel)",
+                            data=csv_ef,
+                            file_name=f"Estado_Financiero_CEI_{datetime.now(ZoneInfo('America/Hermosillo')).strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                            width="stretch",
+                            key="btn_dl_ef_csv"
+                        )
                 else:
                     st.info("No hay registros financieros de estudiantes para mostrar.")
 
