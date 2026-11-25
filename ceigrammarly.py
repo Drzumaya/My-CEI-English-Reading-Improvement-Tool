@@ -7304,11 +7304,31 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
-        # 14.0A PLANTILLA DOCENTE (ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
+ # 14.0A PLANTILLA DOCENTE (TÉRMINOS LEGALES, ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
         if seccion_inst_sel == "🧑‍🏫 Plantilla y Portal Docente":
-            if not (is_owner or can("Ver_Panel_Admin") or can("Registrar_Usuarios")):
+            puede_editar_terminos_leg = is_owner or can("Editar_Terminos_Afiliacion") or can("Gestionar_Compliance_Legal")
+            if not (is_owner or can("Ver_Panel_Admin") or can("Registrar_Usuarios") or puede_editar_terminos_leg):
                 st.warning("⛔ Tu perfil actual no tiene acceso a la gestión de Plantilla Docente.")
             else:
+                if puede_editar_terminos_leg:
+                    with st.expander("📜 Editar Términos, Condiciones y Código de Compliance Docente", expanded=False):
+                        from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
+                        t_doc_info = get_institutional_terms_pg("docente")
+                        if t_doc_info.get("updated_at"):
+                            st.caption(f"Última actualización: `{t_doc_info['updated_at']}` por **{t_doc_info['updated_by']}**")
+                        txt_terms_doc_ed = st.text_area(
+                            "Marco Legal, Fiscal y Compliance mostrado en registro_docentes.py:",
+                            value=t_doc_info["texto"],
+                            height=220,
+                            key="ta_edit_teacher_terms_admin"
+                        )
+                        if st.button("💾 Guardar y Publicar Términos Docentes", type="primary", key="btn_save_teacher_terms_admin"):
+                            if not txt_terms_doc_ed.strip():
+                                st.warning("⚠️ El texto legal docente no puede quedar vacío.")
+                            else:
+                                ok_td, msg_td = save_institutional_terms_pg("docente", txt_terms_doc_ed, str(st.session_state.current_user or "Owner"))
+                                st.success(msg_td) if ok_td else st.error(msg_td)
+
                 tab_doc_reg, tab_doc_audit = st.tabs([
                     "➕ Registrar / Actualizar Docente",
                     "🔍 Auditar Portal y Bóveda Fiscal Docente"
@@ -8768,15 +8788,16 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     st.info("No hay registros financieros de estudiantes para mostrar.")
 
 
-        # 14.5C PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS, TÉRMINOS Y QR DE REGISTRO
+ # 14.5C PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS, TÉRMINOS Y QR DE REGISTRO
         if seccion_inst_sel == "🤝 Alta de Socios Afiliados":
-            puede_editar_terminos_aff = is_owner or can("Editar_Terminos_Afiliacion")
+            puede_editar_terminos_aff = is_owner or can("Editar_Terminos_Afiliacion") or can("Gestionar_Compliance_Legal")
             if not (is_owner or puede_gestionar_afiliados or puede_editar_terminos_aff):
                 st.warning("⛔ Tu perfil actual no tiene permisos habilitados para gestionar Socios Afiliados ni Términos.")
             else:
                 if puede_editar_terminos_aff:
-                    with st.expander("📜 Editar Términos y Condiciones de Afiliación (Formulario Público)", expanded=False):
-                        terms_data = get_affiliate_terms_pg()
+                    with st.expander("📜 Editar Términos, Condiciones y Compliance de Socios Afiliados", expanded=False):
+                        from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
+                        terms_data = get_institutional_terms_pg("afiliado")
                         if terms_data.get("updated_at"):
                             st.caption(f"Última actualización: `{terms_data['updated_at']}` por **{terms_data['updated_by']}**")
                         txt_terms_edit = st.text_area(
@@ -8785,15 +8806,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             height=240,
                             key="ta_edit_affiliate_terms_admin"
                         )
-                        if st.button("💾 Guardar y Publicar Términos y Condiciones", type="primary", key="btn_save_aff_terms_admin"):
+                        if st.button("💾 Guardar y Publicar Términos de Afiliados", type="primary", key="btn_save_aff_terms_admin"):
                             if not txt_terms_edit.strip():
                                 st.warning("⚠️ El texto de Términos y Condiciones no puede quedar vacío.")
                             else:
-                                ok_t, msg_t = save_affiliate_terms_pg(txt_terms_edit, str(st.session_state.current_user or "Owner"))
-                                if ok_t:
-                                    st.success(msg_t)
-                                else:
-                                    st.error(msg_t)
+                                ok_t, msg_t = save_institutional_terms_pg("afiliado", txt_terms_edit, str(st.session_state.current_user or "Owner"))
+                                st.success(msg_t) if ok_t else st.error(msg_t)
 
                 if is_owner or puede_gestionar_afiliados:
                     try:
@@ -8806,12 +8824,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     except ModuleNotFoundError:
                         st.warning("⚠️ Crea el archivo `registro_afiliados.py` en la raíz del proyecto para activar este formulario.")
 
-        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO (MITAD 1 DE 2 — CON QR OFICIAL LIGADO AL ID Y QR APP)
+
+        # 14.6 PESTAÑA PORTAL SOCIO AFILIADO
         if seccion_inst_sel == "🤝 Portal Socio Afiliado":
             url_portal_aff = str(
                 st.secrets.get("AFFILIATE_PORTAL_URL")
-                or st.secrets.get("PUBLIC_APP_URL")
-                or "https://streamlit.app"
+                or ("https://" + "ceiafiliados.streamlit.app")
             ).strip().rstrip("/")
             aff_objetivo_portal = st.session_state.current_user
 
@@ -8830,10 +8848,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         aff_objetivo_portal = None
                         st.info("Aún no hay Socios Afiliados registrados.")
                 with col_p_qr:
-                    url_portal_aff = str(
-                        st.secrets.get("AFFILIATE_PORTAL_URL")
-                        or "https://ceiafiliados.streamlit.app"
-                    ).strip().rstrip("/")
                     buf_qp = io.BytesIO()
                     qrcode.make(url_portal_aff).save(buf_qp, format="PNG")
                     st.image(buf_qp.getvalue(), caption="📲 QR Portal Afiliados", width=120)
@@ -8845,7 +8859,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         width="stretch",
                         key="btn_dl_qrportal_main"
                     )
-
 
 
             if aff_objetivo_portal:
