@@ -55,7 +55,22 @@ QUINTA. RÚBRICA DE EVALUACIÓN POR CRITERIOS Y ACCESO AL BOLETÍN.
 2. Puntualidad en Mensualidades y Boletín: El estudiante (o su padre/tutor) se compromete a mantenerse al corriente en el pago de sus mensualidades (dentro de la 4ta semana de cada bloque) e informarlo oportunamente en la plataforma para conservar activo su acceso al Boletín Informativo de Calificaciones y avances.
 
 SEXTA. PROTECCIÓN DE DATOS PERSONALES Y JURISDICCIÓN.
-De conformidad con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP), los datos recabados se utilizarán exclusivamente para fines académicos, administrativos y de certificación interna. Para cualquier controversia derivada de la interpretación o cumplimiento de este acuerdo, las partes se someten a las leyes vigentes y a los tribunales competentes de Agua Prieta, Sonora, México."""
+De conformidad con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP), los datos recabados se utilizarán exclusivamente para fines académicos, administrativos y de certificación interna. Para cualquier controversia derivada de la interpretación o cumplimiento de este acuerdo, las partes se someten a las leyes vigentes y a los tribunales competentes de Agua Prieta, Sonora, México.
+
+SÉPTIMA. COMPLIANCE INSTITUCIONAL, ÍNDICE DE CONFIANZA Y INTEGRIDAD DIGITAL.
+El estudiante acepta que su continuidad académica, disciplina de estudio y regularidad administrativa alimentan el Índice Estadístico de Compliance y Confianza Institucional (0 a 100 puntos). Las credenciales de acceso son estrictamente personales e intransferibles; cualquier suplantación de identidad o alteración de folios o certificados protegidos mediante sello criptográfico HMAC-SHA256 será causal de baja definitiva."""
+
+
+def get_terminos_inscripcion_estudiantes() -> str:
+    """Obtiene los términos vigentes de inscripción desde PostgreSQL (o usa el texto base de 7 cláusulas)."""
+    try:
+        from legal_terms_manager import get_institutional_terms_pg
+        txt_db = str(get_institutional_terms_pg("estudiante").get("texto") or "").strip()
+        if txt_db and "PRIMERA." in txt_db:
+            return txt_db
+    except Exception:
+        pass
+    return TERMINOS_INSCRIPCION_ALUMNOS_CEI
 
 
 def _find_secret_ins(key_name: str) -> str:
@@ -70,7 +85,6 @@ def _find_secret_ins(key_name: str) -> str:
                 if str(sub_k).lower() == key_low:
                     return str(sub_v).strip()
     return ""
-
 
 def _get_conn_ins():
     pg_host = _find_secret_ins("PG_HOST") or _find_secret_ins("DB_HOST") or _find_secret_ins("HOST")
@@ -94,13 +108,28 @@ def _get_conn_ins():
 
 
 def obtener_terminos_estudiantes_pg() -> str:
-    """Lee desde Supabase PostgreSQL los Términos y Condiciones de Estudiantes vigentes."""
+    """Lee desde Supabase PostgreSQL los Términos y Condiciones de Estudiantes vigentes (con cláusula de Compliance)."""
     conn = _get_conn_ins()
     if not conn:
         return TERMINOS_INSCRIPCION_ALUMNOS_CEI
     try:
         with conn:
             with conn.cursor() as cur:
+                # 1) Verificar primero la tabla centralizada de gobernanza legal (institutional_legal_terms)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS institutional_legal_terms (
+                        tipo_rol TEXT PRIMARY KEY,
+                        texto TEXT NOT NULL,
+                        updated_by TEXT DEFAULT 'Owner',
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    );
+                """)
+                cur.execute("SELECT texto FROM institutional_legal_terms WHERE tipo_rol = 'estudiante' LIMIT 1;")
+                row_inst = cur.fetchone()
+                if row_inst and str(row_inst or "").strip() and "PRIMERA." in str(row_inst):
+                    return str(row_inst).strip()
+
+                # 2) Compatibilidad con tabla previa cei_configuracion_legal
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
                         clave TEXT PRIMARY KEY,
@@ -111,8 +140,8 @@ def obtener_terminos_estudiantes_pg() -> str:
                 """)
                 cur.execute("SELECT contenido FROM cei_configuracion_legal WHERE clave = 'terminos_estudiantes' LIMIT 1;")
                 row = cur.fetchone()
-                if row and str(row[0] or "").strip():
-                    return str(row[0]).strip()
+                if row and str(row or "").strip():
+                    return str(row).strip()
     except Exception:
         pass
     finally:
@@ -144,7 +173,7 @@ def _buscar_datos_afiliado(ref_code: str) -> tuple[str, str, str]:
             """, (code, code))
             row = cur.fetchone()
             if row:
-                return str(row[0]).strip(), str(row[1]).strip(), str(row[2]).strip()
+                return str(row).strip(), str(row).strip(), str(row).strip()
     except Exception:
         pass
     finally:
@@ -157,7 +186,9 @@ def _buscar_datos_afiliado(ref_code: str) -> tuple[str, str, str]:
 
 col_l, col_t = st.columns([0.9, 3.5])
 with col_l:
-    if os.path.exists("LOGO CEI APP.png"):
+    if os.path.exists("static/LOGO CEI APP.png"):
+        st.image("static/LOGO CEI APP.png", width=95)
+    elif os.path.exists("LOGO CEI APP.png"):
         st.image("LOGO CEI APP.png", width=95)
     else:
         st.markdown("## 🎓")
@@ -174,6 +205,7 @@ if aff_user_vinculado:
         f"🤝 **Inscripción Referida por Socio Afiliado:** {aff_nombre_mostrado}\n\n"
         f"🆔 **ID Oficial del Socio Afiliado:** `{aff_id_oficial}`"
     )
+
 # ==============================================================================
 # Inscripcion_alumnosCEI.py — BLOQUE 2 DE 2 (FINAL): FORMULARIO Y REGISTRO EN BD
 # ==============================================================================
@@ -224,12 +256,12 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
         )
 
     st.divider()
-    st.markdown("#### 3️⃣ Términos, Condiciones y Reglamento Académico CEI")
+    st.markdown("#### 3️⃣ Términos, Condiciones, Reglamento Académico y Compliance CEI")
     with st.container(height=230, border=True):
         st.markdown(obtener_terminos_estudiantes_pg())
 
     acepta_reg = st.checkbox(
-        "✅ He leído, comprendo y acepto los Términos, Condiciones y el Reglamento Académico de Career English Institute (CEI) *",
+        "✅ He leído, comprendo y acepto los Términos, Condiciones, Reglamento Académico y Políticas de Compliance de Career English Institute (CEI) *",
         key="chk_acepta_terminos_alumno_cei"
     )
     enviar_ins = st.form_submit_button("🎓 Completar Inscripción Oficial", type="primary", width="stretch")
@@ -240,7 +272,7 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
         elif len(pwd_al.strip()) < 6:
             st.error("⚠️ La contraseña debe tener al menos 6 caracteres.")
         elif not acepta_reg:
-            st.error("⚠️ Debes leer y aceptar los Términos, Condiciones y el Reglamento Académico para completar tu inscripción.")
+            st.error("⚠️ Debes leer y aceptar los Términos, Condiciones, Reglamento Académico y Políticas de Compliance para completar tu inscripción.")
         else:
             conn = _get_conn_ins()
             if not conn:
@@ -280,25 +312,37 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                                     socio_afiliado TEXT,
                                     socio_afiliado_id TEXT,
                                     terminos_aceptados BOOLEAN DEFAULT TRUE,
+                                    terminos_aceptados_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                                 );
                             """)
                             cur.execute("""
                                 ALTER TABLE inscripciones_web_cei
                                 ADD COLUMN IF NOT EXISTS socio_afiliado_id TEXT DEFAULT '',
-                                ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE;
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+                            """)
+                            cur.execute("""
+                                ALTER TABLE users_padron
+                                ADD COLUMN IF NOT EXISTS telefono TEXT DEFAULT '',
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
+                                ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
                             """)
                             cur.execute("""
                                 INSERT INTO users_padron (
                                     usuario, clave_hash, rol, permisos, nivel, grado_academico,
-                                    estatus, fecha_inscripcion, fecha_inicio_curso, socio_afiliado
-                                ) VALUES (%s, %s, 'Estudiante', 'Basico', %s, %s, 'Activo', %s, %s, %s)
+                                    estatus, fecha_inscripcion, fecha_inicio_curso, socio_afiliado,
+                                    telefono, terminos_aceptados, terminos_aceptados_at
+                                ) VALUES (%s, %s, 'Estudiante', 'Basico', %s, %s, 'Activo', %s, %s, %s, %s, TRUE, NOW())
                                 ON CONFLICT (usuario) DO UPDATE SET
                                     nivel = EXCLUDED.nivel,
                                     grado_academico = EXCLUDED.grado_academico,
-                                    socio_afiliado = COALESCE(NULLIF(EXCLUDED.socio_afiliado, ''), users_padron.socio_afiliado)
+                                    socio_afiliado = COALESCE(NULLIF(EXCLUDED.socio_afiliado, ''), users_padron.socio_afiliado),
+                                    telefono = COALESCE(NULLIF(EXCLUDED.telefono, ''), users_padron.telefono),
+                                    terminos_aceptados = TRUE,
+                                    terminos_aceptados_at = COALESCE(users_padron.terminos_aceptados_at, NOW())
                                 RETURNING id, matricula;
-                            """, (u_final, pwd_al.strip(), nivel_code, grado_al, hoy_str, hoy_str, aff_user_guardar))
+                            """, (u_final, pwd_al.strip(), nivel_code, grado_al, hoy_str, hoy_str, aff_user_guardar, tel_al.strip()))
                             r_pad = cur.fetchone()
                             mat_oficial = str(r_pad[1] or "") if r_pad else ""
                             if r_pad and not mat_oficial:
@@ -309,8 +353,9 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                                 INSERT INTO inscripciones_web_cei (
                                     matricula, usuario, nombre_completo, fecha_nacimiento,
                                     telefono, email, tutor, domicilio, grado_academico,
-                                    nivel_cefr, modalidad, socio_afiliado, socio_afiliado_id, terminos_aceptados
-                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+                                    nivel_cefr, modalidad, socio_afiliado, socio_afiliado_id,
+                                    terminos_aceptados, terminos_aceptados_at
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW())
                                 ON CONFLICT (usuario) DO UPDATE SET
                                     matricula = EXCLUDED.matricula,
                                     nombre_completo = EXCLUDED.nombre_completo,
@@ -318,7 +363,8 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                                     email = EXCLUDED.email,
                                     socio_afiliado = EXCLUDED.socio_afiliado,
                                     socio_afiliado_id = EXCLUDED.socio_afiliado_id,
-                                    terminos_aceptados = TRUE;
+                                    terminos_aceptados = TRUE,
+                                    terminos_aceptados_at = COALESCE(inscripciones_web_cei.terminos_aceptados_at, NOW());
                             """, (
                                 mat_oficial, u_final, n_completo, fec_nac,
                                 tel_al.strip(), mail_al.strip(), tutor_al.strip(), dom_al.strip(),
@@ -338,3 +384,4 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                         conn.close()
                     except Exception:
                         pass
+
