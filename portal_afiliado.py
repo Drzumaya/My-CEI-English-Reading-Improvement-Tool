@@ -14,37 +14,131 @@ st.set_page_config(
     layout="centered"
 )
 
-st.markdown(
-    """
-    <style>
-    /* Ocultar cabecera, menú, botón Deploy y pie/insignia de Streamlit y GitHub */
-    header[data-testid="stHeader"],
-    [data-testid="stToolbar"],
-    [data-testid="stDecoration"],
-    [data-testid="stStatusWidget"],
-    #MainMenu,
-    footer,
-    .viewerBadge_container__1QSob,
-    .styles_viewerBadge__CvC9N,
-    div[class*="viewerBadge"],
-    div[class*="StatusWidget"],
-    a[href*="streamlit.io/cloud"],
-    a[href*="github.com"] {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-    }
-    /* Ajustar espacio superior limpio tras ocultar la cabecera */
-    .block-container {
-        padding-top: 1.5rem !important;
-        padding-bottom: 1.5rem !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
+import base64
+from datetime import datetime, timedelta
+import hmac
+import io
+import os
+import urllib.parse
+import psycopg
+import qrcode
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.set_page_config(
+    page_title="Portal Oficial de Socios Afiliados — CEI",
+    page_icon="🤝",
+    layout="centered"
 )
 
+# ==============================================================================
+# CONTROL DE IDENTIDAD VISUAL (OCULTAR LOGOS STREAMLIT/GITHUB EXCEPTO OWNER/ADMIN)
+# ==============================================================================
+rol_portal_low = str(st.session_state.get("aff_portal_role", "")).strip().lower()
+is_owner_o_admin_portal = (
+    st.session_state.get("aff_portal_auth", False)
+    and rol_portal_low in ["propietario", "owner", "administrador", "admin"]
+)
+
+if not is_owner_o_admin_portal:
+    st.markdown(
+        """
+        <style>
+        header[data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="manage-app-button"],
+        #MainMenu,
+        footer,
+        div[class*="viewerBadge"],
+        div[class*="profileContainer"],
+        div[class*="profilePreview"],
+        a[href*="streamlit.io/cloud"],
+        a[href*="share.streamlit.io"],
+        a[href*="github.com"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 1.5rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    components.html(
+        """
+        <script>
+        (function ocultarBadgesStreamlit() {
+            const selectors = [
+                '[data-testid="manage-app-button"]',
+                '[data-testid="stStatusWidget"]',
+                'div[class*="viewerBadge"]',
+                'div[class*="profileContainer"]',
+                'div[class*="profilePreview"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io"]',
+                'a[href*="github.com"]'
+            ];
+            function limpiar(doc) {
+                if (!doc) return;
+                selectors.forEach(sel => {
+                    doc.querySelectorAll(sel).forEach(el => {
+                        el.style.setProperty('display', 'none', 'important');
+                        el.style.setProperty('visibility', 'hidden', 'important');
+                        el.style.setProperty('opacity', '0', 'important');
+                    });
+                });
+            }
+            const run = () => {
+                limpiar(document);
+                try { limpiar(window.parent.document); } catch (e) {}
+                try { limpiar(window.top.document); } catch (e) {}
+            };
+            run();
+            setInterval(run, 800);
+        })();
+        </script>
+        """,
+        height=0
+    )
+else:
+    components.html(
+        """
+        <script>
+        (function restaurarBadgesOwnerAdmin() {
+            const selectors = [
+                '[data-testid="manage-app-button"]',
+                '[data-testid="stStatusWidget"]',
+                'div[class*="viewerBadge"]',
+                'div[class*="profileContainer"]',
+                'div[class*="profilePreview"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io"]',
+                'a[href*="github.com"]'
+            ];
+            function restaurar(doc) {
+                if (!doc) return;
+                selectors.forEach(sel => {
+                    doc.querySelectorAll(sel).forEach(el => {
+                        el.style.removeProperty('display');
+                        el.style.removeProperty('visibility');
+                        el.style.removeProperty('opacity');
+                    });
+                });
+            }
+            try { restaurar(window.parent.document); } catch (e) {}
+            try { restaurar(window.top.document); } catch (e) {}
+        })();
+        </script>
+        """,
+        height=0
+    )
 
 
 def _find_secret(key_name: str) -> str:
