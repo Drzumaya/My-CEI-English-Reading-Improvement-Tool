@@ -53,6 +53,16 @@ def render_formulario_registro_docente(
     anio_act = date.today().year
     id_doc_sug = f"DOC-CEI-{anio_act}-{random.randint(100, 999)}"
 
+    try:
+        from legal_terms_manager import get_institutional_terms_pg
+        terms_doc_txt = get_institutional_terms_pg("docente").get("texto", "")
+    except Exception:
+        terms_doc_txt = (
+            "El Docente declara la veracidad de sus credenciales académicas, se obliga a mantener actualizada "
+            "su documentación fiscal (CSF, Opinión 32-D y CFDI 4.0) para cobro de honorarios/comisiones "
+            "y acepta el monitoreo del Índice Estadístico de Compliance y Confianza de CEI."
+        )
+
     with st.form(f"{key_prefix}_form_doc", clear_on_submit=False):
         c1, c2 = st.columns(2)
         with c1:
@@ -107,7 +117,20 @@ def render_formulario_registro_docente(
 
         disponibilidad = st.text_input("🗓️ Disponibilidad Horaria y Modalidad", placeholder="Ej. Lunes a Viernes 16:00 - 21:00 hrs")
         titulo_file = st.file_uploader("📎 Título, Cédula o Certificado (PDF/PNG/JPG - Opcional)", type=["pdf", "png", "jpg", "jpeg"], key=f"{key_prefix}_doc_file")
-        acepta_codigo = st.checkbox("✅ Confirmo la veracidad de mis datos y acepto el Reglamento Docente y Fiscal de CEI *", key=f"{key_prefix}_chk_doc")
+
+        with st.expander("📜 Leer Términos, Condiciones y Código de Compliance Docente (Obligatorio)", expanded=False):
+            st.text_area(
+                "Marco Legal, Fiscal y Compliance Docente CEI:",
+                value=terms_doc_txt,
+                height=190,
+                disabled=True,
+                key=f"{key_prefix}_ta_terms_doc"
+            )
+
+        acepta_codigo = st.checkbox(
+            "✅ He leído y acepto los Términos, Condiciones, Requisitos Fiscales (CFDI/32-D) y Código de Compliance Docente de CEI *",
+            key=f"{key_prefix}_chk_doc"
+        )
         submit_doc = st.form_submit_button("💾 Registrar Docente y Activar Portal", type="primary", width="stretch")
         if submit_doc:
             if not usuario_doc.strip() or not nombre.strip() or not ap_pat.strip() or not clave_doc.strip():
@@ -126,7 +149,7 @@ def render_formulario_registro_docente(
                 st.error("⚠️ Si capturas la CLABE Interbancaria, debe tener exactamente 18 dígitos.")
                 return
             if not acepta_codigo:
-                st.error("⚠️ Debes aceptar el Reglamento Docente y Fiscal para continuar.")
+                st.error("⚠️ Debes aceptar los Términos, Condiciones y Código de Compliance Docente para continuar.")
                 return
 
             doc_b64 = base64.b64encode(titulo_file.read()).decode("utf-8") if titulo_file else ""
@@ -161,6 +184,8 @@ def render_formulario_registro_docente(
                                 documento_b64 TEXT DEFAULT '',
                                 porcentaje_comision NUMERIC(5,2) DEFAULT 0.0,
                                 clabe_interbancaria TEXT DEFAULT '',
+                                terminos_aceptados BOOLEAN DEFAULT TRUE,
+                                terminos_aceptados_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                                 estatus TEXT DEFAULT 'Activo',
                                 registrado_por TEXT DEFAULT '',
                                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -169,15 +194,18 @@ def render_formulario_registro_docente(
                         cur.execute("""
                             ALTER TABLE teacher_profiles
                             ADD COLUMN IF NOT EXISTS porcentaje_comision NUMERIC(5,2) DEFAULT 0.0,
-                            ADD COLUMN IF NOT EXISTS clabe_interbancaria TEXT DEFAULT '';
+                            ADD COLUMN IF NOT EXISTS clabe_interbancaria TEXT DEFAULT '',
+                            ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
+                            ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
                         """)
                         cur.execute("""
                             INSERT INTO teacher_profiles (
                                 teacher_id, usuario_login, nombre, apellido_paterno, apellido_materno,
                                 curp, rfc, cedula_profesional, grado_academico, certificacion_ingles,
                                 niveles_autorizados, telefono, email, disponibilidad, documento_b64,
-                                porcentaje_comision, clabe_interbancaria, estatus, registrado_por
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Activo', %s)
+                                porcentaje_comision, clabe_interbancaria, terminos_aceptados, terminos_aceptados_at,
+                                estatus, registrado_por
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, NOW(), 'Activo', %s)
                             ON CONFLICT (usuario_login) DO UPDATE SET
                                 teacher_id = EXCLUDED.teacher_id,
                                 nombre = EXCLUDED.nombre,
@@ -196,7 +224,9 @@ def render_formulario_registro_docente(
                                     WHEN %s THEN teacher_profiles.porcentaje_comision
                                     ELSE EXCLUDED.porcentaje_comision
                                 END,
-                                clabe_interbancaria = COALESCE(NULLIF(EXCLUDED.clabe_interbancaria, ''), teacher_profiles.clabe_interbancaria);
+                                clabe_interbancaria = COALESCE(NULLIF(EXCLUDED.clabe_interbancaria, ''), teacher_profiles.clabe_interbancaria),
+                                terminos_aceptados = TRUE,
+                                terminos_aceptados_at = COALESCE(teacher_profiles.terminos_aceptados_at, NOW());
                         """, (
                             id_clean, u_clean, nombre.strip(), ap_pat.strip(), ap_mat.strip(),
                             curp_clean, rfc_clean, cedula_prof.strip(),
@@ -244,3 +274,4 @@ if __name__ == "__main__":
         key_prefix="ext_doc_reg",
         es_registro_externo=True
     )
+
