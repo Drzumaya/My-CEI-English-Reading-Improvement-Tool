@@ -87,13 +87,34 @@ def _get_conn_afiliados():
 
 
 def obtener_terminos_afiliacion_pg() -> dict:
-    """Lee desde Supabase PostgreSQL los Términos y Condiciones de Afiliación vigentes."""
+    """Lee desde Supabase PostgreSQL los Términos, Condiciones y Compliance de Afiliación vigentes."""
     conn = _get_conn_afiliados()
     if not conn:
         return {"texto": DEFAULT_AFFILIATE_TERMS_FALLBACK, "updated_by": "CEI", "updated_at": ""}
     try:
         with conn:
             with conn.cursor() as cur:
+                # 1) Prioridad: Tabla centralizada de gobernanza legal y compliance
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS institutional_legal_terms (
+                        tipo_rol TEXT PRIMARY KEY,
+                        texto TEXT NOT NULL,
+                        updated_by TEXT DEFAULT 'Owner',
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    );
+                """)
+                cur.execute(
+                    "SELECT texto, updated_by, updated_at FROM institutional_legal_terms WHERE tipo_rol = 'afiliado' LIMIT 1;"
+                )
+                row_inst = cur.fetchone()
+                if row_inst and str(row_inst or "").strip():
+                    return {
+                        "texto": str(row_inst).strip(),
+                        "updated_by": str(row_inst or "Owner"),
+                        "updated_at": str(row_inst or "")[:19]
+                    }
+
+                # 2) Compatibilidad con tabla previa cei_configuracion_legal
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS cei_configuracion_legal (
                         clave TEXT PRIMARY KEY,
@@ -106,11 +127,11 @@ def obtener_terminos_afiliacion_pg() -> dict:
                     "SELECT contenido, updated_by, updated_at FROM cei_configuracion_legal WHERE clave = 'terminos_afiliacion' LIMIT 1;"
                 )
                 row = cur.fetchone()
-                if row and str(row[0] or "").strip():
+                if row and str(row or "").strip():
                     return {
-                        "texto": str(row[0]).strip(),
-                        "updated_by": str(row[1] or "CEI"),
-                        "updated_at": str(row[2] or "")[:19]
+                        "texto": str(row).strip(),
+                        "updated_by": str(row or "CEI"),
+                        "updated_at": str(row or "")[:19]
                     }
     except Exception:
         pass
