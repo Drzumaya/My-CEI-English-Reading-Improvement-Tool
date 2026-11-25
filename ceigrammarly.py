@@ -7179,6 +7179,13 @@ if st.session_state.get("active_student_workspace"):
 # PARTE 14-A: HELPERS DE DELEGACIÓN Y CENTRO DE MANDO SPA (CERTIFICADOS 1/2)
 # ==============================================================================
 CAPACIDADES_DELEGABLES_OWNER = [
+    "Ver_Panel_Educativo",
+    "Ver_Portal_Docente",
+    "Ver_Mis_Estudiantes_Docente",
+    "Motivar_Estudiantes_WhatsApp",
+    "Asignar_Retroalimentacion_Docente",
+    "Ver_Comisiones_Pagos_Docente",
+    "Gestionar_Compliance_Legal",
     "Ver_Panel_Admin",
     "Registrar_Usuarios",
     "Gestionar_Usuarios",
@@ -7191,7 +7198,6 @@ CAPACIDADES_DELEGABLES_OWNER = [
     "Gestionar_IVA_Mensualidad",
     "Editar_Fecha_Inicio_Curso"
 ]
-
 
 
 def generar_tablero_franquicias_pg() -> dict:
