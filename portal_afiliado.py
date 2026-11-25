@@ -14,6 +14,38 @@ st.set_page_config(
     layout="centered"
 )
 
+st.markdown(
+    """
+    <style>
+    /* Ocultar cabecera, menú, botón Deploy y pie/insignia de Streamlit y GitHub */
+    header[data-testid="stHeader"],
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"],
+    #MainMenu,
+    footer,
+    .viewerBadge_container__1QSob,
+    .styles_viewerBadge__CvC9N,
+    div[class*="viewerBadge"],
+    div[class*="StatusWidget"],
+    a[href*="streamlit.io/cloud"],
+    a[href*="github.com"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+    /* Ajustar espacio superior limpio tras ocultar la cabecera */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1.5rem !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 
 def _find_secret(key_name: str) -> str:
     if key_name in st.secrets:
