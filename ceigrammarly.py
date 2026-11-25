@@ -449,7 +449,6 @@ GRADOS_ACADEMICOS = [
     "Maestría / Posgrado",
     "Doctorado / Investigación"
 ]
-
 CAPABILITY_COLS = [
     "Ver_Panel_Educativo",
     "Ver_Portal_Docente",
@@ -457,6 +456,7 @@ CAPABILITY_COLS = [
     "Motivar_Estudiantes_WhatsApp",
     "Asignar_Retroalimentacion_Docente",
     "Ver_Comisiones_Pagos_Docente",
+    "Gestionar_Compliance_Legal",
     "Ver_Panel_Admin",
     "Registrar_Usuarios",
     "Gestionar_Usuarios",
@@ -515,6 +515,7 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Ver_Portal_Docente": True,
         "Ver_Mis_Estudiantes_Docente": True,
         "Ver_Comisiones_Pagos_Docente": True,
+        "Gestionar_Compliance_Legal": True,
         "Ver_Panel_Admin": True,
         "Previsualizar_A1_C2": True,
         "Reuso_Ilimitado_Folios": True
@@ -524,6 +525,7 @@ DEFAULT_PERMISSIONS_MATRIX = {
         "Ver_Panel_Educativo": True
     }
 }
+
 
 
 
