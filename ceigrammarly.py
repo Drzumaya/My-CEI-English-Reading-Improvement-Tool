@@ -5347,9 +5347,11 @@ with col_logout:
                 width="stretch",
                 key="btn_dl_hdr_qr_app"
             )
-es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["teacher", "docente", "admin", "administrador", "propietario", "owner"])
+es_docente_rol = (curr_r_clean in ["teacher", "docente"]) or can("Ver_Portal_Docente")
+es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["admin", "administrador", "propietario", "owner"])
+solo_docente = es_docente_rol and not es_admin_o_staff
 es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afiliado"])
-solo_socio_afiliado = es_socio_afiliado and not es_admin_o_staff
+solo_socio_afiliado = es_socio_afiliado and not es_admin_o_staff and not es_docente_rol
 
 if solo_socio_afiliado:
     url_portal_aff_redir = str(
@@ -5360,7 +5362,6 @@ if solo_socio_afiliado:
         st.secrets.get("AFFILIATE_APP_INSTALL_URL")
         or ("https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/socio_app.html")
     ).strip()
-
 
     buf_qr_redir = io.BytesIO()
     qrcode.make(url_portal_aff_redir).save(buf_qr_redir, format="PNG")
@@ -5390,42 +5391,80 @@ if solo_socio_afiliado:
             st.caption(f"🔗 `{url_portal_aff_redir}`")
     st.stop()
 
+# Medidor Estadístico de Compliance y Confianza Institucional visible para el usuario activo
+try:
+    from compliance_engine import render_medidor_compliance_confianza
+    if not solo_docente:
+        render_medidor_compliance_confianza(
+            usuario=u_login_hdr,
+            rol="Propietario" if is_owner else curr_r_clean
+        )
+except Exception:
+    pass
 
-lbl_btn_portal = "🛡️ PANEL ADMINISTRATIVO" if es_admin_o_staff else "🎓 MI PANEL ESTUDIANTIL"
+puede_ver_panel_educativo = is_owner or can("Ver_Panel_Educativo")
+if not puede_ver_panel_educativo:
+    st.session_state["active_stage_5"] = "PORTAL"
+    st.session_state["show_lesson_creator"] = False
+    st.session_state["generated_text"] = ""
+
+if solo_docente:
+    lbl_btn_portal = "🧑‍🏫 MI PORTAL DOCENTE CEI"
+elif es_admin_o_staff:
+    lbl_btn_portal = "🛡️ PANEL ADMINISTRATIVO"
+else:
+    lbl_btn_portal = "🎓 MI PANEL ESTUDIANTIL"
+
 tiene_leccion_activa = bool(str(st.session_state.get("generated_text") or "").strip())
 
 if not tiene_leccion_activa:
-    c_init1, c_init2 = st.columns(2)
-    with c_init1:
-        en_panel_edu = (st.session_state.get("active_stage_5", "READING") != "PORTAL")
-        if st.button(
-            "🎓 PANEL EDUCATIVO",
-            type="primary" if en_panel_edu else "secondary",
-            width="stretch",
-            key="btn_init_2_panel_educativo"
-        ):
-            st.session_state["active_stage_5"] = "READING"
-            st.session_state["active_admin_workspace"] = None
-            st.session_state["active_student_workspace"] = None
-            st.rerun()
+    if puede_ver_panel_educativo:
+        c_init1, c_init2 = st.columns(2)
+        with c_init1:
+            en_panel_edu = (st.session_state.get("active_stage_5", "READING") != "PORTAL")
+            if st.button(
+                "🎓 PANEL EDUCATIVO",
+                type="primary" if en_panel_edu else "secondary",
+                width="stretch",
+                key="btn_init_2_panel_educativo"
+            ):
+                st.session_state["active_stage_5"] = "READING"
+                st.session_state["active_admin_workspace"] = None
+                st.session_state["active_student_workspace"] = None
+                st.rerun()
 
-    with c_init2:
+        with c_init2:
+            if st.button(
+                lbl_btn_portal,
+                type="primary" if st.session_state["active_stage_5"] == "PORTAL" else "secondary",
+                width="stretch",
+                key="btn_init_2_portal"
+            ):
+                st.session_state["active_stage_5"] = "PORTAL"
+                st.session_state["show_lesson_creator"] = False
+                st.session_state["creator_missing_fields"] = []
+                if es_admin_o_staff:
+                    st.session_state["active_admin_workspace"] = st.session_state.get("active_admin_workspace") or "💳 Cobranza Mensual e IVA"
+                elif not solo_docente:
+                    st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
+                st.rerun()
+    else:
         if st.button(
             lbl_btn_portal,
-            type="primary" if st.session_state["active_stage_5"] == "PORTAL" else "secondary",
+            type="primary",
             width="stretch",
-            key="btn_init_2_portal"
+            key="btn_init_2_portal_unico"
         ):
             st.session_state["active_stage_5"] = "PORTAL"
             st.session_state["show_lesson_creator"] = False
             st.session_state["creator_missing_fields"] = []
             if es_admin_o_staff:
                 st.session_state["active_admin_workspace"] = st.session_state.get("active_admin_workspace") or "💳 Cobranza Mensual e IVA"
-            else:
+            elif not solo_docente:
                 st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
             st.rerun()
 
-    if st.session_state.get("active_stage_5", "READING") != "PORTAL":
+    if puede_ver_panel_educativo and st.session_state.get("active_stage_5", "READING") != "PORTAL":
         abierto_creador = bool(st.session_state.get("show_lesson_creator"))
         with st.container(border=True):
             c_edu_gen, c_edu_sep = st.columns([1.2, 2.4])
@@ -5442,6 +5481,22 @@ if not tiene_leccion_activa:
                     st.rerun()
             with c_edu_sep:
                 st.caption("Crea una lección nueva con IA o selecciona abajo una lección guardada por Folio para abrirla.")
+
+# Si un Docente abrió MI PORTAL DOCENTE CEI, renderizarlo directamente
+if solo_docente and st.session_state.get("active_stage_5") == "PORTAL":
+    from portal_docente import render_portal_docente_cei
+    render_portal_docente_cei(
+        usuario_actual=u_login_hdr,
+        rol_actual=curr_r_clean,
+        puede_ver_estudiantes=can("Ver_Mis_Estudiantes_Docente"),
+        puede_motivar_wa=can("Motivar_Estudiantes_WhatsApp"),
+        puede_retroalimentar=can("Asignar_Retroalimentacion_Docente"),
+        puede_ver_comisiones=can("Ver_Comisiones_Pagos_Docente"),
+        es_admin_o_owner=False,
+        dia_corte_cfdi=25,
+        institute_address=str(institute_address or "Agua Prieta, Sonora, México")
+    )
+    st.stop()
 
 
 
