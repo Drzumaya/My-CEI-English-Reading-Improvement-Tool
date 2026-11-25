@@ -6451,6 +6451,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
         or can("Editar_Permisos")
         or can("Editar_Terminos_Afiliacion")
         or can("Gestionar_Comisiones_Afiliados")
+        or can("Gestionar_Compliance_Legal")
     )
     lbl_volver_edu = (
         "🔙 CERRAR Y VOLVER A LA LECCIÓN"
@@ -6468,12 +6469,15 @@ if st.session_state.get("active_stage_5") == "PORTAL":
             opciones_p_adm = [
                 "💳 Cobranza Mensual e IVA",
                 "📊 Estados Financieros",
+                "🧑‍🏫 Plantilla y Portal Docente",
                 "🤝 Alta de Socios Afiliados",
                 "🤝 Portal Socio Afiliado",
                 "👥 Inscripción y Padrón",
                 "📚 Ver Lecciones Creadas",
             ]
 
+            if is_owner or can("Gestionar_Compliance_Legal"):
+                opciones_p_adm.append("⚖️ Compliance y Vigilancia Legal")
             if is_owner:
                 opciones_p_adm.append("🌎 Red de Franquicias")
             if is_owner or can("Editar_Permisos") or can("Gestionar_Usuarios"):
@@ -6485,7 +6489,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 "🔄 Autoactualización de Librerías"
             ])
 
-        idx_def_adm = 2 if (not is_owner and not es_socio_afiliado and can("Editar_Terminos_Afiliacion")) else 0
+        idx_def_adm = 3 if (not is_owner and not es_socio_afiliado and can("Editar_Terminos_Afiliacion")) else 0
         col_mod_sel, col_mod_back = st.columns([2.5, 1.3])
         with col_mod_sel:
             sel_adm = st.selectbox(
@@ -6498,13 +6502,14 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 st.session_state["active_admin_workspace"] = sel_adm
         with col_mod_back:
             st.write("")
-            st.button(
-                lbl_volver_edu,
-                type="primary",
-                width="stretch",
-                key="btn_global_close_admin_back_lesson",
-                on_click=_cerrar_panel_y_volver_leccion
-            )
+            if is_owner or can("Ver_Panel_Educativo"):
+                st.button(
+                    lbl_volver_edu,
+                    type="primary",
+                    width="stretch",
+                    key="btn_global_close_admin_back_lesson",
+                    on_click=_cerrar_panel_y_volver_leccion
+                )
 
         if st.session_state.get("active_admin_workspace") == "📘 Guía, Plan y Categoría":
             render_guia_plan_categoria_view(
@@ -6527,13 +6532,14 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 st.session_state["active_student_workspace"] = sel_est
         with col_est_back:
             st.write("")
-            st.button(
-                lbl_volver_edu,
-                type="primary",
-                width="stretch",
-                key="btn_global_close_est_back_lesson",
-                on_click=_cerrar_panel_y_volver_leccion
-            )
+            if is_owner or can("Ver_Panel_Educativo"):
+                st.button(
+                    lbl_volver_edu,
+                    type="primary",
+                    width="stretch",
+                    key="btn_global_close_est_back_lesson",
+                    on_click=_cerrar_panel_y_volver_leccion
+                )
 
         if st.session_state.get("active_student_workspace") == "📘 Guía, Plan y Categoría":
             render_guia_plan_categoria_view(
@@ -8760,6 +8766,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         )
                 else:
                     st.info("No hay registros financieros de estudiantes para mostrar.")
+
 
         # 14.5C PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS, TÉRMINOS Y QR DE REGISTRO
         if seccion_inst_sel == "🤝 Alta de Socios Afiliados":
