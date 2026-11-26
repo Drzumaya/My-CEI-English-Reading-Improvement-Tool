@@ -77,7 +77,8 @@
         window.navigator.standalone === true;
 
       if (isStandalone) {
-        installScreen.style.display = "none";
+        window.location.replace(APP_TARGET_URL);
+      }
         appFrame.src = APP_TARGET_URL;
         appFrame.style.display = "block";
       }
