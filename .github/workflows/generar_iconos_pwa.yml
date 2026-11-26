@@ -1,0 +1,47 @@
+name: Generar Iconos Oficiales PWA CEI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar Pillow
+        run: pip install pillow
+
+      - name: Ajustar logo CEI a 192x192 y 512x512 px
+        run: |
+          python - << 'EOF'
+          from pathlib import Path
+          from PIL import Image
+
+          origen = Path("static/LOGO CEI APP.png")
+          img = Image.open(origen).convert("RGBA")
+
+          for lado in (192, 512):
+              copia = img.copy()
+              copia.thumbnail((lado, lado), Image.Resampling.LANCZOS)
+              lienzo = Image.new("RGBA", (lado, lado), (11, 37, 69, 255))
+              lienzo.paste(copia, ((lado - copia.width) // 2, (lado - copia.height) // 2), copia)
+              lienzo.save(f"static/android-launchericon-{lado}-{lado}.png", format="PNG", optimize=True)
+          EOF
+
+      - name: Guardar iconos generados en GitHub
+        run: |
+          git config user.name "CEI Bot"
+          git config user.email "bot@cei.edu.mx"
+          git add static/android-launchericon-192-192.png static/android-launchericon-512-512.png
+          git commit -m "Generar iconos PWA oficiales CEI 192x192 y 512x512" || exit 0
+          git push
