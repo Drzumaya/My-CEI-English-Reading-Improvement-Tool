@@ -2,92 +2,133 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Career English Institute — CEI</title>
   <meta name="theme-color" content="#0b2545" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="CEI English" />
   <link rel="icon" type="image/png" href="./static/LOGO%20CEI%20APP.png" />
   <link rel="apple-touch-icon" href="./static/LOGO%20CEI%20APP.png" />
+  <link rel="manifest" href="./manifest.json" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body, html {
-      width: 100%; height: 100%;
+      width: 100%; min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f8fafc;
-    }
-    .screen {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      min-height: 100vh; padding: 24px; text-align: center;
+      background: linear-gradient(135deg, #0b2545 0%, #1e3a8a 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
     }
     .card {
-      background: white; border-radius: 18px; padding: 30px 24px; max-width: 440px; width: 100%;
-      box-shadow: 0 10px 30px rgba(11, 37, 69, 0.14); border: 1px solid #e2e8f0;
+      background: #ffffff;
+      border-radius: 22px;
+      padding: 34px 26px;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.32);
     }
     .logo {
-      width: 112px; height: 112px; border-radius: 22px; margin-bottom: 14px; object-fit: cover;
+      width: 112px; height: 112px;
+      border-radius: 22px;
+      object-fit: cover;
+      margin-bottom: 16px;
+      box-shadow: 0 6px 16px rgba(11, 37, 69, 0.18);
     }
     h1 {
-      font-size: 21px; color: #0b2545; margin-bottom: 6px;
+      font-size: 21px;
+      color: #0b2545;
+      font-weight: 800;
+      margin-bottom: 6px;
     }
-    p.sub {
-      font-size: 13.5px; color: #475569; margin-bottom: 22px;
+    .sub {
+      font-size: 13.5px;
+      color: #475569;
+      margin-bottom: 24px;
     }
-    .btn-primary {
-      display: block; width: 100%; border: none;
-      background: linear-gradient(135deg, #0b2545 0%, #1e40af 100%);
-      color: white; border-radius: 12px; padding: 16px 20px;
-      font-size: 16px; font-weight: 700; cursor: pointer;
-      box-shadow: 0 6px 18px rgba(11, 37, 69, 0.28);
+    .btn-install {
+      display: block;
+      width: 100%;
+      border: none;
+      background: linear-gradient(135deg, #0b2545 0%, #1d4ed8 100%);
+      color: #ffffff;
+      border-radius: 12px;
+      padding: 15px 20px;
+      font-size: 15.5px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(29, 78, 216, 0.28);
       transition: transform 0.15s ease;
     }
-    .btn-primary:active { transform: scale(0.98); }
-    .btn-browser {
-      display: block; text-decoration: none; margin-top: 12px;
-      background: #f1f5f9; border: 1.5px solid #cbd5e1;
-      color: #0b2545; border-radius: 12px; padding: 14px 16px;
-      font-size: 14.5px; font-weight: 700; width: 100%;
+    .btn-install:active { transform: scale(0.98); }
+    .btn-open {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      text-decoration: none;
+      background: #f1f5f9;
+      border: 1.5px solid #cbd5e1;
+      color: #0b2545;
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 14.5px;
+      font-weight: 700;
     }
+    .btn-open:hover { background: #e2e8f0; }
     #hint {
-      display: none; margin-top: 16px; background: #fef9c3; border: 1.5px solid #facc15;
-      color: #78350f; border-radius: 12px; padding: 14px; font-size: 13.5px;
-      line-height: 1.5; text-align: left;
+      display: none;
+      margin-top: 16px;
+      background: #fef9c3;
+      border: 1.5px solid #facc15;
+      color: #78350f;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      text-align: left;
     }
-    .btn-hint-login {
-      display: block; text-align: center; text-decoration: none; margin-top: 10px;
-      background: #0b2545; color: white; border-radius: 8px; padding: 10px 14px;
-      font-size: 13.5px; font-weight: 700;
+    .btn-hint-go {
+      display: block;
+      text-align: center;
+      text-decoration: none;
+      margin-top: 10px;
+      background: #0b2545;
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      font-weight: 700;
     }
   </style>
 </head>
 <body>
-  <div class="screen">
-    <div class="card">
-      <img class="logo" src="./static/LOGO%20CEI%20APP.png" alt="Logo CEI" />
-      <h1>🎓 Career English Institute (CEI)</h1>
-      <p class="sub">Global Pedagogical Suite • Agua Prieta, Sonora, México</p>
+  <div class="card">
+    <img class="logo" src="./static/LOGO%20CEI%20APP.png" alt="Logo CEI" />
+    <h1>🎓 Career English Institute (CEI)</h1>
+    <p class="sub">Global Pedagogical Suite • Agua Prieta, Sonora, México</p>
 
-      <button id="btnInstall" type="button" class="btn-primary">
-        ⬇️ INSTALAR APP OFICIAL CEI
-      </button>
+    <button id="btnInstall" type="button" class="btn-install">
+      ⬇ INSTALAR APP OFICIAL CEI
+    </button>
 
-      <a
-        href="https://streamlit.app"
-        class="btn-browser"
-      >🌐 Abrir Plataforma en el Navegador →</a>
+    <a
+      href="https://streamlit.app"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="btn-open"
+    >🌐 Abrir Plataforma en el Navegador →</a>
 
-      <div id="hint"></div>
-    </div>
+    <div id="hint"></div>
   </div>
 
   <script>
-    const CEI_LOGIN_URL = "https://streamlit.app";
+    const MAIN_APP_URL = "https://streamlit.app";
     const btnInstall = document.getElementById("btnInstall");
     const hint = document.getElementById("hint");
     let deferredPrompt = null;
 
-    // Limpiar Service Workers previos para evitar bloqueos de caché
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.getRegistrations().then((regs) => {
         regs.forEach((r) => r.unregister());
@@ -97,7 +138,7 @@
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
       deferredPrompt = e;
-      btnInstall.textContent = "⬇️ INSTALAR APP OFICIAL CEI AHORA";
+      btnInstall.textContent = "⬇ INSTALAR APP OFICIAL CEI AHORA";
     });
 
     btnInstall.addEventListener("click", async () => {
@@ -108,25 +149,25 @@
         if (outcome === "accepted") {
           hint.style.display = "block";
           hint.innerHTML =
-            "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo institucional." +
-            `<a href="${CEI_LOGIN_URL}" class="btn-hint-login">🚀 Ir al Login Institucional CEI →</a>`;
+            "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo oficial." +
+            `<a href="${MAIN_APP_URL}" target="_blank" rel="noopener noreferrer" class="btn-hint-go">🚀 Abrir Plataforma CEI →</a>`;
         }
         return;
       }
 
       hint.style.display = "block";
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      const pasos = isIOS
-        ? "📲 <strong>En iPhone / iPad (Safari):</strong><br>" +
-          "1. Toca <strong>Compartir (⬆️)</strong> en la barra inferior.<br>" +
-          "2. Elige <strong>«Agregar a pantalla de inicio»</strong> (con el escudo oficial CEI)."
-        : "📲 <strong>En Android / PC (Chrome o Edge):</strong><br>" +
+      const instrucciones = isIOS
+        ? "📲 <strong>Instalación en iPhone / iPad (Safari):</strong><br>" +
+          "1. Toca el botón <strong>Compartir (⬆️)</strong> en la barra inferior.<br>" +
+          "2. Selecciona <strong>«Agregar a pantalla de inicio»</strong> (se guardará con el escudo oficial CEI)."
+        : "📲 <strong>Instalación en Android / PC (Chrome o Edge):</strong><br>" +
           "1. Toca el menú del navegador (<strong>⋮</strong> arriba a la derecha).<br>" +
-          "2. Elige <strong>«Agregar a la pantalla principal»</strong> o <strong>«Crear acceso directo»</strong>.";
+          "2. Selecciona <strong>«Agregar a la pantalla principal»</strong> o <strong>«Instalar aplicación»</strong>.";
 
       hint.innerHTML =
-        pasos +
-        `<a href="${CEI_LOGIN_URL}" class="btn-hint-login">🚀 Entrar Directo al Login CEI Ahora →</a>`;
+        instrucciones +
+        `<a href="${MAIN_APP_URL}" target="_blank" rel="noopener noreferrer" class="btn-hint-go">🚀 Entrar Directo al Login CEI →</a>`;
     });
   </script>
 </body>
