@@ -61,64 +61,54 @@
   </div>
   <iframe id="appFrame" src="https://streamlit.app"></iframe>
 
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
-    }
+    <script>
+      let deferredPrompt = null;
+      const btnInstall = document.getElementById("btnInstall");
+      const hint = document.getElementById("hint");
 
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    const params = new URLSearchParams(window.location.search);
-
-    if (isStandalone && !params.get('install')) {
-      document.getElementById('installScreen').style.display = 'none';
-      document.getElementById('appFrame').style.display = 'block';
-    }
-
-    let deferredPrompt = null;
-    const btn = document.getElementById('btnInstall');
-    const hint = document.getElementById('hint');
-    const ua = navigator.userAgent || '';
-    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-    const isAndroid = /Android/i.test(ua);
-
-    const showInstructions = () => {
-      if (isIOS) {
-        hint.innerHTML = '🍎 <b>iPhone / iPad (2 toques):</b><br>1. Toca el botón <b>Compartir (⬆️)</b> en la barra inferior de Safari.<br>2. Elige <b>"Agregar a inicio"</b> y pulsa <b>Agregar</b>.';
-      } else if (isAndroid) {
-        hint.innerHTML = '🤖 <b>Android (Chrome):</b><br>Toca los <b>3 puntos (⋮)</b> arriba a la derecha y selecciona <b>"Instalar aplicación"</b> o <b>"Agregar a pantalla principal"</b>.';
-      } else {
-        hint.innerHTML = '💻 <b>Escritorio:</b><br>Haz clic en el ícono de <b>Instalar (⊕)</b> en la barra de direcciones o en <b>Archivo → Agregar al Dock</b> (Mac Safari).';
+      // Registrar Service Worker si existe para habilitar instalación PWA nativa
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
       }
-    };
-    showInstructions();
 
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      btn.innerText = '⬇️ INSTALAR APP OFICIAL CEI (1 CLIC)';
-      hint.style.background = '#dbeafe';
-      hint.style.borderColor = '#3b82f6';
-      hint.style.color = '#1e3a8a';
-      hint.innerHTML = '✅ <b>¡Instalación directa lista!</b> Pulsa el botón azul superior y confirma <b>"Instalar"</b>.';
-    });
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        btnInstall.disabled = false;
+        btnInstall.style.opacity = "1";
+        btnInstall.style.cursor = "pointer";
+      });
 
-    btn.addEventListener('click', async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const choice = await deferredPrompt.userChoice;
-        if (choice.outcome === 'accepted') {
-          hint.style.background = '#dcfce7';
-          hint.style.borderColor = '#22c55e';
-          hint.style.color = '#14532d';
-hint.innerHTML = '🎉 <b>¡App Oficial CEI instalada!</b> Búscala en tu pantalla de inicio o desliza hacia arriba en tu <b>cajón de aplicaciones</b> como <b>"CEI English"</b>.';
+      // Asegurar que el botón azul siempre sea clicable
+      btnInstall.disabled = false;
+      btnInstall.style.cursor = "pointer";
+
+      btnInstall.addEventListener("click", async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          deferredPrompt = null;
+          if (outcome === "accepted") {
+            hint.innerHTML = "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo institucional.";
+          }
+          return;
         }
-        deferredPrompt = null;
-      } else {
-        hint.style.background = '#fef08a';
-        hint.style.borderColor = '#eab308';
-        showInstructions();
-      }
-    });
-  </script>
+
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS) {
+          hint.innerHTML =
+            "📲 <strong>Para instalar en iPhone / iPad:</strong><br>" +
+            "1. Toca el botón <strong>Compartir (⬆️)</strong> en la barra inferior de Safari.<br>" +
+            "2. Selecciona <strong>«Agregar a pantalla de inicio»</strong> (con el escudo CEI).";
+        } else {
+          hint.innerHTML =
+            "💻 <strong>Para instalar en tu dispositivo:</strong><br>" +
+            "1. Abre el menú de tu navegador (<strong>⋮</strong> o <strong>⋯</strong> arriba a la derecha).<br>" +
+            "2. Selecciona <strong>«Instalar App Oficial CEI»</strong> o <strong>«Agregar a pantalla de inicio»</strong>.<br>" +
+            "3. O entra directo haciendo clic en el enlace azul de abajo.";
+        }
+      });
+    </script>
+
 </body>
 </html>
