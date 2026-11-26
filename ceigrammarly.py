@@ -5509,7 +5509,12 @@ if solo_socio_afiliado:
                 width="stretch"
             )
             st.link_button(
-                "📲 Instalar App Portal Socios en mi Celular / PC",
+                "🤖 Descargar App Oficial CEI en Android (.apk — 3.6 MB)",
+                url="https://github.io",
+                width="stretch"
+            )
+            st.link_button(
+                "📲 Instalar App Portal Socios (iPhone / Mac / PC)",
                 url=url_app_aff_redir,
                 width="stretch"
             )
