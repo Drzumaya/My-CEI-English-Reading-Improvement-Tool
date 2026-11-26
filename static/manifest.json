@@ -5,18 +5,75 @@
   "description": "Plataforma Oficial de Aprendizaje del Idioma Ingles, Evaluacion CEFR y Control Academico de Career English Institute (CEI) en Agua Prieta, Sonora, Mexico.",
   "lang": "es-MX",
   "dir": "ltr",
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "start_url": "../index.html",
   "scope": "../",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "display_override": ["window-controls-overlay", "tabbed", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#0b2545",
   "theme_color": "#0b2545",
   "categories": ["education", "books", "productivity"],
   "prefer_related_applications": false,
+  "related_applications": [],
   "launch_handler": {
     "client_mode": ["navigate-existing", "auto"]
   },
+  "edge_side_panel": {
+    "preferred_width": 420
+  },
+  "note_taking": {
+    "new_note_url": "../index.html?action=new-note"
+  },
+  "file_handlers": [
+    {
+      "action": "../index.html",
+      "accept": {
+        "application/pdf": [".pdf"],
+        "text/plain": [".txt"]
+      }
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+cei",
+      "url": "../index.html?link=%s"
+    }
+  ],
+  "share_target": {
+    "action": "../index.html",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "widgets": [
+    {
+      "name": "CEI Progreso Academico",
+      "short_name": "CEI Hoy",
+      "description": "Acceso rapido a lecciones y progreso CEFR de Career English Institute",
+      "tag": "cei-daily-widget",
+      "ms_ac_template": "../index.html",
+      "data": "../index.html",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "./android-launchericon-512-512.png",
+          "sizes": "512x512",
+          "label": "Widget CEI"
+        }
+      ],
+      "icons": [
+        {
+          "src": "./android-launchericon-192-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
       "src": "./android-launchericon-192-192.png",
