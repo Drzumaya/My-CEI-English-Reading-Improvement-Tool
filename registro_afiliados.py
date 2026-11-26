@@ -687,7 +687,7 @@ if __name__ == "__main__":
         layout="centered",
         initial_sidebar_state="collapsed"
     )
-      st.markdown(
+    st.markdown(
         """
         <style>
         header[data-testid="stHeader"],
