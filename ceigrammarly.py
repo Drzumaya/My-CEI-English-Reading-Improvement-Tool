@@ -10471,11 +10471,34 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                         except Exception as e:
                             st.error(f"Error al evaluar video: {e}")
 
-    if st.session_state.get("speaking_eval_result"):
-        ev_prev = st.session_state["speaking_eval_result"]
-        with st.container(border=True):
-            st.markdown(f"**📊 Última Calificación Registrada (25%):** `{ev_prev.get('score_percent', 0)}%` (`{round((float(ev_prev.get('score_percent', 0))/100.0)*25.0, 2)} / 25.0 pts`)")
-            st.caption(ev_prev.get("phonetic_feedback", ""))
+        if st.session_state.get("speaking_eval_result"):
+            ev = st.session_state["speaking_eval_result"]
+            with st.container(border=True):
+                st.markdown(f"#### 🎯 Evaluación Oral Detallada: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
+                if ev.get("transcription"):
+                    st.caption(f"🗣️ **Transcripción detectada:** *\"{ev.get('transcription', '')}\"*")
+                st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
+                st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
+                st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
+                tips = ev.get("actionable_tips", [])
+                if tips:
+                    st.markdown("**💡 Recomendaciones de Mejora:**")
+                    for t in tips:
+                        st.markdown(f"- {t}")
+                st.markdown("---")
+                if st.button(
+                    "🔄 Intentar de nuevo (Mejorar pronunciación)",
+                    type="secondary",
+                    width="stretch",
+                    key=f"btn_retry_pron_{st.session_state.get('pron_attempt_nonce', 0)}"
+                ):
+                    st.session_state.pop("speaking_eval_result", None)
+                    for k_del in list(st.session_state.keys()):
+                        if any(tag in str(k_del) for tag in ("speaking_eval", "pron_eval", "oral_eval", "pron_res", "last_pron")):
+                            st.session_state.pop(k_del, None)
+                    st.session_state["pron_attempt_nonce"] = int(st.session_state.get("pron_attempt_nonce", 0)) + 1
+                    st.rerun()
+
 
 # ==============================================================================
 # PARTE 18: AUDIO DEL QUIZ, DESCARGA MP3/PDF OFICIAL Y REINICIO (SOLO BOTÓN 1)
@@ -10528,14 +10551,19 @@ if has_lesson_p18 and stage_5_p18 == "READING":
                     st.markdown("**💡 Recomendaciones de Mejora:**")
                     for t in tips:
                         st.markdown(f"- {t}")
-
-         if st.button("🔄 Intentar de nuevo (Mejorar pronunciación)", type="secondary", width="stretch", key=f"btn_retry_pron_{lesson_uid}"):
-             for k_del in list(st.session_state.keys()):
-                 if any(tag in str(k_del) for tag in ("pron_eval", "oral_eval", "pron_res", "last_pron")):
-                     st.session_state.pop(k_del, None)
-             st.session_state["pron_attempt_nonce"] = int(st.session_state.get("pron_attempt_nonce", 0)) + 1
-             st.rerun()
-
+                st.markdown("---")
+                if st.button(
+                    "🔄 Intentar de nuevo (Mejorar pronunciación)",
+                    type="secondary",
+                    width="stretch",
+                    key=f"btn_retry_pron_{st.session_state.get('pron_attempt_nonce', 0)}"
+                ):
+                    st.session_state.pop("speaking_eval_result", None)
+                    for k_del in list(st.session_state.keys()):
+                        if any(tag in str(k_del) for tag in ("speaking_eval", "pron_eval", "oral_eval", "pron_res", "last_pron")):
+                            st.session_state.pop(k_del, None)
+                    st.session_state["pron_attempt_nonce"] = int(st.session_state.get("pron_attempt_nonce", 0)) + 1
+                    st.rerun()
 
 
     # BOTONES DE AUDIO DEL QUIZ (DEBAJO DEL QUIZ Y ARRIBA DEL PDF OFICIAL)
@@ -10620,6 +10648,7 @@ if has_lesson_p18 and stage_5_p18 == "READING":
         st.session_state["video_watched_sec"] = 0
         st.session_state["video_score_100"] = 0.0
         st.session_state["summary_score_100"] = 0.0
+        st.session_state["pron_attempt_nonce"] = int(st.session_state.get("pron_attempt_nonce", 0)) + 1
         st.session_state["active_stage_5"] = "READING"
         st.query_params.clear()
         st.rerun()
@@ -10633,4 +10662,5 @@ footer_html = (
     "</div>"
 )
 st.markdown(footer_html, unsafe_allow_html=True)
+
 
