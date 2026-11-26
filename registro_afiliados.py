@@ -671,42 +671,35 @@ def render_formulario_registro_afiliado(
 # registro_afiliados.py — PARTE 4 DE 4 (FINAL): MODO INDEPENDIENTE (STANDALONE)
 # ==============================================================================
 if __name__ == "__main__":
-    st.set_page_config(page_title="Registro de Socios Afiliados — CEI", page_icon="🤝", layout="centered")
-    q_token = str(st.query_params.get("reg_token", "")).strip()
-
-    if "aff_ext_authorized" not in st.session_state:
-        st.session_state["aff_ext_authorized"] = False
-        st.session_state["aff_ext_token"] = ""
-        st.session_state["aff_ext_scan_ts"] = None
-        st.session_state["aff_ext_err"] = ""
-
-    # Si se escaneó un token diferente al de la sesión previa, revalidar al instante
-    if q_token and st.session_state.get("aff_ext_token") != q_token:
-        st.session_state["aff_ext_authorized"] = False
-        st.session_state["aff_ext_err"] = ""
-
-    if not st.session_state["aff_ext_authorized"]:
-        ok_tok, msg_tok = validar_token_qr_7min(q_token)
-        if ok_tok:
-            st.session_state["aff_ext_authorized"] = True
-            st.session_state["aff_ext_token"] = q_token
-            st.session_state["aff_ext_scan_ts"] = time.time()
-            st.session_state["aff_ext_err"] = ""
-        else:
-            st.session_state["aff_ext_err"] = msg_tok
-
-    if st.session_state["aff_ext_authorized"]:
-        render_formulario_registro_afiliado(
-            registrado_por="Auto-Registro QR Aspirante",
-            key_prefix="ext_qr_aff",
-            mostrar_qr_dinamico=False,
-            token_sesion_externa=st.session_state["aff_ext_token"],
-            tiempo_inicio_escaneo=float(st.session_state["aff_ext_scan_ts"] or time.time())
-        )
-    else:
-        st.markdown("### 🤝 Career English Institute — Auto-Registro de Socios Afiliados")
-        st.error(
-            f"🔒 **Acceso Restringido al Formulario de Registro**\n\n"
-            f"{st.session_state['aff_ext_err']}\n\n"
-            "Solicita y escanea nuevamente el **Código QR vigente** para iniciar tu registro."
-        )
+    st.set_page_config(
+        page_title="Registro de Socios Afiliados — CEI",
+        page_icon="static/LOGO CEI APP.png" if os.path.exists("static/LOGO CEI APP.png") else "🤝",
+        layout="centered",
+        initial_sidebar_state="collapsed"
+    )
+    st.markdown(
+        """
+        <style>
+        header[data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="manage-app-button"],
+        #MainMenu,
+        footer,
+        div[class*="viewerBadge"],
+        div[class*="profileContainer"],
+        div[class*="profilePreview"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 1.5rem !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
