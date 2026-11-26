@@ -5253,49 +5253,57 @@ def evaluar_pronunciacion_oral_ia(
     ultimo_error = ""
     try:
         from google.genai import types
-        part_media = types.Part.from_bytes(data=media_bytes, mime_type=mime_type)
+        part_media = types.Part.from_bytes(data=media_bytes, mime_type=mime_type or "audio/wav")
         modelos_orales = [
             "gemini-3.8-flash",
             "gemini-3.5-flash",
             "gemini-3.1-pro-preview",
-            "gemini-3.0-flash"
+            "gemini-3.0-flash",
         ]
+        excluidos = ("2.5", "2.0", "1.5", "embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria", "veo")
         try:
             for m in gm.models.list():
                 m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
-                if "gemini" in m_name and not any(
-                    ex in m_name for ex in ("2.5", "2.0", "1.5", "embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria", "veo")
-                ):
-                    if m_name not in modelos_orales:
-                        modelos_orales.append(m_name)
+                metodos = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
+                if "gemini" in m_name and not any(ex in m_name for ex in excluidos):
+                    if not metodos or "generateContent" in metodos:
+                        if m_name not in modelos_orales:
+                            modelos_orales.append(m_name)
         except Exception:
             pass
 
         for modelo_oral in modelos_orales:
-            try:
-                resp = gm.models.generate_content(
-                    model=modelo_oral,
-                    contents=[part_media, prompt_eval],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        temperature=0.2
+            for usar_json_mime in (True, False):
+                try:
+                    cfg = (
+                        types.GenerateContentConfig(response_mime_type="application/json", temperature=0.2)
+                        if usar_json_mime
+                        else types.GenerateContentConfig(temperature=0.2)
                     )
-                )
-                raw_txt = str(getattr(resp, "text", "") or "").strip()
-                raw_txt = re.sub(r"^```(?:json)?|```$", "", raw_txt, flags=re.MULTILINE).strip()
-                data = json.loads(raw_txt)
-                return {
-                    "score_percent": round(float(data.get("score_percent", 75.0)), 1),
-                    "cefr_performance": str(data.get("cefr_performance") or cefr_level),
-                    "transcription": str(data.get("transcription") or ""),
-                    "phonetic_feedback": str(data.get("phonetic_feedback") or "Articulación clara en general."),
-                    "fluency_prosody": str(data.get("fluency_prosody") or "Ritmo adecuado al nivel."),
-                    "grammar_accuracy": str(data.get("grammar_accuracy") or "Estructuras gramaticales consistentes."),
-                    "actionable_tips": list(data.get("actionable_tips") or [])
-                }
-            except Exception as e_mod:
-                ultimo_error = f"{modelo_oral}: {e_mod}"
-                continue
+                    resp = gm.models.generate_content(
+                        model=modelo_oral,
+                        contents=[part_media, prompt_eval],
+                        config=cfg
+                    )
+                    raw_txt = str(getattr(resp, "text", "") or "").strip()
+                    raw_txt = re.sub(r"^```(?:json)?|```$", "", raw_txt, flags=re.MULTILINE).strip()
+                    m_obj = re.search(r"\{.*\}", raw_txt, flags=re.DOTALL)
+                    if m_obj:
+                        raw_txt = m_obj.group(0)
+                    data = json.loads(raw_txt)
+                    return {
+                        "score_percent": round(float(data.get("score_percent", 75.0)), 1),
+                        "cefr_performance": str(data.get("cefr_performance") or cefr_level),
+                        "transcription": str(data.get("transcription") or ""),
+                        "phonetic_feedback": str(data.get("phonetic_feedback") or "Articulación clara en general."),
+                        "fluency_prosody": str(data.get("fluency_prosody") or "Ritmo adecuado al nivel."),
+                        "grammar_accuracy": str(data.get("grammar_accuracy") or "Estructuras gramaticales consistentes."),
+                        "actionable_tips": list(data.get("actionable_tips") or [])
+                    }
+                except Exception as e_mod:
+                    ultimo_error = f"{modelo_oral}: {e_mod}"
+                    if "404" in str(e_mod) or "NOT_FOUND" in str(e_mod):
+                        break
     except Exception as e_outer:
         ultimo_error = str(e_outer)
 
