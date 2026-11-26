@@ -219,3 +219,53 @@ def render_resultado_rubrica_video(res_rub: dict):
             st.markdown("**💡 Recomendaciones para mejorar:**")
             for tip in res_rub["areas_mejora"]:
                 st.markdown(f"- {tip}")
+
+def render_live_word_counter(res_text: str, min_w: int, max_w: int, label_nivel: str):
+    """Muestra y actualiza el conteo de palabras tecla por tecla en tiempo real."""
+    import streamlit.components.v1 as components
+
+    cnt = len([w for w in re.findall(r"\b[\w'-]+\b", str(res_text or "").strip()) if w])
+    ok = min_w <= cnt <= max_w
+    bg = "#dcfce7" if ok else "#fef9c3"
+    bd = "#22c55e" if ok else "#eab308"
+    tx = "#166534" if ok else "#854d0e"
+    msg = (
+        f"✅ Conteo en vivo: <strong>{cnt} palabras</strong> (rango válido {label_nivel}: {min_w}–{max_w})."
+        if ok else f"📏 Conteo en vivo: <strong>{cnt} palabras</strong> (rango requerido {label_nivel}: {min_w}–{max_w} palabras)."
+    )
+    components.html(
+        f"""
+        <div id="liveWordBadge" style="font-family:sans-serif;font-size:13.5px;padding:10px 14px;
+             border-radius:10px;background:{bg};border:1.5px solid {bd};color:{tx};">{msg}</div>
+        <script>
+          (function() {{
+            const minW = {min_w}, maxW = {max_w}, lbl = "{label_nivel}";
+            const badge = document.getElementById("liveWordBadge");
+            function bind() {{
+              const areas = window.parent.document.querySelectorAll('textarea');
+              let ta = Array.from(areas).find(t => (t.placeholder || '').toLowerCase().includes('academic summary in english'));
+              if (!ta) return setTimeout(bind, 300);
+              const upd = () => {{
+                const m = (ta.value || '').trim().match(/\\b[\\w'-]+\\b/g);
+                const c = m ? m.length : 0;
+                const v = c >= minW && c <= maxW;
+                badge.style.background = v ? "#dcfce7" : "#fef9c3";
+                badge.style.borderColor = v ? "#22c55e" : "#eab308";
+                badge.style.color = v ? "#166534" : "#854d0e";
+                badge.innerHTML = (v ? "✅ Conteo en vivo: <strong>" : "📏 Conteo en vivo: <strong>") +
+                  c + " palabras</strong> (" + (v ? "rango válido " : "rango requerido ") + lbl + ": " + minW + "–" + maxW + ").";
+              }};
+              if (!ta.dataset.ceiBound) {{
+                ta.dataset.ceiBound = "1";
+                ta.addEventListener("input", upd);
+                ta.addEventListener("paste", () => setTimeout(upd, 30));
+              }}
+              upd();
+            }}
+            bind();
+          }})();
+        </script>
+        """,
+        height=52
+    )
+
