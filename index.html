@@ -70,13 +70,18 @@
       let deferredPrompt = null;
       let tieneVersionAnterior = false;
 
-      // 1. Si ya se abrió desde el ícono instalado (PWA standalone), ir directo a la plataforma CEI
+      // 1. Si ya se abrió desde el ícono instalado (PWA standalone), mostrar logo CEI y abrir plataforma
       const isStandalone =
         window.matchMedia("(display-mode: standalone)").matches ||
         window.navigator.standalone === true;
 
       if (isStandalone) {
-        window.location.replace(APP_TARGET_URL);
+        document.querySelector("h1").textContent = "🏛️ Abriendo Plataforma CEI...";
+        document.querySelector(".sub").textContent = "Conectando con Career English Institute...";
+        btnInstall.style.display = "none";
+        setTimeout(() => {
+          window.location.href = APP_TARGET_URL;
+        }, 450);
       }
 
       // 2. Detectar si el usuario ya tiene una versión anterior instalada en su dispositivo
@@ -90,7 +95,7 @@
           }
         } catch (e) {}
 
-        if (tieneVersionAnterior) {
+        if (tieneVersionAnterior && !isStandalone) {
           btnInstall.textContent = "🔄 ACTUALIZAR APP OFICIAL CEI";
           hint.style.display = "block";
           hint.innerHTML =
@@ -152,6 +157,7 @@
         }
       });
     </script>
+
 
   </body>
 </html>
