@@ -130,9 +130,7 @@
     let deferredPrompt = null;
 
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistrations().then((regs) => {
-        regs.forEach((r) => r.unregister());
-      });
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
     }
 
     window.addEventListener("beforeinstallprompt", (e) => {
@@ -163,7 +161,7 @@
           "2. Selecciona <strong>«Agregar a pantalla de inicio»</strong> (se guardará con el escudo oficial CEI)."
         : "📲 <strong>Instalación en Android / PC (Chrome o Edge):</strong><br>" +
           "1. Toca el menú del navegador (<strong>⋮</strong> arriba a la derecha).<br>" +
-          "2. Selecciona <strong>«Agregar a la pantalla principal»</strong> o <strong>«Instalar aplicación»</strong>.";
+          "2. Selecciona <strong>«Instalar aplicación»</strong> o <strong>«Agregar a la pantalla principal»</strong>.";
 
       hint.innerHTML =
         instrucciones +
