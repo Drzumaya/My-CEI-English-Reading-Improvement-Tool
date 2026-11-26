@@ -671,6 +671,7 @@ def render_formulario_registro_afiliado(
 # registro_afiliados.py — PARTE 4 DE 4 (FINAL): MODO INDEPENDIENTE (STANDALONE)
 # ==============================================================================
 if __name__ == "__main__":
+    import os
     _logo_cei_path = (
         "static/LOGO CEI APP.png"
         if os.path.exists("static/LOGO CEI APP.png")
