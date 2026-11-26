@@ -36,7 +36,7 @@ import qrcode
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
-
+ 
 st.set_page_config(
     page_title="CEI English Learning Platform",
     page_icon="🎓",
