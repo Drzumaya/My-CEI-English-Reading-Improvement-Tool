@@ -6,111 +6,102 @@
   <title>Career English Institute — CEI</title>
   <meta name="theme-color" content="#0b2545" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="CEI English" />
   <link rel="icon" type="image/png" href="./static/LOGO%20CEI%20APP.png" />
   <link rel="apple-touch-icon" href="./static/LOGO%20CEI%20APP.png" />
-  <link rel="manifest" href="./manifest.json" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body, html {
       width: 100%; height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0b2545;
-      overflow: hidden;
+      background: #f8fafc;
     }
-    #installScreen {
+    .screen {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      min-height: 100vh; padding: 24px; background: #f8fafc; text-align: center;
+      min-height: 100vh; padding: 24px; text-align: center;
     }
     .card {
-      background: white; border-radius: 18px; padding: 28px 22px; max-width: 440px; width: 100%;
+      background: white; border-radius: 18px; padding: 30px 24px; max-width: 440px; width: 100%;
       box-shadow: 0 10px 30px rgba(11, 37, 69, 0.14); border: 1px solid #e2e8f0;
     }
-    .logo { width: 110px; height: 110px; border-radius: 22px; margin-bottom: 14px; object-fit: cover; }
-    h1 { font-size: 20px; color: #0b2545; margin-bottom: 6px; }
-    p.sub { font-size: 13.5px; color: #475569; margin-bottom: 20px; }
-    #btnInstall {
+    .logo {
+      width: 112px; height: 112px; border-radius: 22px; margin-bottom: 14px; object-fit: cover;
+    }
+    h1 {
+      font-size: 21px; color: #0b2545; margin-bottom: 6px;
+    }
+    p.sub {
+      font-size: 13.5px; color: #475569; margin-bottom: 22px;
+    }
+    .btn-primary {
+      display: block; text-decoration: none;
       background: linear-gradient(135deg, #0b2545 0%, #1e40af 100%);
-      color: white; border: none; border-radius: 12px; padding: 16px 20px;
+      color: white; border-radius: 12px; padding: 16px 20px;
       font-size: 16px; font-weight: 700; width: 100%; cursor: pointer;
       box-shadow: 0 6px 18px rgba(11, 37, 69, 0.28);
+      transition: transform 0.15s ease;
+    }
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+    .btn-secondary {
+      margin-top: 12px; background: #f1f5f9; border: 1px solid #cbd5e1;
+      color: #0b2545; border-radius: 12px; padding: 12px 16px;
+      font-size: 14px; font-weight: 700; width: 100%; cursor: pointer;
     }
     #hint {
       display: none; margin-top: 14px; background: #fef9c3; border: 1.5px solid #facc15;
       color: #78350f; border-radius: 10px; padding: 12px; font-size: 13.5px;
       line-height: 1.5; text-align: left;
     }
-    #ceiAppFrame {
-      display: none; width: 100vw; height: 100vh; border: none; background: #ffffff;
-    }
   </style>
 </head>
 <body>
-  <div id="installScreen">
+  <div class="screen">
     <div class="card">
       <img class="logo" src="./static/LOGO%20CEI%20APP.png" alt="Logo CEI" />
-      <h1>📲 Instalar App Oficial CEI</h1>
-      <p class="sub">Career English Institute • Escudo Institucional Oficial</p>
-      <button id="btnInstall" type="button">⬇️ INSTALAR APP OFICIAL CEI</button>
-      <button id="btnLaunchNow" type="button" style="margin-top:12px; background:transparent; border:none; color:#1e40af; font-size:13.5px; font-weight:700; cursor:pointer; width:100%;">🌐 Abrir Plataforma Académica CEI Aquí →</button>
+      <h1>🎓 Career English Institute (CEI)</h1>
+      <p class="sub">Global Pedagogical Suite • Agua Prieta, Sonora, México</p>
+
+      <a
+        href="https://streamlit.app"
+        class="btn-primary"
+      >🚀 ABRIR PLATAFORMA ACADÉMICA CEI</a>
+
+      <button id="btnShortcut" type="button" class="btn-secondary">
+        📲 Guardar Acceso Directo en Pantalla de Inicio
+      </button>
+
       <div id="hint"></div>
     </div>
   </div>
-  <iframe id="ceiAppFrame" allow="microphone; camera; clipboard-read; clipboard-write"></iframe>
 
   <script>
-    const EMBED_APP_URL = "https://streamlit.app";
-    const installScreen = document.getElementById("installScreen");
-    const appFrame = document.getElementById("ceiAppFrame");
-    const btnInstall = document.getElementById("btnInstall");
-    const btnLaunchNow = document.getElementById("btnLaunchNow");
-    const hint = document.getElementById("hint");
-    let deferredPrompt = null;
-
-    function abrirPlataformaEnContenedorCEI() {
-      installScreen.style.display = "none";
-      appFrame.src = EMBED_APP_URL;
-      appFrame.style.display = "block";
-    }
-
-    const isStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      window.navigator.standalone === true;
-
-    if (isStandalone) {
-      abrirPlataformaEnContenedorCEI();
-    }
-
-    btnLaunchNow.addEventListener("click", abrirPlataformaEnContenedorCEI);
-
+    // Desregistrar cualquier Service Worker previo que forzara el modo standalone bloqueado
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        regs.forEach((r) => r.unregister());
+      });
     }
 
-    window.addEventListener("beforeinstallprompt", (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      btnInstall.textContent = "⬇️ INSTALAR APP OFICIAL CEI AHORA";
-    });
+    const btnShortcut = document.getElementById("btnShortcut");
+    const hint = document.getElementById("hint");
 
-    btnInstall.addEventListener("click", async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        deferredPrompt = null;
-        if (outcome === "accepted") {
-          hint.style.display = "block";
-          hint.innerHTML = "✅ <strong>¡App Oficial CEI instalada!</strong> Ábrela desde tu pantalla de inicio con el escudo oficial.";
-        }
-        return;
-      }
+    btnShortcut.addEventListener("click", () => {
       hint.style.display = "block";
-      hint.innerHTML =
-        "📲 <strong>Para instalar en tu dispositivo:</strong><br>" +
-        "1. En Chrome/Edge toca <strong>⋮ → «Instalar aplicación»</strong> (en iPhone Safari toca <strong>Compartir ⬆️ → «Agregar a pantalla de inicio»</strong>).<br>" +
-        "2. O toca <strong>«Abrir Plataforma Académica CEI Aquí»</strong> para entrar de inmediato sin salir de esta ventana.";
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        hint.innerHTML =
+          "📲 <strong>En iPhone / iPad (Safari):</strong><br>" +
+          "1. Toca el botón <strong>Compartir (⬆️)</strong> en la barra inferior.<br>" +
+          "2. Selecciona <strong>«Agregar a pantalla de inicio»</strong> (se guardará con el escudo oficial de CEI).";
+      } else {
+        hint.innerHTML =
+          "📲 <strong>En Android / PC (Chrome o Edge):</strong><br>" +
+          "1. Toca el menú del navegador (<strong>⋮</strong> arriba a la derecha).<br>" +
+          "2. Elige <strong>«Agregar a la pantalla principal»</strong> o <strong>«Crear acceso directo»</strong> (se guardará con el escudo oficial de CEI).";
+      }
     });
   </script>
 </body>
