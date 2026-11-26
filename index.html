@@ -114,7 +114,7 @@
     </button>
 
     <a
-      href="https://streamlit.app"
+      href="https://myceigrammarly.streamlit.app"
       target="_blank"
       rel="noopener noreferrer"
       class="btn-open"
@@ -124,10 +124,19 @@
   </div>
 
   <script>
-    const MAIN_APP_URL = "https://streamlit.app";
+    const MAIN_APP_URL = "https://myceigrammarly.streamlit.app";
     const btnInstall = document.getElementById("btnInstall");
     const hint = document.getElementById("hint");
     let deferredPrompt = null;
+
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+    const params = new URLSearchParams(window.location.search);
+
+    if (isStandalone && !params.get("install")) {
+      window.location.replace(MAIN_APP_URL);
+    }
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").catch(() => {});
@@ -169,4 +178,6 @@
     });
   </script>
 </body>
+</html>
+
 </html>
