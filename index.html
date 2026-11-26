@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="CEI English" />
-  <link rel="icon" type="image/png" href="./static/LOGO%20CEI%20APP.png" />
-  <link rel="apple-touch-icon" href="./static/LOGO%20CEI%20APP.png" />
+  <link rel="icon" type="image/png" href="./static/android-launchericon-192-192.png" />
+  <link rel="apple-touch-icon" href="./static/android-launchericon-192-192.png" />
   <link rel="manifest" href="./static/manifest.json" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -105,7 +105,7 @@
 </head>
 <body>
   <div class="card">
-    <img class="logo" src="./static/LOGO%20CEI%20APP.png" alt="Logo CEI" />
+    <img class="logo" src="./static/android-launchericon-512-512.png" alt="Logo CEI" />
     <h1>🎓 Career English Institute (CEI)</h1>
     <p class="sub">Global Pedagogical Suite • Agua Prieta, Sonora, México</p>
 
@@ -113,17 +113,17 @@
       ⬇ INSTALAR APP OFICIAL CEI
     </button>
 
- <a
-   href="https://streamlit.app"
-   class="btn-open"
- >🌐 Abrir Plataforma en el Navegador →</a>
-
+    <a
+      href="https://streamlit.app"
+      class="btn-open"
+    >🌐 Abrir Plataforma en el Navegador →</a>
 
     <div id="hint"></div>
   </div>
 
   <script>
     const MAIN_APP_URL = "https://streamlit.app";
+    const APK_FILE_URL = "./CEI_App_Oficial.apk";
     const btnInstall = document.getElementById("btnInstall");
     const hint = document.getElementById("hint");
     let deferredPrompt = null;
@@ -154,10 +154,11 @@
       if (isAndroid) {
         hint.style.display = "block";
         hint.innerHTML =
-          "🤖 <strong>Descargando App Oficial CEI (.apk)...</strong><br>" +
+          "🤖 <strong>Descargando App Oficial CEI (3.6 MB)...</strong><br>" +
           "1. Abre el archivo <strong>CEI_App_Oficial.apk</strong> desde tus notificaciones.<br>" +
-          "2. Si Android lo solicita, toca <strong>Configuración → Permitir de esta fuente</strong> e instala.";
-        window.location.href = "./CEI_App_Oficial.apk";
+          "2. Si Android lo solicita, toca <strong>Configuración → Permitir de esta fuente</strong> e instala." +
+          `<a href="${APK_FILE_URL}" download="CEI_App_Oficial.apk" class="btn-hint-go">📥 Si no inició, tocar aquí para descargar APK</a>`;
+        window.location.href = APK_FILE_URL;
         return;
       }
 
