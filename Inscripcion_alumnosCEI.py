@@ -6,12 +6,15 @@ import os
 from zoneinfo import ZoneInfo
 import psycopg
 import streamlit as st
+from ui_branding_cleaner import ocultar_badges_plataforma_cei
 
 st.set_page_config(
     page_title="Inscripción Oficial — Career English Institute (CEI)",
     page_icon="🎓",
-    layout="centered"
+    layout="centered",
+    initial_sidebar_state="collapsed"
 )
+ocultar_badges_plataforma_cei()
 
 GRADOS_ACADEMICOS_INS = [
     "Preescolar",
