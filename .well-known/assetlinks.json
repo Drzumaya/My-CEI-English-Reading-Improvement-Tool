@@ -1,1 +1,8 @@
-
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.drzumaya.twa",
+        "sha256_cert_fingerprints": ["92:7D:AE:A8:53:3F:C1:9F:65:7F:BC:6B:FA:A6:D6:D4:CC:83:A2:0B:B4:D5:EB:0A:30:06:6A:CC:C0:6C:BC:4B"]
+      }
+    }]
