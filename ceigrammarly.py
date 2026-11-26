@@ -5293,7 +5293,7 @@ with col_logout:
             help="Muestra u oculta el QR oficial para instalar la App CEI"
         )
         if mostrar_qr_hdr_now:
-            raw_pub_hdr = str(st.secrets.get("PUBLIC_APP_URL") or "").strip().rstrip("/")
+            url_install_hdr = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
             base_url_hdr = (
                 raw_pub_hdr
                 if ("myceigrammarly.streamlit.app" in raw_pub_hdr)
