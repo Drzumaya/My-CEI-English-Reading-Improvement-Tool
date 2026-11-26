@@ -38,7 +38,23 @@
       "purpose": "maskable"
     }
   ],
-  "shortcuts": [ 
+  "screenshots": [
+    {
+      "src": "https://github.iostatic/android-launchericon-512-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Career English Institute — CEI Mobile"
+    },
+    {
+      "src": "https://github.iostatic/android-launchericon-512-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Career English Institute — CEI Desktop"
+    }
+  ],
+  "shortcuts": [
     {
       "name": "Abrir Plataforma CEI",
       "short_name": "Entrar CEI",
