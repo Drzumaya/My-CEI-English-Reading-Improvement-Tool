@@ -671,7 +671,7 @@ def render_formulario_registro_afiliado(
 # registro_afiliados.py — PARTE 4 DE 4 (FINAL): MODO INDEPENDIENTE (STANDALONE)
 # ==============================================================================
 if __name__ == "__main__":
-    import streamlit.components.v1 as components
+    import streamlit.components.v1 as _st_components
 
     st.set_page_config(
         page_title="Registro de Socios Afiliados — CEI",
@@ -689,11 +689,11 @@ if __name__ == "__main__":
         [data-testid="manage-app-button"],
         #MainMenu,
         footer,
+        div[class*="viewerBadge"],
+        div[class*="profileContainer"],
+        div[class*="profilePreview"],
+        div[class*="_container_gzau3"],
         div[class*="_terminalButton_"],
-        div[class*="_container_gzau3_"],
-        div[class*="_profileContainer_"],
-        div[class*="_profilePreview_"],
-        div[class^="viewerBadge_"],
         a[href*="streamlit.io/cloud"],
         a[href*="share.streamlit.io"],
         a[href*="github.com"] {
@@ -711,18 +711,13 @@ if __name__ == "__main__":
         unsafe_allow_html=True
     )
 
-    components.html(
+    _st_components.html(
         """
         <script>
-        (function ocultarInsigniasCloud() {
-            const selectores = [
-                'header[data-testid="stHeader"]',
-                '[data-testid="stToolbar"]',
-                '[data-testid="stDecoration"]',
-                '[data-testid="stStatusWidget"]',
+        (function ocultarBadgesCEI() {
+            const selectors = [
                 '[data-testid="manage-app-button"]',
-                '#MainMenu',
-                'footer',
+                '[data-testid="stStatusWidget"]',
                 'div[class*="viewerBadge"]',
                 'div[class*="profileContainer"]',
                 'div[class*="profilePreview"]',
@@ -732,9 +727,9 @@ if __name__ == "__main__":
                 'a[href*="share.streamlit.io"]',
                 'a[href*="github.com"]'
             ];
-            function limpiarDoc(doc) {
+            function limpiar(doc) {
                 if (!doc) return;
-                selectores.forEach(sel => {
+                selectors.forEach(sel => {
                     doc.querySelectorAll(sel).forEach(el => {
                         el.style.setProperty('display', 'none', 'important');
                         el.style.setProperty('visibility', 'hidden', 'important');
@@ -743,12 +738,13 @@ if __name__ == "__main__":
                     });
                 });
             }
-            const ejecutar = () => {
-                limpiarDoc(document);
-                try { limpiarDoc(window.parent.document); } catch (e) {}
+            const run = () => {
+                limpiar(document);
+                try { limpiar(window.parent.document); } catch (e) {}
+                try { limpiar(window.top.document); } catch (e) {}
             };
-            ejecutar();
-            setInterval(ejecutar, 700);
+            run();
+            setInterval(run, 800);
         })();
         </script>
         """,
