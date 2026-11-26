@@ -671,6 +671,8 @@ def render_formulario_registro_afiliado(
 # registro_afiliados.py — PARTE 4 DE 4 (FINAL): MODO INDEPENDIENTE (STANDALONE)
 # ==============================================================================
 if __name__ == "__main__":
+    import streamlit.components.v1 as components
+
     st.set_page_config(
         page_title="Registro de Socios Afiliados — CEI",
         page_icon="🤝",
@@ -707,6 +709,50 @@ if __name__ == "__main__":
         </style>
         """,
         unsafe_allow_html=True
+    )
+
+    components.html(
+        """
+        <script>
+        (function ocultarInsigniasCloud() {
+            const selectores = [
+                'header[data-testid="stHeader"]',
+                '[data-testid="stToolbar"]',
+                '[data-testid="stDecoration"]',
+                '[data-testid="stStatusWidget"]',
+                '[data-testid="manage-app-button"]',
+                '#MainMenu',
+                'footer',
+                'div[class*="viewerBadge"]',
+                'div[class*="profileContainer"]',
+                'div[class*="profilePreview"]',
+                'div[class*="_container_gzau3"]',
+                'div[class*="_terminalButton_"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io"]',
+                'a[href*="github.com"]'
+            ];
+            function limpiarDoc(doc) {
+                if (!doc) return;
+                selectores.forEach(sel => {
+                    doc.querySelectorAll(sel).forEach(el => {
+                        el.style.setProperty('display', 'none', 'important');
+                        el.style.setProperty('visibility', 'hidden', 'important');
+                        el.style.setProperty('opacity', '0', 'important');
+                        el.style.setProperty('pointer-events', 'none', 'important');
+                    });
+                });
+            }
+            const ejecutar = () => {
+                limpiarDoc(document);
+                try { limpiarDoc(window.parent.document); } catch (e) {}
+            };
+            ejecutar();
+            setInterval(ejecutar, 700);
+        })();
+        </script>
+        """,
+        height=0
     )
 
     q_token = str(st.query_params.get("reg_token", "")).strip()
