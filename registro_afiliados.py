@@ -6,6 +6,7 @@ from datetime import date, datetime
 import hashlib
 import hmac
 import io
+import os
 import random
 import time
 import urllib.parse
@@ -19,13 +20,37 @@ if hasattr(st, "iframe"):
         html_str, height=height or 150, width=width or "stretch"
     )
 
-DEFAULT_AFFILIATE_TERMS_FALLBACK = """TÉRMINOS Y CONDICIONES DEL PROGRAMA DE SOCIOS AFILIADOS — CAREER ENGLISH INSTITUTE (CEI)
+DEFAULT_AFFILIATE_TERMS_FALLBACK = """### Términos, Condiciones y Política de Compliance de Socios Afiliados
 
-1. OBJETO DE LA AFILIACIÓN: El Socio Afiliado actúa como promotor independiente de los programas académicos de Career English Institute (CEI), sin que ello constituya relación laboral, subordinación o representación legal.
-2. COMISIONES Y LIQUIDACIÓN: Las comisiones aplicables se calcularán exclusivamente sobre inscripciones y mensualidades efectivamente cobradas y validadas por la administración de CEI, conforme al porcentaje vigente asignado al Socio.
-3. USO DE MARCA Y MATERIALES: El Socio se compromete a utilizar únicamente los materiales oficiales aprobados por CEI y a no alterar precios, certificaciones ni condiciones académicas sin autorización escrita.
-4. CONFIDENCIALIDAD Y PROTECCIÓN DE DATOS: Toda información de prospectos y estudiantes deberá tratarse bajo estricta confidencialidad y conforme a la normativa de protección de datos personales vigente.
-5. VIGENCIA Y TERMINACIÓN: CEI se reserva el derecho de suspender o cancelar la afiliación ante incumplimiento de estos términos o uso indebido de la marca institucional."""
+**Career English Institute (CEI) — Agua Prieta, Sonora, México**
+
+**Primera. Naturaleza Jurídica y Objeto de la Afiliación**
+
+Los presentes Términos y Condiciones regulan la colaboración mercantil independiente entre Career English Institute (CEI), con sede administrativa en Agua Prieta, Sonora, México, y el Socio Afiliado. El Socio Afiliado actúa exclusivamente como promotor independiente autorizado para canalizar prospectos hacia los programas académicos en línea de CEI mediante su Código QR oficial y su enlace personalizado de referencia, sin que exista relación laboral, subordinación o representación legal frente a la institución (Código de Comercio, 1889/2023; Ley Federal del Trabajo [LFT], 1970/2024).
+
+**Segunda. Cálculo de Comisiones y Requisitos Fiscales (SAT México)**
+
+1. *Base de cálculo y conciliación.* Las comisiones por promoción se calculan exclusivamente sobre las colegiaturas efectivamente cobradas, conciliadas y validadas en el sistema administrativo de CEI correspondientes a estudiantes inscritos con el identificador oficial (`ID`) del Socio Afiliado.
+2. *Documentación fiscal obligatoria.* Para autorizar y liberar cualquier dispersión bancaria, el Socio Afiliado deberá mantener vigente su expediente digital con Registro Federal de Contribuyentes (RFC), Constancia de Situación Fiscal (CSF) con antigüedad menor a 30 días, Opinión de Cumplimiento de Obligaciones Fiscales (32-D) en sentido positivo, carátula bancaria con CLABE interbancaria a su nombre e identificación oficial vigente (INE).
+3. *Emisión de comprobante fiscal.* El Socio Afiliado deberá expedir y cargar su Comprobante Fiscal Digital por Internet (CFDI 4.0 en formatos PDF y XML) antes del día 25 de cada mes, conforme a las disposiciones fiscales vigentes en México (Código Fiscal de la Federación [CFF], 1981/2024).
+
+**Tercera. Índice Estadístico de Compliance, Conducta Comercial y Revocación**
+
+1. *Evaluación continua de cumplimiento.* El expediente y la actividad promocional del Socio Afiliado están sujetos al monitoreo periódico del Índice Estadístico de Compliance y Confianza Institucional de CEI (escala de 0 a 100 puntos).
+2. *Prohibiciones y causales de baja inmediata.* Queda estrictamente prohibido el uso de publicidad engañosa, la alteración de tarifas oficiales, la promesa de certificaciones no autorizadas o cualquier esquema de captación fraudulenta. El incumplimiento de esta cláusula faculta a CEI para suspender de inmediato el identificador del Socio Afiliado y cancelar las comisiones pendientes de validación.
+
+**Cuarta. Protección de Datos Personales, Confidencialidad y Jurisdicción**
+
+De conformidad con la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP, 2010), el Socio Afiliado se obliga a resguardar la confidencialidad de los prospectos y a canalizar toda inscripción únicamente a través de los formularios digitales oficiales de CEI. Para cualquier controversia derivada de la interpretación o ejecución de este instrumento, las partes se someten a las leyes vigentes y a los tribunales competentes de Agua Prieta, Sonora, México.
+
+---
+
+**Referencias Normativas (Formato APA, 7.ª ed.)**
+
+* Código de Comercio. (1889, 7 de octubre; última reforma publicada el 28 de marzo de 2023). *Diario Oficial de la Federación*. https://diputados.gob.mx
+* Código Fiscal de la Federación [CFF]. (1981, 31 de diciembre; última reforma publicada el 12 de noviembre de 2021). *Diario Oficial de la Federación*. https://diputados.gob.mx
+* Ley Federal de Protección de Datos Personales en Posesión de los Particulares [LFPDPPP]. (2010, 5 de julio). *Diario Oficial de la Federación*. https://diputados.gob.mx
+* Ley Federal del Trabajo [LFT]. (1970, 1 de abril; última reforma publicada el 4 de abril de 2024). *Diario Oficial de la Federación*. https://diputados.gob.mx"""
 
 
 def _find_secret(key_name: str) -> str:
