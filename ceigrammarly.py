@@ -5219,6 +5219,17 @@ def evaluar_pronunciacion_oral_ia(
 ) -> dict:
     """Evalúa pronunciación, fluidez y gramática oral en audio o video usando Gemini Multimodal."""
     gm = init_gemini_client()
+    if not gm:
+        return {
+            "score_percent": 0.0,
+            "cefr_performance": cefr_level,
+            "transcription": "",
+            "phonetic_feedback": "Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.",
+            "fluency_prosody": "Intenta grabar nuevamente en un entorno silencioso.",
+            "grammar_accuracy": "Pendiente de evaluación.",
+            "actionable_tips": ["Verifica que el micrófono tenga permiso activo y habla con claridad."]
+        }
+
     clean_ref = re.sub(r"[*#`]", "", str(reference_text or "")).strip()[:2500]
     prompt_eval = f"""
     You are an expert CEFR English pronunciation, phonetics, and oral fluency examiner for Career English Institute (CEI).
@@ -5239,35 +5250,52 @@ def evaluar_pronunciacion_oral_ia(
       "actionable_tips": ["<tip 1 in Spanish>", "<tip 2 in Spanish>", "<tip 3 in Spanish>"]
     }}
     """
+    ultimo_error = ""
     try:
         from google.genai import types
         part_media = types.Part.from_bytes(data=media_bytes, mime_type=mime_type)
-        resp = gm.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[part_media, prompt_eval]
+        modelos_orales = (
+            _obtener_modelos_gemini_activos(gm, incluir_pro=True)
+            if "_obtener_modelos_gemini_activos" in globals()
+            else ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3.0-flash"]
         )
-        raw_txt = str(getattr(resp, "text", "") or "").strip()
-        raw_txt = re.sub(r"^```(?:json)?|```$", "", raw_txt, flags=re.MULTILINE).strip()
-        data = json.loads(raw_txt)
-        return {
-            "score_percent": round(float(data.get("score_percent", 75.0)), 1),
-            "cefr_performance": str(data.get("cefr_performance") or cefr_level),
-            "transcription": str(data.get("transcription") or ""),
-            "phonetic_feedback": str(data.get("phonetic_feedback") or "Articulación clara en general."),
-            "fluency_prosody": str(data.get("fluency_prosody") or "Ritmo adecuado al nivel."),
-            "grammar_accuracy": str(data.get("grammar_accuracy") or "Estructuras gramaticales consistentes."),
-            "actionable_tips": list(data.get("actionable_tips") or [])
-        }
-    except Exception as e:
-        return {
-            "score_percent": 0.0,
-            "cefr_performance": cefr_level,
-            "transcription": "",
-            "phonetic_feedback": f"No se pudo completar el análisis automático: {e}",
-            "fluency_prosody": "Intenta grabar nuevamente en un entorno silencioso.",
-            "grammar_accuracy": "Pendiente de evaluación.",
-            "actionable_tips": ["Verifica que el micrófono tenga permiso activo y habla con claridad."]
-        }
+        for modelo_oral in modelos_orales:
+            try:
+                resp = gm.models.generate_content(
+                    model=modelo_oral,
+                    contents=[part_media, prompt_eval],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.2
+                    )
+                )
+                raw_txt = str(getattr(resp, "text", "") or "").strip()
+                raw_txt = re.sub(r"^```(?:json)?|```$", "", raw_txt, flags=re.MULTILINE).strip()
+                data = json.loads(raw_txt)
+                return {
+                    "score_percent": round(float(data.get("score_percent", 75.0)), 1),
+                    "cefr_performance": str(data.get("cefr_performance") or cefr_level),
+                    "transcription": str(data.get("transcription") or ""),
+                    "phonetic_feedback": str(data.get("phonetic_feedback") or "Articulación clara en general."),
+                    "fluency_prosody": str(data.get("fluency_prosody") or "Ritmo adecuado al nivel."),
+                    "grammar_accuracy": str(data.get("grammar_accuracy") or "Estructuras gramaticales consistentes."),
+                    "actionable_tips": list(data.get("actionable_tips") or [])
+                }
+            except Exception as e_mod:
+                ultimo_error = f"{modelo_oral}: {e_mod}"
+                continue
+    except Exception as e_outer:
+        ultimo_error = str(e_outer)
+
+    return {
+        "score_percent": 0.0,
+        "cefr_performance": cefr_level,
+        "transcription": "",
+        "phonetic_feedback": f"No se pudo completar el análisis automático: {ultimo_error}",
+        "fluency_prosody": "Intenta grabar nuevamente en un entorno silencioso.",
+        "grammar_accuracy": "Pendiente de evaluación.",
+        "actionable_tips": ["Verifica que el micrófono tenga permiso activo y habla con claridad."]
+    }
 
 
 # ==============================================================================
