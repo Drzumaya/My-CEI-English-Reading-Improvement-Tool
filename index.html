@@ -17,8 +17,7 @@
     body, html {
       width: 100%; height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0b2545;
-      overflow: hidden;
+      background: #f8fafc;
     }
     #installScreen {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -40,6 +39,7 @@
     }
     #btnInstall:active { transform: scale(0.98); }
     #hint {
+      display: none;
       margin-top: 14px; background: #fef9c3; border: 1.5px solid #facc15;
       color: #78350f; border-radius: 10px; padding: 12px; font-size: 13.5px;
       line-height: 1.5; text-align: left;
@@ -50,23 +50,39 @@
   </style>
 </head>
 <body>
+  <div id="installScreen">
     <div class="card">
       <img class="logo" src="./static/LOGO%20CEI%20APP.png" alt="Logo CEI" />
       <h1>📲 Instalar App Oficial CEI</h1>
       <p class="sub">Career English Institute • Escudo Institucional Oficial</p>
-      <button id="btnInstall">⬇️ INSTALAR APP OFICIAL CEI</button>
-      <a href="https://streamlit.app" target="_blank" style="display:block; margin-top:12px; color:#1e40af; font-size:13.5px; font-weight:700; text-decoration:none;">🌐 Abrir Plataforma Académica CEI en Navegador →</a>
+      <button id="btnInstall" type="button">⬇️ INSTALAR APP OFICIAL CEI</button>
+      <a href="https://myceigrammarly.streamlit.app" target="_blank" rel="noopener" style="display:block; margin-top:14px; color:#1e40af; font-size:13.5px; font-weight:700; text-decoration:none;">🌐 Abrir Plataforma Académica CEI en Navegador →</a>
       <div id="hint"></div>
     </div>
   </div>
-  <iframe id="appFrame" src="https://streamlit.app"></iframe>
+  <iframe id="appFrame" src="https://myceigrammarly.streamlit.app"></iframe>
+
 
     <script>
-      let deferredPrompt = null;
+      const APP_TARGET_URL = "https://streamlit.app";
+      const installScreen = document.getElementById("installScreen");
+      const appFrame = document.getElementById("appFrame");
       const btnInstall = document.getElementById("btnInstall");
       const hint = document.getElementById("hint");
+      let deferredPrompt = null;
 
-      // Registrar Service Worker si existe para habilitar instalación PWA nativa
+      // 1. Si ya se abrió desde el ícono instalado (PWA standalone), cargar la App CEI a pantalla completa
+      const isStandalone =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
+
+      if (isStandalone) {
+        installScreen.style.display = "none";
+        appFrame.src = APP_TARGET_URL;
+        appFrame.style.display = "block";
+      }
+
+      // 2. Registrar Service Worker para habilitar instalación PWA con escudo CEI
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("./sw.js").catch(() => {});
       }
@@ -79,7 +95,6 @@
         btnInstall.style.cursor = "pointer";
       });
 
-      // Asegurar que el botón azul siempre sea clicable
       btnInstall.disabled = false;
       btnInstall.style.cursor = "pointer";
 
@@ -89,11 +104,14 @@
           const { outcome } = await deferredPrompt.userChoice;
           deferredPrompt = null;
           if (outcome === "accepted") {
-            hint.innerHTML = "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo institucional.";
+            hint.style.display = "block";
+            hint.innerHTML =
+              "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo institucional.";
           }
           return;
         }
 
+        hint.style.display = "block";
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         if (isIOS) {
           hint.innerHTML =
@@ -109,6 +127,6 @@
         }
       });
     </script>
-
-</body>
+  </body>
 </html>
+
