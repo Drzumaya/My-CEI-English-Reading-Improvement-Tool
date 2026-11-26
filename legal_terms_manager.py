@@ -2,6 +2,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import streamlit as st
 
+
 TZ_SONORA = ZoneInfo("America/Hermosillo")
 
 DEFAULT_TERMS_BY_ROLE = {
@@ -187,3 +188,128 @@ def save_institutional_terms_pg(tipo_rol: str, texto_nuevo: str, updated_by: str
             conn.close()
         except Exception:
             pass
+
+import html
+import re
+
+
+def render_documento_apa7(texto_raw: str, max_height_px: int = 380) -> None:
+    """Renderiza el texto legal como una hoja de documento formal bajo estilo APA 7.ª edición."""
+    limpio = str(texto_raw or "").replace("\\n", "\n").strip()
+    if limpio.startswith("(") and limpio.endswith(")") and "," in limpio:
+        limpio = limpio.strip("()").split("',")[0].strip("'\"")
+
+    lineas = limpio.splitlines()
+    html_partes = []
+    en_referencias = False
+
+    for linea in lineas:
+        s = linea.strip()
+        if not s or s == "---":
+            continue
+
+        if s.startswith("### "):
+            titulo = html.escape(s[4:].strip())
+            html_partes.append(f'<h2 class="apa-title">{titulo}</h2>')
+            continue
+
+        if "Referencias Normativas" in s:
+            en_referencias = True
+            titulo_ref = html.escape(s.replace("**", "").strip())
+            html_partes.append(f'<hr class="apa-sep"><h3 class="apa-ref-heading">{titulo_ref}</h3>')
+            continue
+
+        # Subtítulo institucional centrado
+        if s.startswith("**Career English Institute"):
+            sub = html.escape(s.replace("**", "").strip())
+            html_partes.append(f'<p class="apa-subtitle">{sub}</p>')
+            continue
+
+        # Encabezados de cláusula (Nivel 2 APA 7: negrita alineada a la izquierda)
+        if s.startswith("**") and s.endswith("**") and len(s) > 4:
+            enc = html.escape(s.strip("*").strip())
+            html_partes.append(f'<h3 class="apa-h2">{enc}</h3>')
+            continue
+
+        # Convertir negritas y cursivas inline de Markdown a HTML limpio
+        s_esc = html.escape(s)
+        s_esc = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s_esc)
+        s_esc = re.sub(r"\*(.+?)\*", r"<em>\1</em>", s_esc)
+
+        if en_referencias:
+            ref_txt = s_esc.lstrip("*•- ").strip()
+            html_partes.append(f'<p class="apa-ref-item">{ref_txt}</p>')
+        else:
+            html_partes.append(f'<p class="apa-body">{s_esc}</p>')
+
+    cuerpo_html = "\n".join(html_partes)
+
+    st.markdown(
+        f"""
+        <style>
+        .apa7-sheet {{
+            background-color: #ffffff;
+            color: #111827;
+            font-family: "Times New Roman", Georgia, "Liberation Serif", serif;
+            font-size: 16px;
+            line-height: 1.75;
+            padding: 32px 36px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+            max-height: {int(max_height_px)}px;
+            overflow-y: auto;
+            margin-bottom: 12px;
+        }}
+        .apa7-sheet .apa-title {{
+            font-size: 18px;
+            font-weight: 700;
+            text-align: center;
+            color: #0b2545;
+            margin: 0 0 4px 0;
+        }}
+        .apa7-sheet .apa-subtitle {{
+            font-size: 15px;
+            font-weight: 700;
+            text-align: center;
+            color: #334155;
+            margin: 0 0 20px 0;
+        }}
+        .apa7-sheet .apa-h2 {{
+            font-size: 16px;
+            font-weight: 700;
+            text-align: left;
+            color: #0b2545;
+            margin: 18px 0 6px 0;
+        }}
+        .apa7-sheet .apa-body {{
+            text-align: justify;
+            text-indent: 1.27cm;
+            margin: 0 0 12px 0;
+        }}
+        .apa7-sheet .apa-sep {{
+            border: 0;
+            border-top: 1px solid #cbd5e1;
+            margin: 22px 0 16px 0;
+        }}
+        .apa7-sheet .apa-ref-heading {{
+            font-size: 16px;
+            font-weight: 700;
+            text-align: center;
+            color: #0b2545;
+            margin: 0 0 12px 0;
+        }}
+        .apa7-sheet .apa-ref-item {{
+            text-align: left;
+            padding-left: 1.27cm;
+            text-indent: -1.27cm;
+            margin: 0 0 10px 0;
+            word-break: break-word;
+        }}
+        </style>
+        <div class="apa7-sheet">
+            {cuerpo_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
