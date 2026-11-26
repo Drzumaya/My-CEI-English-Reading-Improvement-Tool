@@ -73,109 +73,116 @@ from modules.pedagogy import (
 )
 
  
-# --- 1. CONFIGURACIÓN DE PÁGINA (SIEMPRE PRIMERO) ---
-st.set_page_config(
-    page_title="CEI ENGLISH LEARNING PLATFORM — Career English Institute",
-    page_icon="static/LOGO CEI APP.png" if os.path.exists("static/LOGO CEI APP.png") else "LOGO CEI APP.png",
-    layout="wide",
-    initial_sidebar_state="auto"
+import streamlit.components.v1 as components
+
+rol_main_low = str(st.session_state.get("user_role") or "").strip().lower()
+is_owner_o_admin_main = bool(
+    st.session_state.get("authenticated", False)
+    and (
+        st.session_state.get("is_owner", False)
+        or rol_main_low in ["propietario", "owner", "administrador", "admin"]
+    )
 )
 
-# OCULTAR BARRA SUPERIOR, "MANAGE APP" Y BADGE ROSA DE GITHUB EN MODO APP
-st.markdown(
-    """
-    <style>
-        #MainMenu {visibility: hidden;}
-        header[data-testid="stHeader"] {
-            background: transparent;
-            height: 0px;
-        }
+if not is_owner_o_admin_main:
+    st.markdown(
+        """
+        <style>
+        header[data-testid="stHeader"],
         [data-testid="stToolbar"],
         [data-testid="stDecoration"],
-        footer {
+        [data-testid="stStatusWidget"],
+        [data-testid="manage-app-button"],
+        #MainMenu,
+        footer,
+        div[class*="viewerBadge"],
+        div[class*="profileContainer"],
+        div[class*="profilePreview"],
+        a[href*="streamlit.io/cloud"],
+        a[href*="share.streamlit.io"],
+        a[href*="github.com"] {
             display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
         }
-        @media all and (display-mode: standalone), all and (display-mode: minimal-ui) {
-            [data-testid="manage-app-button"],
-            div[class*="viewerBadge"],
-            div[class*="StatusWidget"],
-            div[class*="_profileContainer"],
-            div[class*="_profilePreview"],
-            a[href*="streamlit.io/cloud"],
-            a[href*="github.com"],
-            iframe[title="streamlit_badge"] {
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-                pointer-events: none !important;
-            }
+        .block-container {
+            padding-top: 1.5rem !important;
+            padding-bottom: 1.5rem !important;
         }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-st.iframe(
-    """
-    <script>
-    (function() {
-        try {
-            const pWin = window.parent;
-            const pDoc = pWin.document;
-            const head = pDoc.head;
-            if (head) {
-                if (!head.querySelector('link[href="/app/static/manifest.json"]')) {
-                    const m = pDoc.createElement('link');
-                    m.rel = 'manifest';
-                    m.href = '/app/static/manifest.json';
-                    head.appendChild(m);
-                }
-                if (!head.querySelector('link[rel="apple-touch-icon"][href="/app/static/LOGO%20CEI%20APP.png"]')) {
-                    const a = pDoc.createElement('link');
-                    a.rel = 'apple-touch-icon';
-                    a.href = '/app/static/LOGO%20CEI%20APP.png';
-                    head.appendChild(a);
-                }
-                if ('serviceWorker' in pWin.navigator) {
-                    pWin.navigator.serviceWorker.register('/app/static/sw.js').catch(() => {});
-                }
-            }
-
-            const isAppMode = (
-                pWin.matchMedia('(display-mode: standalone)').matches ||
-                pWin.matchMedia('(display-mode: minimal-ui)').matches ||
-                pWin.navigator.standalone === true ||
-                !pWin.menubar.visible
-            );
-            if (isAppMode) {
-                const hideBadge = () => {
-                    const docs = [pWin.document];
-                    try { if (pWin.parent && pWin.parent.document) docs.push(pWin.parent.document); } catch(e) {}
-                    docs.forEach(d => {
-                        d.querySelectorAll(
-                            '[data-testid="manage-app-button"], [class*="viewerBadge"], [class*="StatusWidget"], [class*="_profileContainer"], [class*="_profilePreview"], button[kind="manageApp"]'
-                        ).forEach(el => {
-                            el.style.setProperty('display', 'none', 'important');
-                        });
-                        d.querySelectorAll('div, a, button').forEach(el => {
-                            const st = pWin.getComputedStyle(el);
-                            if (st.position === 'fixed' && parseInt(st.bottom || '999') <= 30 && parseInt(st.right || '999') <= 40) {
-                                if ((el.innerText || '').includes('Manage app') || el.querySelector('svg')) {
-                                    el.style.setProperty('display', 'none', 'important');
-                                }
-                            }
-                        });
+    components.html(
+        """
+        <script>
+        (function ocultarBadgesCEI() {
+            const selectors = [
+                '[data-testid="manage-app-button"]',
+                '[data-testid="stStatusWidget"]',
+                'div[class*="viewerBadge"]',
+                'div[class*="profileContainer"]',
+                'div[class*="profilePreview"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io"]',
+                'a[href*="github.com"]'
+            ];
+            function limpiar(doc) {
+                if (!doc) return;
+                selectors.forEach(sel => {
+                    doc.querySelectorAll(sel).forEach(el => {
+                        el.style.setProperty('display', 'none', 'important');
+                        el.style.setProperty('visibility', 'hidden', 'important');
+                        el.style.setProperty('opacity', '0', 'important');
                     });
-                };
-                hideBadge();
-                setInterval(hideBadge, 900);
+                });
             }
-        } catch(e) {}
-    })();
-    </script>
-    """,
-    height=1
-)
+            const run = () => {
+                limpiar(document);
+                try { limpiar(window.parent.document); } catch (e) {}
+                try { limpiar(window.top.document); } catch (e) {}
+            };
+            run();
+            setInterval(run, 800);
+        })();
+        </script>
+        """,
+        height=0
+    )
+else:
+    components.html(
+        """
+        <script>
+        (function restaurarBadgesOwnerAdmin() {
+            const selectors = [
+                '[data-testid="manage-app-button"]',
+                '[data-testid="stStatusWidget"]',
+                'div[class*="viewerBadge"]',
+                'div[class*="profileContainer"]',
+                'div[class*="profilePreview"]',
+                'a[href*="streamlit.io/cloud"]',
+                'a[href*="share.streamlit.io"]',
+                'a[href*="github.com"]'
+            ];
+            function restaurar(doc) {
+                if (!doc) return;
+                selectors.forEach(sel => {
+                    doc.querySelectorAll(sel).forEach(el => {
+                        el.style.removeProperty('display');
+                        el.style.removeProperty('visibility');
+                        el.style.removeProperty('opacity');
+                    });
+                });
+            }
+            try { restaurar(window.parent.document); } catch (e) {}
+            try { restaurar(window.top.document); } catch (e) {}
+        })();
+        </script>
+        """,
+        height=0
+    )
 
 
 # ==============================================================================
