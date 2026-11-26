@@ -36,12 +36,20 @@ import qrcode
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+
+st.set_page_config(
+    page_title="CEI English Learning Platform",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
 if hasattr(st, "iframe"):
     components.html = lambda html_str, height=None, scrolling=False, width=None: st.iframe(
         html_str, height=height or 150, width=width or "stretch"
     )
 from streamlit_js_eval import streamlit_js_eval
-  
+
 try:
     from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 except ImportError:
@@ -72,9 +80,6 @@ from modules.pedagogy import (
     normalize_cefr_code,
 )
 
- 
-import streamlit.components.v1 as components
-
 rol_main_low = str(st.session_state.get("user_role") or "").strip().lower()
 is_owner_o_admin_main = bool(
     st.session_state.get("authenticated", False)
@@ -83,6 +88,7 @@ is_owner_o_admin_main = bool(
         or rol_main_low in ["propietario", "owner", "administrador", "admin"]
     )
 )
+
 
 if not is_owner_o_admin_main:
     st.markdown(
