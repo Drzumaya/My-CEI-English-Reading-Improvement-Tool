@@ -671,9 +671,18 @@ def render_formulario_registro_afiliado(
 # registro_afiliados.py — PARTE 4 DE 4 (FINAL): MODO INDEPENDIENTE (STANDALONE)
 # ==============================================================================
 if __name__ == "__main__":
+    _logo_cei_path = (
+        "static/LOGO CEI APP.png"
+        if os.path.exists("static/LOGO CEI APP.png")
+        else (
+            "LOGO CEI APP.png"
+            if os.path.exists("LOGO CEI APP.png")
+            else "https://github.io"
+        )
+    )
     st.set_page_config(
         page_title="Registro de Socios Afiliados — CEI",
-        page_icon="static/LOGO CEI APP.png" if os.path.exists("static/LOGO CEI APP.png") else "🤝",
+        page_icon=_logo_cei_path,
         layout="centered",
         initial_sidebar_state="collapsed"
     )
