@@ -185,16 +185,29 @@ def generar_token_qr_7min() -> tuple[str, int]:
                 pass
     return nuevo_tok, restante
 
-
 def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
-    """Valida el token del QR directamente contra PostgreSQL (7 min para escanear + 20 min de llenado)."""
+    """Valida el token del QR contra PostgreSQL (7 min para escanear + 20 min de llenado)."""
     tok = urllib.parse.unquote(str(token_str or "").strip())
     if not tok:
         return True, "Sesión directa autorizada (20 min)"
 
+    # Si el token trae timestamp embebido (ej. "1795615000.firma" o "CEI-1795615000-..."), extraer ts
+    ts_embebido = None
+    for parte in tok.replace("_", ".").replace("-", ".").split("."):
+        if parte.isdigit() and 1700000000 <= int(parte) <= 2100000000:
+            ts_embebido = float(parte)
+            break
+
     conn = _get_conn_afiliados()
     if not conn:
+        # Respaldo offline si el token trae timestamp válido dentro de los 7 minutos
+        if ts_embebido is not None:
+            edad_ts = time.time() - ts_embebido
+            if 0 <= edad_ts <= 450:
+                return True, "Token válido (verificación temporal)"
+            return False, "⏳ Este código QR expiró (límite de 7 minutos). Solicita uno nuevo."
         return False, "No hay conexión con la base de datos para verificar el QR."
+
     try:
         with conn:
             with conn.cursor() as cur:
@@ -212,21 +225,35 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
                            used,
                            scanned_at IS NOT NULL
                     FROM affiliate_qr_sessions
-                    WHERE token = %s
+                    WHERE TRIM(token) = TRIM(%s)
                     LIMIT 1;
                 """, (tok,))
                 row = cur.fetchone()
+
                 if not row:
+                    # Si el token tiene un timestamp válido reciente (<= 7 min), auto-registrarlo en la tabla
+                    if ts_embebido is not None:
+                        edad_ts = time.time() - ts_embebido
+                        if edad_ts > 450:
+                            return False, "⏳ Este código QR expiró (límite de 7 minutos para escanear). Solicita uno nuevo."
+                        cur.execute("""
+                            INSERT INTO affiliate_qr_sessions (token, created_at, scanned_at, used)
+                            VALUES (%s, TO_TIMESTAMP(%s), NOW(), FALSE)
+                            ON CONFLICT (token) DO NOTHING;
+                        """, (tok, ts_embebido))
+                        return True, "Token válido"
                     return False, "El código QR no fue reconocido o pertenece a una sesión anterior. Genera y escanea un QR nuevo."
 
-                edad_creacion, edad_escaneo, ya_usado, ya_escaneado = float(row[0]), float(row[1]), bool(row[2]), bool(row[3])
+                edad_creacion, edad_escaneo, ya_usado, ya_escaneado = (
+                    float(row), float(row), bool(row), bool(row)
+                )
                 if ya_usado:
                     return False, "🔒 Este formulario ya fue enviado y el enlace quedó inhabilitado."
 
                 if not ya_escaneado:
                     if edad_creacion > 450:
                         return False, "⏳ Este código QR expiró (límite de 7 minutos para escanear). Solicita uno nuevo."
-                    cur.execute("UPDATE affiliate_qr_sessions SET scanned_at = NOW() WHERE token = %s;", (tok,))
+                    cur.execute("UPDATE affiliate_qr_sessions SET scanned_at = NOW() WHERE TRIM(token) = TRIM(%s);", (tok,))
                 else:
                     if edad_escaneo > 1200:
                         return False, "⏳ El tiempo de 20 minutos para llenar el formulario ha expirado."
