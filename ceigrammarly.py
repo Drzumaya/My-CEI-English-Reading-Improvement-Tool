@@ -9730,11 +9730,12 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
 
                     with tab_rec_audio:
-                        student_audio = st.audio_input("Graba tu voz leyendo el texto:", key="audio_in_split_s3")
+                        nonce_aud = st.session_state.get("pron_attempt_nonce", 0)
+                        student_audio = st.audio_input("Graba tu voz leyendo el texto:", key=f"audio_in_split_s3_{nonce_aud}")
                         if student_audio is not None:
                             raw_aud = student_audio.getvalue()
                             st.audio(raw_aud)
-                            if st.button("🤖 Evaluar Pronunciación con IA (25%)", type="primary", key="btn_eval_aud_split_s3", width="stretch"):
+                            if st.button("🤖 Evaluar Pronunciación con IA (25%)", type="primary", key=f"btn_eval_aud_split_s3_{nonce_aud}", width="stretch"):
                                 with st.spinner("Analizando pronunciación, entonación y gramática oral con IA..."):
                                     try:
                                         ev_oral = evaluar_pronunciacion_oral_ia(
@@ -9745,9 +9746,15 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                         sc_pct = float(ev_oral.get("score_percent") or 0.0)
                                         pts_25 = round((sc_pct / 100.0) * 25.0, 2)
                                         f_code = st.session_state.current_folio or ""
-                                        usr_now = st.session_state.get("current_user") or "Estudiante"
+                                        usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
                                         if f_code:
-                                            public_u, _ = upload_student_media_to_storage(raw_aud, "audio/wav", "wav", f_code, usr_now)
+                                            public_u = upload_student_media_to_storage(
+                                                raw_aud,
+                                                filename=f"{f_code}_speaking.wav",
+                                                content_type="audio/wav",
+                                                student_user=usr_now,
+                                                folder="pronunciation"
+                                            )
                                             save_student_media_record_pg(
                                                 f_code, usr_now, "audio", public_u or "", gramatica_b1,
                                                 st.session_state.selected_cefr, eval_dict=ev_oral
@@ -9758,6 +9765,17 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                         st.write(f"**📐 Gramática:** {ev_oral.get('grammar_accuracy', '')}")
                                     except Exception as e:
                                         st.error(f"Error al evaluar pronunciación: {e}")
+
+                            if st.session_state.get("speaking_eval_result"):
+                                if st.button(
+                                    "🔄 Try again / Intentar de nuevo",
+                                    type="secondary",
+                                    key=f"btn_try_again_split_s3_{nonce_aud}",
+                                    width="stretch"
+                                ):
+                                    st.session_state.pop("speaking_eval_result", None)
+                                    st.session_state["pron_attempt_nonce"] = nonce_aud + 1
+                                    st.rerun()
 
                     with tab_rec_video:
                         st.caption("📹 **Cámara Web en Vivo:** Pulsa **🔴 Grabar**, lee el texto de la izquierda, pulsa **⏹️ Detener**, descárgalo y evalúalo con IA:")
