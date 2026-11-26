@@ -54,10 +54,13 @@ def render_formulario_registro_docente(
     id_doc_sug = f"DOC-CEI-{anio_act}-{random.randint(100, 999)}"
 
     try:
-        from legal_terms_manager import get_institutional_terms_pg
+        from legal_terms_manager import get_institutional_terms_pg, render_documento_apa7
         terms_doc_txt = get_institutional_terms_pg("docente").get("texto", "")
     except Exception:
+        render_documento_apa7 = None
         terms_doc_txt = (
+            "### Términos, Condiciones y Código de Compliance Docente\n\n"
+            "**Career English Institute (CEI) — Agua Prieta, Sonora, México**\n\n"
             "El Docente declara la veracidad de sus credenciales académicas, se obliga a mantener actualizada "
             "su documentación fiscal (CSF, Opinión 32-D y CFDI 4.0) para cobro de honorarios/comisiones "
             "y acepta el monitoreo del Índice Estadístico de Compliance y Confianza de CEI."
@@ -118,14 +121,11 @@ def render_formulario_registro_docente(
         disponibilidad = st.text_input("🗓️ Disponibilidad Horaria y Modalidad", placeholder="Ej. Lunes a Viernes 16:00 - 21:00 hrs")
         titulo_file = st.file_uploader("📎 Título, Cédula o Certificado (PDF/PNG/JPG - Opcional)", type=["pdf", "png", "jpg", "jpeg"], key=f"{key_prefix}_doc_file")
 
-        with st.expander("📜 Leer Términos, Condiciones y Código de Compliance Docente (Obligatorio)", expanded=False):
-            st.text_area(
-                "Marco Legal, Fiscal y Compliance Docente CEI:",
-                value=terms_doc_txt,
-                height=190,
-                disabled=True,
-                key=f"{key_prefix}_ta_terms_doc"
-            )
+        st.markdown("##### 📜 Términos, Condiciones y Código de Compliance Docente")
+        if render_documento_apa7:
+            render_documento_apa7(terms_doc_txt, max_height_px=360)
+        else:
+            st.markdown(terms_doc_txt)
 
         acepta_codigo = st.checkbox(
             "✅ He leído y acepto los Términos, Condiciones, Requisitos Fiscales (CFDI/32-D) y Código de Compliance Docente de CEI *",
@@ -161,6 +161,7 @@ def render_formulario_registro_docente(
             if not conn:
                 st.error("❌ Sin conexión con la base de datos institucional.")
                 return
+
 
             try:
                 with conn:
@@ -240,11 +241,16 @@ def render_formulario_registro_docente(
                             ALTER TABLE users_padron
                             ADD COLUMN IF NOT EXISTS telefono TEXT DEFAULT '',
                             ADD COLUMN IF NOT EXISTS docente_asignado TEXT DEFAULT '',
-                            ADD COLUMN IF NOT EXISTS porcentaje_comision NUMERIC(5,2) DEFAULT 0.0;
+                            ADD COLUMN IF NOT EXISTS porcentaje_comision NUMERIC(5,2) DEFAULT 0.0,
+                            ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
+                            ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
                         """)
                         cur.execute("""
-                            INSERT INTO users_padron (usuario, clave_hash, rol, permisos, estatus, telefono, porcentaje_comision)
-                            VALUES (%s, %s, 'Teacher', 'Docente', 'Activo', %s, %s)
+                            INSERT INTO users_padron (
+                                usuario, clave_hash, rol, permisos, estatus, telefono,
+                                porcentaje_comision, terminos_aceptados, terminos_aceptados_at
+                            )
+                            VALUES (%s, %s, 'Teacher', 'Docente', 'Activo', %s, %s, TRUE, NOW())
                             ON CONFLICT (usuario) DO UPDATE SET
                                 rol = 'Teacher',
                                 permisos = 'Docente',
@@ -253,7 +259,9 @@ def render_formulario_registro_docente(
                                 porcentaje_comision = CASE
                                     WHEN %s THEN users_padron.porcentaje_comision
                                     ELSE EXCLUDED.porcentaje_comision
-                                END;
+                                END,
+                                terminos_aceptados = TRUE,
+                                terminos_aceptados_at = COALESCE(users_padron.terminos_aceptados_at, NOW());
                         """, (u_clean, clave_doc.strip(), telefono.strip(), float(pct_com_doc), es_registro_externo))
 
                 st.cache_data.clear()
@@ -282,5 +290,6 @@ if __name__ == "__main__":
         key_prefix="ext_doc_reg",
         es_registro_externo=True
     )
+
 
 
