@@ -2421,29 +2421,38 @@ def upload_student_media_to_storage(
     return ""
 
 
+def _obtener_modelos_gemini_activos(gm_client, incluir_pro: bool = True) -> list[str]:
+    """Descubre dinámicamente los modelos Gemini vigentes en la cuenta del usuario."""
+    preferidos = [
+        "gemini-3.8-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-pro-preview",
+        "gemini-3.0-flash",
+        "gemini-2.5-flash",
+    ]
+    if not incluir_pro:
+        preferidos = [m for m in preferidos if "pro" not in m]
+
+    excluidos = ("embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria", "veo")
+    try:
+        for m in gm_client.models.list():
+            m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
+            metodos = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
+            if "gemini" in m_name and not any(ex in m_name for ex in excluidos):
+                if not metodos or "generateContent" in metodos:
+                    if m_name not in preferidos:
+                        preferidos.append(m_name)
+    except Exception:
+        pass
+    return preferidos
+
+
 def generar_con_maxima_potencia(client_obj, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
     gm = client_obj or init_gemini_client()
     if not gm:
         raise RuntimeError("Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.")
 
-    modelos_preferidos = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-3.1-pro-preview",
-        "gemini-2.0-flash"
-    ]
-    excluidos = ("embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria")
-    try:
-        for m in gm.models.list():
-            m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
-            metodos = getattr(m, "supported_actions", None) or getattr(m, "supported_generation_methods", None) or []
-            if "gemini" in m_name and not any(ex in m_name for ex in excluidos):
-                if not metodos or "generateContent" in metodos:
-                    if m_name not in modelos_preferidos:
-                        modelos_preferidos.append(m_name)
-    except Exception:
-        pass
-
+    modelos_preferidos = _obtener_modelos_gemini_activos(gm, incluir_pro=True)
     ultimo_error = None
     for modelo in modelos_preferidos:
         try:
@@ -2521,8 +2530,9 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
     }}
     """
 
+    modelos_orales = _obtener_modelos_gemini_activos(gm_client, incluir_pro=True)
     ultimo_error = ""
-    for modelo_oral in ["gemini-3.1-pro-preview", "gemini-2.5-flash"]:
+    for modelo_oral in modelos_orales:
         try:
             response = gm_client.models.generate_content(
                 model=modelo_oral,
@@ -2540,8 +2550,10 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
             return json.loads(raw_json)
         except Exception as e_mod:
             ultimo_error = f"{modelo_oral}: {e_mod}"
+            continue
 
     raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
+
 # ==============================================================================
 # MOTOR DE VIDEO EDUCATIVO MULTI-NAVEGADOR (BRAVE, FIREFOX, OPERA, GOOGLE) + DICCIONARIO CEFR
 # ==============================================================================
