@@ -18,6 +18,16 @@
   "launch_handler": {
     "client_mode": ["navigate-existing", "auto"]
   },
+  "share_target": {
+    "action": "https://github.ioindex.html",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
   "icons": [
     {
       "src": "https://github.iostatic/android-launchericon-192-192.png",
