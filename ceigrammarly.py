@@ -5292,14 +5292,14 @@ with col_logout:
             key="tgl_header_qr_app_visible",
             help="Muestra u oculta el QR oficial para instalar la App CEI"
         )
-    if mostrar_qr_hdr_now:
-        raw_pub_hdr = str(st.secrets.get("PUBLIC_APP_URL") or "").strip().rstrip("/")
-        base_url_hdr = (
-            raw_pub_hdr
-            if ("myceigrammarly.streamlit.app" in raw_pub_hdr)
-            else ("https://" + "myceigrammarly.streamlit.app")
-        )
-        url_install_hdr = f"{base_url_hdr}/?install=1"
+        if mostrar_qr_hdr_now:
+            raw_pub_hdr = str(st.secrets.get("PUBLIC_APP_URL") or "").strip().rstrip("/")
+            base_url_hdr = (
+                raw_pub_hdr
+                if ("myceigrammarly.streamlit.app" in raw_pub_hdr)
+                else ("https://" + "myceigrammarly.streamlit.app")
+            )
+            url_install_hdr = f"{base_url_hdr}/?install=1"
 
             buf_qh = io.BytesIO()
             qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
