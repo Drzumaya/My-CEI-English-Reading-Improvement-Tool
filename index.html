@@ -66,12 +66,11 @@
     <script>
       const APP_TARGET_URL = "https://streamlit.app";
       const installScreen = document.getElementById("installScreen");
-      const appFrame = document.getElementById("appFrame");
       const btnInstall = document.getElementById("btnInstall");
       const hint = document.getElementById("hint");
       let deferredPrompt = null;
 
-      // 1. Si ya se abrió desde el ícono instalado (PWA standalone), cargar la App CEI a pantalla completa
+      // Si ya se abrió desde el ícono instalado, ir directo a la plataforma CEI
       const isStandalone =
         window.matchMedia("(display-mode: standalone)").matches ||
         window.navigator.standalone === true;
@@ -79,11 +78,7 @@
       if (isStandalone) {
         window.location.replace(APP_TARGET_URL);
       }
-        appFrame.src = APP_TARGET_URL;
-        appFrame.style.display = "block";
-      }
 
-      // 2. Registrar Service Worker para habilitar instalación PWA con escudo CEI
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("./sw.js").catch(() => {});
       }
@@ -91,13 +86,8 @@
       window.addEventListener("beforeinstallprompt", (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        btnInstall.disabled = false;
-        btnInstall.style.opacity = "1";
-        btnInstall.style.cursor = "pointer";
+        btnInstall.textContent = "⬇️ INSTALAR APP OFICIAL CEI AHORA";
       });
-
-      btnInstall.disabled = false;
-      btnInstall.style.cursor = "pointer";
 
       btnInstall.addEventListener("click", async () => {
         if (deferredPrompt) {
@@ -106,25 +96,24 @@
           deferredPrompt = null;
           if (outcome === "accepted") {
             hint.style.display = "block";
-            hint.innerHTML =
-              "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo institucional.";
+            hint.innerHTML = "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo oficial.";
           }
           return;
         }
 
+        // Si el navegador no disparó el cuadro automático (iOS Safari, Mac o app ya instalada), mostrar guía visual clara
         hint.style.display = "block";
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         if (isIOS) {
           hint.innerHTML =
-            "📲 <strong>Para instalar en iPhone / iPad:</strong><br>" +
-            "1. Toca el botón <strong>Compartir (⬆️)</strong> en la barra inferior de Safari.<br>" +
-            "2. Selecciona <strong>«Agregar a pantalla de inicio»</strong> (con el escudo CEI).";
+            "📲 <strong>Instalación en iPhone / iPad:</strong><br>" +
+            "1. Toca el ícono <strong>Compartir (⬆️)</strong> abajo en Safari.<br>" +
+            "2. Elige <strong>«Agregar a pantalla de inicio»</strong> (aparecerá con el escudo oficial de CEI).";
         } else {
           hint.innerHTML =
-            "💻 <strong>Para instalar en tu dispositivo:</strong><br>" +
-            "1. Abre el menú de tu navegador (<strong>⋮</strong> o <strong>⋯</strong> arriba a la derecha).<br>" +
-            "2. Selecciona <strong>«Instalar App Oficial CEI»</strong> o <strong>«Agregar a pantalla de inicio»</strong>.<br>" +
-            "3. O entra directo haciendo clic en el enlace azul de abajo.";
+            "📲 <strong>Instalación Rápida en tu Navegador:</strong><br>" +
+            "1. En la barra de direcciones arriba a la derecha, toca el ícono de <strong>Instalar (⊕ / 💻)</strong> o el menú <strong>⋮ → «Instalar App Oficial CEI»</strong>.<br>" +
+            "2. <em>Nota:</em> Si ya la habías instalado antes, primero desinstala el acceso directo anterior desde tu pantalla de inicio y recarga esta página.";
         }
       });
     </script>
