@@ -148,6 +148,19 @@
     });
 
     btnInstall.addEventListener("click", async () => {
+      const ua = navigator.userAgent || "";
+      const isAndroid = /Android/i.test(ua);
+
+      if (isAndroid) {
+        hint.style.display = "block";
+        hint.innerHTML =
+          "🤖 <strong>Descargando App Oficial CEI (.apk)...</strong><br>" +
+          "1. Abre el archivo <strong>CEI_App_Oficial.apk</strong> desde tus notificaciones.<br>" +
+          "2. Si Android lo solicita, toca <strong>Configuración → Permitir de esta fuente</strong> e instala.";
+        window.location.href = "./CEI_App_Oficial.apk";
+        return;
+      }
+
       if (deferredPrompt) {
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
@@ -162,14 +175,14 @@
       }
 
       hint.style.display = "block";
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
       const instrucciones = isIOS
         ? "📲 <strong>Instalación en iPhone / iPad (Safari):</strong><br>" +
           "1. Toca el botón <strong>Compartir (⬆️)</strong> en la barra inferior.<br>" +
           "2. Selecciona <strong>«Agregar a pantalla de inicio»</strong> (se guardará con el escudo oficial CEI)."
-        : "📲 <strong>Instalación en Android / PC (Chrome o Edge):</strong><br>" +
+        : "📲 <strong>Instalación en PC / Mac (Chrome o Edge):</strong><br>" +
           "1. Toca el menú del navegador (<strong>⋮</strong> arriba a la derecha).<br>" +
-          "2. Selecciona <strong>«Instalar aplicación»</strong> o <strong>«Agregar a la pantalla principal»</strong>.";
+          "2. Selecciona <strong>«Instalar aplicación»</strong> o <strong>«Agregar al Dock»</strong>.";
 
       hint.innerHTML =
         instrucciones +
