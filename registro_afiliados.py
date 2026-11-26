@@ -672,18 +672,14 @@ def render_formulario_registro_afiliado(
 # ==============================================================================
 if __name__ == "__main__":
     import os
-    _logo_cei_path = (
+    _logo_cei_local = (
         "static/LOGO CEI APP.png"
         if os.path.exists("static/LOGO CEI APP.png")
-        else (
-            "LOGO CEI APP.png"
-            if os.path.exists("LOGO CEI APP.png")
-            else "https://github.io"
-        )
+        else ("LOGO CEI APP.png" if os.path.exists("LOGO CEI APP.png") else "🏛️")
     )
     st.set_page_config(
         page_title="Registro de Socios Afiliados — CEI",
-        page_icon=_logo_cei_path,
+        page_icon=_logo_cei_local,
         layout="centered",
         initial_sidebar_state="collapsed"
     )
@@ -697,17 +693,16 @@ if __name__ == "__main__":
         [data-testid="manage-app-button"],
         #MainMenu,
         footer,
-        [class^="viewerBadge_container"],
-        [class*="viewerBadge_link"],
-        [class^="profileContainer"],
-        [class^="profilePreview"],
-        a[href^="https://streamlit.io"],
-        a[href^="https://github.com"] {
+        div[class*="_container_gzau3"],
+        div[class*="_profileContainer_"],
+        div[class*="_profilePreview_"],
+        div[class^="viewerBadge_"],
+        a[href*="streamlit.io/cloud"],
+        a[href*="share.streamlit.io"],
+        a[href*="github.com"] {
             display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
-            width: 0 !important;
-            height: 0 !important;
             pointer-events: none !important;
         }
         .block-container {
