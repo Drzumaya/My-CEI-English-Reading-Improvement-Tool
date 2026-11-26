@@ -268,10 +268,19 @@ def render_formulario_registro_docente(
 
 
 if __name__ == "__main__":
-    st.set_page_config(page_title="Registro Oficial de Docentes — CEI", page_icon="🧑‍🏫", layout="centered")
+    st.set_page_config(
+        page_title="Registro Oficial de Docentes — CEI",
+        page_icon="🧑‍🏫",
+        layout="centered",
+        initial_sidebar_state="collapsed"
+    )
+    from ui_branding_cleaner import ocultar_badges_plataforma_cei
+    ocultar_badges_plataforma_cei()
+
     render_formulario_registro_docente(
         registrado_por="Auto-Registro Docente",
         key_prefix="ext_doc_reg",
         es_registro_externo=True
     )
+
 
