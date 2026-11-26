@@ -260,8 +260,8 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
 
     st.divider()
     st.markdown("#### 3️⃣ Términos, Condiciones, Reglamento Académico y Compliance CEI")
-    with st.container(height=230, border=True):
-        st.markdown(obtener_terminos_estudiantes_pg())
+    from legal_terms_manager import render_documento_apa7
+    render_documento_apa7(obtener_terminos_estudiantes_pg(), max_height_px=380)
 
     acepta_reg = st.checkbox(
         "✅ He leído, comprendo y acepto los Términos, Condiciones, Reglamento Académico y Políticas de Compliance de Career English Institute (CEI) *",
@@ -383,8 +383,3 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                 except Exception as e:
                     st.error(f"Error al registrar inscripción: {e}")
                 finally:
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
-
