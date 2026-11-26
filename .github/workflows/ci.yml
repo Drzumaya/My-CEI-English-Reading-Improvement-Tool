@@ -28,5 +28,6 @@ jobs:
           python -m py_compile ceigrammarly.py core/database.py core/ai_engine.py modules/franchises.py modules/pedagogy.py modules/finance.py
 
       - name: Run Unit Tests
-         run: PYTHONPATH=. pytest -v
+        run: PYTHONPATH=. pytest -v
+
   
