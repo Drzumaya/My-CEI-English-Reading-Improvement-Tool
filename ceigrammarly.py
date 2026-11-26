@@ -7569,17 +7569,23 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 # PARTE 14B1: CENTRO DE MANDO SPA — INSCRIPCIÓN DE USUARIOS EN EL PADRÓN
 # ==============================================================================
         elif seccion_inst_sel == "👥 Inscripción y Padrón":
-            puede_editar_terminos_est = is_owner or can("Editar_Terminos_Afiliacion") or can("Registrar_Usuarios")
+            puede_editar_terminos_est = (
+                is_owner
+                or can("Editar_Terminos_Afiliacion")
+                or can("Gestionar_Compliance_Legal")
+                or can("Registrar_Usuarios")
+            )
             if not (is_owner or can("Registrar_Usuarios") or can("Gestionar_Usuarios") or puede_editar_terminos_est):
                 st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para registrar o modificar usuarios.")
             else:
                 if puede_editar_terminos_est:
-                    with st.expander("📜 Editar Términos y Condiciones de Inscripción de Estudiantes (Inscripcion_alumnosCEI.py)", expanded=False):
-                        st_terms_data = get_student_terms_pg()
+                    with st.expander("📜 Editar Términos, Condiciones y Compliance de Inscripción de Estudiantes (Inscripcion_alumnosCEI.py)", expanded=False):
+                        from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
+                        st_terms_data = get_institutional_terms_pg("estudiante")
                         if st_terms_data.get("updated_at"):
                             st.caption(f"Última actualización: `{st_terms_data['updated_at']}` por **{st_terms_data['updated_by']}**")
                         txt_st_terms_edit = st.text_area(
-                            "Texto legal y reglamento académico vigente mostrado en Inscripcion_alumnosCEI.py:",
+                            "Texto legal y reglamento académico vigente (Formato APA 7) mostrado en Inscripcion_alumnosCEI.py:",
                             value=st_terms_data["texto"],
                             height=250,
                             key="ta_edit_student_terms_admin"
@@ -7588,11 +7594,15 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             if not txt_st_terms_edit.strip():
                                 st.warning("⚠️ El texto de Términos y Condiciones no puede quedar vacío.")
                             else:
-                                ok_st, msg_st = save_student_terms_pg(txt_st_terms_edit, str(st.session_state.current_user or "Owner"))
+                                ok_st, msg_st = save_institutional_terms_pg(
+                                    "estudiante",
+                                    txt_st_terms_edit,
+                                    str(st.session_state.current_user or "Owner")
+                                )
                                 if ok_st:
                                     st.success(msg_st)
                                 else:
-                                    st.error(msg_st) 
+                                    st.error(msg_st)
 
                 with st.expander("📲 Código QR Oficial de Auto-Inscripción de Alumnos (Zoom / WhatsApp)", expanded=False):
                     padron_qr_st = load_padron_records()
@@ -7911,8 +7921,8 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     with st.container(border=True):
                         st.markdown("##### 2️⃣ Delegación Individual de Capacidades por Usuario (Exclusivo Owner)")
                         st.caption(
-                            "Delega o retira permisos puntuales (como **Editar Términos y Condiciones** o **Editar Permisos**) "
-                            "a un usuario específico sin modificar el perfil global de los demás usuarios."
+                            "Activa o retira permisos granulares (como **Panel Educativo**, **Portal Docente**, "
+                            "**Compliance Legal** o **Editar Términos**) a un usuario específico sin alterar el perfil de los demás."
                         )
                         curr_owner_clean = str(st.session_state.get("current_user") or "").strip().lower()
                         lista_u_delegar = [
@@ -7928,27 +7938,75 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 lista_u_delegar,
                                 key="sb_owner_delegate_user"
                             )
+                            reg_u_del = next(
+                                (r for r in padron_perm_users if str(r.get("Usuario", "")).strip() == u_del_sel),
+                                {}
+                            )
+                            st.caption(
+                                f"🏷️ **Rol actual:** `{reg_u_del.get('Rol', 'Usuario')}`  •  "
+                                f"🔐 **Nivel de Permisos:** `{reg_u_del.get('Permisos', 'Basico')}`"
+                            )
+
+                            etiquetas_caps_owner = {
+                                "Ver_Panel_Educativo": "🎓 Ver Panel Educativo (IA y Lecciones)",
+                                "Ver_Portal_Docente": "🧑‍🏫 Ver Mi Portal Docente CEI",
+                                "Ver_Mis_Estudiantes_Docente": "👥 Ver Mis Estudiantes Asignados (Docente)",
+                                "Motivar_Estudiantes_WhatsApp": "💬 Enviar Motivación WhatsApp a Alumnos",
+                                "Asignar_Retroalimentacion_Docente": "📝 Asignar Retroalimentación y Tareas",
+                                "Ver_Comisiones_Pagos_Docente": "💵 Ver Comisiones y Bóveda Fiscal Docente",
+                                "Gestionar_Compliance_Legal": "⚖️ Gestionar Compliance y Vigilancia Legal",
+                                "Ver_Panel_Admin": "🛡️ Ver Panel Administrativo",
+                                "Registrar_Usuarios": "➕ Registrar Usuarios en Padrón",
+                                "Gestionar_Usuarios": "🛠️ Gestionar / Editar Usuarios",
+                                "Editar_Permisos": "🔐 Editar Matriz de Permisos",
+                                "Editar_Terminos_Afiliacion": "📜 Editar Términos Legales (Doc/Soc/Est)",
+                                "Gestionar_Comisiones_Afiliados": "🤝 Gestionar Comisiones de Afiliados",
+                                "Ver_Racha_Referidos_WhatsApp": "🔥 Ver Racha de Referidos y WhatsApp",
+                                "Mostrar_QR_App_Header": "📲 Mostrar QR App en Cabecera",
+                                "Emitir_Certificados": "🏅 Emitir Certificados Oficiales",
+                                "Gestionar_IVA_Mensualidad": "💳 Gestionar Cobranza Mensual e IVA",
+                                "Editar_Fecha_Inicio_Curso": "📅 Editar Fecha de Inicio de Curso"
+                            }
+
                             caps_actuales_u = get_user_delegated_caps_pg(u_del_sel)
                             cols_del = st.columns(3)
                             nuevas_caps_u = {}
                             for idx_d, cap_nom in enumerate(CAPACIDADES_DELEGABLES_OWNER):
                                 with cols_del[idx_d % 3]:
+                                    lbl_cap_ui = etiquetas_caps_owner.get(cap_nom, cap_nom.replace("_", " "))
                                     nuevas_caps_u[cap_nom] = st.checkbox(
-                                        cap_nom.replace("_", " "),
+                                        lbl_cap_ui,
                                         value=bool(caps_actuales_u.get(cap_nom, False)),
                                         key=f"chk_del_{u_del_sel}_{cap_nom}"
                                     )
-                            if st.button("💾 Guardar Delegación Individual", type="primary", key="btn_save_owner_delegation"):
-                                ok_d, msg_d = save_user_delegated_caps_pg(
-                                    u_del_sel,
-                                    nuevas_caps_u,
-                                    str(st.session_state.current_user or "Owner")
-                                )
-                                if ok_d:
-                                    st.success(msg_d)
-                                    st.rerun()
-                                else:
-                                    st.error(msg_d)
+
+                            c_del_b1, c_del_b2 = st.columns([2.2, 1.0])
+                            with c_del_b1:
+                                if st.button("💾 Guardar Delegación Individual", type="primary", width="stretch", key="btn_save_owner_delegation"):
+                                    ok_d, msg_d = save_user_delegated_caps_pg(
+                                        u_del_sel,
+                                        nuevas_caps_u,
+                                        str(st.session_state.current_user or "Owner")
+                                    )
+                                    if ok_d:
+                                        st.cache_data.clear()
+                                        st.success(msg_d)
+                                        st.rerun()
+                                    else:
+                                        st.error(msg_d)
+                            with c_del_b2:
+                                if st.button("🧹 Limpiar Delegaciones", type="secondary", width="stretch", key="btn_clear_owner_delegation"):
+                                    caps_vacias = {c: False for c in CAPACIDADES_DELEGABLES_OWNER}
+                                    ok_c, msg_c = save_user_delegated_caps_pg(
+                                        u_del_sel,
+                                        caps_vacias,
+                                        str(st.session_state.current_user or "Owner")
+                                    )
+                                    if ok_c:
+                                        st.cache_data.clear()
+                                        st.info(f"Delegaciones individuales retiradas para **{u_del_sel}**.")
+                                        st.rerun()
+
 
                 if is_owner or can("Editar_Permisos"):
                     with st.form("form_nuevo_perfil_permiso", clear_on_submit=True):
