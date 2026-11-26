@@ -65,12 +65,12 @@
 
     <script>
       const APP_TARGET_URL = "https://streamlit.app";
-      const installScreen = document.getElementById("installScreen");
       const btnInstall = document.getElementById("btnInstall");
       const hint = document.getElementById("hint");
       let deferredPrompt = null;
+      let tieneVersionAnterior = false;
 
-      // Si ya se abrió desde el ícono instalado, ir directo a la plataforma CEI
+      // 1. Si ya se abrió desde el ícono instalado (PWA standalone), ir directo a la plataforma CEI
       const isStandalone =
         window.matchMedia("(display-mode: standalone)").matches ||
         window.navigator.standalone === true;
@@ -79,6 +79,31 @@
         window.location.replace(APP_TARGET_URL);
       }
 
+      // 2. Detectar si el usuario ya tiene una versión anterior instalada en su dispositivo
+      async function verificarVersionAnterior() {
+        try {
+          if ("getInstalledRelatedApps" in navigator) {
+            const appsInstaladas = await navigator.getInstalledRelatedApps();
+            if (appsInstaladas && appsInstaladas.length > 0) {
+              tieneVersionAnterior = true;
+            }
+          }
+        } catch (e) {}
+
+        if (tieneVersionAnterior) {
+          btnInstall.textContent = "🔄 ACTUALIZAR APP OFICIAL CEI";
+          hint.style.display = "block";
+          hint.innerHTML =
+            "⚠️ <strong>Detectamos una versión anterior de la App CEI instalada en tu dispositivo.</strong><br>" +
+            "Para disfrutar de la versión actualizada con el escudo oficial:<br>" +
+            "1. <strong>Desinstala o elimina</strong> el acceso directo anterior de tu pantalla de inicio.<br>" +
+            "2. Recarga esta página y pulsa <strong>«Instalar App Oficial CEI»</strong>.";
+        }
+      }
+
+      verificarVersionAnterior();
+
+      // 3. Registrar Service Worker actualizado
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.register("./sw.js").catch(() => {});
       }
@@ -86,7 +111,9 @@
       window.addEventListener("beforeinstallprompt", (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        btnInstall.textContent = "⬇️ INSTALAR APP OFICIAL CEI AHORA";
+        if (!tieneVersionAnterior) {
+          btnInstall.textContent = "⬇️ INSTALAR APP OFICIAL CEI AHORA";
+        }
       });
 
       btnInstall.addEventListener("click", async () => {
@@ -96,27 +123,36 @@
           deferredPrompt = null;
           if (outcome === "accepted") {
             hint.style.display = "block";
-            hint.innerHTML = "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo oficial.";
+            hint.innerHTML =
+              "✅ <strong>¡App Oficial CEI instalada!</strong> Búscala en tu pantalla de inicio con el escudo institucional.";
           }
           return;
         }
 
-        // Si el navegador no disparó el cuadro automático (iOS Safari, Mac o app ya instalada), mostrar guía visual clara
         hint.style.display = "block";
+        if (tieneVersionAnterior) {
+          hint.innerHTML =
+            "⚠️ <strong>Ya tienes una versión anterior instalada:</strong><br>" +
+            "1. Mantén presionado el ícono anterior de CEI en tu celular/PC y elige <strong>Desinstalar / Eliminar</strong>.<br>" +
+            "2. Vuelve aquí y recarga la página para instalar la nueva versión limpia.";
+          return;
+        }
+
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         if (isIOS) {
           hint.innerHTML =
             "📲 <strong>Instalación en iPhone / iPad:</strong><br>" +
             "1. Toca el ícono <strong>Compartir (⬆️)</strong> abajo en Safari.<br>" +
-            "2. Elige <strong>«Agregar a pantalla de inicio»</strong> (aparecerá con el escudo oficial de CEI).";
+            "2. Elige <strong>«Agregar a pantalla de inicio»</strong> (con el escudo oficial de CEI).";
         } else {
           hint.innerHTML =
             "📲 <strong>Instalación Rápida en tu Navegador:</strong><br>" +
             "1. En la barra de direcciones arriba a la derecha, toca el ícono de <strong>Instalar (⊕ / 💻)</strong> o el menú <strong>⋮ → «Instalar App Oficial CEI»</strong>.<br>" +
-            "2. <em>Nota:</em> Si ya la habías instalado antes, primero desinstala el acceso directo anterior desde tu pantalla de inicio y recarga esta página.";
+            "2. <em>Nota:</em> Si ya tenías una versión previa instalada, desinstálala primero de tu pantalla de inicio y recarga esta página.";
         }
       });
     </script>
+
   </body>
 </html>
 
