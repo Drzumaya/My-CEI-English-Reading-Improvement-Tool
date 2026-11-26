@@ -5306,7 +5306,7 @@ with col_logout:
             help="Muestra u oculta el QR oficial para instalar la App CEI"
         )
         if mostrar_qr_hdr_now:
-            url_install_hdr = "https://github.io"
+            url_install_hdr = " https://drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
 
 
             buf_qh = io.BytesIO()
