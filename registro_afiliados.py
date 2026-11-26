@@ -687,7 +687,7 @@ if __name__ == "__main__":
         layout="centered",
         initial_sidebar_state="collapsed"
     )
-    st.markdown(
+      st.markdown(
         """
         <style>
         header[data-testid="stHeader"],
@@ -697,12 +697,17 @@ if __name__ == "__main__":
         [data-testid="manage-app-button"],
         #MainMenu,
         footer,
-        div[class*="viewerBadge"],
-        div[class*="profileContainer"],
-        div[class*="profilePreview"] {
+        [class^="viewerBadge_container"],
+        [class*="viewerBadge_link"],
+        [class^="profileContainer"],
+        [class^="profilePreview"],
+        a[href^="https://streamlit.io"],
+        a[href^="https://github.com"] {
             display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
+            width: 0 !important;
+            height: 0 !important;
             pointer-events: none !important;
         }
         .block-container {
