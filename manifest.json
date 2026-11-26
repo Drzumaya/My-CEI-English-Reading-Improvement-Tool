@@ -1,38 +1,15 @@
 {
-  "name": "Career English Institute — CEI",
-  "short_name": "CEI English",
-  "description": "Plataforma Oficial CEI — Career English Institute",
-  "start_url": "./",
-  "scope": "./",
-  "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#0b2545",
-  "theme_color": "#0b2545",
+  "short_name": "Streamlit",
+  "name": "Streamlit",
   "icons": [
     {
-      "src": "./static/LOGO%20CEI%20APP.png",
-      "sizes": "192x192",
+      "src": "favicon_512.png",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./static/LOGO%20CEI%20APP.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./static/LOGO%20CEI%20APP.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "sizes": "512x512"
     }
   ],
-  "related_applications": [
-    {
-      "platform": "webapp",
-      "url": "https://github.io"
-    }
-  ]
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff"
 }
-
