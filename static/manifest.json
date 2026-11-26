@@ -2,7 +2,7 @@
   "id": "../index.html",
   "name": "CEI English Learning Platform",
   "short_name": "CEI English",
-  "description": "Plataforma Oficial de Aprendizaje del Idioma Inglés, Evaluación CEFR y Control Académico — Career English Institute (CEI), Agua Prieta, Sonora, México.",
+  "description": "Plataforma Oficial de Aprendizaje del Idioma Ingles, Evaluacion CEFR y Control Academico de Career English Institute (CEI) en Agua Prieta, Sonora, Mexico.",
   "lang": "es-MX",
   "dir": "ltr",
   "start_url": "../index.html",
@@ -14,19 +14,8 @@
   "theme_color": "#0b2545",
   "categories": ["education", "books", "productivity"],
   "prefer_related_applications": false,
-  "related_applications": [],
   "launch_handler": {
     "client_mode": ["navigate-existing", "auto"]
-  },
-  "share_target": {
-    "action": "../index.html",
-    "method": "GET",
-    "enctype": "application/x-www-form-urlencoded",
-    "params": {
-      "title": "title",
-      "text": "text",
-      "url": "url"
-    }
   },
   "icons": [
     {
@@ -68,7 +57,7 @@
     {
       "name": "Abrir Plataforma CEI",
       "short_name": "Entrar CEI",
-      "description": "Acceso directo al inicio de sesión institucional de Career English Institute",
+      "description": "Acceso directo al inicio de sesion institucional de Career English Institute",
       "url": "../index.html",
       "icons": [
         {
