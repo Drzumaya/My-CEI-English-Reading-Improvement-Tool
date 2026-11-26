@@ -10136,6 +10136,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                 with st.container(border=True):
                     from video_rubric_evaluator import (
                         obtener_criterios_video_nivel,
+                        render_live_word_counter,
                         evaluar_resumen_video_rubrica_ia,
                         render_resultado_rubrica_video,
                     )
@@ -10169,14 +10170,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     )
                     w_px = font_opts_w[sel_fw]
                     st.markdown(
-                        f"""
-                        <style>
-                        div[data-testid="stTextArea"] textarea {{
-                            font-size: {w_px}px !important;
-                            line-height: 1.6 !important;
-                        }}
-                        </style>
-                        """,
+                        f"<style>div[data-testid='stTextArea'] textarea {{ font-size: {w_px}px !important; line-height: 1.6 !important; }}</style>",
                         unsafe_allow_html=True
                     )
 
@@ -10187,12 +10181,8 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         placeholder=f"Write your academic summary in English while watching the video on the left ({min_w_c}–{max_w_c} words)...",
                         key="txt_central_writing_summary"
                     )
-                    cnt_c = len([w for w in re.findall(r"\b[\w'-]+\b", res_central.strip()) if w])
-                    if min_w_c <= cnt_c <= max_w_c:
-                        st.success(f"✅ Conteo exacto: **{cnt_c} palabras** (rango válido {crit_w['etiqueta']}: {min_w_c}–{max_w_c}).")
-                    else:
-                        st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(rango requerido {crit_w['etiqueta']}: {min_w_c}–{max_w_c} palabras)*.")
-
+                    st.session_state["video_summary_draft"] = res_central
+                    render_live_word_counter(res_central, min_w_c, max_w_c, crit_w["etiqueta"])
                     vid_ref_c = st.session_state.get("current_lesson_video") or {}
                     url_vid_apa = str(vid_ref_c.get("url") or "https://youtube.com")
                     ej_apa_c = (
