@@ -38,7 +38,16 @@ def _open_pg_pd():
                 )
             except Exception:
                 pass
+    db_url = _find_secret_pd("SUPABASE_DB_URL") or _find_secret_pd("DATABASE_URL")
+    if db_url and db_url.startswith("postgres"):
+        if "sslmode=" not in db_url:
+            db_url += ("&" if "?" in db_url else "?") + "sslmode=require"
+        try:
+            return psycopg.connect(db_url, connect_timeout=10, prepare_threshold=None)
+        except Exception:
+            pass
     return None
+
 
 
 def asegurar_tablas_portal_docente(conn):
