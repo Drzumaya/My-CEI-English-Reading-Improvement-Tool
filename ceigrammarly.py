@@ -5254,11 +5254,23 @@ def evaluar_pronunciacion_oral_ia(
     try:
         from google.genai import types
         part_media = types.Part.from_bytes(data=media_bytes, mime_type=mime_type)
-        modelos_orales = (
-            _obtener_modelos_gemini_activos(gm, incluir_pro=True)
-            if "_obtener_modelos_gemini_activos" in globals()
-            else ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3.0-flash"]
-        )
+        modelos_orales = [
+            "gemini-3.8-flash",
+            "gemini-3.5-flash",
+            "gemini-3.1-pro-preview",
+            "gemini-3.0-flash"
+        ]
+        try:
+            for m in gm.models.list():
+                m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
+                if "gemini" in m_name and not any(
+                    ex in m_name for ex in ("2.5", "2.0", "1.5", "embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria", "veo")
+                ):
+                    if m_name not in modelos_orales:
+                        modelos_orales.append(m_name)
+        except Exception:
+            pass
+
         for modelo_oral in modelos_orales:
             try:
                 resp = gm.models.generate_content(
@@ -10508,6 +10520,15 @@ if has_lesson_p18 and stage_5_p18 == "READING":
                     st.markdown("**💡 Recomendaciones de Mejora:**")
                     for t in tips:
                         st.markdown(f"- {t}")
+
+         if st.button("🔄 Intentar de nuevo (Mejorar pronunciación)", type="secondary", width="stretch", key=f"btn_retry_pron_{lesson_uid}"):
+             for k_del in list(st.session_state.keys()):
+                 if any(tag in str(k_del) for tag in ("pron_eval", "oral_eval", "pron_res", "last_pron")):
+                     st.session_state.pop(k_del, None)
+             st.session_state["pron_attempt_nonce"] = int(st.session_state.get("pron_attempt_nonce", 0)) + 1
+             st.rerun()
+
+
 
     # BOTONES DE AUDIO DEL QUIZ (DEBAJO DEL QUIZ Y ARRIBA DEL PDF OFICIAL)
     if st.session_state.quiz_data:
