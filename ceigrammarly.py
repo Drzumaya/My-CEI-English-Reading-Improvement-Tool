@@ -9905,6 +9905,8 @@ if has_lesson_now and stage_5_now != "PORTAL":
 # PARTE 16 — BLOQUE 2-A: VENTANA MAESTRA 2 (VIDEO ACTIVO + CRONÓMETRO 25%)
 # ==============================================================================
     elif stage_5_now == "VIEWING":
+        from video_rubric_evaluator import render_criterios_video_plegable, render_rubrica_video_plegable
+
         vid_stage = st.session_state.get("current_lesson_video") or {}
         if not vid_stage.get("url"):
             with st.spinner("Cargando video educativo relacionado con la lección..."):
@@ -9925,6 +9927,8 @@ if has_lesson_now and stage_5_now != "PORTAL":
             vid_id_st = "L9AWrJnhsRI"
         v_watch_url = "https://youtube.com" + "/watch?v=" + vid_id_st
 
+        # RÚBRICA OFICIAL DE 20 PUNTOS (20%) DESPLEGABLE JUSTO ARRIBA DEL BOTÓN 4
+        render_rubrica_video_plegable()
 
         hdr_v1, hdr_v2 = st.columns([2.4, 1.35])
         with hdr_v1:
@@ -10085,6 +10089,9 @@ if has_lesson_now and stage_5_now != "PORTAL":
                 """
                 components.html(yt_ruler_html, height=495)
 
+                # CRITERIOS PLEGABLES DEL RESUMEN SEGÚN NIVEL MCER (A1-A2 / B1-B2 / C1-C2)
+                render_criterios_video_plegable(st.session_state.selected_cefr)
+
                 # CANDADO DE ACREDITACIÓN: SI YA ESTÁ CALIFICADO AL 100%, MODO EXPLORACIÓN LIBRE
                 video_ya_acreditado = float(st.session_state.get("video_score_100") or 0.0) >= 100.0
 
@@ -10120,16 +10127,29 @@ if has_lesson_now and stage_5_now != "PORTAL":
                             st.rerun()
 
 
+
 # ==============================================================================
 # PARTE 16 — BLOQUE 2-B (FINAL): PANEL DERECHO DE WRITING SKILL (20%)
 # ==============================================================================
         if col_wrt_box is not None:
             with col_wrt_box:
                 with st.container(border=True):
+                    from video_rubric_evaluator import (
+                        obtener_criterios_video_nivel,
+                        evaluar_resumen_video_rubrica_ia,
+                        render_resultado_rubrica_video,
+                    )
+
+                    crit_w = obtener_criterios_video_nivel(st.session_state.selected_cefr)
+                    min_w_c, max_w_c = crit_w["min_words"], crit_w["max_words"]
+
                     st.subheader("✍️ 4. WRITING SKILL (20%)")
                     s_sc_c = float(st.session_state.get("summary_score_100") or 0.0)
                     pts_w_c = round((s_sc_c / 100.0) * 20.0, 2)
-                    st.caption(f"**Resumen (120–125 palabras) + Cita APA 7 — Valor: 20% (`{pts_w_c} / 20.0 pts`)**")
+                    st.caption(
+                        f"**{crit_w['actividad']} ({crit_w['etiqueta']}: {min_w_c}–{max_w_c} palabras) + Cita APA 7 — "
+                        f"Valor: 20% (`{pts_w_c} / 20.0 pts`)**"
+                    )
 
                     font_opts_w = {
                         "Normal (16 px)": 16,
@@ -10161,17 +10181,17 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     )
 
                     res_central = st.text_area(
-                        "Write your English summary while watching the video (strictly 120 to 125 words):",
+                        f"Write your English summary while watching the video ({min_w_c} to {max_w_c} words):",
                         value=st.session_state.get("video_summary_draft", ""),
                         height=180,
-                        placeholder="Write your academic summary in English while watching the video on the left (120–125 words)...",
+                        placeholder=f"Write your academic summary in English while watching the video on the left ({min_w_c}–{max_w_c} words)...",
                         key="txt_central_writing_summary"
                     )
                     cnt_c = len([w for w in re.findall(r"\b[\w'-]+\b", res_central.strip()) if w])
-                    if 120 <= cnt_c <= 125:
-                        st.success(f"✅ Conteo exacto: **{cnt_c} palabras** (rango válido: 120–125).")
+                    if min_w_c <= cnt_c <= max_w_c:
+                        st.success(f"✅ Conteo exacto: **{cnt_c} palabras** (rango válido {crit_w['etiqueta']}: {min_w_c}–{max_w_c}).")
                     else:
-                        st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(debe contener 120–125 palabras)*.")
+                        st.warning(f"📏 Conteo actual: **{cnt_c} palabras** *(rango requerido {crit_w['etiqueta']}: {min_w_c}–{max_w_c} palabras)*.")
 
                     vid_ref_c = st.session_state.get("current_lesson_video") or {}
                     url_vid_apa = str(vid_ref_c.get("url") or "https://youtube.com")
@@ -10187,34 +10207,42 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         key="txt_central_writing_apa7"
                     )
 
-                    if st.button("📝 Calificar Writing Skill y APA 7 (20%)", type="primary", width="stretch", key="btn_central_eval_writing"):
-                        with st.spinner("Evaluando Writing Skill (120-125 palabras) y formato APA 7 con IA..."):
-                            ev_w = evaluar_resumen_video_apa7(
-                                resumen_texto=res_central,
-                                referencia_apa7=apa_central,
-                                video_info=vid_ref_c,
-                                tema_gramatical=gramatica_b1,
-                                nivel_cefr=st.session_state.selected_cefr
-                            )
-                            st.session_state["video_summary_draft"] = res_central
-                            st.session_state["video_apa7_draft"] = apa_central
-                            if ev_w["ok"]:
-                                st.session_state["summary_score_100"] = ev_w["raw_score_100"]
-                                st.session_state["summary_eval_result"] = ev_w
-                                if st.session_state.current_folio:
-                                    save_video_and_summary_pg(
-                                        folio_code=st.session_state.current_folio,
-                                        summary_text=res_central,
-                                        apa7_reference=apa_central,
-                                        summary_score_100=ev_w["raw_score_100"],
-                                        summary_eval_dict=ev_w
+                    if st.button("📝 Calificar Writing Skill con Rúbrica y APA 7 (20%)", type="primary", width="stretch", key="btn_central_eval_writing"):
+                        if not res_central.strip():
+                            st.warning("⚠️ Escribe tu resumen en inglés antes de enviarlo a evaluación.")
+                        else:
+                            with st.spinner(f"Evaluando síntesis de video ({crit_w['etiqueta']}) con la rúbrica oficial de 20 puntos..."):
+                                try:
+                                    contexto_video_ref = (
+                                        f"Video Title: {vid_ref_c.get('title', '')}\n"
+                                        f"Channel: {vid_ref_c.get('channel', '')}\n"
+                                        f"Lesson Context: {st.session_state.generated_text[:1800]}"
                                     )
-                                st.success(f"🏆 Writing Skill: **{ev_w['raw_score_100']}%** (`{ev_w['weighted_points_20']} / 20.0 pts`).")
-                                st.info(ev_w["feedback"])
-                                if ev_w.get("apa7_corrected"):
-                                    st.caption(f"📖 **Sugerencia APA 7:** {ev_w['apa7_corrected']}")
-                            else:
-                                st.error(ev_w["feedback"])
+                                    res_rub = evaluar_resumen_video_rubrica_ia(
+                                        student_summary=res_central,
+                                        lesson_reference=contexto_video_ref,
+                                        cefr_code=st.session_state.selected_cefr,
+                                        grammar_topic=gramatica_b1
+                                    )
+                                    st.session_state["video_summary_draft"] = res_central
+                                    st.session_state["video_apa7_draft"] = apa_central
+                                    st.session_state["summary_score_100"] = res_rub["score_100"]
+                                    st.session_state["video_rubric_result"] = res_rub
+
+                                    if st.session_state.current_folio:
+                                        save_video_and_summary_pg(
+                                            folio_code=st.session_state.current_folio,
+                                            summary_text=res_central,
+                                            apa7_reference=apa_central,
+                                            summary_score_100=res_rub["score_100"],
+                                            summary_eval_dict=res_rub
+                                        )
+                                    st.rerun()
+                                except Exception as e_rub:
+                                    st.error(f"No se pudo completar la evaluación por rúbrica: {e_rub}")
+
+                    if st.session_state.get("video_rubric_result"):
+                        render_resultado_rubrica_video(st.session_state["video_rubric_result"])
 
 
 # ==============================================================================
@@ -10273,6 +10301,7 @@ if has_lesson_p17 and stage_5_p17 == "VIEWING":
         if not alts_list:
             st.caption("No hay videos alternativos cargados en este momento.")
         else:
+            video_ya_acreditado_p17 = float(st.session_state.get("video_score_100") or 0.0) >= 100.0
             for idx_alt, alt_v in enumerate(alts_list, start=1):
                 alt_title_safe = str(alt_v.get("title") or f"Video Relacionado {idx_alt}").replace("[", "(").replace("]", ")")
                 alt_chan = str(alt_v.get("channel") or "YouTube ESL")
@@ -10293,8 +10322,9 @@ if has_lesson_p17 and stage_5_p17 == "VIEWING":
                         nuevo_principal["alternatives"] = otras_alts
 
                         st.session_state["current_lesson_video"] = nuevo_principal
-                        st.session_state["video_watched_sec"] = 0
-                        st.session_state["video_score_100"] = 0.0
+                        if not video_ya_acreditado_p17:
+                            st.session_state["video_watched_sec"] = 0
+                            st.session_state["video_score_100"] = 0.0
                         st.session_state["video_watch_started_ts"] = time.time()
                         st.session_state["viewing_center_stage"] = True
                         if st.session_state.current_folio:
@@ -10340,7 +10370,8 @@ if has_lesson_p17 and stage_5_p17 == "VIEWING":
         )
         if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
             if st.button("🔄 Reproducir URL Pegada Arriba", key="btn_refresh_lesson_video", width="stretch"):
-                m_id = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
+                video_ya_acreditado_2b = float(st.session_state.get("video_score_100") or 0.0) >= 100.0
+                m_id = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
                 vid_id_c = m_id.group(1) if m_id else ""
                 meta_c = _validar_video_oembed(vid_id_c) or {}
                 vid_obj_new = {
@@ -10354,13 +10385,15 @@ if has_lesson_p17 and stage_5_p17 == "VIEWING":
                     "alternatives": alts_list
                 }
                 st.session_state["current_lesson_video"] = vid_obj_new
-                st.session_state["video_watched_sec"] = 0
-                st.session_state["video_score_100"] = 0.0
+                if not video_ya_acreditado_2b:
+                    st.session_state["video_watched_sec"] = 0
+                    st.session_state["video_score_100"] = 0.0
                 st.session_state["video_watch_started_ts"] = time.time()
                 st.session_state["viewing_center_stage"] = True
                 if st.session_state.current_folio:
                     save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
                 st.rerun()
+
 
 # ==============================================================================
 # PARTE 17A: GRABADORA DE AUDIO Y VIDEO (SOLO ACTIVO EN BOTÓN 3 SPEAKING)
@@ -10370,32 +10403,34 @@ if has_lesson_now and stage_5_now == "SPEAKING":
     tab_rec_audio, tab_rec_video = st.tabs(["🎤 Grabar Audio", "📹 Grabar Video"])
 
     with tab_rec_audio:
-        student_audio = st.audio_input("Graba tu voz leyendo el texto:")
+        nonce_aud_17a = st.session_state.get("pron_attempt_nonce", 0)
+        student_audio = st.audio_input("Graba tu voz leyendo el texto:", key=f"audio_in_p17a_{nonce_aud_17a}")
         if student_audio is not None:
             raw_aud = student_audio.getvalue()
             st.audio(raw_aud)
             c_aud1, c_aud2 = st.columns(2)
             with c_aud1:
-                if st.button("💾 Guardar Audio en Folio", key="btn_save_student_audio_s3", width="stretch"):
+                if st.button("💾 Guardar Audio en Folio", key=f"btn_save_student_audio_s3_{nonce_aud_17a}", width="stretch"):
                     with st.spinner("Guardando grabación en Supabase Storage..."):
                         try:
                             f_code = st.session_state.current_folio or "SIN-FOLIO"
-                            usr_now = st.session_state.get("current_user") or "Estudiante"
-                            public_u, err_u = upload_student_media_to_storage(
-                                raw_aud, "audio/wav", "wav", f_code, usr_now
+                            usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
+                            public_u = upload_student_media_to_storage(
+                                raw_aud,
+                                filename=f"{f_code}_speaking.wav",
+                                content_type="audio/wav",
+                                student_user=usr_now,
+                                folder="pronunciation"
                             )
-                            if err_u:
-                                st.error(f"Error al subir audio: {err_u}")
-                            else:
-                                save_student_media_record_pg(
-                                    f_code, usr_now, "audio", public_u, gramatica_b1, st.session_state.selected_cefr
-                                )
-                                st.success("✅ Audio guardado permanentemente en tu Folio.")
+                            save_student_media_record_pg(
+                                f_code, usr_now, "audio", public_u or "", gramatica_b1, st.session_state.selected_cefr
+                            )
+                            st.success("✅ Audio guardado permanentemente en tu Folio.")
                         except Exception as e:
-                            st.error(f"Error: {e}")
+                            st.error(f"Error al subir audio: {e}")
 
             with c_aud2:
-                if st.button("🤖 Evaluar Pronunciación con IA (25%)", type="primary", key="btn_eval_student_audio_s3", width="stretch"):
+                if st.button("🤖 Evaluar Pronunciación con IA (25%)", type="primary", key=f"btn_eval_student_audio_s3_{nonce_aud_17a}", width="stretch"):
                     with st.spinner("Analizando pronunciación, entonación y gramática oral con IA..."):
                         try:
                             ev_oral = evaluar_pronunciacion_oral_ia(
@@ -10409,10 +10444,14 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                             sc_pct = float(ev_oral.get("score_percent") or 0.0)
                             pts_25 = round((sc_pct / 100.0) * 25.0, 2)
                             f_code = st.session_state.current_folio or ""
-                            usr_now = st.session_state.get("current_user") or "Estudiante"
+                            usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
                             if f_code:
-                                public_u, _ = upload_student_media_to_storage(
-                                    raw_aud, "audio/wav", "wav", f_code, usr_now
+                                public_u = upload_student_media_to_storage(
+                                    raw_aud,
+                                    filename=f"{f_code}_speaking.wav",
+                                    content_type="audio/wav",
+                                    student_user=usr_now,
+                                    folder="pronunciation"
                                 )
                                 save_student_media_record_pg(
                                     f_code, usr_now, "audio", public_u or "", gramatica_b1,
@@ -10422,17 +10461,30 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                             st.write(f"**🔤 Fonética y Articulación:** {ev_oral.get('phonetic_feedback', '')}")
                             st.write(f"**🎵 Fluidez y Prosodia:** {ev_oral.get('fluency_prosody', '')}")
                             st.write(f"**📐 Precisión Gramatical:** {ev_oral.get('grammar_accuracy', '')}")
-                            if ev_oral.get("words_to_practice"):
-                                st.info(f"🎯 **Palabras sugeridas para practicar:** {', '.join(ev_oral['words_to_practice'])}")
+                            if ev_oral.get("actionable_tips"):
+                                st.info(f"🎯 **Recomendaciones:** {' | '.join(ev_oral['actionable_tips'])}")
                         except Exception as e:
                             st.error(f"Error al evaluar pronunciación: {e}")
 
+            if st.session_state.get("speaking_eval_result"):
+                if st.button(
+                    "🔄 Try again / Intentar de nuevo",
+                    type="secondary",
+                    key=f"btn_try_again_p17a_{nonce_aud_17a}",
+                    width="stretch"
+                ):
+                    st.session_state.pop("speaking_eval_result", None)
+                    st.session_state["pron_attempt_nonce"] = nonce_aud_17a + 1
+                    st.rerun()
+
+
     with tab_rec_video:
+        nonce_vid_17a = st.session_state.get("pron_attempt_nonce", 0)
         st.caption("📹 Graba o sube un video breve en formato MP4 / WebM leyendo o explicando la lección:")
         student_video_file = st.file_uploader(
             "Subir o grabar video desde cámara (MP4 / WebM / MOV):",
             type=["mp4", "webm", "mov"],
-            key="uploader_student_video_s3"
+            key=f"uploader_student_video_s3_{nonce_vid_17a}"
         )
         if student_video_file is not None:
             raw_vid = student_video_file.getvalue()
@@ -10441,26 +10493,27 @@ if has_lesson_now and stage_5_now == "SPEAKING":
             v_ext = "webm" if "webm" in v_mime else "mp4"
             c_vid1, c_vid2 = st.columns(2)
             with c_vid1:
-                if st.button("💾 Guardar Video en Folio", key="btn_save_student_video_s3", width="stretch"):
+                if st.button("💾 Guardar Video en Folio", key=f"btn_save_student_video_s3_{nonce_vid_17a}", width="stretch"):
                     with st.spinner("Guardando video en Supabase Storage..."):
                         try:
                             f_code = st.session_state.current_folio or "SIN-FOLIO"
-                            usr_now = st.session_state.get("current_user") or "Estudiante"
-                            public_v, err_v = upload_student_media_to_storage(
-                                raw_vid, v_mime, v_ext, f_code, usr_now
+                            usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
+                            public_v = upload_student_media_to_storage(
+                                raw_vid,
+                                filename=f"{f_code}_speaking.{v_ext}",
+                                content_type=v_mime,
+                                student_user=usr_now,
+                                folder="pronunciation_video"
                             )
-                            if err_v:
-                                st.error(f"Error al subir video: {err_v}")
-                            else:
-                                save_student_media_record_pg(
-                                    f_code, usr_now, "video", public_v, gramatica_b1, st.session_state.selected_cefr
-                                )
-                                st.success("✅ Video guardado permanentemente en tu Folio.")
+                            save_student_media_record_pg(
+                                f_code, usr_now, "video", public_v or "", gramatica_b1, st.session_state.selected_cefr
+                            )
+                            st.success("✅ Video guardado permanentemente en tu Folio.")
                         except Exception as e:
                             st.error(f"Error: {e}")
 
             with c_vid2:
-                if st.button("🤖 Evaluar Video Oral con IA (25%)", type="primary", key="btn_eval_student_video_s3", width="stretch"):
+                if st.button("🤖 Evaluar Video Oral con IA (25%)", type="primary", key=f"btn_eval_student_video_s3_{nonce_vid_17a}", width="stretch"):
                     with st.spinner("Evaluando desempeño oral en video con IA..."):
                         try:
                             ev_vid = evaluar_pronunciacion_oral_ia(
@@ -10474,10 +10527,14 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                             sc_vpct = float(ev_vid.get("score_percent") or 0.0)
                             pts_v25 = round((sc_vpct / 100.0) * 25.0, 2)
                             f_code = st.session_state.current_folio or ""
-                            usr_now = st.session_state.get("current_user") or "Estudiante"
+                            usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
                             if f_code:
-                                public_v, _ = upload_student_media_to_storage(
-                                    raw_vid, v_mime, v_ext, f_code, usr_now
+                                public_v = upload_student_media_to_storage(
+                                    raw_vid,
+                                    filename=f"{f_code}_speaking.{v_ext}",
+                                    content_type=v_mime,
+                                    student_user=usr_now,
+                                    folder="pronunciation_video"
                                 )
                                 save_student_media_record_pg(
                                     f_code, usr_now, "video", public_v or "", gramatica_b1,
@@ -10489,34 +10546,33 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                         except Exception as e:
                             st.error(f"Error al evaluar video: {e}")
 
-        if st.session_state.get("speaking_eval_result"):
-            ev = st.session_state["speaking_eval_result"]
-            with st.container(border=True):
-                st.markdown(f"#### 🎯 Evaluación Oral Detallada: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
-                if ev.get("transcription"):
-                    st.caption(f"🗣️ **Transcripción detectada:** *\"{ev.get('transcription', '')}\"*")
-                st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
-                st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
-                st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
-                tips = ev.get("actionable_tips", [])
-                if tips:
-                    st.markdown("**💡 Recomendaciones de Mejora:**")
-                    for t in tips:
-                        st.markdown(f"- {t}")
-                st.markdown("---")
-                if st.button(
-                    "🔄 Intentar de nuevo (Mejorar pronunciación)",
-                    type="secondary",
-                    width="stretch",
-                    key=f"btn_retry_pron_{st.session_state.get('pron_attempt_nonce', 0)}"
-                ):
-                    st.session_state.pop("speaking_eval_result", None)
-                    for k_del in list(st.session_state.keys()):
-                        if any(tag in str(k_del) for tag in ("speaking_eval", "pron_eval", "oral_eval", "pron_res", "last_pron")):
-                            st.session_state.pop(k_del, None)
-                    st.session_state["pron_attempt_nonce"] = int(st.session_state.get("pron_attempt_nonce", 0)) + 1
-                    st.rerun()
-
+    if st.session_state.get("speaking_eval_result"):
+        ev = st.session_state["speaking_eval_result"]
+        with st.container(border=True):
+            st.markdown(f"#### 🎯 Evaluación Oral Detallada: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
+            if ev.get("transcription"):
+                st.caption(f"🗣️ **Transcripción detectada:** *\"{ev.get('transcription', '')}\"*")
+            st.markdown(f"**🔤 Fonética y Articulación:** {ev.get('phonetic_feedback', '')}")
+            st.markdown(f"**🎵 Fluidez y Prosodia:** {ev.get('fluency_prosody', '')}")
+            st.markdown(f"**📐 Precisión Gramatical Oral:** {ev.get('grammar_accuracy', '')}")
+            tips = ev.get("actionable_tips", [])
+            if tips:
+                st.markdown("**💡 Recomendaciones de Mejora:**")
+                for t in tips:
+                    st.markdown(f"- {t}")
+            st.markdown("---")
+            if st.button(
+                "🔄 Try again / Intentar de nuevo (Mejorar pronunciación)",
+                type="secondary",
+                width="stretch",
+                key=f"btn_retry_pron_p17a_{nonce_vid_17a}"
+            ):
+                st.session_state.pop("speaking_eval_result", None)
+                for k_del in list(st.session_state.keys()):
+                    if any(tag in str(k_del) for tag in ("speaking_eval", "pron_eval", "oral_eval", "pron_res", "last_pron")):
+                        st.session_state.pop(k_del, None)
+                st.session_state["pron_attempt_nonce"] = nonce_vid_17a + 1
+                st.rerun()
 
 # ==============================================================================
 # PARTE 18: AUDIO DEL QUIZ, DESCARGA MP3/PDF OFICIAL Y REINICIO (SOLO BOTÓN 1)
@@ -10557,6 +10613,7 @@ if has_lesson_p18 and stage_5_p18 == "READING":
 
         if st.session_state.get("speaking_eval_result"):
             ev = st.session_state["speaking_eval_result"]
+            nonce_p18 = int(st.session_state.get("pron_attempt_nonce", 0))
             with st.container(border=True):
                 st.markdown(f"#### 🎯 Evaluación Oral Detallada: **{ev.get('score_percent', 0)}%** ({ev.get('cefr_performance', '')})")
                 if ev.get("transcription"):
@@ -10571,16 +10628,16 @@ if has_lesson_p18 and stage_5_p18 == "READING":
                         st.markdown(f"- {t}")
                 st.markdown("---")
                 if st.button(
-                    "🔄 Intentar de nuevo (Mejorar pronunciación)",
+                    "🔄 Try again / Intentar de nuevo (Mejorar pronunciación)",
                     type="secondary",
                     width="stretch",
-                    key=f"btn_retry_pron_{st.session_state.get('pron_attempt_nonce', 0)}"
+                    key=f"btn_retry_pron_p18_{nonce_p18}"
                 ):
                     st.session_state.pop("speaking_eval_result", None)
                     for k_del in list(st.session_state.keys()):
                         if any(tag in str(k_del) for tag in ("speaking_eval", "pron_eval", "oral_eval", "pron_res", "last_pron")):
                             st.session_state.pop(k_del, None)
-                    st.session_state["pron_attempt_nonce"] = int(st.session_state.get("pron_attempt_nonce", 0)) + 1
+                    st.session_state["pron_attempt_nonce"] = nonce_p18 + 1
                     st.rerun()
 
 
@@ -10654,7 +10711,7 @@ if has_lesson_p18 and stage_5_p18 == "READING":
         for k_none in [
             "image_bytes", "current_lesson_image", "current_motivational_quote", "last_img_error",
             "audio_bytes", "quiz_audio_bytes", "speaking_eval_result", "quiz_data", "quiz_score",
-            "current_lesson_video", "video_watch_started_ts", "summary_eval_result"
+            "current_lesson_video", "video_watch_started_ts", "summary_eval_result", "video_rubric_result"
         ]:
             st.session_state[k_none] = None
         for k_false in [
