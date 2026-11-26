@@ -144,7 +144,7 @@ def obtener_terminos_afiliacion_pg() -> dict:
 
 
 def generar_token_qr_7min() -> tuple[str, int]:
-    """Genera un token único de QR con vigencia de 7 min (420s) y lo registra en PostgreSQL."""
+    """Genera un token único de QR con timestamp embebido y vigencia de 7 min (420s)."""
     import secrets
     ventana = 420
     ahora = int(time.time())
@@ -155,7 +155,7 @@ def generar_token_qr_7min() -> tuple[str, int]:
     if tok_cache and (ahora - ts_cache) < 300:
         return tok_cache, 420 - (ahora - ts_cache)
 
-    nuevo_tok = secrets.token_urlsafe(14)
+    nuevo_tok = f"{ahora}.{secrets.token_urlsafe(10)}"
     conn = _get_conn_afiliados()
     if conn:
         try:
@@ -170,7 +170,7 @@ def generar_token_qr_7min() -> tuple[str, int]:
                         );
                     """)
                     cur.execute(
-                        "INSERT INTO affiliate_qr_sessions (token, created_at, used) VALUES (%s, NOW(), FALSE);",
+                        "INSERT INTO affiliate_qr_sessions (token, created_at, used) VALUES (%s, NOW(), FALSE) ON CONFLICT (token) DO NOTHING;",
                         (nuevo_tok,)
                     )
             st.session_state["_last_qr_tok"] = nuevo_tok
@@ -183,7 +183,10 @@ def generar_token_qr_7min() -> tuple[str, int]:
                 conn.close()
             except Exception:
                 pass
+    st.session_state["_last_qr_tok"] = nuevo_tok
+    st.session_state["_last_qr_ts"] = ahora
     return nuevo_tok, restante
+
 
 def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
     """Valida el token del QR contra PostgreSQL (7 min para escanear + 20 min de llenado)."""
@@ -191,7 +194,6 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
     if not tok:
         return True, "Sesión directa autorizada (20 min)"
 
-    # Si el token trae timestamp embebido (ej. "1795615000.firma" o "CEI-1795615000-..."), extraer ts
     ts_embebido = None
     for parte in tok.replace("_", ".").replace("-", ".").split("."):
         if parte.isdigit() and 1700000000 <= int(parte) <= 2100000000:
@@ -200,7 +202,6 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
 
     conn = _get_conn_afiliados()
     if not conn:
-        # Respaldo offline si el token trae timestamp válido dentro de los 7 minutos
         if ts_embebido is not None:
             edad_ts = time.time() - ts_embebido
             if 0 <= edad_ts <= 450:
@@ -231,7 +232,6 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
                 row = cur.fetchone()
 
                 if not row:
-                    # Si el token tiene un timestamp válido reciente (<= 7 min), auto-registrarlo en la tabla
                     if ts_embebido is not None:
                         edad_ts = time.time() - ts_embebido
                         if edad_ts > 450:
@@ -244,9 +244,11 @@ def validar_token_qr_7min(token_str: str) -> tuple[bool, str]:
                         return True, "Token válido"
                     return False, "El código QR no fue reconocido o pertenece a una sesión anterior. Genera y escanea un QR nuevo."
 
-                edad_creacion, edad_escaneo, ya_usado, ya_escaneado = (
-                    float(row), float(row), bool(row), bool(row)
-                )
+                edad_creacion = float(row[0] or 0.0)
+                edad_escaneo = float(row[1] or 0.0)
+                ya_usado = bool(row[2])
+                ya_escaneado = bool(row[3])
+
                 if ya_usado:
                     return False, "🔒 Este formulario ya fue enviado y el enlace quedó inhabilitado."
 
