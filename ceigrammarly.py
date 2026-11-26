@@ -2361,8 +2361,66 @@ def generar_pdf_certificado(
 
     return bytes(pdf.output())
 # ==============================================================================
-# PARTE 7B2: MOTORES DE IA CON GEMINI (TEXTO, QUIZ, PRONUNCIACIÓN Y VIDEO)
+# PARTE 7B2: MOTORES DE IA CON GEMINI (TEXTO, QUIZ, PRONUNCIACIÓN Y STORAGE)
 # ==============================================================================
+def upload_student_media_to_storage(
+    file_bytes: bytes,
+    filename: str = "pronunciation.wav",
+    content_type: str = "audio/wav",
+    student_user: str = "estudiante",
+    folder: str = "pronunciation",
+) -> str:
+    """Sube audio/evidencia del alumno a Supabase Storage con respaldo seguro sin interrumpir la evaluación."""
+    if not file_bytes:
+        return ""
+    try:
+        import os
+        import time
+        import urllib.parse
+        import urllib.request
+
+        sb_url = (
+            str(st.secrets.get("SUPABASE_URL", "")).strip()
+            or os.getenv("SUPABASE_URL", "").strip()
+        ).rstrip("/")
+        sb_key = (
+            str(st.secrets.get("SUPABASE_SERVICE_ROLE_KEY", "")).strip()
+            or str(st.secrets.get("SUPABASE_KEY", "")).strip()
+            or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+            or os.getenv("SUPABASE_KEY", "").strip()
+        )
+        bucket = (
+            str(st.secrets.get("SUPABASE_MEDIA_BUCKET", "")).strip()
+            or os.getenv("SUPABASE_MEDIA_BUCKET", "").strip()
+            or "student-media"
+        )
+
+        if sb_url and sb_key:
+            safe_user = "".join(ch for ch in str(student_user) if ch.isalnum() or ch in ("-", "_")) or "alumno"
+            safe_name = "".join(ch for ch in str(filename) if ch.isalnum() or ch in ("-", "_", ".")) or "audio.wav"
+            obj_path = f"{folder}/{safe_user}/{int(time.time())}_{safe_name}"
+            encoded_path = urllib.parse.quote(obj_path, safe="/")
+            upload_endpoint = f"{sb_url}/storage/v1/object/{bucket}/{encoded_path}"
+
+            req = urllib.request.Request(
+                upload_endpoint,
+                data=file_bytes,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {sb_key}",
+                    "apikey": sb_key,
+                    "Content-Type": content_type or "audio/wav",
+                    "x-upsert": "true",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status in (200, 201):
+                    return f"{sb_url}/storage/v1/object/public/{bucket}/{encoded_path}"
+    except Exception:
+        pass
+    return ""
+
+
 def generar_con_maxima_potencia(client_obj, prompt_contenido: str, instruccion_sistema: str = None, as_json: bool = False):
     gm = client_obj or init_gemini_client()
     if not gm:
@@ -2484,7 +2542,6 @@ def evaluar_pronunciacion_ia(audio_bytes: bytes, mime_type: str, texto_objetivo:
             ultimo_error = f"{modelo_oral}: {e_mod}"
 
     raise RuntimeError(f"No se pudo completar el análisis fonético: {ultimo_error}")
-
 # ==============================================================================
 # MOTOR DE VIDEO EDUCATIVO MULTI-NAVEGADOR (BRAVE, FIREFOX, OPERA, GOOGLE) + DICCIONARIO CEFR
 # ==============================================================================
