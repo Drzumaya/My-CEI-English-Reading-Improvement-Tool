@@ -1976,12 +1976,17 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
     fecha_gen = timbre["fecha_generacion"]
     sello_hmac = timbre["sello_hmac"]
 
-    app_base_url = str(
+    raw_base_url = str(
         st.secrets.get("PUBLIC_APP_URL")
         or st.secrets.get("APP_PUBLIC_URL")
         or st.secrets.get("APP_BASE_URL")
-        or "https://streamlit.app"
+        or ""
     ).strip().rstrip("/")
+    app_base_url = (
+        raw_base_url
+        if "myceigrammarly.streamlit.app" in raw_base_url
+        else ("https://" + "myceigrammarly.streamlit.app")
+    )
     verify_url = f"{app_base_url}/?verify_transcript={urllib.parse.quote(folio_bol)}"
 
     qr_buf = io.BytesIO()
@@ -2002,6 +2007,7 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
             if os.path.exists(cand_logo):
                 logo_src = cand_logo
                 break
+
 
 
     addr_doc = st.session_state.get("institute_address") or DEFAULT_ADDRESS
@@ -6433,12 +6439,17 @@ def get_cei_qr_link(tipo_qr: str, ref_code: str = "", campus_id: str = "") -> st
 
 def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
     """Muestra y permite proyectar/descargar el Código QR exclusivo para instalar la App Oficial CEI."""
-    base_url = str(
-        st.secrets.get("PUBLIC_APP_URL", "https://myceigrammarly.streamlit.app")
-    ).strip().rstrip("/")
-    url_install_app = str(
-        st.secrets.get("APP_INSTALL_QR_URL") or f"{base_url}/?install=1"
-    ).strip()
+    raw_pub = str(st.secrets.get("PUBLIC_APP_URL", "")).strip().rstrip("/")
+    base_url = raw_pub if "myceigrammarly.streamlit.app" in raw_pub else ("https://" + "myceigrammarly.streamlit.app")
+
+    base_pages = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
+    raw_qr = str(st.secrets.get("APP_INSTALL_QR_URL", "")).strip()
+    if "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool" in raw_qr and not raw_qr.endswith(".apk"):
+        url_install_app = raw_qr
+    else:
+        url_install_app = f"{base_pages}?install=1&app={urllib.parse.quote(base_url + '/?v=cei', safe='')}"
+
+    url_apk_direct = f"{base_pages}CEI_App_Oficial.apk"
 
     buf_qa = io.BytesIO()
     qrcode.make(url_install_app).save(buf_qa, format="PNG")
@@ -6451,18 +6462,35 @@ def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
             st.markdown("##### 📲 QR Oficial de Descarga e Instalación de la App CEI")
             st.caption(
                 "Comparte o proyecta este código QR para que estudiantes, docentes y socios afiliados instalen la App CEI "
-                "en su celular o Mac con su escudo oficial preconfigurado."
+                "(Android .apk o iPhone/Mac/PC) con su escudo oficial preconfigurado."
             )
             st.code(url_install_app, language="text")
-            st.download_button(
-                "⬇️ Descargar QR de la App (PNG)",
-                data=qa_bytes,
-                file_name="QR_Instalar_App_CEI.png",
-                mime="image/png",
-                key=f"dl_{key_prefix}"
-            )
+            c_btn_q1, c_btn_q2, c_btn_q3 = st.columns(3)
+            with c_btn_q1:
+                st.link_button(
+                    "📲 Abrir Página",
+                    url=url_install_app,
+                    type="primary",
+                    width="stretch"
+                )
+            with c_btn_q2:
+                st.link_button(
+                    "📥 CEI_App_Oficial.apk",
+                    url=url_apk_direct,
+                    type="secondary",
+                    width="stretch"
+                )
+            with c_btn_q3:
+                st.download_button(
+                    "⬇️ QR (PNG)",
+                    data=qa_bytes,
+                    file_name="QR_Instalar_App_CEI.png",
+                    mime="image/png",
+                    width="stretch",
+                    key=f"dl_{key_prefix}"
+                )
         with c_a2:
-            st.iframe(
+            components.html(
                 f"""
                 <div style="text-align:center; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
                     <img id="img_{key_prefix}" src="data:image/png;base64,{qa_b64}"
@@ -6530,12 +6558,18 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
 
         if puede_ver_qr_hdr and mostrar_qr_ahora:
             st.divider()
-            base_url = str(
-                st.secrets.get("PUBLIC_APP_URL", "https://myceigrammarly.streamlit.app")
-            ).strip().rstrip("/")
-            url_install_app = str(
-                st.secrets.get("APP_INSTALL_QR_URL") or f"{base_url}/?install=1"
-            ).strip()
+            raw_pub = str(st.secrets.get("PUBLIC_APP_URL", "")).strip().rstrip("/")
+            base_url = raw_pub if "myceigrammarly.streamlit.app" in raw_pub else ("https://" + "myceigrammarly.streamlit.app")
+
+            base_pages = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
+            raw_qr = str(st.secrets.get("APP_INSTALL_QR_URL", "")).strip()
+            if "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool" in raw_qr and not raw_qr.endswith(".apk"):
+                url_install_app = raw_qr
+            else:
+                url_install_app = f"{base_pages}?install=1&app={urllib.parse.quote(base_url + '/?v=cei', safe='')}"
+
+            url_apk_direct = f"{base_pages}CEI_App_Oficial.apk"
+
             buf_qh = io.BytesIO()
             qrcode.make(url_install_app).save(buf_qh, format="PNG")
             qa_bytes = buf_qh.getvalue()
@@ -6544,17 +6578,34 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
             c_q1, c_q2 = st.columns([2.4, 1.2])
             with c_q1:
                 st.markdown("##### 📲 QR Oficial de Descarga e Instalación de la App CEI")
-                st.caption("Escanea para instalar en iPhone, Android o Mac. Haz doble clic en el QR o pulsa Expandir para proyectar.")
+                st.caption("Escanea para instalar en Android (.apk), iPhone o Mac. Haz doble clic en el QR o pulsa Expandir para proyectar.")
                 st.code(url_install_app, language="text")
-                st.download_button(
-                    "⬇️ Descargar QR App (PNG)",
-                    data=qa_bytes,
-                    file_name="QR_Instalar_App_CEI.png",
-                    mime="image/png",
-                    key="btn_dl_hdr_qr_app"
-                )
+                c_b1, c_b2, c_b3 = st.columns(3)
+                with c_b1:
+                    st.link_button(
+                        "📲 Página Descarga",
+                        url=url_install_app,
+                        type="primary",
+                        width="stretch"
+                    )
+                with c_b2:
+                    st.link_button(
+                        "📥 CEI_App_Oficial.apk",
+                        url=url_apk_direct,
+                        type="secondary",
+                        width="stretch"
+                    )
+                with c_b3:
+                    st.download_button(
+                        "⬇️ QR (PNG)",
+                        data=qa_bytes,
+                        file_name="QR_Instalar_App_CEI.png",
+                        mime="image/png",
+                        width="stretch",
+                        key="btn_dl_hdr_qr_app"
+                    )
             with c_q2:
-                st.iframe(
+                components.html(
                     f"""
                     <div style="text-align:center; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
                         <img src="data:image/png;base64,{qh_b64}"
@@ -6588,6 +6639,7 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
                     """,
                     height=168
                 )
+
 
 
 
@@ -8305,16 +8357,26 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             st.success(f"✅ Sesión vinculada al plantel **{cid_hub}**.")
 
                     with c_hq2:
-                        base_ins_campus = str(
-                            st.secrets.get("STUDENT_REG_URL")
-                            or st.secrets.get("PUBLIC_APP_URL")
-                            or "https://inscripcioncei.streamlit.app"
-                        ).strip().rstrip("/")
+                        raw_reg_campus = str(st.secrets.get("STUDENT_REG_URL") or "").strip().rstrip("/")
+                        base_ins_campus = (
+                            raw_reg_campus
+                            if "inscripcioncei.streamlit.app" in raw_reg_campus
+                            else ("https://" + "inscripcioncei.streamlit.app")
+                        )
                         sep_c = "&" if "?" in base_ins_campus else "?"
                         url_qr_campus = f"{base_ins_campus}{sep_c}campus={urllib.parse.quote(cid_hub)}"
+                        url_apk_campus = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/CEI_App_Oficial.apk"
+
                         buf_qc = io.BytesIO()
                         qrcode.make(url_qr_campus).save(buf_qc, format="PNG")
                         st.image(buf_qc.getvalue(), caption=f"QR Inscripción {cid_hub}", width=150)
+                        st.caption(f"🔗 `{url_qr_campus}`")
+                        st.link_button(
+                            "📥 Descargar CEI_App_Oficial.apk",
+                            url=url_apk_campus,
+                            type="secondary",
+                            width="stretch"
+                        )
                         st.download_button(
                             f"⬇️ Descargar QR {cid_hub}",
                             data=buf_qc.getvalue(),
@@ -8323,6 +8385,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             width="stretch",
                             key=f"btn_dl_qr_campus_{cid_hub}"
                         )
+
 
 
         # 14.4D PESTAÑA AUDITORÍA ACADÉMICA: VER LECCIONES CREADAS POR USUARIO, MATRÍCULA O NIVEL
@@ -9271,7 +9334,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         if not referidos_lista:
                             st.info("ℹ️ Aún no tienes estudiantes referidos registrados con tu código o QR.")
                         else:
-                            app_link_pub = str(st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")).strip()
+                            raw_pub_ref = str(st.secrets.get("PUBLIC_APP_URL") or "").strip()
+                            app_link_pub = (
+                                raw_pub_ref
+                                if "myceigrammarly.streamlit.app" in raw_pub_ref
+                                else ("https://" + "myceigrammarly.streamlit.app")
+                            )
                             for idx_ref, r_est in enumerate(referidos_lista):
                                 est_u = str(r_est.get("Usuario") or "").strip()
                                 est_nom = str(r_est.get("Nombre_Completo") or est_u).strip()
@@ -9283,8 +9351,10 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 wa_mot_link = build_whatsapp_motivacion_racha(
                                     student_user=est_nom,
                                     gam_data=gam_est,
-                                    telefono_alumno=est_tel
+                                    telefono_alumno=est_tel,
+                                    app_url=app_link_pub
                                 )
+
 
                                 info_pago = pagos_por_alumno.get(est_u.lower(), {"bloques_pagados": 0, "monto_pagado": 0.0, "ultimo_pago": ""})
                                 bloq_pag = min(9, int(info_pago["bloques_pagados"]))
