@@ -5510,7 +5510,7 @@ if solo_socio_afiliado:
             )
             st.link_button(
                 "🤖 Descargar App Oficial CEI en Android (.apk — 3.6 MB)",
-                url="https://github.io",
+                url=get_cei_qr_link("apk"),
                 width="stretch"
             )
             st.link_button(
@@ -5522,6 +5522,7 @@ if solo_socio_afiliado:
             st.image(buf_qr_redir.getvalue(), width=145, caption="QR Portal Socios CEI")
             st.caption(f"🔗 `{url_portal_aff_redir}`")
     st.stop()
+
 
 # Medidor Estadístico de Compliance y Confianza Institucional visible para el usuario activo
 try:
@@ -6381,24 +6382,28 @@ def get_cei_qr_link(tipo_qr: str, ref_code: str = "", campus_id: str = "") -> st
     """
     Devuelve el enlace oficial exacto para cada uno de los Códigos QR de CEI:
       1. 'app'        -> https://github.io
-      2. 'app_socio'  -> https://github.iosocio_app.html
-      3. 'estudiante' -> https://inscripcioncei.streamlit.app
-      4. 'socio'      -> https://ceisociosafiliados.streamlit.app
+      2. 'apk'        -> https://github.ioCEI_App_Oficial.apk
+      3. 'app_socio'  -> https://github.iosocio_app.html
+      4. 'estudiante' -> https://inscripcioncei.streamlit.app
+      5. 'socio'      -> https://ceisociosafiliados.streamlit.app
     """
     t = str(tipo_qr or "").strip().lower()
+    gh_pages_root = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
 
     if t in ["app_socio", "socio_app", "install_socio"]:
         raw = str(st.secrets.get("AFFILIATE_APP_INSTALL_URL", "")).strip()
-        base = raw if "drzumaya.github.io" in raw else "https://github.iosocio_app.html"
+        base = raw if "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool" in raw else (gh_pages_root + "socio_app.html")
+    elif t in ["apk", "android_apk"]:
+        base = gh_pages_root + "CEI_App_Oficial.apk"
     elif t in ["app", "descarga", "install"]:
         raw = str(st.secrets.get("APP_INSTALL_QR_URL", "")).strip()
-        base = raw if "drzumaya.github.io" in raw else "https://github.io"
+        base = raw if "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool" in raw else gh_pages_root
     elif t in ["socio", "afiliado", "partner"]:
         raw = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip()
-        base = raw if "ceisociosafiliados.streamlit.app" in raw else "https://ceisociosafiliados.streamlit.app"
+        base = raw if "ceisociosafiliados.streamlit.app" in raw else "https://" + "ceisociosafiliados.streamlit.app"
     else:
         raw = str(st.secrets.get("STUDENT_REG_URL", "")).strip()
-        base = raw if "inscripcioncei.streamlit.app" in raw else "https://inscripcioncei.streamlit.app"
+        base = raw if "inscripcioncei.streamlit.app" in raw else "https://" + "inscripcioncei.streamlit.app"
 
     extra_params = []
     if ref_code:
@@ -6411,6 +6416,19 @@ def get_cei_qr_link(tipo_qr: str, ref_code: str = "", campus_id: str = "") -> st
 
     sep = "&" if "?" in base else "?"
     return f"{base}{sep}{'&'.join(extra_params)}"
+
+    extra_params = []
+    if ref_code:
+        extra_params.append(f"ref={urllib.parse.quote(str(ref_code).strip())}")
+    if campus_id:
+        extra_params.append(f"campus={urllib.parse.quote(str(campus_id).strip())}")
+
+    if not extra_params:
+        return base
+
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}{'&'.join(extra_params)}"
+
 
 
 
