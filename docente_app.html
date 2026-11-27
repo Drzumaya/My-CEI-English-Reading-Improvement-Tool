@@ -9,29 +9,188 @@
   <link rel="apple-touch-icon" href="./static/android-launchericon-512-512.png" />
   <meta name="theme-color" content="#0b2545" />
   <style>
-    body { margin:0; font-family:sans-serif; background:linear-gradient(135deg,#0b2545,#134074); color:#fff; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
-    .card { max-width:420px; width:100%; background:rgba(255,255,255,0.1); border-radius:22px; padding:30px 24px; text-align:center; border:1px solid rgba(255,255,255,0.2); }
-    .logo { width:100px; height:100px; border-radius:20px; background:#fff; padding:6px; margin-bottom:14px; }
-    .btn { display:block; width:100%; padding:14px; margin-top:12px; border-radius:12px; font-weight:700; text-decoration:none; border:none; cursor:pointer; font-size:15px; }
-    .btn-apk { background:#38bdf8; color:#0b2545; }
-    .btn-web { background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.3); }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html {
+      width: 100%; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0b2545 0%, #1e3a8a 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 22px;
+      padding: 34px 26px;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.32);
+    }
+    .logo {
+      width: 112px; height: 112px;
+      border-radius: 22px;
+      object-fit: cover;
+      margin-bottom: 16px;
+      box-shadow: 0 6px 16px rgba(11, 37, 69, 0.18);
+    }
+    h1 {
+      font-size: 21px;
+      color: #0b2545;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .sub {
+      font-size: 13.5px;
+      color: #475569;
+      margin-bottom: 24px;
+    }
+    .btn-install {
+      display: block;
+      width: 100%;
+      border: none;
+      background: linear-gradient(135deg, #0b2545 0%, #1d4ed8 100%);
+      color: #ffffff;
+      border-radius: 12px;
+      padding: 15px 20px;
+      font-size: 15.5px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(29, 78, 216, 0.28);
+      transition: transform 0.15s ease;
+    }
+    .btn-install:active { transform: scale(0.98); }
+    .btn-open {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      text-decoration: none;
+      background: #f1f5f9;
+      border: 1.5px solid #cbd5e1;
+      color: #0b2545;
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 14.5px;
+      font-weight: 700;
+    }
+    .btn-open:hover { background: #e2e8f0; }
+    #hint {
+      display: none;
+      margin-top: 16px;
+      background: #fef9c3;
+      border: 1.5px solid #facc15;
+      color: #78350f;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      text-align: left;
+    }
+    .btn-hint-go {
+      display: block;
+      text-align: center;
+      text-decoration: none;
+      margin-top: 10px;
+      background: #0b2545;
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13.5px;
+      font-weight: 700;
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <img class="logo" src="./static/android-launchericon-512-512.png" alt="CEI Docentes" />
-    <h2>👩‍🏫 CEI Portal Docentes</h2>
-    <p>Evaluación Académica, Calificaciones y Seguimiento de Alumnos</p>
-    <a id="btnApk" href="https://github.com" class="btn btn-apk">⬇ DESCARGAR APP DOCENTES (.APK)</a>
-    <a id="btnWeb" href="https://streamlit.app" class="btn btn-web">🚀 Entrar Directo al Portal Docente →</a>
+    <img class="logo" src="./static/android-launchericon-512-512.png" alt="Logo CEI" />
+    <h1>👩‍🏫 Portal de Docentes CEI</h1>
+    <p class="sub">Career English Institute • Evaluación Académica y Seguimiento</p>
+
+    <button id="btnInstall" type="button" class="btn-install">
+      ⬇ INSTALAR APP PORTAL DOCENTES (1 CLIC)
+    </button>
+
+    <a
+      id="btnWeb"
+      href="https://streamlit.app"
+      class="btn-open"
+    >🚀 Entrar Directo al Portal Docente →</a>
+
+    <div id="hint"></div>
   </div>
+
   <script>
-    const p = new URLSearchParams(window.location.search);
-    const appUrl = p.get("app") || "https://streamlit.app";
+    const params = new URLSearchParams(window.location.search);
+    const appUrl = params.get("app") || ("https://" + "myceigrammarly.streamlit.app/?portal=docente");
+    const apkUrl = params.get("apk") || (
+      "https://" + "://github.com"
+    );
     document.getElementById("btnWeb").href = appUrl;
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-    if (isStandalone && p.get("install") !== "1") window.location.replace(appUrl);
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+
+    const btnInstall = document.getElementById("btnInstall");
+    const hint = document.getElementById("hint");
+    let deferredPrompt = null;
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(() => {});
+    }
+
+    const forceInstallScreen = params.get("install") === "1";
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+
+    if (isStandalone && !forceInstallScreen) {
+      window.location.replace(appUrl);
+    }
+
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      btnInstall.textContent = "⬇ INSTALAR APP PORTAL DOCENTES AHORA";
+    });
+
+    btnInstall.addEventListener("click", async () => {
+      const ua = navigator.userAgent || "";
+      const isAndroid = /Android/i.test(ua);
+
+      if (isAndroid) {
+        hint.style.display = "block";
+        hint.innerHTML =
+          "🤖 <strong>Descargando App Portal Docentes CEI...</strong><br>" +
+          "1. Abre el archivo <strong>CEI_Docente_Oficial.apk</strong> desde tus notificaciones.<br>" +
+          "2. Si Android lo solicita, toca <strong>Configuración → Permitir de esta fuente</strong> e instala." +
+          `<a href="${apkUrl}" download="CEI_Docente_Oficial.apk" class="btn-hint-go">📥 Si no inició, tocar aquí para descargar APK</a>`;
+        window.location.href = apkUrl;
+        return;
+      }
+
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        if (outcome === "accepted") {
+          hint.style.display = "block";
+          hint.innerHTML =
+            "✅ <strong>¡App Portal Docentes CEI instalada!</strong> Búscala en tu pantalla de inicio como <strong>«Docentes CEI»</strong> con el escudo oficial." +
+            `<a href="${appUrl}" class="btn-hint-go">🚀 Abrir Portal de Docentes →</a>`;
+        }
+        return;
+      }
+
+      hint.style.display = "block";
+      const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+      const instrucciones = isIOS
+        ? "🍎 <strong>iPhone / iPad (Safari):</strong><br>" +
+          "1. Toca <strong>Compartir (⬆️)</strong> en la barra inferior.<br>" +
+          "2. Selecciona <strong>«Agregar a inicio»</strong> (con el escudo oficial CEI)."
+        : "📲 <strong>PC / Mac (Chrome o Edge):</strong><br>" +
+          "1. Toca los <strong>3 puntos (⋮)</strong> arriba a la derecha.<br>" +
+          "2. Selecciona <strong>«Instalar aplicación»</strong> o <strong>«Agregar al Dock»</strong>.";
+
+      hint.innerHTML =
+        instrucciones +
+        `<a href="${appUrl}" class="btn-hint-go">🚀 Entrar Directo al Portal de Docentes →</a>`;
+    });
   </script>
 </body>
 </html>
