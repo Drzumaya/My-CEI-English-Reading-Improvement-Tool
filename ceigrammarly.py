@@ -5595,29 +5595,56 @@ else:
     lbl_btn_portal = "🎓 MI PANEL ESTUDIANTIL"
 
 tiene_leccion_activa = bool(str(st.session_state.get("generated_text") or "").strip())
+en_vista_portal = (st.session_state.get("active_stage_5", "READING") == "PORTAL")
 
 if not tiene_leccion_activa:
-    if puede_ver_panel_educativo:
-        c_init1, c_init2 = st.columns(2)
-        with c_init1:
-            en_panel_edu = (st.session_state.get("active_stage_5", "READING") != "PORTAL")
+    if en_vista_portal:
+        if puede_ver_panel_educativo:
             if st.button(
-                "🎓 PANEL EDUCATIVO",
-                type="primary" if en_panel_edu else "secondary",
-                width="stretch",
-                key="btn_init_2_panel_educativo"
+                "⬅️ Volver a Panel Educativo",
+                type="secondary",
+                key="btn_volver_panel_educativo_desde_portal"
             ):
                 st.session_state["active_stage_5"] = "READING"
                 st.session_state["active_admin_workspace"] = None
                 st.session_state["active_student_workspace"] = None
                 st.rerun()
+    else:
+        if puede_ver_panel_educativo:
+            c_init1, c_init2 = st.columns(2)
+            with c_init1:
+                if st.button(
+                    "🎓 PANEL EDUCATIVO",
+                    type="primary",
+                    width="stretch",
+                    key="btn_init_2_panel_educativo"
+                ):
+                    st.session_state["active_stage_5"] = "READING"
+                    st.session_state["active_admin_workspace"] = None
+                    st.session_state["active_student_workspace"] = None
+                    st.rerun()
 
-        with c_init2:
+            with c_init2:
+                if st.button(
+                    lbl_btn_portal,
+                    type="secondary",
+                    width="stretch",
+                    key="btn_init_2_portal"
+                ):
+                    st.session_state["active_stage_5"] = "PORTAL"
+                    st.session_state["show_lesson_creator"] = False
+                    st.session_state["creator_missing_fields"] = []
+                    if es_admin_o_staff:
+                        st.session_state["active_admin_workspace"] = st.session_state.get("active_admin_workspace") or "💳 Cobranza Mensual e IVA"
+                    elif not solo_docente:
+                        st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
+                    st.rerun()
+        else:
             if st.button(
                 lbl_btn_portal,
-                type="primary" if st.session_state["active_stage_5"] == "PORTAL" else "secondary",
+                type="primary",
                 width="stretch",
-                key="btn_init_2_portal"
+                key="btn_init_2_portal_unico"
             ):
                 st.session_state["active_stage_5"] = "PORTAL"
                 st.session_state["show_lesson_creator"] = False
@@ -5627,39 +5654,24 @@ if not tiene_leccion_activa:
                 elif not solo_docente:
                     st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
                 st.rerun()
-    else:
-        if st.button(
-            lbl_btn_portal,
-            type="primary",
-            width="stretch",
-            key="btn_init_2_portal_unico"
-        ):
-            st.session_state["active_stage_5"] = "PORTAL"
-            st.session_state["show_lesson_creator"] = False
-            st.session_state["creator_missing_fields"] = []
-            if es_admin_o_staff:
-                st.session_state["active_admin_workspace"] = st.session_state.get("active_admin_workspace") or "💳 Cobranza Mensual e IVA"
-            elif not solo_docente:
-                st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
-            st.rerun()
 
-    if puede_ver_panel_educativo and st.session_state.get("active_stage_5", "READING") != "PORTAL":
-        abierto_creador = bool(st.session_state.get("show_lesson_creator"))
-        with st.container(border=True):
-            c_edu_gen, c_edu_sep = st.columns([1.2, 2.4])
-            with c_edu_gen:
-                lbl_gen_inner = "✖️ Cerrar Creador de Lección" if abierto_creador else "✨ GENERAR LECCIÓN"
-                if st.button(
-                    lbl_gen_inner,
-                    type="primary",
-                    width="stretch",
-                    key="btn_inside_edu_toggle_creator"
-                ):
-                    st.session_state["show_lesson_creator"] = not abierto_creador
-                    st.session_state["creator_missing_fields"] = []
-                    st.rerun()
-            with c_edu_sep:
-                st.caption("Crea una lección nueva con IA o selecciona abajo una lección guardada por Folio para abrirla.")
+        if puede_ver_panel_educativo:
+            abierto_creador = bool(st.session_state.get("show_lesson_creator"))
+            with st.container(border=True):
+                c_edu_gen, c_edu_sep = st.columns([1.2, 2.4])
+                with c_edu_gen:
+                    lbl_gen_inner = "✖️ Cerrar Creador de Lección" if abierto_creador else "✨ GENERAR LECCIÓN"
+                    if st.button(
+                        lbl_gen_inner,
+                        type="primary",
+                        width="stretch",
+                        key="btn_inside_edu_toggle_creator"
+                    ):
+                        st.session_state["show_lesson_creator"] = not abierto_creador
+                        st.session_state["creator_missing_fields"] = []
+                        st.rerun()
+                with c_edu_sep:
+                    st.caption("Crea una lección nueva con IA o selecciona abajo una lección guardada por Folio para abrirla.")
 
 # Si un Docente abrió MI PORTAL DOCENTE CEI, renderizarlo directamente
 if solo_docente and st.session_state.get("active_stage_5") == "PORTAL":
@@ -5676,8 +5688,6 @@ if solo_docente and st.session_state.get("active_stage_5") == "PORTAL":
         institute_address=str(institute_address or "Agua Prieta, Sonora, México")
     )
     st.stop()
-
-
 
 
 # ==============================================================================
@@ -8145,16 +8155,17 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             st.error(f"Error al guardar permisos por tipo de usuario: {e_tp}")
 
 
-# ==============================================================================
-# PARTE 14C — PARTE 2 DE 2: DELEGACIÓN POR USUARIO Y MATRIZ RBAC
-# ==============================================================================
+                # ==============================================================================
+                # PARTE 14C — PARTE 2 DE 2: DELEGACIÓN POR USUARIO Y MATRIZ RBAC (DOCENTE / SOCIO)
+                # ==============================================================================
                 padron_perm_users = load_padron_records()
                 if is_owner and padron_perm_users:
                     with st.container(border=True):
                         st.markdown("##### 2️⃣ Delegación Individual de Capacidades por Usuario (Exclusivo Owner)")
                         st.caption(
                             "Activa o retira permisos granulares (como **Panel Educativo**, **Portal Docente**, "
-                            "**Compliance Legal** o **Editar Términos**) a un usuario específico sin alterar el perfil de los demás."
+                            "**Portal Socios Afiliados**, **Compliance Legal** o **Editar Términos**) a un usuario específico "
+                            "sin alterar el perfil de los demás."
                         )
                         curr_owner_clean = str(st.session_state.get("current_user") or "").strip().lower()
                         lista_u_delegar = [
@@ -8174,8 +8185,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 (r for r in padron_perm_users if str(r.get("Usuario", "")).strip() == u_del_sel),
                                 {}
                             )
+                            rol_u_del_str = str(reg_u_del.get("Rol", "Usuario")).strip()
                             st.caption(
-                                f"🏷️ **Rol actual:** `{reg_u_del.get('Rol', 'Usuario')}`  •  "
+                                f"🏷️ **Rol actual:** `{rol_u_del_str}`  •  "
                                 f"🔐 **Nivel de Permisos:** `{reg_u_del.get('Permisos', 'Basico')}`"
                             )
 
@@ -8186,24 +8198,36 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 "Motivar_Estudiantes_WhatsApp": "💬 Enviar Motivación WhatsApp a Alumnos",
                                 "Asignar_Retroalimentacion_Docente": "📝 Asignar Retroalimentación y Tareas",
                                 "Ver_Comisiones_Pagos_Docente": "💵 Ver Comisiones y Bóveda Fiscal Docente",
+                                "Ver_Portal_Socio_Afiliado": "🤝 Ver Portal de Socios Afiliados CEI",
+                                "Gestionar_Comisiones_Afiliados": "🤝 Gestionar Comisiones de Afiliados",
+                                "Ver_Racha_Referidos_WhatsApp": "🔥 Ver Racha de Referidos y WhatsApp (Socio)",
+                                "Descargar_App_Docente_APK": "📲 Descargar App Móvil Docentes (.apk)",
+                                "Descargar_App_Socio_APK": "📲 Descargar App Móvil Socios (.apk)",
                                 "Gestionar_Compliance_Legal": "⚖️ Gestionar Compliance y Vigilancia Legal",
                                 "Ver_Panel_Admin": "🛡️ Ver Panel Administrativo",
                                 "Registrar_Usuarios": "➕ Registrar Usuarios en Padrón",
                                 "Gestionar_Usuarios": "🛠️ Gestionar / Editar Usuarios",
                                 "Editar_Permisos": "🔐 Editar Matriz de Permisos",
                                 "Editar_Terminos_Afiliacion": "📜 Editar Términos Legales (Doc/Soc/Est)",
-                                "Gestionar_Comisiones_Afiliados": "🤝 Gestionar Comisiones de Afiliados",
-                                "Ver_Racha_Referidos_WhatsApp": "🔥 Ver Racha de Referidos y WhatsApp",
                                 "Mostrar_QR_App_Header": "📲 Mostrar QR App en Cabecera",
                                 "Emitir_Certificados": "🏅 Emitir Certificados Oficiales",
                                 "Gestionar_IVA_Mensualidad": "💳 Gestionar Cobranza Mensual e IVA",
                                 "Editar_Fecha_Inicio_Curso": "📅 Editar Fecha de Inicio de Curso"
                             }
 
+                            lista_caps_delegables = list(CAPACIDADES_DELEGABLES_OWNER)
+                            for extra_cap in [
+                                "Ver_Portal_Socio_Afiliado",
+                                "Descargar_App_Docente_APK",
+                                "Descargar_App_Socio_APK",
+                            ]:
+                                if extra_cap not in lista_caps_delegables:
+                                    lista_caps_delegables.append(extra_cap)
+
                             caps_actuales_u = get_user_delegated_caps_pg(u_del_sel)
                             cols_del = st.columns(3)
                             nuevas_caps_u = {}
-                            for idx_d, cap_nom in enumerate(CAPACIDADES_DELEGABLES_OWNER):
+                            for idx_d, cap_nom in enumerate(lista_caps_delegables):
                                 with cols_del[idx_d % 3]:
                                     lbl_cap_ui = etiquetas_caps_owner.get(cap_nom, cap_nom.replace("_", " "))
                                     nuevas_caps_u[cap_nom] = st.checkbox(
@@ -8228,7 +8252,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         st.error(msg_d)
                             with c_del_b2:
                                 if st.button("🧹 Limpiar Delegaciones", type="secondary", width="stretch", key="btn_clear_owner_delegation"):
-                                    caps_vacias = {c: False for c in CAPACIDADES_DELEGABLES_OWNER}
+                                    caps_vacias = {c: False for c in lista_caps_delegables}
                                     ok_c, msg_c = save_user_delegated_caps_pg(
                                         u_del_sel,
                                         caps_vacias,
@@ -8239,13 +8263,28 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         st.info(f"Delegaciones individuales retiradas para **{u_del_sel}**.")
                                         st.rerun()
 
+                            st.divider()
+                            st.markdown("###### 📲 Enlaces Directos a Apps Móviles Oficiales (Docentes y Socios)")
+                            c_apk_d, c_apk_s = st.columns(2)
+                            with c_apk_d:
+                                st.link_button(
+                                    "🧑‍🏫 Descargar CEI_Docente_Oficial.apk",
+                                    url=get_cei_qr_link("apk_docente"),
+                                    width="stretch"
+                                )
+                            with c_apk_s:
+                                st.link_button(
+                                    "🤝 Descargar CEI_Socios_Oficial.apk",
+                                    url=get_cei_qr_link("apk_socio"),
+                                    width="stretch"
+                                )
 
                 if is_owner or can("Editar_Permisos"):
                     with st.form("form_nuevo_perfil_permiso", clear_on_submit=True):
-                        st.markdown("**➕ Crear o Actualizar Perfil de Permisos:**")
+                        st.markdown("**➕ Crear o Actualizar Perfil de Permisos (Roles Docente, Socio, Coordinador):**")
                         nombre_perfil = st.text_input(
-                            "Nombre del Perfil (Ej: Coordinador, Recepcion, Supervisor):",
-                            placeholder="Ej: Coordinador"
+                            "Nombre del Perfil (Ej: Docente, Socio, Coordinador, Recepcion):",
+                            placeholder="Ej: Docente"
                         )
                         cols_chk = st.columns(4)
                         checks_vals = {}
@@ -8265,17 +8304,10 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         upsert_permission_profile_pg(perfil_limpio, checks_vals)
                                         st.success(f"✅ Perfil '{perfil_limpio}' guardado correctamente en Supabase.")
                                         st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Error al guardar perfil en Supabase: {e}")
+                                    except Exception as e_perf:
+                                        st.error(f"Error al guardar perfil: {e_perf}")
                             else:
-                                st.warning("⚠️ Escribe un nombre para el perfil.")
-
-                with st.expander("📊 Ver Tabla Completa de Matriz RBAC Activa", expanded=False):
-                    df_mat = pd.DataFrame([
-                        {"Perfil_Permiso": k, **{cap: ("SI" if v.get(cap) else "NO") for cap in CAPABILITY_COLS}}
-                        for k, v in PERMISSIONS_MATRIX.items()
-                    ])
-                    st.dataframe(df_mat, width="stretch", hide_index=True)
+                                st.warning("⚠️ Escribe un nombre válido para el perfil.")
 
 
 
