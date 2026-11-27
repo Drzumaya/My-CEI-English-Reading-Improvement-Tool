@@ -5408,59 +5408,7 @@ with col_logout:
             key="tgl_header_qr_app_visible",
             help="Muestra u oculta el QR oficial para descargar CEI_App_Oficial.apk"
         )
-        if mostrar_qr_hdr_now:
-            url_install_hdr = "https://github.io"
-
-            buf_qh = io.BytesIO()
-            qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
-            qa_bytes_hdr = buf_qh.getvalue()
-            qh_b64 = base64.b64encode(qa_bytes_hdr).decode("utf-8")
-
-            components.html(
-                f"""
-                <div style="text-align:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:6px; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
-                    <img src="data:image/png;base64,{qh_b64}"
-                         title="Doble clic para proyectar QR de CEI_App_Oficial.apk"
-                         ondblclick="expandirQRAppCEI()"
-                         style="width:86px;height:86px;border-radius:8px;border:2px solid #0b2545;padding:3px;background:white;cursor:zoom-in;" />
-                    <div style="margin-top:4px;">
-                        <button onclick="expandirQRAppCEI()" style="
-                            background:#0b2545;color:white;border:none;border-radius:6px;
-                            padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;width:100%;
-                        ">🔍 Expandir QR</button>
-                    </div>
-                </div>
-                <script>
-                function expandirQRAppCEI() {{
-                    const pDoc = window.parent.document;
-                    const prev = pDoc.getElementById('modal_qr_app_cei_fs');
-                    if (prev) prev.remove();
-                    const m = pDoc.createElement('div');
-                    m.id = 'modal_qr_app_cei_fs';
-                    m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.96);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
-                    m.innerHTML = `
-                        <img src="data:image/png;base64,{qh_b64}" style="width:340px;height:340px;border-radius:18px;background:white;padding:16px;box-shadow:0 12px 36px rgba(0,0,0,0.45);" />
-                        <p style="color:white;font-size:20px;margin-top:16px;font-weight:700;">📲 Descarga Directa: CEI_App_Oficial.apk (3.6 MB)</p>
-                        <p style="color:#cbd5e1;font-size:13px;max-width:460px;text-align:center;">Escanea este código QR o entra a:<br><strong style="color:#38bdf8;">{url_install_hdr}</strong></p>
-                        <button style="margin-top:12px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">✖️ Cerrar Proyección</button>
-                    `;
-                    m.onclick = () => m.remove();
-                    pDoc.body.appendChild(m);
-                }}
-                </script>
-                """,
-                height=138
-            )
-            st.markdown(f"📥 **[CEI_App_Oficial.apk]({url_install_hdr})**")
-            st.code(url_install_hdr, language=None)
-            st.download_button(
-                "⬇️ PNG",
-                data=qa_bytes_hdr,
-                file_name="QR_CEI_App_Oficial_APK.png",
-                mime="image/png",
-                width="stretch",
-                key="btn_dl_hdr_qr_app"
-            )
+ if mostrar_qr_hdr_now:
 
 es_docente_rol = (curr_r_clean in ["teacher", "docente"]) or can("Ver_Portal_Docente")
 es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["admin", "administrador", "propietario", "owner"])
