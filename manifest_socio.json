@@ -7,14 +7,54 @@
   "dir": "ltr",
   "start_url": "/My-CEI-English-Reading-Improvement-Tool/socio_app.html",
   "scope": "/My-CEI-English-Reading-Improvement-Tool/",
+  "scope_extensions": [
+    { "origin": "https://streamlit.app" }
+  ],
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "display_override": ["tabbed", "window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#0b2545",
   "theme_color": "#0b2545",
   "categories": ["business", "education", "productivity"],
   "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://github.io"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+ceisocio",
+      "url": "/My-CEI-English-Reading-Improvement-Tool/socio_app.html?action=%s"
+    }
+  ],
+  "share_target": {
+    "action": "/My-CEI-English-Reading-Improvement-Tool/socio_app.html",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "file_handlers": [
+    {
+      "action": "/My-CEI-English-Reading-Improvement-Tool/socio_app.html",
+      "accept": {
+        "application/pdf": [".pdf"],
+        "text/plain": [".txt"]
+      }
+    }
+  ],
+  "note_taking": {
+    "new_note_url": "/My-CEI-English-Reading-Improvement-Tool/socio_app.html?note=new"
+  },
   "icons": [
     {
       "src": "./static/android-launchericon-192-192.png",
