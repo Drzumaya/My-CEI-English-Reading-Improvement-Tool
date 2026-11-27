@@ -1,25 +1,72 @@
 {
   "id": "/My-CEI-English-Reading-Improvement-Tool/docente_app.html",
-  "name": "CEI Portal Docentes",
-  "short_name": "CEI Docentes",
-  "description": "Portal Académico Oficial para Docentes — Career English Institute (CEI)",
+  "name": "Portal de Docentes — CEI",
+  "short_name": "Docentes CEI",
+  "description": "Portal Académico Oficial para Docentes — Career English Institute (CEI), Agua Prieta, Sonora, México.",
+  "lang": "es-MX",
+  "dir": "ltr",
   "start_url": "/My-CEI-English-Reading-Improvement-Tool/docente_app.html",
   "scope": "/My-CEI-English-Reading-Improvement-Tool/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
   "background_color": "#0b2545",
   "theme_color": "#0b2545",
+  "categories": ["education", "productivity"],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "./static/android-launchericon-192-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "./static/android-launchericon-512-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./static/android-launchericon-512-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "./static/android-launchericon-512-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Portal de Docentes CEI — Vista Móvil"
+    },
+    {
+      "src": "./static/android-launchericon-512-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Portal de Docentes CEI — Vista Escritorio"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Entrar al Portal Docente",
+      "short_name": "Portal Docente",
+      "description": "Acceso directo a evaluación académica y seguimiento de grupos",
+      "url": "/My-CEI-English-Reading-Improvement-Tool/docente_app.html",
+      "icons": [
+        {
+          "src": "./static/android-launchericon-192-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 440
+  }
 }
