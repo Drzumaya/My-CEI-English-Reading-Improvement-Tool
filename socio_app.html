@@ -9,8 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="CEI Socios" />
-  <link rel="icon" type="image/png" href="./static/LOGO%20CEI%20APP.png" />
-  <link rel="apple-touch-icon" href="./static/LOGO%20CEI%20APP.png" />
+  <link rel="icon" type="image/png" href="./static/android-launchericon-192-192.png" />
+  <link rel="apple-touch-icon" href="./static/android-launchericon-512-512.png" />
   <link rel="manifest" href="./manifest_socio.json" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -105,7 +105,7 @@
 </head>
 <body>
   <div class="card">
-    <img class="logo" src="./static/LOGO%20CEI%20APP.png" alt="Logo CEI" />
+    <img class="logo" src="./static/android-launchericon-512-512.png" alt="Logo CEI" />
     <h1>🤝 Portal Socios Afiliados CEI</h1>
     <p class="sub">Career English Institute • Acceso Exclusivo Asociados</p>
 
@@ -114,9 +114,8 @@
     </button>
 
     <a
+      id="btnOpenBrowser"
       href="https://ceiafiliados.streamlit.app"
-      target="_blank"
-      rel="noopener noreferrer"
       class="btn-open"
     >🌐 Abrir Portal en el Navegador →</a>
 
@@ -124,7 +123,13 @@
   </div>
 
   <script>
-    const SOCIO_PORTAL_URL = "https://ceiafiliados.streamlit.app";
+    const params = new URLSearchParams(window.location.search);
+    const SOCIO_PORTAL_URL = params.get("app") || ("https://" + "ceiafiliados.streamlit.app");
+    const SOCIO_APK_URL = params.get("apk") || (
+      "https://" + "://github.com"
+    );
+    document.getElementById("btnOpenBrowser").href = SOCIO_PORTAL_URL;
+
     const btnInstall = document.getElementById("btnInstall");
     const hint = document.getElementById("hint");
     let deferredPrompt = null;
@@ -133,12 +138,12 @@
       navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch(() => {});
     }
 
+    const forceInstallScreen = params.get("install") === "1";
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       window.navigator.standalone === true;
-    const params = new URLSearchParams(window.location.search);
 
-    if (isStandalone && !params.get("install")) {
+    if (isStandalone && !forceInstallScreen) {
       window.location.replace(SOCIO_PORTAL_URL);
     }
 
@@ -149,6 +154,20 @@
     });
 
     btnInstall.addEventListener("click", async () => {
+      const ua = navigator.userAgent || "";
+      const isAndroid = /Android/i.test(ua);
+
+      if (isAndroid) {
+        hint.style.display = "block";
+        hint.innerHTML =
+          "🤖 <strong>Descargando App Portal Socios CEI...</strong><br>" +
+          "1. Abre el archivo <strong>CEI_Socios_Oficial.apk</strong> desde tus notificaciones.<br>" +
+          "2. Si Android lo solicita, toca <strong>Configuración → Permitir de esta fuente</strong> e instala." +
+          `<a href="${SOCIO_APK_URL}" download="CEI_Socios_Oficial.apk" class="btn-hint-go">📥 Si no inició, tocar aquí para descargar APK</a>`;
+        window.location.href = SOCIO_APK_URL;
+        return;
+      }
+
       if (deferredPrompt) {
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
@@ -156,26 +175,25 @@
         if (outcome === "accepted") {
           hint.style.display = "block";
           hint.innerHTML =
-            "✅ <strong>¡App Portal Socios CEI instalada!</strong> Búscala en tu pantalla de inicio como <strong>«CEI Socios»</strong> con el escudo oficial." +
-            `<a href="${SOCIO_PORTAL_URL}" target="_blank" rel="noopener noreferrer" class="btn-hint-go">🚀 Abrir Portal de Socios →</a>`;
+            "✅ <strong>¡App Portal Socios CEI instalada!</strong> Búscala en tu pantalla de inicio como <strong>«Socios CEI»</strong> con el escudo oficial." +
+            `<a href="${SOCIO_PORTAL_URL}" class="btn-hint-go">🚀 Abrir Portal de Socios →</a>`;
         }
         return;
       }
 
       hint.style.display = "block";
-      const ua = navigator.userAgent || "";
       const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
       const instrucciones = isIOS
         ? "🍎 <strong>iPhone / iPad (Safari):</strong><br>" +
           "1. Toca <strong>Compartir (⬆️)</strong> en la barra inferior.<br>" +
           "2. Selecciona <strong>«Agregar a inicio»</strong> (con el escudo oficial CEI)."
-        : "📲 <strong>Android / PC (Chrome o Edge):</strong><br>" +
+        : "📲 <strong>PC / Mac (Chrome o Edge):</strong><br>" +
           "1. Toca los <strong>3 puntos (⋮)</strong> arriba a la derecha.<br>" +
-          "2. Selecciona <strong>«Instalar aplicación»</strong> o <strong>«Agregar a la pantalla principal»</strong>.";
+          "2. Selecciona <strong>«Instalar aplicación»</strong> o <strong>«Agregar al Dock»</strong>.";
 
       hint.innerHTML =
         instrucciones +
-        `<a href="${SOCIO_PORTAL_URL}" target="_blank" rel="noopener noreferrer" class="btn-hint-go">🚀 Entrar Directo al Portal de Socios →</a>`;
+        `<a href="${SOCIO_PORTAL_URL}" class="btn-hint-go">🚀 Entrar Directo al Portal de Socios →</a>`;
     });
   </script>
 </body>
