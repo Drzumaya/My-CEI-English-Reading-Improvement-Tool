@@ -1,17 +1,20 @@
 {
-  "id": "./socio_app.html",
+  "id": "/My-CEI-English-Reading-Improvement-Tool/socio_app.html",
   "name": "Portal de Socios Afiliados — CEI",
   "short_name": "Socios CEI",
   "description": "Portal Oficial de Socios Afiliados — Career English Institute (CEI), Agua Prieta, Sonora, México.",
   "lang": "es-MX",
   "dir": "ltr",
-  "start_url": "./socio_app.html",
-  "scope": "./",
+  "start_url": "/My-CEI-English-Reading-Improvement-Tool/socio_app.html",
+  "scope": "/My-CEI-English-Reading-Improvement-Tool/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#0b2545",
   "theme_color": "#0b2545",
   "categories": ["business", "education", "productivity"],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "./static/android-launchericon-192-192.png",
@@ -31,5 +34,39 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "./static/android-launchericon-512-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Portal de Socios Afiliados CEI — Vista Móvil"
+    },
+    {
+      "src": "./static/android-launchericon-512-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Portal de Socios Afiliados CEI — Vista Escritorio"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Entrar al Portal de Socios",
+      "short_name": "Portal Socios",
+      "description": "Acceso directo a códigos QR de referencia, alumnos y comisiones",
+      "url": "/My-CEI-English-Reading-Improvement-Tool/socio_app.html",
+      "icons": [
+        {
+          "src": "./static/android-launchericon-192-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 440
+  }
 }
