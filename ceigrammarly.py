@@ -81,99 +81,64 @@ from modules.pedagogy import (
 )
 
 rol_main_low = str(st.session_state.get("user_role") or "").strip().lower()
+usr_main_low = str(st.session_state.get("current_user") or "").strip().lower()
 is_owner_only = bool(
     st.session_state.get("authenticated", False)
     and (
         st.session_state.get("is_owner", False)
         or rol_main_low in ["propietario", "owner"]
+        or "zumaya" in usr_main_low
     )
 )
 
-if not is_owner_only:
+if is_owner_only:
     st.markdown(
         """
         <style>
         header[data-testid="stHeader"],
         [data-testid="stToolbar"],
-        [data-testid="stDecoration"],
-        [data-testid="stStatusWidget"],
         [data-testid="manage-app-button"],
-        #MainMenu,
-        footer,
+        [data-testid="stStatusWidget"],
         div[class*="viewerBadge"],
         div[class*="profileContainer"],
         div[class*="profilePreview"],
-        a[href*="streamlit.io/cloud"],
-        a[href*="share.streamlit.io"],
-        a[href*="github.com"] {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
-        .block-container {
-            padding-top: 1.5rem !important;
-            padding-bottom: 1.5rem !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    components.html(
-        """
-        <script>
-        (function ocultarBadgesCEI() {
-            const selectors = [
-                '[data-testid="manage-app-button"]',
-                '[data-testid="stStatusWidget"]',
-                'div[class*="viewerBadge"]',
-                'div[class*="profileContainer"]',
-                'div[class*="profilePreview"]',
-                'a[href*="streamlit.io/cloud"]',
-                'a[href*="share.streamlit.io"]',
-                'a[href*="github.com"]'
-            ];
-            function limpiar(doc) {
-                if (!doc) return;
-                selectors.forEach(sel => {
-                    doc.querySelectorAll(sel).forEach(el => {
-                        el.style.setProperty('display', 'none', 'important');
-                        el.style.setProperty('visibility', 'hidden', 'important');
-                        el.style.setProperty('opacity', '0', 'important');
-                    });
-                });
-            }
-            const run = () => {
-                limpiar(document);
-                try { limpiar(window.parent.document); } catch (e) {}
-                try { limpiar(window.top.document); } catch (e) {}
-            };
-            run();
-            setInterval(run, 800);
-        })();
-        </script>
-        """,
-        height=0
-    )
-else:
-    st.markdown(
-        """
-        <style>
-        [data-testid="manage-app-button"],
-        [data-testid="stStatusWidget"],
-        div[class*="viewerBadge"],
-        div[class*="profileContainer"] {
+        .stAppDeployButton {
             display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
             pointer-events: auto !important;
             z-index: 999999 !important;
         }
+        #cei-owner-manage-fab {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 2147483647;
+            background: #ff4b4b;
+            color: #ffffff !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 9px 15px;
+            border-radius: 999px;
+            text-decoration: none;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        #cei-owner-manage-fab:hover {
+            background: #e03e3e;
+            transform: translateY(-1px);
+        }
         </style>
+        <a id="cei-owner-manage-fab" href="https://streamlit.io" target="_blank" rel="noopener">
+            👑 Manage app
+        </a>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
+
     components.html(
         """
         <script>
