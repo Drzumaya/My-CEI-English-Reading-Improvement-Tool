@@ -9412,8 +9412,8 @@ if generar_btn:
                 - Academic Level: {academic_grade} | CEFR Level: {cefr_level}
                 - Context: {contexto_en} | Characters: {personas_en} | Subject: {asunto_apa}
                 - Target Grammar: {gramatica_b1} | Discourse Mode: {tipo_texto}
-
-                STRICT RULES:
+  
+                STRICT RULES: 
                 1. 100% English only. Calibrate vocabulary and grammar strictly to CEFR {cefr_level} and pedagogical tone to {academic_grade}. Highlight all {gramatica_b1} structures in **bold**.
                 2. APA Header & Byline: Include the academic title in bold, followed immediately by:
                    **Folio:** {nuevo_folio} | **Creation Date:** {fecha_creacion}  
@@ -9425,7 +9425,7 @@ if generar_btn:
                    - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto_apa}", "{gramatica_b1}", and {academic_grade} education, sorted alphabetically by author surname.
                 """
 # ==============================================================================
-# PARTE 15A: EJECUCIÓN PARALELA (QUIZ + VIDEO EDUCATIVO), AUDIO Y PERSISTENCIA
+# PARTE 15A: EJECUCIÓN PARALELA (QUIZ + VIDEO EDUCATIVO), AUDIO Y PERSISTENCIA  
 # ==============================================================================
                 texto_gen, mod_usado = generar_con_maxima_potencia(gm_active, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
@@ -10135,7 +10135,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
 
 # ==============================================================================
 # PARTE 16 — BLOQUE 2-B (FINAL): PANEL DERECHO DE WRITING SKILL (20%)
-# ==============================================================================
+# ============================================================================== 
         if col_wrt_box is not None:
             with col_wrt_box:
                 with st.container(border=True):
@@ -10237,7 +10237,8 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                     st.error(f"No se pudo completar la evaluación por rúbrica: {e_rub}")
 
                     if st.session_state.get("video_rubric_result"):
-                        render_resultado_rubrica_video(st.session_state["video_rubric_result"])
+                        render_resultado_rubrica_video(st.session_state["video_rubric_result"], st.session_state.selected_cefr)
+
 
 
 # ==============================================================================
