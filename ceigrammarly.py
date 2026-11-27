@@ -81,16 +81,15 @@ from modules.pedagogy import (
 )
 
 rol_main_low = str(st.session_state.get("user_role") or "").strip().lower()
-is_owner_o_admin_main = bool(
+is_owner_only = bool(
     st.session_state.get("authenticated", False)
     and (
         st.session_state.get("is_owner", False)
-        or rol_main_low in ["propietario", "owner", "administrador", "admin"]
+        or rol_main_low in ["propietario", "owner"]
     )
 )
 
-
-if not is_owner_o_admin_main:
+if not is_owner_only:
     st.markdown(
         """
         <style>
@@ -158,10 +157,27 @@ if not is_owner_o_admin_main:
         height=0
     )
 else:
+    st.markdown(
+        """
+        <style>
+        [data-testid="manage-app-button"],
+        [data-testid="stStatusWidget"],
+        div[class*="viewerBadge"],
+        div[class*="profileContainer"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 999999 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     components.html(
         """
         <script>
-        (function restaurarBadgesOwnerAdmin() {
+        (function restaurarBadgesOwner() {
             const selectors = [
                 '[data-testid="manage-app-button"]',
                 '[data-testid="stStatusWidget"]',
@@ -169,21 +185,26 @@ else:
                 'div[class*="profileContainer"]',
                 'div[class*="profilePreview"]',
                 'a[href*="streamlit.io/cloud"]',
-                'a[href*="share.streamlit.io"]',
-                'a[href*="github.com"]'
+                'a[href*="share.streamlit.io"]'
             ];
             function restaurar(doc) {
                 if (!doc) return;
                 selectors.forEach(sel => {
                     doc.querySelectorAll(sel).forEach(el => {
-                        el.style.removeProperty('display');
-                        el.style.removeProperty('visibility');
-                        el.style.removeProperty('opacity');
+                        el.style.setProperty('display', 'flex', 'important');
+                        el.style.setProperty('visibility', 'visible', 'important');
+                        el.style.setProperty('opacity', '1', 'important');
+                        el.style.setProperty('pointer-events', 'auto', 'important');
                     });
                 });
             }
-            try { restaurar(window.parent.document); } catch (e) {}
-            try { restaurar(window.top.document); } catch (e) {}
+            const run = () => {
+                restaurar(document);
+                try { restaurar(window.parent.document); } catch (e) {}
+                try { restaurar(window.top.document); } catch (e) {}
+            };
+            run();
+            setTimeout(run, 400);
         })();
         </script>
         """,
