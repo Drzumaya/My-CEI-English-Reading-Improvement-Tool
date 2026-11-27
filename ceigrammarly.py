@@ -5416,8 +5416,21 @@ with col_logout:
         )
         if mostrar_qr_hdr_now:
             base_pages = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
-            url_install_hdr = base_pages + "?install=1"
-            url_apk_hdr = "https://github.com/drzumaya/My-CEI-English-Reading-Improvement-Tool/releases/download/v1.0.0/CEI_App_Oficial.apk"
+            pub_app_secret = str(
+                st.secrets.get("PUBLIC_APP_URL")
+                or ("https://" + "myceigrammarly.streamlit.app/")
+            ).strip()
+            default_apk_rel = (
+                "https://"
+                + "github.com/drzumaya/My-CEI-English-Reading-Improvement-Tool/releases/download/v1.0.0/CEI_App_Oficial.apk"
+            )
+            raw_apk_secret = str(st.secrets.get("APP_APK_DIRECT_URL") or "").strip()
+            url_apk_hdr = raw_apk_secret if raw_apk_secret.endswith(".apk") else default_apk_rel
+            url_install_hdr = (
+                f"{base_pages}?install=1"
+                f"&app={urllib.parse.quote(pub_app_secret, safe='')}"
+                f"&apk={urllib.parse.quote(url_apk_hdr, safe='')}"
+            )
 
             buf_qh = io.BytesIO()
             qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
