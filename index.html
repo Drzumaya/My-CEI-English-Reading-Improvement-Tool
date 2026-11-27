@@ -114,6 +114,7 @@
     </button>
 
     <a
+      id="btnOpenBrowser"
       href="https://streamlit.app"
       class="btn-open"
     >🌐 Abrir Plataforma en el Navegador →</a>
@@ -122,18 +123,21 @@
   </div>
 
   <script>
-    const MAIN_APP_URL = "https://streamlit.app";
+    const params = new URLSearchParams(window.location.search);
+    const MAIN_APP_URL = params.get("app") || ("https://" + "myceigrammarly.streamlit.app/?v=cei");
     const APK_FILE_URL = "./CEI_App_Oficial.apk";
+    document.getElementById("btnOpenBrowser").href = MAIN_APP_URL;
+
     const btnInstall = document.getElementById("btnInstall");
     const hint = document.getElementById("hint");
     let deferredPrompt = null;
 
+    const forceInstallScreen = params.get("install") === "1";
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       window.navigator.standalone === true;
-    const params = new URLSearchParams(window.location.search);
 
-    if (isStandalone && !params.get("install")) {
+    if (isStandalone && !forceInstallScreen) {
       window.location.replace(MAIN_APP_URL);
     }
 
@@ -190,5 +194,6 @@
         `<a href="${MAIN_APP_URL}" class="btn-hint-go">🚀 Entrar Directo al Login CEI →</a>`;
     });
   </script>
+
 </body>
 </html>
