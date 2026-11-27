@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CEI Portal Docentes — Career English Institute</title>
+  <link rel="manifest" href="./manifest_docente.json" />
+  <link rel="icon" type="image/png" href="./static/android-launchericon-192-192.png" />
+  <link rel="apple-touch-icon" href="./static/android-launchericon-512-512.png" />
+  <meta name="theme-color" content="#0b2545" />
+  <style>
+    body { margin:0; font-family:sans-serif; background:linear-gradient(135deg,#0b2545,#134074); color:#fff; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; }
+    .card { max-width:420px; width:100%; background:rgba(255,255,255,0.1); border-radius:22px; padding:30px 24px; text-align:center; border:1px solid rgba(255,255,255,0.2); }
+    .logo { width:100px; height:100px; border-radius:20px; background:#fff; padding:6px; margin-bottom:14px; }
+    .btn { display:block; width:100%; padding:14px; margin-top:12px; border-radius:12px; font-weight:700; text-decoration:none; border:none; cursor:pointer; font-size:15px; }
+    .btn-apk { background:#38bdf8; color:#0b2545; }
+    .btn-web { background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.3); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="./static/android-launchericon-512-512.png" alt="CEI Docentes" />
+    <h2>👩‍🏫 CEI Portal Docentes</h2>
+    <p>Evaluación Académica, Calificaciones y Seguimiento de Alumnos</p>
+    <a id="btnApk" href="https://github.com" class="btn btn-apk">⬇ DESCARGAR APP DOCENTES (.APK)</a>
+    <a id="btnWeb" href="https://streamlit.app" class="btn btn-web">🚀 Entrar Directo al Portal Docente →</a>
+  </div>
+  <script>
+    const p = new URLSearchParams(window.location.search);
+    const appUrl = p.get("app") || "https://streamlit.app";
+    document.getElementById("btnWeb").href = appUrl;
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    if (isStandalone && p.get("install") !== "1") window.location.replace(appUrl);
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+  </script>
+</body>
+</html>
