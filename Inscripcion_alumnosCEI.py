@@ -261,6 +261,8 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
     st.divider()
     st.markdown("#### 3️⃣ Términos, Condiciones, Reglamento Académico y Compliance CEI")
     with st.expander("📜 Leer Términos, Condiciones y Reglamento Académico (Clic para desplegar)", expanded=False):
+        import re
+        import html
         raw_tc = str(obtener_terminos_estudiantes_pg() or "")
         clean_tc = re.sub(r"<[^>]+>", "\n", raw_tc)
         clean_tc = re.sub(r"\n{3,}", "\n\n", clean_tc).strip()
@@ -271,6 +273,7 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
             f"{html.escape(clean_tc)}</div>",
             unsafe_allow_html=True
         )
+
 
     acepta_reg = st.checkbox(
         "✅ He leído, comprendo y acepto los Términos, Condiciones, Reglamento Académico y Políticas de Compliance de Career English Institute (CEI) *",
