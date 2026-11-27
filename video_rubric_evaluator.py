@@ -140,7 +140,9 @@ def evaluar_resumen_video_rubrica_ia(
       "cohesion_feedback": "Retroalimentación específica sobre conectores, estructura y gramática del nivel.",
       "extension_feedback": "Retroalimentación específica sobre el conteo de {word_count} palabras frente al rango {min_w}-{max_w}.",
       "fortalezas": ["Fortaleza 1", "Fortaleza 2"],
-      "areas_mejora": ["Acción concreta de mejora 1", "Acción concreta de mejora 2"]
+      "areas_mejora": ["Acción concreta de mejora 1", "Acción concreta de mejora 2"],
+      "ejemplo_apertura_20pts": "Ejemplo modelo en inglés (2-3 oraciones) calibrado a {crit['etiqueta']} sobre este video para obtener 20/20 puntos.",
+      "ejemplo_parafrasis_20pts": "Ejemplo concreto en español/inglés: 'Frase simple' -> 'Versión académica mejorada de nivel {crit['etiqueta']}'."
     }}
     """
 
@@ -193,17 +195,40 @@ def evaluar_resumen_video_rubrica_ia(
                 "extension_nivel": nivel_ext,
                 "extension_feedback": str(data.get("extension_feedback") or f"Escribiste {word_count} palabras (rango solicitado: {min_w}–{max_w})."),
                 "fortalezas": list(data.get("fortalezas") or []),
-                "areas_mejora": list(data.get("areas_mejora") or [])
+                "areas_mejora": list(data.get("areas_mejora") or []),
+                "ejemplo_apertura_20pts": str(data.get("ejemplo_apertura_20pts") or ""),
+                "ejemplo_parafrasis_20pts": str(data.get("ejemplo_parafrasis_20pts") or "")
             }
         except Exception as e_m:
             ultimo_err = f"{mod}: {e_m}"
             continue
 
     raise RuntimeError(f"No se pudo evaluar el resumen con la rúbrica: {ultimo_err}")
+GLOBAL_PEDAGOGICAL_RESOURCES = {
+    "A1-A2": [
+        ("📘 British Council — A1/A2 Reading & Short Summaries", "https://britishcouncil.org"),
+        ("📗 Cambridge English — Basic Connectors & Sentence Structure", "https://cambridgeenglish.org"),
+        ("🎬 BBC Learning English — 6 Minute English (Listening & Vocabulary)", "https://bbc.co.uk"),
+    ],
+    "B1-B2": [
+        ("📘 British Council — B1/B2 Structured Summaries & Essays", "https://britishcouncil.org"),
+        ("📙 Purdue OWL — Paraphrasing & Summarizing Academic Sources", "https://purdue.edu"),
+        ("🎬 TED-Ed — Interactive Lessons & Comprehension Quizzes", "https://ted.com"),
+    ],
+    "C1-C2": [
+        ("📕 Harvard College Writing Center — Academic Synthesis & Rhetoric", "https://harvard.edu"),
+        ("📘 British Council — C1 Advanced Critical Reading & Synthesis", "https://britishcouncil.org"),
+        ("🎓 MIT OpenCourseWare — Advanced Academic Communication", "https://mit.edu"),
+    ],
+}
 
 
-def render_resultado_rubrica_video(res_rub: dict):
-    """Muestra al estudiante su calificación sobre 20 pts (20%) y retroalimentación detallada."""
+def render_resultado_rubrica_video(res_rub: dict, cefr_code: str = "B1"):
+    """Muestra calificación sobre 20 pts, ejemplos para lograr el 100%, lecturas globales con enlaces y botón Try again."""
+    c = str(cefr_code or "B1").strip().upper()
+    grupo = "A1-A2" if c.startswith("A") else ("C1-C2" if c.startswith("C") else "B1-B2")
+    recursos = GLOBAL_PEDAGOGICAL_RESOURCES[grupo]
+
     with st.container(border=True):
         st.markdown(
             f"#### 🏆 Calificación de Síntesis de Video: **{res_rub['total_20']} / 20.0 pts** "
@@ -213,13 +238,37 @@ def render_resultado_rubrica_video(res_rub: dict):
         st.markdown(f"- **2. Paráfrasis y originalidad ({res_rub['parafrasis_pts']} / 5 pts — {res_rub['parafrasis_nivel']}):** {res_rub['parafrasis_feedback']}")
         st.markdown(f"- **3. Cohesión y gramática ({res_rub['cohesion_pts']} / 5 pts — {res_rub['cohesion_nivel']}):** {res_rub['cohesion_feedback']}")
         st.markdown(f"- **4. Cumplimiento de extensión ({res_rub['extension_pts']} / 5 pts — {res_rub['extension_nivel']}):** {res_rub['extension_feedback']}")
+
         if res_rub.get("fortalezas"):
             st.markdown("**✅ Fortalezas detectadas:** " + " | ".join(res_rub["fortalezas"]))
+
         if res_rub.get("areas_mejora"):
             st.markdown("**💡 Recomendaciones para mejorar:**")
             for tip in res_rub["areas_mejora"]:
                 st.markdown(f"- {tip}")
 
+        if res_rub.get("ejemplo_apertura_20pts") or res_rub.get("ejemplo_parafrasis_20pts"):
+            with st.expander("🌟 Ejemplos Modelo para Lograr 20 / 20 pts (100%)", expanded=True):
+                if res_rub.get("ejemplo_apertura_20pts"):
+                    st.markdown(f"**✍️ Ejemplo de redacción de alto nivel sobre este video:**\n> *{res_rub['ejemplo_apertura_20pts']}*")
+                if res_rub.get("ejemplo_parafrasis_20pts"):
+                    st.markdown(f"**🔄 Mejora de paráfrasis y vocabulario:**\n> {res_rub['ejemplo_parafrasis_20pts']}")
+
+        with st.expander(f"🌍 Lecturas y Recursos Pedagógicos Globales ({grupo})", expanded=False):
+            for titulo_rec, url_rec in recursos:
+                st.markdown(f"- [{titulo_rec}]({url_rec})")
+
+        st.markdown("---")
+        nonce_w = int(st.session_state.get("writing_attempt_nonce", 0))
+        if st.button(
+            "🔄 Try again / Intentar de nuevo (Aplicar mejoras y volver a calificar)",
+            type="secondary",
+            width="stretch",
+            key=f"btn_try_again_writing_{nonce_w}"
+        ):
+            st.session_state.pop("video_rubric_result", None)
+            st.session_state["writing_attempt_nonce"] = nonce_w + 1
+            st.rerun()
 def render_live_word_counter(res_text: str, min_w: int, max_w: int, label_nivel: str):
     """Muestra y actualiza el conteo de palabras tecla por tecla en tiempo real."""
     import streamlit.components.v1 as components
@@ -268,4 +317,3 @@ def render_live_word_counter(res_text: str, min_w: int, max_w: int, label_nivel:
         """,
         height=52
     )
-
