@@ -91,24 +91,89 @@ is_owner_only = bool(
     )
 )
 
+st.markdown(
+    """
+    <style>
+    header[data-testid="stHeader"],
+    [data-testid="stToolbar"],
+    [data-testid="stToolbarActions"],
+    [data-testid="stDecoration"],
+    [data-testid="manage-app-button"],
+    [data-testid="stStatusWidget"],
+    .stAppDeployButton,
+    .stDeployButton,
+    #MainMenu,
+    footer,
+    div[class*="viewerBadge"],
+    div[class*="profileContainer"],
+    div[class*="profilePreview"],
+    a[href*="streamlit.io"],
+    a[href*="share.streamlit.io"],
+    a[href*="github.com"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        pointer-events: none !important;
+    }
+    .block-container {
+        padding-top: 1.2rem !important;
+        padding-bottom: 1.2rem !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+components.html(
+    """
+    <script>
+    (function ocultarLogosExternosCEI() {
+        const selectors = [
+            'header[data-testid="stHeader"]',
+            '[data-testid="stToolbar"]',
+            '[data-testid="stToolbarActions"]',
+            '[data-testid="manage-app-button"]',
+            '[data-testid="stStatusWidget"]',
+            '.stAppDeployButton',
+            '.stDeployButton',
+            'div[class*="viewerBadge"]',
+            'div[class*="profileContainer"]',
+            'div[class*="profilePreview"]',
+            'a[href*="streamlit.io"]',
+            'a[href*="share.streamlit.io"]',
+            'a[href*="github.com"]'
+        ];
+        function limpiar(doc) {
+            if (!doc) return;
+            selectors.forEach(sel => {
+                doc.querySelectorAll(sel).forEach(el => {
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
+                    el.style.setProperty('opacity', '0', 'important');
+                });
+            });
+        }
+        const run = () => {
+            limpiar(document);
+            try { limpiar(window.parent.document); } catch (e) {}
+            try { limpiar(window.top.document); } catch (e) {}
+        };
+        run();
+        const obs = new MutationObserver(run);
+        try { obs.observe(window.parent.document.body, { childList: true, subtree: true }); } catch (e) {}
+        setInterval(run, 1000);
+    })();
+    </script>
+    """,
+    height=0
+)
+
 if is_owner_only:
     st.markdown(
         """
         <style>
-        header[data-testid="stHeader"],
-        [data-testid="stToolbar"],
-        [data-testid="manage-app-button"],
-        [data-testid="stStatusWidget"],
-        div[class*="viewerBadge"],
-        div[class*="profileContainer"],
-        div[class*="profilePreview"],
-        .stAppDeployButton {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            z-index: 999999 !important;
-        }
         #cei-owner-manage-fab {
             position: fixed;
             right: 16px;
@@ -137,43 +202,6 @@ if is_owner_only:
         </a>
         """,
         unsafe_allow_html=True,
-    )
-
-    components.html(
-        """
-        <script>
-        (function restaurarBadgesOwner() {
-            const selectors = [
-                '[data-testid="manage-app-button"]',
-                '[data-testid="stStatusWidget"]',
-                'div[class*="viewerBadge"]',
-                'div[class*="profileContainer"]',
-                'div[class*="profilePreview"]',
-                'a[href*="streamlit.io/cloud"]',
-                'a[href*="share.streamlit.io"]'
-            ];
-            function restaurar(doc) {
-                if (!doc) return;
-                selectors.forEach(sel => {
-                    doc.querySelectorAll(sel).forEach(el => {
-                        el.style.setProperty('display', 'flex', 'important');
-                        el.style.setProperty('visibility', 'visible', 'important');
-                        el.style.setProperty('opacity', '1', 'important');
-                        el.style.setProperty('pointer-events', 'auto', 'important');
-                    });
-                });
-            }
-            const run = () => {
-                restaurar(document);
-                try { restaurar(window.parent.document); } catch (e) {}
-                try { restaurar(window.top.document); } catch (e) {}
-            };
-            run();
-            setTimeout(run, 400);
-        })();
-        </script>
-        """,
-        height=0
     )
 
 
