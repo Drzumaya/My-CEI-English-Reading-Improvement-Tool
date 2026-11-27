@@ -383,3 +383,13 @@ with st.form("form_inscripcion_alumnos_cei", clear_on_submit=False):
                 except Exception as e:
                     st.error(f"Error al registrar inscripción: {e}")
                 finally:
+                    try:
+                        if "cur" in locals() and cur is not None:
+                            cur.close()
+                    except Exception:
+                        pass
+                    try:
+                        if "conn" in locals() and conn is not None:
+                            conn.close()
+                    except Exception:
+                        pass
