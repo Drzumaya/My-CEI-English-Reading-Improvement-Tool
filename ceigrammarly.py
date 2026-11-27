@@ -86,9 +86,13 @@ is_owner_only = bool(
     st.session_state.get("authenticated", False)
     and (
         st.session_state.get("is_owner", False)
-        or rol_main_low in ["propietario", "owner"]
+        or rol_main_low in ["propietario", "owner", "superadmin"]
         or "zumaya" in usr_main_low
     )
+)
+en_vista_portal = bool(
+    st.session_state.get("authenticated", False)
+    and str(st.session_state.get("active_stage_5") or "READING").strip().upper() == "PORTAL"
 )
 
 st.markdown(
@@ -1021,11 +1025,12 @@ def _extract_numeric_score(score_str: str) -> float:
     return float(m2.group(1)) if m2 else -1.0
 
 
-def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str):
+def save_lesson_to_postgres(folio: str, usuario_name: str, tema: str, cefr: str, grado: str, texto: str, pdf_link: str) -> bool:
     u_clean = str(usuario_name or st.session_state.get("current_user") or "").strip()
     f_clean = str(folio or "").strip().upper()
     if not f_clean:
-        return
+        return False
+
     with pg_session(dict_rows=True) as cur:
         cur.execute("""
             ALTER TABLE lessons_folios
@@ -1126,6 +1131,7 @@ def save_best_speaking_pg(folio: str, score_pct: int):
     if not f_clean:
         return
     try:
+        score_val = max(0.0, min(100.0, float(score_pct)))
         eval_obj = st.session_state.get("speaking_eval_result")
         eval_json = json.dumps(eval_obj, ensure_ascii=False) if isinstance(eval_obj, dict) else None
         with pg_session() as cur:
@@ -1135,7 +1141,7 @@ def save_best_speaking_pg(folio: str, score_pct: int):
                     speaking_eval_json = COALESCE(%s::jsonb, speaking_eval_json),
                     updated_at = NOW()
                 WHERE UPPER(TRIM(folio)) = %s;
-            """, (float(score_pct), eval_json, f_clean))
+            """, (score_val, eval_json, f_clean))
         load_lessons_history_pg.clear()
     except Exception:
         pass
@@ -1729,9 +1735,20 @@ class AcademicPDF(FPDF):
 
 def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, speaking_eval=None) -> bytes:
     folio_doc = st.session_state.get("current_folio") or "SIN-FOLIO"
-    base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
-    default_link = f"{base_url}/?folio={urllib.parse.quote(folio_doc)}" if base_url else f"/?folio={urllib.parse.quote(folio_doc)}"
-    link_doc = st.session_state.get("current_pdf_link") or default_link
+    raw_base_url = str(
+        st.secrets.get("PUBLIC_APP_URL")
+        or st.secrets.get("APP_PUBLIC_URL")
+        or st.secrets.get("APP_BASE_URL")
+        or ""
+    ).strip().rstrip("/")
+    base_url = (
+        raw_base_url
+        if "myceigrammarly.streamlit.app" in raw_base_url
+        else ("https://" + "myceigrammarly.streamlit.app")
+    )
+    default_link = f"{base_url}/?folio={urllib.parse.quote(folio_doc)}"
+    raw_session_link = str(st.session_state.get("current_pdf_link") or "").strip()
+    link_doc = raw_session_link if raw_session_link.startswith("http") else default_link
 
     ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
     fecha_doc = st.session_state.get("current_creation_date") or ahora_local.strftime("%Y-%m-%d %H:%M:%S")
@@ -1768,9 +1785,11 @@ def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, spe
             logo_src = None
     if logo_src is None:
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        local_logo = os.path.join(base_dir, "LOGO CEI APP.png")
-        if os.path.exists(local_logo):
-            logo_src = local_logo
+        for rel_logo in ["LOGO CEI APP.png", os.path.join("static", "LOGO CEI APP.png")]:
+            local_logo = os.path.join(base_dir, rel_logo)
+            if os.path.exists(local_logo):
+                logo_src = local_logo
+                break
     if logo_src:
         try:
             pdf.image(logo_src, x=pdf.l_margin + 6, y=y_box_start + 6, w=26)
@@ -1994,7 +2013,32 @@ def create_lesson_pdf(text: str, quiz_items=None, user_ans=None, score=None, spe
                 pdf.multi_cell(pdf.epw - 6, 5.2, text=clean_pdf_text(f"- {tip}"), new_x="LMARGIN", new_y="NEXT", align="J", wrapmode="CHAR")
             pdf.ln(3)
 
+    # Sello QR de Verificación Oficial en el cierre del PDF
+    try:
+        if pdf.get_y() > pdf.h - 36:
+            pdf.add_page()
+        pdf.ln(4)
+        qr_lec = io.BytesIO()
+        qrcode.make(link_doc).save(qr_lec, format="PNG")
+        qr_lec.seek(0)
+        y_qr_end = pdf.get_y()
+        pdf.set_draw_color(203, 213, 225)
+        pdf.set_fill_color(248, 250, 252)
+        pdf.rect(pdf.l_margin, y_qr_end, pdf.epw, 24, style="FD")
+        pdf.image(qr_lec, x=pdf.l_margin + 4, y=y_qr_end + 2, w=20, h=20)
+        pdf.set_xy(pdf.l_margin + 28, y_qr_end + 4)
+        pdf.set_font("Times", "B", 9)
+        pdf.set_text_color(11, 37, 69)
+        pdf.cell(pdf.epw - 32, 5, text=clean_pdf_text(f"AUTHENTICATED DIGITAL MONOGRAPH  |  FOLIO: {folio_doc}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(pdf.l_margin + 28)
+        pdf.set_font("Times", "", 8)
+        pdf.set_text_color(71, 85, 105)
+        pdf.multi_cell(pdf.epw - 32, 4.2, text=clean_pdf_text(f"Scan QR or verify online at: {link_doc}"), new_x="LMARGIN", new_y="NEXT", wrapmode="CHAR")
+    except Exception:
+        pass
+
     return bytes(pdf.output())
+
 # ==============================================================================
 # PARTE 7A: GENERADOR DE BOLETÍN OFICIAL EN PDF (APA 7a ED. + TIMBRE HMAC)
 # ==============================================================================
@@ -2037,8 +2081,11 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
                 break
 
 
-
-    addr_doc = st.session_state.get("institute_address") or DEFAULT_ADDRESS
+addr_doc = (
+    str(st.session_state.get("institute_address") or "").strip()
+    or globals().get("DEFAULT_ADDRESS")
+    or "Agua Prieta, Sonora, México"
+)
 
     class GradebookPDF(FPDF):
         def header(self):
@@ -3213,24 +3260,29 @@ def render_interactive_study_viewer(study_payload: dict):
                 seen_w.add(wc.lower())
                 unique_words.append(wc)
 
-    active_k_override = str(st.session_state.get("custom_api_key", "")).strip()
+    active_k_override = str(st.session_state.get("custom_api_key") or "").strip()
     audio_map, merged_dict = _build_full_study_bundle(
-        tuple(unique_words),
-        json.dumps(dictionary, ensure_ascii=False),
+        tuple(unique_words or ()),
+        json.dumps(dictionary or {}, ensure_ascii=False),
         api_key_override=active_k_override,
         cache_v="v60_final_es_audio"
     )
 
-    pos_class = {"verb": "verb", "noun": "noun", "adjective": "adjective", "conjunction": "conjunction"}
+    pos_class = {
+        "verb": "verb",
+        "noun": "noun",
+        "adjective": "adjective",
+        "conjunction": "conjunction",
+    }
     blocks_html = []
-    for sent in sentences:
-        tokens = sent.get("tokens", [])
-        full_s_attr = html_lib.escape(str(sent.get("full_sentence", "")).strip(), quote=True)
+    for sent in sentences or []:
+        tokens = sent.get("tokens") or []
+        full_s_attr = html_lib.escape(str(sent.get("full_sentence") or "").strip(), quote=True)
         spans = []
         for tok in tokens:
-            w_raw = str(tok.get("w", ""))
+            w_raw = str(tok.get("w") or "")
             w_esc = html_lib.escape(w_raw)
-            p_raw = str(tok.get("pos", "other")).lower()
+            p_raw = str(tok.get("pos") or "other").strip().lower()
             p_cls = pos_class.get(p_raw, "other")
             w_clean = re.sub(r"^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$", "", w_raw).lower()
             if w_clean:
@@ -3238,10 +3290,11 @@ def render_interactive_study_viewer(study_payload: dict):
                 spans.append(
                     f'<span class="wt {p_cls}" data-k="{w_attr}" data-p="{p_cls}" data-s="{full_s_attr}">{w_esc}</span>'
                 )
-            else:
+            elif w_esc:
                 spans.append(f"<span>{w_esc}</span>")
         box_cls = "tbox" if sent.get("is_title") else "sbox"
         blocks_html.append(f'<div class="{box_cls}">{" ".join(spans)}</div>')
+
 
     lesson_html = "".join(blocks_html)
     audio_json = json.dumps(audio_map).replace("</", "<\\/")
@@ -4633,11 +4686,19 @@ PERMISSIONS_MATRIX = load_permissions_matrix()
 PERMISOS_LISTA = list(PERMISSIONS_MATRIX.keys())
 
 # --- PORTAL PÚBLICO DE VERIFICACIÓN DE CERTIFICADOS (ACCESO POR QR SIN LOGIN) ---
-verify_folio = str(st.query_params.get("verify") or st.query_params.get("verify_cert") or "").strip().upper()
+import html as _html_verify
+import re as _re_verify
+
+verify_folio_raw = str(st.query_params.get("verify") or st.query_params.get("verify_cert") or "").strip().upper()
+verify_folio = _re_verify.sub(r"[^A-Z0-9\-]", "", verify_folio_raw)[:40]
+
 if verify_folio:
     if st.session_state.get("portal_verificacion_cerrado", False):
         components.html("<script>window.parent.close(); window.close();</script>", height=0)
-        st.markdown("<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>", unsafe_allow_html=True)
+        st.markdown(
+            "<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>",
+            unsafe_allow_html=True,
+        )
         st.stop()
 
     col_vl, col_vc, col_vr = st.columns([1, 2.2, 1])
@@ -4649,8 +4710,8 @@ if verify_folio:
         )
         if b64_l:
             st.markdown(
-                f'<div style="text-align: center;"><img src="data:{mime_l};base64,{b64_l}" style="width: 110px; border-radius: 50%;"></div>',
-                unsafe_allow_html=True
+                f'<div style="text-align: center;"><img src="data:{_html_verify.escape(str(mime_l))};base64,{b64_l}" style="width: 110px; border-radius: 50%;"></div>',
+                unsafe_allow_html=True,
             )
         st.markdown("<h2 style='text-align: center; color: #1e3a8a;'>🎓 CEI ENGLISH LEARNING PLATFORM</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #475569; font-size: 14px;'>Career English Institute • Global Pedagogical &amp; CEFR Assessment Suite</p>", unsafe_allow_html=True)
@@ -4666,7 +4727,7 @@ if verify_folio:
                     certs = get_certificados_sheet().get_all_records()
                     cert_encontrado = next(
                         (c for c in certs if str(c.get("Folio_Certificado", "")).strip().upper().replace("-", "") == folio_norm),
-                        None
+                        None,
                     )
 
                 if cert_encontrado:
@@ -4693,7 +4754,7 @@ if verify_folio:
                             st.markdown(f"**📚 Programa / Módulo:** {prog_c}")
                             st.markdown(f"**🏆 Calificación Final:** {calif_c}")
                             st.markdown(f"**📅 Fecha de Timbrado:** {fecha_c}")
-                            st.markdown("**✍️ Autoridad Emisora:** Jacob Zumaya Prianti (Career English Institute)")
+                            st.markdown("**✍️ Autoridad Emisora:** Jacob Zumaya Prianti (Career English Institute — Agua Prieta, Sonora)")
                             st.divider()
                             st.caption("**Sello Digital HMAC-SHA256 Verificado:**")
                             st.code(sello_bd, language="text")
@@ -4705,22 +4766,33 @@ if verify_folio:
             st.error(f"Error al verificar certificado: {e}")
 
         st.write("")
-        if st.button("✖️ Cerrar Verificación", type="primary", width="stretch", key="btn_close_verify_cert"):
-            st.session_state["portal_verificacion_cerrado"] = True
-            st.rerun()
+        c_vb1, c_vb2 = st.columns(2)
+        with c_vb1:
+            if st.button("✖️ Cerrar Verificación", type="secondary", width="stretch", key="btn_close_verify_cert"):
+                st.session_state["portal_verificacion_cerrado"] = True
+                st.rerun()
+        with c_vb2:
+            pub_app_v = str(st.secrets.get("PUBLIC_APP_URL") or "https://streamlit.app").strip()
+            st.link_button("🎓 Ir a Plataforma CEI", url=pub_app_v, type="primary", width="stretch")
     st.stop()
+
 # ==============================================================================
 # PARTE 11B1: VERIFICACIÓN DE BOLETINES (QR) Y TOKENS DE SESIÓN PERSISTENTE
 # ==============================================================================
+import re as _re_bol
+
 verify_bol_param = st.query_params.get("verify_transcript", "")
 if isinstance(verify_bol_param, list):
     verify_bol_param = verify_bol_param[0] if verify_bol_param else ""
-verify_bol_param = str(verify_bol_param).strip().upper()
+verify_bol_param = _re_bol.sub(r"[^A-Z0-9\-]", "", str(verify_bol_param).strip().upper())[:45]
 
 if verify_bol_param:
     if st.session_state.get("portal_verificacion_cerrado", False):
         components.html("<script>window.parent.close(); window.close();</script>", height=0)
-        st.markdown("<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>", unsafe_allow_html=True)
+        st.markdown(
+            "<h4 style='text-align:center; color:#555;'>🔒 Sesión finalizada. Ya puedes cerrar esta pestaña.</h4>",
+            unsafe_allow_html=True,
+        )
         st.stop()
 
     st.markdown("### 🛡️ Verificación Oficial de Boletín Académico — Career English Institute")
@@ -4763,10 +4835,16 @@ if verify_bol_param:
         st.error(f"Error al verificar boletín en Supabase: {e_vb}")
 
     st.write("")
-    if st.button("✖️ Cerrar Verificación", type="primary", width="stretch", key="btn_close_verify_bol"):
-        st.session_state["portal_verificacion_cerrado"] = True
-        st.rerun()
+    c_bb1, c_bb2 = st.columns(2)
+    with c_bb1:
+        if st.button("✖️ Cerrar Verificación", type="secondary", width="stretch", key="btn_close_verify_bol"):
+            st.session_state["portal_verificacion_cerrado"] = True
+            st.rerun()
+    with c_bb2:
+        pub_app_bol = str(st.secrets.get("PUBLIC_APP_URL") or "https://streamlit.app").strip()
+        st.link_button("🎓 Ir a Plataforma CEI", url=pub_app_bol, type="primary", width="stretch")
     st.stop()
+
 
 def _sign_session_token(usuario: str, clave: str) -> str:
     secret = _get_hmac_secret_bytes()
@@ -4774,6 +4852,7 @@ def _sign_session_token(usuario: str, clave: str) -> str:
     sig = hmac.new(secret, raw_data.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
     payload = json.dumps({"u": usuario, "c": clave, "s": sig}).encode("utf-8")
     return base64.urlsafe_b64encode(payload).decode("utf-8")
+
 
 def _verify_session_token(token_str: str):
     try:
@@ -4792,22 +4871,28 @@ def _verify_session_token(token_str: str):
         pass
     return None, None
 
+
 if st.session_state.get("pending_ls_token"):
     tok_act = st.session_state.pop("pending_ls_token")
     if tok_act == "REMOVE":
         js_ck = (
-            "<script>try{window.parent.document.cookie='cei_session_token=; "
-            "max-age=0; path=/; SameSite=Lax; Secure';}catch(e){"
-            "document.cookie='cei_session_token=; max-age=0; path=/; SameSite=Lax; Secure';}</script>"
+            "<script>"
+            "try{window.parent.document.cookie='cei_session_token=; max-age=0; path=/; SameSite=Lax; Secure';}catch(e){}"
+            "try{window.parent.localStorage.removeItem('cei_session_token');}catch(e){}"
+            "document.cookie='cei_session_token=; max-age=0; path=/; SameSite=Lax; Secure';"
+            "</script>"
         )
     else:
         tok_safe = urllib.parse.quote(str(tok_act))
         js_ck = (
-            f"<script>try{{window.parent.document.cookie='cei_session_token={tok_safe}; "
-            "max-age=2592000; path=/; SameSite=Lax; Secure';}catch(e){"
-            f"document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';}}</script>"
+            "<script>"
+            f"try{{window.parent.document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';}}catch(e){{}}"
+            f"try{{window.parent.localStorage.setItem('cei_session_token','{tok_safe}');}}catch(e){{}}"
+            f"document.cookie='cei_session_token={tok_safe}; max-age=2592000; path=/; SameSite=Lax; Secure';"
+            "</script>"
         )
     components.html(js_ck, height=0)
+
 # ==============================================================================
 # PARTE 11B2: AUTO-LOGIN DESDE COOKIE Y PANTALLA DE CONTROL DE ACCESO (LOGIN)
 # ==============================================================================
@@ -4817,17 +4902,21 @@ if not st.session_state.authenticated and not st.session_state.get("just_logged_
         try:
             registros_auto = load_padron_records()
             usuario_auto = None
+            es_owner_cookie = False
             for reg in registros_auto:
                 u_db = str(reg.get("Usuario", "")).strip()
                 c_db = str(reg.get("Clave", "")).strip()
                 if u_db and c_db and hmac.compare_digest(ck_raw, _sign_session_token(u_db, c_db)):
                     usuario_auto = reg
+                    if str(reg.get("Rol", "")).strip().lower() in ["propietario", "owner"]:
+                        es_owner_cookie = True
                     break
 
             if usuario_auto is None:
                 m_user = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
                 m_key = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
                 if m_user and m_key and hmac.compare_digest(ck_raw, _sign_session_token(m_user, m_key)):
+                    es_owner_cookie = True
                     usuario_auto = {
                         "Usuario": m_user,
                         "Clave": m_key,
@@ -4846,6 +4935,7 @@ if not st.session_state.authenticated and not st.session_state.get("just_logged_
                 g_db = str(usuario_auto.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
 
                 st.session_state.authenticated = True
+                st.session_state.is_owner = es_owner_cookie
                 st.session_state.current_user = u_db
                 st.session_state.user_role = r_db
                 st.session_state.user_permissions = p_db
@@ -4856,7 +4946,6 @@ if not st.session_state.authenticated and not st.session_state.get("just_logged_
                 st.rerun()
         except Exception:
             pass
-
 
 # --- AUTO-RESTAURACIÓN DE SESIÓN RECORDADA (HMAC TOKEN EN URL / PWA) ---
 if not st.session_state.get("authenticated", False) and not st.session_state.get("just_logged_out", False):
@@ -4876,20 +4965,26 @@ if not st.session_state.get("authenticated", False) and not st.session_state.get
                      and hmac.compare_digest(str(r.get("Clave", "")).strip(), c_saved.strip())),
                     None
                 )
+                es_owner_url = False
                 if u_match_auto is None:
                     m_u = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
                     m_k = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
                     if m_u and m_k and u_saved.strip().lower() == m_u.lower() and hmac.compare_digest(m_k, c_saved.strip()):
+                        es_owner_url = True
                         u_match_auto = {
                             "Usuario": m_u, "Clave": m_k, "Rol": "Propietario",
                             "Permisos": "Total", "Nivel": "C2",
                             "Grado_Academico": "Doctorado / Posgrado", "Estatus": "Activo"
                         }
+                elif str(u_match_auto.get("Rol", "")).strip().lower() in ["propietario", "owner"]:
+                    es_owner_url = True
+
                 if u_match_auto and str(u_match_auto.get("Estatus", "Activo")).strip().lower() == "activo":
                     r_auto = str(u_match_auto.get("Rol", "Estudiante")).strip()
                     n_auto = normalize_cefr(u_match_auto.get("Nivel", "B1"))
                     g_auto = str(u_match_auto.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
                     st.session_state.authenticated = True
+                    st.session_state.is_owner = es_owner_url
                     st.session_state.current_user = str(u_match_auto.get("Usuario", "")).strip()
                     st.session_state.user_role = r_auto
                     st.session_state.user_permissions = resolve_permission_profile(u_match_auto.get("Permisos", ""), r_auto, PERMISSIONS_MATRIX)
@@ -4900,8 +4995,6 @@ if not st.session_state.get("authenticated", False) and not st.session_state.get
                     st.rerun()
         except Exception:
             pass
-
-
 
 
 # --- PANTALLA DE LOGIN ---
@@ -4940,18 +5033,22 @@ if not st.session_state.authenticated:
                             load_padron_records.clear()
                             registros = load_padron_records()
                             usuario_encontrado = None
+                            es_owner_login = False
 
                             for reg in registros:
                                 u_db = str(reg.get("Usuario", "")).strip()
                                 c_db = str(reg.get("Clave", "")).strip()
                                 if u_db.lower() == input_user.strip().lower() and hmac.compare_digest(c_db, input_pass.strip()):
                                     usuario_encontrado = reg
+                                    if str(reg.get("Rol", "")).strip().lower() in ["propietario", "owner"]:
+                                        es_owner_login = True
                                     break
 
                             if usuario_encontrado is None:
                                 m_user = str(st.secrets.get("OWNER_MASTER_USER", "")).strip()
                                 m_key = str(st.secrets.get("OWNER_MASTER_KEY", "")).strip()
                                 if m_user and m_key and input_user.strip().lower() == m_user.lower() and hmac.compare_digest(m_key, input_pass.strip()):
+                                    es_owner_login = True
                                     usuario_encontrado = {
                                         "Usuario": m_user,
                                         "Clave": m_key,
@@ -4981,6 +5078,7 @@ if not st.session_state.authenticated:
                                     g_db = str(usuario_encontrado.get("Grado_Academico", "Licenciatura / Universidad")).strip() or "Licenciatura / Universidad"
 
                                     st.session_state.authenticated = True
+                                    st.session_state.is_owner = es_owner_login
                                     st.session_state.just_logged_out = False
                                     st.session_state.current_user = u_db
                                     st.session_state.user_role = r_db
@@ -4993,20 +5091,24 @@ if not st.session_state.authenticated:
                                     if remember_me:
                                         tok_signed = _sign_session_token(u_db, c_db)
                                         st.session_state.pending_ls_token = tok_signed
-                                        st.query_params["cei_auth"] = tok_signed
+                                        raw_url_b = f"{u_db}::{c_db}".encode("utf-8")
+                                        b64_url_p = base64.urlsafe_b64encode(raw_url_b).decode("ascii")
+                                        secret_salt_u = str(st.secrets.get("OWNER_MASTER_KEY", "CEI_HMAC_2026")).encode("utf-8")
+                                        sig_url_h = hmac.new(secret_salt_u, raw_url_b, hashlib.sha256).hexdigest()[:24]
+                                        st.query_params["cei_auth"] = f"{b64_url_p}.{sig_url_h}"
                                     else:
                                         st.session_state.pending_ls_token = "REMOVE"
                                         if "cei_auth" in st.query_params:
                                             del st.query_params["cei_auth"]
                                     st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Error de conexión al verificar credenciales: {e}") 
-
+                        st.error(f"❌ Error de conexión al verificar credenciales: {e}")
         st.markdown(
             f"<div style='text-align: center; color: #777; font-size: 12px; margin-top: 15px;'>📍 {institute_address}<br>© 2026 CAREER ENGLISH INSTITUTE | Author: Jacob Zumaya Prianti</div>",
             unsafe_allow_html=True
         )
     st.stop()
+
 
 DEFAULT_AFFILIATE_TERMS_TEXT = """TÉRMINOS Y CONDICIONES DEL PROGRAMA DE SOCIOS AFILIADOS
 CAREER ENGLISH INSTITUTE (CEI) — AGUA PRIETA, SONORA, MÉXICO
@@ -5029,6 +5131,91 @@ Para recibir el pago de las comisiones liquidadas del mes inmediato anterior, el
 
 QUINTA. LEGISLACIÓN APLICABLE Y JURISDICCIÓN.
 Para la interpretación y cumplimiento de los presentes Términos y Condiciones, las partes se someten a las leyes vigentes en los Estados Unidos Mexicanos y a la jurisdicción competente de los tribunales de Agua Prieta, Sonora, México."""
+
+
+def _sanitize_apa7_plain_text(raw_text: str) -> str:
+    """Elimina cualquier etiqueta HTML residual para mostrar texto limpio en formato documento APA 7."""
+    import re
+    txt = str(raw_text or "").strip()
+    txt = re.sub(r"<[^>]+>", "\n", txt)
+    txt = re.sub(r"\n{3,}", "\n\n", txt).strip()
+    return txt or DEFAULT_AFFILIATE_TERMS_TEXT
+
+
+def render_affiliate_terms_apa7_doc(texto_raw: str, max_height_px: int = 430):
+    """Renderiza el documento legal con apariencia de hoja tamaño carta Word en formato APA 7a Edición."""
+    import html as _html_apa
+    import re as _re_apa
+
+    texto_limpio = _sanitize_apa7_plain_text(texto_raw)
+    lineas = [ln.strip() for ln in texto_limpio.split("\n") if ln.strip()]
+
+    bloques_html = []
+    for idx, ln in enumerate(lineas):
+        ln_esc = _html_apa.escape(ln)
+        es_titulo_doc = idx in (0, 1) and len(ln) <= 105
+        es_clausula = bool(
+            _re_apa.match(
+                r"^(PRIMERA|SEGUNDA|TERCERA|CUARTA|QUINTA|SEXTA|S[ÉE]PTIMA|OCTAVA|NOVENA|D[ÉE]CIMA|CL[ÁA]USULA|ART[ÍI]CULO)\b",
+                ln,
+                flags=_re_apa.IGNORECASE,
+            )
+        )
+        es_inciso = bool(_re_apa.match(r"^(\d+[\.\)]|[a-zA-Z][\.\)]|[•\-])\s+", ln))
+
+        if es_titulo_doc:
+            bloques_html.append(
+                f"<p style='margin:0 0 6pt 0; text-align:center; font-weight:bold; "
+                f"text-indent:0; line-height:2.0; color:#0f172a;'>{ln_esc}</p>"
+            )
+        elif es_clausula:
+            bloques_html.append(
+                f"<p style='margin:14pt 0 4pt 0; text-align:left; font-weight:bold; "
+                f"text-indent:0; line-height:2.0; color:#0b2545;'>{ln_esc}</p>"
+            )
+        elif es_inciso:
+            bloques_html.append(
+                f"<p style='margin:0 0 6pt 0; text-align:justify; padding-left:0.5in; "
+                f"text-indent:-0.25in; line-height:2.0; color:#1e293b;'>{ln_esc}</p>"
+            )
+        else:
+            bloques_html.append(
+                f"<p style='margin:0 0 6pt 0; text-align:justify; text-indent:0.5in; "
+                f"line-height:2.0; color:#1e293b;'>{ln_esc}</p>"
+            )
+
+    cuerpo_doc = "".join(bloques_html)
+    st.markdown(
+        f"""
+        <div style="
+            max-height:{int(max_height_px)}px;
+            overflow-y:auto;
+            background:#e2e8f0;
+            padding:22px 16px;
+            border-radius:10px;
+            border:1px solid #cbd5e1;
+        ">
+            <div style="
+                max-width:740px;
+                margin:0 auto;
+                background:#ffffff;
+                padding:0.75in 0.85in;
+                box-shadow:0 4px 18px rgba(15, 23, 42, 0.14);
+                border:1px solid #cbd5e1;
+                font-family:'Times New Roman', Times, Georgia, serif;
+                font-size:12pt;
+                line-height:2.0;
+                color:#0f172a;
+            ">
+                <div style="text-align:right; font-size:10pt; color:#64748b; margin-bottom:10pt; line-height:1.4;">
+                    CAREER ENGLISH INSTITUTE (CEI) • DOCUMENTO NORMATIVO APA 7
+                </div>
+                {cuerpo_doc}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _open_legal_pg_conn():
@@ -5086,9 +5273,9 @@ def get_affiliate_terms_pg() -> dict:
                     )
                     return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Owner", "updated_at": ""}
                 return {
-                    "texto": str(row[0] or DEFAULT_AFFILIATE_TERMS_TEXT),
-                    "updated_by": str(row[1] or ""),
-                    "updated_at": str(row[2] or "")[:19]
+                    "texto": _sanitize_apa7_plain_text(str(row or DEFAULT_AFFILIATE_TERMS_TEXT)),
+                    "updated_by": str(row or ""),
+                    "updated_at": str(row or "")[:19]
                 }
     except Exception:
         return {"texto": DEFAULT_AFFILIATE_TERMS_TEXT, "updated_by": "Sistema", "updated_at": ""}
@@ -5105,6 +5292,7 @@ def save_affiliate_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
     if not conn:
         return False, "No hay conexión activa con Supabase PostgreSQL."
     try:
+        texto_limpio = _sanitize_apa7_plain_text(nuevo_texto)
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -5122,7 +5310,7 @@ def save_affiliate_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
                         contenido = EXCLUDED.contenido,
                         updated_by = EXCLUDED.updated_by,
                         updated_at = CURRENT_TIMESTAMP;
-                """, (nuevo_texto.strip(), autor))
+                """, (texto_limpio, autor))
         return True, "✅ Términos y Condiciones de Afiliación actualizados y publicados en vivo."
     except Exception as e:
         return False, f"Error al guardar términos: {e}"
@@ -5131,6 +5319,7 @@ def save_affiliate_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
             conn.close()
         except Exception:
             pass
+
 
 DEFAULT_STUDENT_TERMS_TEXT = """TÉRMINOS, CONDICIONES Y REGLAMENTO ACADÉMICO DE INSCRIPCIÓN
 CAREER ENGLISH INSTITUTE (CEI) — AGUA PRIETA, SONORA, MÉXICO
@@ -5159,7 +5348,7 @@ De conformidad con la Ley Federal de Protección de Datos Personales en Posesió
 
 
 def get_student_terms_pg() -> dict:
-    """Obtiene los Términos y Condiciones de Inscripción de Estudiantes desde PostgreSQL."""
+    """Obtiene los Términos y Condiciones de Inscripción de Estudiantes desde PostgreSQL en texto limpio APA 7."""
     conn = _open_legal_pg_conn()
     if not conn:
         return {"texto": DEFAULT_STUDENT_TERMS_TEXT, "updated_by": "Sistema", "updated_at": ""}
@@ -5183,7 +5372,7 @@ def get_student_terms_pg() -> dict:
                     )
                     return {"texto": DEFAULT_STUDENT_TERMS_TEXT, "updated_by": "Owner", "updated_at": ""}
                 return {
-                    "texto": str(row[0] or DEFAULT_STUDENT_TERMS_TEXT),
+                    "texto": _sanitize_apa7_plain_text(str(row[0] or DEFAULT_STUDENT_TERMS_TEXT)),
                     "updated_by": str(row[1] or ""),
                     "updated_at": str(row[2] or "")[:19]
                 }
@@ -5202,6 +5391,7 @@ def save_student_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
     if not conn:
         return False, "No hay conexión activa con Supabase PostgreSQL."
     try:
+        texto_limpio = _sanitize_apa7_plain_text(nuevo_texto)
         with conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -5219,7 +5409,7 @@ def save_student_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
                         contenido = EXCLUDED.contenido,
                         updated_by = EXCLUDED.updated_by,
                         updated_at = CURRENT_TIMESTAMP;
-                """, (nuevo_texto.strip(), autor))
+                """, (texto_limpio, autor))
         return True, "✅ Términos y Condiciones de Estudiantes actualizados y publicados en vivo."
     except Exception as e:
         return False, f"Error al guardar términos de estudiantes: {e}"
@@ -5228,7 +5418,6 @@ def save_student_terms_pg(nuevo_texto: str, autor: str) -> tuple[bool, str]:
             conn.close()
         except Exception:
             pass
-
 
 def evaluar_pronunciacion_oral_ia(
     media_bytes: bytes,
@@ -5239,12 +5428,12 @@ def evaluar_pronunciacion_oral_ia(
 ) -> dict:
     """Evalúa pronunciación, fluidez y gramática oral en audio o video usando Gemini Multimodal."""
     gm = init_gemini_client()
-    if not gm:
+    if not gm or not media_bytes:
         return {
             "score_percent": 0.0,
             "cefr_performance": cefr_level,
             "transcription": "",
-            "phonetic_feedback": "Cliente Gemini no inicializado. Verifica GEMINI_API_KEY en Secrets.",
+            "phonetic_feedback": "Cliente Gemini no inicializado o grabación vacía. Verifica GEMINI_API_KEY en Secrets.",
             "fluency_prosody": "Intenta grabar nuevamente en un entorno silencioso.",
             "grammar_accuracy": "Pendiente de evaluación.",
             "actionable_tips": ["Verifica que el micrófono tenga permiso activo y habla con claridad."]
@@ -5275,12 +5464,11 @@ def evaluar_pronunciacion_oral_ia(
         from google.genai import types
         part_media = types.Part.from_bytes(data=media_bytes, mime_type=mime_type or "audio/wav")
         modelos_orales = [
-            "gemini-3.8-flash",
-            "gemini-3.5-flash",
-            "gemini-3.1-pro-preview",
-            "gemini-3.0-flash",
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
         ]
-        excluidos = ("2.5", "2.0", "1.5", "embedding", "imagen", "tts", "audio", "robotics", "computer-use", "lyria", "veo")
+        excluidos = ("1.5", "embedding", "imagen", "tts", "robotics", "computer-use", "lyria", "veo")
         try:
             for m in gm.models.list():
                 m_name = str(getattr(m, "name", "")).replace("models/", "").strip()
@@ -5311,8 +5499,9 @@ def evaluar_pronunciacion_oral_ia(
                     if m_obj:
                         raw_txt = m_obj.group(0)
                     data = json.loads(raw_txt)
+                    score_val = round(max(0.0, min(100.0, float(data.get("score_percent", 75.0)))), 1)
                     return {
-                        "score_percent": round(float(data.get("score_percent", 75.0)), 1),
+                        "score_percent": score_val,
                         "cefr_performance": str(data.get("cefr_performance") or cefr_level),
                         "transcription": str(data.get("transcription") or ""),
                         "phonetic_feedback": str(data.get("phonetic_feedback") or "Articulación clara en general."),
@@ -5341,28 +5530,44 @@ def evaluar_pronunciacion_oral_ia(
 # ==============================================================================
 # PARTE 12A: EVALUACIÓN DE CAPACIDADES RBAC Y TARJETA CREADORA CENTRAL
 # ==============================================================================
-user_caps = PERMISSIONS_MATRIX.get(st.session_state.user_permissions, {})
-def can(capability_name: str) -> bool:
-    return bool(user_caps.get(capability_name, False))
-
-curr_u_clean = str(st.session_state.get("current_user", "")).strip().lower()
-curr_r_clean = str(st.session_state.get("user_role", "")).strip().lower()
-curr_p_clean = str(st.session_state.get("user_permissions", "")).strip().lower()
-master_u_clean = str(st.secrets.get("OWNER_MASTER_USER", "")).strip().lower()
+curr_u_raw = str(st.session_state.get("current_user") or "").strip()
+curr_u_clean = curr_u_raw.lower()
+curr_r_clean = str(st.session_state.get("user_role") or "").strip().lower()
+curr_p_clean = str(st.session_state.get("user_permissions") or "").strip().lower()
+master_u_clean = str(st.secrets.get("OWNER_MASTER_USER") or "").strip().lower()
 
 is_owner = (
-    (bool(master_u_clean) and curr_u_clean == master_u_clean)
+    bool(st.session_state.get("is_owner", False))
+    or (bool(master_u_clean) and curr_u_clean == master_u_clean)
     or curr_r_clean in ["propietario", "administrador", "admin", "owner"]
     or curr_p_clean == "total"
 )
 
+user_caps = dict(PERMISSIONS_MATRIX.get(st.session_state.get("user_permissions"), {}) or {})
+try:
+    user_delegated_caps = get_user_delegated_caps_pg(curr_u_raw) if curr_u_raw else {}
+except Exception:
+    user_delegated_caps = {}
+
+
+def can(capability_name: str) -> bool:
+    if is_owner:
+        return True
+    return bool(user_caps.get(capability_name, False) or user_delegated_caps.get(capability_name, False))
+
+
 is_faculty_desktop = is_owner or (can("Ver_Panel_Admin") and (not is_mobile))
-has_faculty_access = is_owner or can("Reuso_Ilimitado_Folios") or (curr_r_clean in ["teacher", "docente"])
+has_faculty_access = (
+    is_owner
+    or can("Reuso_Ilimitado_Folios")
+    or can("Ver_Portal_Docente")
+    or (curr_r_clean in ["teacher", "docente"])
+)
 cefr_options = list(CEFR_MAP.values())
 
 # --- VALORES SEGUROS POR DEFECTO (SIN BARRA LATERAL IZQUIERDA) ---
 generar_btn = False
-usuario = str(st.session_state.get("current_user") or "Usuario").strip()
+usuario = curr_u_raw or "Usuario"
 cefr_level = st.session_state.get("selected_cefr") or st.session_state.get("user_assigned_level") or "B1 (Intermediate)"
 academic_grade = st.session_state.get("selected_academic_grade") or st.session_state.get("user_academic_grade") or "Licenciatura / Universidad"
 gramatica_b1 = st.session_state.get("selected_grammar") or "General English Grammar"
@@ -5377,10 +5582,8 @@ stage_now = stage_5_now
 if st.session_state.pop("trigger_generate_from_top", False):
     generar_btn = True
 
-
-
 # ==============================================================================
-# PARTE 12B — MITAD 1 DE 2: CABECERA INSTITUCIONAL, VISOR DE USUARIO Y QR APP
+# PARTE 12B — MITAD 1 DE 2: CABECERA INSTITUCIONAL, VISOR DE USUARIO Y QR APPS
 # ==============================================================================
 if "active_stage_5" not in st.session_state:
     st.session_state["active_stage_5"] = "READING"
@@ -5437,28 +5640,60 @@ with col_logout:
 
     if puede_ver_qr_hdr:
         mostrar_qr_hdr_now = st.toggle(
-            "📲 QR App",
+            "📲 QR Apps",
             value=False,
             key="tgl_header_qr_app_visible",
-            help="Muestra u oculta el QR oficial para descargar CEI_App_Oficial.apk"
+            help="Muestra u oculta los QR oficiales para descargar las Apps Android de Estudiantes, Docentes y Socios"
         )
         if mostrar_qr_hdr_now:
+            app_qr_choice = st.radio(
+                "App a proyectar:",
+                ["🎓 App General / Alumnos", "👩‍🏫 App Docentes", "🤝 App Socios Afiliados"],
+                horizontal=False,
+                label_visibility="collapsed",
+                key="rad_hdr_qr_app_type"
+            )
             base_pages = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
-            pub_app_secret = str(
-                st.secrets.get("PUBLIC_APP_URL")
-                or ("https://" + "myceigrammarly.streamlit.app/")
-            ).strip()
-            default_apk_rel = (
-                "https://"
-                + "github.com/drzumaya/My-CEI-English-Reading-Improvement-Tool/releases/download/v1.0.0/CEI_App_Oficial.apk"
-            )
-            raw_apk_secret = str(st.secrets.get("APP_APK_DIRECT_URL") or "").strip()
-            url_apk_hdr = raw_apk_secret if raw_apk_secret.endswith(".apk") else default_apk_rel
-            url_install_hdr = (
-                f"{base_pages}?install=1"
-                f"&app={urllib.parse.quote(pub_app_secret, safe='')}"
-                f"&apk={urllib.parse.quote(url_apk_hdr, safe='')}"
-            )
+            gh_rel_base = "https://" + "github.com/drzumaya/My-CEI-English-Reading-Improvement-Tool/releases/download/v1.0.0/"
+
+            if "Docentes" in app_qr_choice:
+                pub_target = str(st.secrets.get("PUBLIC_APP_URL") or ("https://" + "myceigrammarly.streamlit.app/")).strip()
+                if "?" not in pub_target:
+                    pub_target = pub_target.rstrip("/") + "/?portal=docente"
+                raw_apk = str(st.secrets.get("DOCENTE_APK_DIRECT_URL") or "").strip()
+                url_apk_hdr = raw_apk if raw_apk.endswith(".apk") else (gh_rel_base + "CEI_Docente_Oficial.apk")
+                url_install_hdr = (
+                    f"{base_pages}docente_app.html?install=1"
+                    f"&app={urllib.parse.quote(pub_target, safe='')}"
+                    f"&apk={urllib.parse.quote(url_apk_hdr, safe='')}"
+                )
+                apk_fname_hdr = "CEI_Docente_Oficial.apk"
+                qr_png_fname = "QR_Instalar_App_Docentes_CEI.png"
+                titulo_modal_qr = "👩‍🏫 Descarga Oficial: CEI Portal Docentes"
+            elif "Socios" in app_qr_choice:
+                pub_target = str(st.secrets.get("AFFILIATE_PORTAL_URL") or ("https://" + "ceiafiliados.streamlit.app")).strip()
+                raw_apk = str(st.secrets.get("SOCIO_APK_DIRECT_URL") or "").strip()
+                url_apk_hdr = raw_apk if raw_apk.endswith(".apk") else (gh_rel_base + "CEI_Socios_Oficial.apk")
+                url_install_hdr = (
+                    f"{base_pages}socio_app.html?install=1"
+                    f"&app={urllib.parse.quote(pub_target, safe='')}"
+                    f"&apk={urllib.parse.quote(url_apk_hdr, safe='')}"
+                )
+                apk_fname_hdr = "CEI_Socios_Oficial.apk"
+                qr_png_fname = "QR_Instalar_App_Socios_CEI.png"
+                titulo_modal_qr = "🤝 Descarga Oficial: CEI Portal Socios Afiliados"
+            else:
+                pub_target = str(st.secrets.get("PUBLIC_APP_URL") or ("https://" + "myceigrammarly.streamlit.app/")).strip()
+                raw_apk = str(st.secrets.get("APP_APK_DIRECT_URL") or "").strip()
+                url_apk_hdr = raw_apk if raw_apk.endswith(".apk") else (gh_rel_base + "CEI_App_Oficial.apk")
+                url_install_hdr = (
+                    f"{base_pages}?install=1"
+                    f"&app={urllib.parse.quote(pub_target, safe='')}"
+                    f"&apk={urllib.parse.quote(url_apk_hdr, safe='')}"
+                )
+                apk_fname_hdr = "CEI_App_Oficial.apk"
+                qr_png_fname = "QR_Instalar_App_CEI.png"
+                titulo_modal_qr = "📲 Descarga e Instalación Oficial: CEI App"
 
             buf_qh = io.BytesIO()
             qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
@@ -5469,7 +5704,7 @@ with col_logout:
                 f"""
                 <div style="text-align:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:6px; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
                     <img src="data:image/png;base64,{qh_b64}"
-                         title="Doble clic para proyectar QR de App CEI"
+                         title="Doble clic para proyectar QR"
                          ondblclick="expandirQRAppCEI()"
                          style="width:86px;height:86px;border-radius:8px;border:2px solid #0b2545;padding:3px;background:white;cursor:zoom-in;" />
                     <div style="margin-top:4px;">
@@ -5489,7 +5724,7 @@ with col_logout:
                     m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.96);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
                     m.innerHTML = `
                         <img src="data:image/png;base64,{qh_b64}" style="width:340px;height:340px;border-radius:18px;background:white;padding:16px;box-shadow:0 12px 36px rgba(0,0,0,0.45);" />
-                        <p style="color:white;font-size:20px;margin-top:16px;font-weight:700;">📲 Descarga e Instalación Oficial: CEI App</p>
+                        <p style="color:white;font-size:20px;margin-top:16px;font-weight:700;">{titulo_modal_qr}</p>
                         <p style="color:#cbd5e1;font-size:13px;max-width:480px;text-align:center;">Escanea el QR para abrir la página oficial de descarga:<br><strong style="color:#38bdf8;">{url_install_hdr}</strong></p>
                         <button style="margin-top:12px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">✖️ Cerrar Proyección</button>
                     `;
@@ -5501,13 +5736,13 @@ with col_logout:
                 height=138
             )
             st.link_button(
-                "📲 Abrir Página de Descarga",
+                "📲 Página de Descarga",
                 url=url_install_hdr,
                 type="primary",
                 width="stretch"
             )
             st.link_button(
-                "📥 CEI_App_Oficial.apk",
+                f"📥 {apk_fname_hdr}",
                 url=url_apk_hdr,
                 type="secondary",
                 width="stretch"
@@ -5515,16 +5750,17 @@ with col_logout:
             st.download_button(
                 "⬇️ PNG",
                 data=qa_bytes_hdr,
-                file_name="QR_Instalar_App_CEI.png",
+                file_name=qr_png_fname,
                 mime="image/png",
                 width="stretch",
                 key="btn_dl_hdr_qr_app"
             )
 
+
 es_docente_rol = (curr_r_clean in ["teacher", "docente"]) or can("Ver_Portal_Docente")
 es_admin_o_staff = is_owner or can("Ver_Panel_Admin") or (curr_r_clean in ["admin", "administrador", "propietario", "owner"])
 solo_docente = es_docente_rol and not es_admin_o_staff
-es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afiliado"])
+es_socio_afiliado = (curr_r_clean in ["socio", "partner", "afiliado", "socio afiliado"]) or can("Ver_Portal_Socio_Afiliado")
 solo_socio_afiliado = es_socio_afiliado and not es_admin_o_staff and not es_docente_rol
 
 if solo_socio_afiliado:
@@ -5534,18 +5770,23 @@ if solo_socio_afiliado:
     ).strip()
     url_app_aff_redir = str(
         st.secrets.get("AFFILIATE_APP_INSTALL_URL")
-        or ("https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/socio_app.html")
+        or ("https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/socio_app.html?install=1")
     ).strip()
+    raw_socio_apk = str(st.secrets.get("SOCIO_APK_DIRECT_URL") or "").strip()
+    url_socio_apk_redir = (
+        raw_socio_apk
+        if raw_socio_apk.endswith(".apk")
+        else ("https://" + "://github.com")
+    )
 
     buf_qr_redir = io.BytesIO()
-    qrcode.make(url_portal_aff_redir).save(buf_qr_redir, format="PNG")
+    qrcode.make(url_app_aff_redir).save(buf_qr_redir, format="PNG")
 
     with st.container(border=True):
         st.warning("🤝 **Acceso Exclusivo de Socios Afiliados — Career English Institute (CEI)**")
         st.markdown(
             "Esta aplicación está reservada para **Estudiantes, Docentes y Administración Académica**.\n\n"
-            "Como **Socio Afiliado**, accede a tu **Portal Oficial de Asociados** para gestionar tus códigos QR de inscripción, "
-            "monitorear las rachas de tus alumnos y revisar tus comisiones:"
+            "Como **Socio Afiliado**, accede a tu **Portal Oficial de Asociados** o instala tu **App Móvil Exclusiva de Socios CEI**:"
         )
         c_ra1, c_ra2 = st.columns([2.2, 1.1])
         with c_ra1:
@@ -5556,8 +5797,8 @@ if solo_socio_afiliado:
                 width="stretch"
             )
             st.link_button(
-                "🤖 Descargar App Oficial CEI en Android (.apk — 3.6 MB)",
-                url=("https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/CEI_App_Oficial.apk"),
+                "🤖 Descargar App Oficial Socios CEI en Android (.apk — 3.45 MB)",
+                url=url_socio_apk_redir,
                 width="stretch"
             )
             st.link_button(
@@ -5566,7 +5807,7 @@ if solo_socio_afiliado:
                 width="stretch"
             )
         with c_ra2:
-            st.image(buf_qr_redir.getvalue(), width=145, caption="QR Portal Socios CEI")
+            st.image(buf_qr_redir.getvalue(), width=145, caption="QR Instalar App Socios CEI")
             st.caption(f"🔗 `{url_portal_aff_redir}`")
     st.stop()
 
@@ -5673,7 +5914,13 @@ if not tiene_leccion_activa:
                 with c_edu_sep:
                     st.caption("Crea una lección nueva con IA o selecciona abajo una lección guardada por Folio para abrirla.")
 
-# Si un Docente abrió MI PORTAL DOCENTE CEI, renderizarlo directamente
+
+# Si un Docente abrió MI PORTAL DOCENTE CEI (o entró desde la App Móvil Docentes), renderizarlo directamente
+portal_q_param = str(st.query_params.get("portal") or "").strip().lower()
+if solo_docente and portal_q_param == "docente" and not st.session_state.get("docente_portal_booted"):
+    st.session_state["active_stage_5"] = "PORTAL"
+    st.session_state["docente_portal_booted"] = True
+
 if solo_docente and st.session_state.get("active_stage_5") == "PORTAL":
     from portal_docente import render_portal_docente_cei
     render_portal_docente_cei(
@@ -5688,6 +5935,7 @@ if solo_docente and st.session_state.get("active_stage_5") == "PORTAL":
         institute_address=str(institute_address or "Agua Prieta, Sonora, México")
     )
     st.stop()
+
 
 
 # ==============================================================================
@@ -5787,36 +6035,50 @@ else:
         st.session_state["active_stage_5"] = "READING" if st.session_state["active_stage_5"] == "SPEAKING" else "VIEWING"
     stage_actual = st.session_state.get("active_stage_5", "READING")
 
-    b1, b2, b3 = st.columns([1.35, 1.35, 1.0])
-    botones_maestros = [
-        (b1, "READING", "📖 1. READING (30%) & 🎙️ SPEAKING (25%)"),
-        (b2, "VIEWING", "🎬 2. VIEWING (25%) & ✍️ WRITING (20%)"),
-        (b3, "PORTAL", lbl_btn_portal),
-    ]
-
-    for col_b, stage_key, stage_label in botones_maestros:
-        es_activo = (stage_actual == stage_key)
-        texto_btn = f"🟢 {stage_label}" if es_activo else f"⏳ {stage_label}"
-        with col_b:
+    if stage_actual == "PORTAL":
+        if puede_ver_panel_educativo:
             if st.button(
-                texto_btn,
-                type="primary" if es_activo else "secondary",
-                width="stretch",
-                key=f"btn_master_stage_{stage_key}"
+                "⬅️ Volver a la Lección Activa",
+                type="secondary",
+                key="btn_volver_leccion_desde_portal"
             ):
-                st.session_state["active_stage_5"] = stage_key
-                st.session_state["viewing_center_stage"] = (stage_key == "VIEWING")
-                if stage_key == "PORTAL":
-                    if es_admin_o_staff or es_socio_afiliado:
-                        st.session_state["active_admin_workspace"] = st.session_state.get("active_admin_workspace") or "💳 Cobranza Mensual e IVA"
-                    else:
-                        st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
-                else:
-                    st.session_state["active_admin_workspace"] = None
-                    st.session_state["active_student_workspace"] = None
-                if stage_key == "VIEWING" and not st.session_state.get("video_watch_started_ts"):
-                    st.session_state["video_watch_started_ts"] = time.time()
+                st.session_state["active_stage_5"] = "READING"
+                st.session_state["viewing_center_stage"] = False
+                st.session_state["active_admin_workspace"] = None
+                st.session_state["active_student_workspace"] = None
                 st.rerun()
+    else:
+        b1, b2, b3 = st.columns([1.35, 1.35, 1.0])
+        botones_maestros = [
+            (b1, "READING", "📖 1. READING (30%) & 🎙️ SPEAKING (25%)"),
+            (b2, "VIEWING", "🎬 2. VIEWING (25%) & ✍️ WRITING (20%)"),
+            (b3, "PORTAL", lbl_btn_portal),
+        ]
+
+        for col_b, stage_key, stage_label in botones_maestros:
+            es_activo = (stage_actual == stage_key)
+            texto_btn = f"🟢 {stage_label}" if es_activo else f"⏳ {stage_label}"
+            with col_b:
+                if st.button(
+                    texto_btn,
+                    type="primary" if es_activo else "secondary",
+                    width="stretch",
+                    key=f"btn_master_stage_{stage_key}"
+                ):
+                    st.session_state["active_stage_5"] = stage_key
+                    st.session_state["viewing_center_stage"] = (stage_key == "VIEWING")
+                    if stage_key == "PORTAL":
+                        if es_admin_o_staff or es_socio_afiliado:
+                            st.session_state["active_admin_workspace"] = st.session_state.get("active_admin_workspace") or "💳 Cobranza Mensual e IVA"
+                        else:
+                            st.session_state["active_student_workspace"] = st.session_state.get("active_student_workspace") or "💳 Mis Pagos (9 Bloques)"
+                    else:
+                        st.session_state["active_admin_workspace"] = None
+                        st.session_state["active_student_workspace"] = None
+                    if stage_key == "VIEWING" and not st.session_state.get("video_watch_started_ts"):
+                        st.session_state["video_watch_started_ts"] = time.time()
+                    st.rerun()
+
 
 
 
@@ -5824,7 +6086,7 @@ else:
 # ==============================================================================
 # PARTE 13A1-A: HELPERS DE CIERRE DE PANEL Y QR OFICIAL CON ID DE AFILIADO
 # ==============================================================================
-DEFAULT_STUDENT_INSCRIPTION_URL = "https://inscripcioncei.streamlit.app"
+DEFAULT_STUDENT_INSCRIPTION_URL = "https://" + "inscripcioncei.streamlit.app"
 
 
 def _cerrar_panel_y_volver_leccion():
@@ -5834,6 +6096,21 @@ def _cerrar_panel_y_volver_leccion():
     st.session_state["show_gradebook_panel"] = False
     st.session_state["show_student_payments_panel"] = False
     st.session_state["active_stage_5"] = "READING"
+
+
+def _build_student_inscription_qr_url(ref_code: str = "", campus_id: str = "") -> str:
+    raw_url = str(st.secrets.get("STUDENT_REG_URL") or "").strip()
+    base = raw_url if "inscripcioncei.streamlit.app" in raw_url else DEFAULT_STUDENT_INSCRIPTION_URL
+    params = []
+    if str(ref_code or "").strip():
+        params.append(f"ref={urllib.parse.quote(str(ref_code).strip())}")
+    if str(campus_id or "").strip():
+        params.append(f"campus={urllib.parse.quote(str(campus_id).strip())}")
+    if not params:
+        return base
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}{'&'.join(params)}"
+
 
 # ==============================================================================
 # MOTOR DE CATEGORÍAS ESTUDIANTILES (BRONCE / PLATA / ORO) — BLOQUE A DE 2
@@ -5907,7 +6184,6 @@ CRITERIOS_POR_NIVEL_CEFR = {
     ]
 }
 
-
 def calcular_categoria_automatica_estudiante(student_user: str, nivel_cefr: str = "B1") -> dict:
     """Calcula automáticamente la categoría (Bronce, Plata, Oro) según clases/lecciones completadas."""
     niv_code = next(iter(str(nivel_cefr or "B1").upper().split()), "B1")
@@ -5977,9 +6253,10 @@ def _cerrar_guia_y_volver():
 
 def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str = "B1"):
     """Renderiza en pantalla principal Instrucciones, Plan del Curso (9 meses) y Categoría Estudiantil."""
-    datos_cat = calcular_categoria_automatica_estudiante(usuario_actual, nivel_cefr_actual)
-    niv_code = datos_cat["nivel"]
-    n_crit = datos_cat["total_criterios"]
+    datos_cat = calcular_categoria_automatica_estudiante(usuario_actual, nivel_cefr_actual) or {}
+    niv_code = str(datos_cat.get("nivel") or next(iter(str(nivel_cefr_actual).split()), "B1")).strip()
+    n_crit = int(datos_cat.get("total_criterios") or len(CRITERIOS_POR_NIVEL_CEFR.get(niv_code, [])))
+    cat_label = str(datos_cat.get("categoria_label") or "🥉 Bronce CEI").strip()
 
     with st.container(border=True):
         c_gh1, c_gh2 = st.columns([3.2, 1.2])
@@ -5988,7 +6265,7 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
             st.caption(
                 f"Estudiante / Usuario: **{usuario_actual}**  |  "
                 f"Nivel Calibrado: **CEFR {niv_code}**  |  "
-                f"Insignia Actual: **{datos_cat['categoria_label']}**"
+                f"Insignia Actual: **{cat_label}**"
             )
         with c_gh2:
             st.button(
@@ -6046,12 +6323,17 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
                     )
             with col_pwa2:
                 with st.container(border=True):
-                    st.markdown("**🤖 En Android (Google Chrome):**")
+                    st.markdown("**🤖 En Android (Instalador Oficial .apk):**")
                     st.markdown(
-                        "1. Abre el enlace de la plataforma en **Chrome**.\n"
-                        "2. Toca el menú de **tres puntos (⋮)** arriba a la derecha.\n"
-                        "3. Selecciona **Instalar aplicación** o **Agregar a la pantalla principal**.\n"
-                        "4. Confirma pulsando **Instalar**. ¡Listo!"
+                        "1. Descarga el instalador oficial **CEI_App_Oficial.apk (3.45 MB)**.\n"
+                        "2. Ábrelo desde tus notificaciones y acepta **Permitir de esta fuente**.\n"
+                        "3. Pulsa **Instalar** y ábrela con el escudo oficial CEI."
+                    )
+                    st.link_button(
+                        "⬇ Descargar App Oficial CEI (.apk)",
+                        url=get_cei_qr_link("apk"),
+                        type="primary",
+                        width="stretch"
                     )
 
         elif opcion_guia == "📅 Plan del Curso (9 Meses)":
@@ -6070,8 +6352,9 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
             with col_p3:
                 st.metric("🥇 Meta Categoría Oro", f"{n_crit * 3} clases en 9 meses", "3 clases por mes")
 
+            criterios_lista = datos_cat.get("criterios") or CRITERIOS_POR_NIVEL_CEFR.get(niv_code, [])
             filas_plan = []
-            for idx_m, crit_nom in enumerate(datos_cat["criterios"], start=1):
+            for idx_m, crit_nom in enumerate(criterios_lista, start=1):
                 filas_plan.append({
                     "Periodo (Mes)": f"Mes {idx_m} (Semanas {(idx_m - 1) * 4 + 1}–{idx_m * 4})",
                     f"Criterio Gramatical ({niv_code})": crit_nom,
@@ -6083,9 +6366,10 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
 
         elif opcion_guia == "🏅 Categoría Estudiantil (Bronce, Plata y Oro)":
             st.markdown("#### 🏅 Sistema de Categorías Estudiantiles CEI")
+            total_lec_cat = int(datos_cat.get("total_lecciones") or 0)
             st.success(
-                f"Tu insignia actual calculada automáticamente es: **{datos_cat['categoria_label']}** "
-                f"(`{datos_cat['total_lecciones']}` clases/lecciones completadas en el nivel **{niv_code}**)."
+                f"Tu insignia actual calculada automáticamente es: **{cat_label}** "
+                f"(`{total_lec_cat}` clases/lecciones completadas en el nivel **{niv_code}**)."
             )
             c_cat1, c_cat2, c_cat3 = st.columns(3)
             with c_cat1:
@@ -6108,7 +6392,6 @@ def render_guia_plan_categoria_view(usuario_actual: str, nivel_cefr_actual: str 
                 "✨ **Asignación Automática:** No necesitas solicitar tu categoría. Conforme avanzas y completas tus clases mensuales en cada periodo, "
                 "la plataforma actualiza tu insignia automáticamente y la imprime tanto en tu **Boletín Informativo** como en tu **Certificado Oficial**."
             )
-
 
 # ==============================================================================
 # MOTOR DE GAMIFICACIÓN SOCIAL: RACHAS SEMANALES, INSIGNIAS Y WHATSAPP
@@ -6201,7 +6484,7 @@ def calcular_gamificacion_estudiante(student_user: str, nivel_cefr: str = "B1") 
     if racha_semanas >= 4:
         insignias.append(f"🔥 Imparable {racha_semanas} Semanas")
 
-    cat_info = calcular_categoria_automatica_estudiante(student_user, nivel_cefr)
+    cat_info = calcular_categoria_automatica_estudiante(student_user, nivel_cefr) or {}
 
     return {
         "racha_semanas": racha_semanas,
@@ -6209,28 +6492,65 @@ def calcular_gamificacion_estudiante(student_user: str, nivel_cefr: str = "B1") 
         "total_folios": len(folios_u),
         "folios_completos": folios_completos,
         "insignias": insignias,
-        "categoria_label": cat_info["categoria_label"],
-        "categoria_corto": cat_info["categoria_corto"]
+        "categoria_label": str(cat_info.get("categoria_label") or "🥉 Categoría Bronce"),
+        "categoria_corto": str(cat_info.get("categoria_corto") or "Bronce"),
     }
 
 
-def build_whatsapp_motivacion_racha(student_user: str, gam_data: dict, telefono_alumno: str = "") -> str:
-    """Construye el enlace de WhatsApp con mensaje motivacional personalizado de racha e insignias."""
+def build_whatsapp_motivacion_racha(
+    student_user: str,
+    gam_data: dict,
+    telefono_alumno: str = "",
+    rol_emisor: str = "docente",
+    pago_al_corriente: bool = True,
+) -> str:
+    """
+    Construye el enlace oficial de WhatsApp según el rol autorizado:
+      - rol_emisor='docente': Motivación 100% académica (racha semanal, 4 habilidades y meta Oro).
+      - rol_emisor='socio': Motivación hacia Categoría Oro + recordatorio cordial de ir al corriente con sus pagos.
+    """
     racha = int(gam_data.get("racha_semanas") or 0)
     cat_lbl = gam_data.get("categoria_label") or "🥉 Categoría Bronce"
-    if gam_data.get("activo_esta_semana"):
-        msg = (
-            f"¡Hola {student_user}! 🔥 Te saludamos de Career English Institute (CEI) 🎓.\n\n"
-            f"¡Felicidades por mantener tu racha activa de *{racha} semana(s)* consecutiva(s) y tu *{cat_lbl}*! "
-            f"Sigue practicando tus 4 habilidades en la plataforma para alcanzar tu siguiente insignia. ¡Excelente trabajo!"
+    es_socio = str(rol_emisor or "").strip().lower() in ["socio", "partner", "afiliado"]
+
+    if es_socio:
+        nota_pago = (
+            "Asimismo, recuerda mantener tus mensualidades al corriente dentro de la 4ª semana de cada bloque para conservar activo tu acceso completo y tu Boletín Oficial. "
+            if not pago_al_corriente
+            else "¡Gracias por mantener tus pagos al corriente y tu constancia ejemplar! "
         )
+        if gam_data.get("activo_esta_semana"):
+            msg = (
+                f"¡Hola {student_user}! 🔥 Te saluda tu Socio Afiliado de Career English Institute (CEI) 🎓.\n\n"
+                f"¡Felicidades por tu racha activa de *{racha} semana(s)* consecutiva(s) y tu avance hacia la *🥇 Categoría Oro* (actualmente en *{cat_lbl}*)! "
+                f"{nota_pago}¡Sigue adelante!"
+            )
+        else:
+            msg = (
+                f"¡Hola {student_user}! 👋 Te saluda tu Socio Afiliado de Career English Institute (CEI) 🎓.\n\n"
+                f"Esta semana aún no registras lección en tu plataforma. ¡Anímate a avanzar rumbo a la *🥇 Categoría Oro* (actual: *{cat_lbl}*)! "
+                f"{nota_pago}Ingresa hoy y mantén tu racha activa. 🚀"
+            )
     else:
-        msg = (
-            f"¡Hola {student_user}! 👋 Te saludamos de Career English Institute (CEI) 🎓.\n\n"
-            f"Esta semana aún no registras tu lección en la plataforma. ¡No pierdas el ritmo hacia tu *{cat_lbl}*! "
-            f"Ingresa hoy mismo, genera un nuevo Folio y mantén encendido tu progreso en inglés. 🚀"
-        )
-    tel_clean = _format_wa_phone(telefono_alumno) if "_format_wa_phone" in globals() else "".join(ch for ch in str(telefono_alumno or "") if ch.isdigit())
+        # Docente: Exclusivamente seguimiento y motivación académica
+        if gam_data.get("activo_esta_semana"):
+            msg = (
+                f"¡Hola {student_user}! 🔥 Te saluda tu docente de Career English Institute (CEI) 🎓.\n\n"
+                f"¡Felicidades por mantener tu racha académica de *{racha} semana(s)* consecutiva(s) y tu *{cat_lbl}*! "
+                f"Sigue practicando tus 4 habilidades (Reading, Viewing, Speaking y Writing APA 7) para alcanzar la *🥇 Categoría Oro*. ¡Excelente trabajo!"
+            )
+        else:
+            msg = (
+                f"¡Hola {student_user}! 👋 Te saluda tu docente de Career English Institute (CEI) 🎓.\n\n"
+                f"Esta semana aún no registras actividad académica en la plataforma. ¡No pierdas el ritmo hacia tu *{cat_lbl}* y la *🥇 Categoría Oro*! "
+                f"Ingresa hoy mismo, genera tu lección y mantén activo tu progreso en inglés. 🚀"
+            )
+
+    tel_clean = (
+        _format_wa_phone(telefono_alumno)
+        if "_format_wa_phone" in globals()
+        else "".join(ch for ch in str(telefono_alumno or "") if ch.isdigit())
+    )
     if tel_clean:
         return f"https://wa.me{tel_clean}?text={urllib.parse.quote(msg)}"
     return f"https://wa.me?text={urllib.parse.quote(msg)}"
@@ -6238,7 +6558,12 @@ def build_whatsapp_motivacion_racha(student_user: str, gam_data: dict, telefono_
 
 def get_student_inscription_url_pg() -> str:
     """Obtiene desde PostgreSQL el enlace oficial del formulario de inscripción de estudiantes."""
-    fallback_url = str(st.secrets.get("STUDENT_INSCRIPTION_URL", DEFAULT_STUDENT_INSCRIPTION_URL)).strip().rstrip("/")
+    raw_sec = str(
+        st.secrets.get("STUDENT_REG_URL")
+        or st.secrets.get("STUDENT_INSCRIPTION_URL")
+        or DEFAULT_STUDENT_INSCRIPTION_URL
+    ).strip().rstrip("/")
+    fallback_url = raw_sec if "inscripcioncei.streamlit.app" in raw_sec else DEFAULT_STUDENT_INSCRIPTION_URL
     conn = _open_legal_pg_conn()
     if not conn:
         return fallback_url
@@ -6255,8 +6580,10 @@ def get_student_inscription_url_pg() -> str:
                 """)
                 cur.execute("SELECT contenido FROM cei_configuracion_legal WHERE clave = 'url_inscripcion_estudiantes' LIMIT 1;")
                 row = cur.fetchone()
-                if row and str(row[0] or "").strip():
-                    return str(row[0]).strip().rstrip("/")
+                if row and str(row or "").strip():
+                    val_db = str(row).strip().rstrip("/")
+                    if "inscripcioncei.streamlit.app" in val_db:
+                        return val_db
     except Exception:
         pass
     finally:
@@ -6304,6 +6631,7 @@ def save_student_inscription_url_pg(nueva_url: str, autor: str) -> tuple[bool, s
             pass
 
 
+
 def _obtener_id_oficial_afiliado(usuario_o_id: str) -> tuple[str, str]:
     """Busca el affiliate_id oficial (ej. AFIL-CEI-2026-1234) y nombre completo en affiliate_partners."""
     val = str(usuario_o_id or "").strip()
@@ -6324,7 +6652,7 @@ def _obtener_id_oficial_afiliado(usuario_o_id: str) -> tuple[str, str]:
             """, (val, val))
             row = cur.fetchone()
             if row:
-                return str(row[0]).strip(), str(row[1]).strip()
+                return str(row).strip(), str(row).strip()
     except Exception:
         pass
     finally:
@@ -6339,19 +6667,18 @@ def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str =
     """Muestra el QR de Inscripción de Alumnos ligado por defecto al ID oficial del Socio Afiliado."""
     url_ins_secret = str(st.secrets.get("STUDENT_REG_URL", "")).strip().rstrip("/")
     url_ins_db = str(get_student_inscription_url_pg() or "").strip().rstrip("/")
-    if url_ins_secret:
+    if url_ins_secret and "inscripcioncei.streamlit.app" in url_ins_secret:
         url_ins_base = url_ins_secret
-    elif url_ins_db and "streamlit.app" in url_ins_db and url_ins_db != "https://streamlit.app":
+    elif url_ins_db and "inscripcioncei.streamlit.app" in url_ins_db:
         url_ins_base = url_ins_db
     else:
-        url_ins_base = "https://streamlit.app"
+        url_ins_base = "https://" + "inscripcioncei.streamlit.app"
 
     ref_raw = str(afiliado_ref or "").strip()
     aff_id_oficial, aff_nombre_completo = _obtener_id_oficial_afiliado(ref_raw) if ref_raw else ("", "")
 
     sep_q = "&" if "?" in url_ins_base else "?"
     url_qr_final = f"{url_ins_base}{sep_q}ref_aff={urllib.parse.quote(aff_id_oficial)}" if aff_id_oficial else url_ins_base
-
 
     buf_qr = io.BytesIO()
     qrcode.make(url_qr_final).save(buf_qr, format="PNG")
@@ -6434,32 +6761,61 @@ def _render_qr_inscripcion_alumnos_box(afiliado_ref: str = "", key_prefix: str =
                     st.session_state[zoom_state_key] = True
                     st.rerun()
 
+
 def get_cei_qr_link(tipo_qr: str, ref_code: str = "", campus_id: str = "") -> str:
     """
-    Devuelve el enlace oficial exacto para cada uno de los Códigos QR de CEI:
-      1. 'app'        -> https://github.io
-      2. 'apk'        -> https://github.ioCEI_App_Oficial.apk
-      3. 'app_socio'  -> https://github.iosocio_app.html
-      4. 'estudiante' -> https://inscripcioncei.streamlit.app
-      5. 'socio'      -> https://ceisociosafiliados.streamlit.app
+    Devuelve el enlace oficial exacto para cada uno de los Códigos QR y APKs de CEI:
+      1. 'app' / 'apk'         -> https://github.io | CEI_App_Oficial.apk
+      2. 'docente' / 'apk_doc' -> https://github.io | CEI_Docente_Oficial.apk
+      3. 'app_socio' / 'apk_s' -> https://github.io | CEI_Socios_Oficial.apk
+      4. 'estudiante'          -> https://inscripcioncei.streamlit.app
+      5. 'socio'               -> https://ceisociosafiliados.streamlit.app
     """
     t = str(tipo_qr or "").strip().lower()
     gh_pages_root = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
+    gh_rel_root = "https://" + "://github.com"
 
-    if t in ["app_socio", "socio_app", "install_socio"]:
-        raw = str(st.secrets.get("AFFILIATE_APP_INSTALL_URL", "")).strip()
-        base = raw if "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool" in raw else (gh_pages_root + "socio_app.html")
+    if t in ["apk_socio", "socio_apk"]:
+        raw = str(st.secrets.get("SOCIO_APK_DIRECT_URL", "")).strip()
+        base = raw if raw.endswith(".apk") else (gh_rel_root + "CEI_Socios_Oficial.apk")
+    elif t in ["app_socio", "socio_app", "install_socio"]:
+        apk_s = str(st.secrets.get("SOCIO_APK_DIRECT_URL", "")).strip() or (gh_rel_root + "CEI_Socios_Oficial.apk")
+        pub_s = str(st.secrets.get("AFFILIATE_PORTAL_URL", "https://ceiafiliados.streamlit.app")).strip()
+        base = (
+            f"{gh_pages_root}socio_app.html?install=1"
+            f"&app={urllib.parse.quote(pub_s, safe='')}"
+            f"&apk={urllib.parse.quote(apk_s, safe='')}"
+        )
+    elif t in ["apk_docente", "docente_apk"]:
+        raw = str(st.secrets.get("DOCENTE_APK_DIRECT_URL", "")).strip()
+        base = raw if raw.endswith(".apk") else (gh_rel_root + "CEI_Docente_Oficial.apk")
+    elif t in ["app_docente", "docente_app", "install_docente"]:
+        apk_d = str(st.secrets.get("DOCENTE_APK_DIRECT_URL", "")).strip() or (gh_rel_root + "CEI_Docente_Oficial.apk")
+        pub_d = str(st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")).strip()
+        if "?" not in pub_d:
+            pub_d = pub_d.rstrip("/") + "/?portal=docente"
+        base = (
+            f"{gh_pages_root}docente_app.html?install=1"
+            f"&app={urllib.parse.quote(pub_d, safe='')}"
+            f"&apk={urllib.parse.quote(apk_d, safe='')}"
+        )
     elif t in ["apk", "android_apk"]:
-        base = gh_pages_root + "CEI_App_Oficial.apk"
+        raw = str(st.secrets.get("APP_APK_DIRECT_URL", "")).strip()
+        base = raw if raw.endswith(".apk") else (gh_rel_root + "CEI_App_Oficial.apk")
     elif t in ["app", "descarga", "install"]:
-        raw = str(st.secrets.get("APP_INSTALL_QR_URL", "")).strip()
-        base = raw if "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool" in raw else gh_pages_root
+        apk_m = str(st.secrets.get("APP_APK_DIRECT_URL", "")).strip() or (gh_rel_root + "CEI_App_Oficial.apk")
+        pub_m = str(st.secrets.get("PUBLIC_APP_URL", "https://streamlit.app")).strip()
+        base = (
+            f"{gh_pages_root}?install=1"
+            f"&app={urllib.parse.quote(pub_m, safe='')}"
+            f"&apk={urllib.parse.quote(apk_m, safe='')}"
+        )
     elif t in ["socio", "afiliado", "partner"]:
         raw = str(st.secrets.get("AFFILIATE_REG_URL", "")).strip()
-        base = raw if "ceisociosafiliados.streamlit.app" in raw else "https://" + "ceisociosafiliados.streamlit.app"
+        base = raw if "ceisociosafiliados.streamlit.app" in raw else ("https://" + "ceisociosafiliados.streamlit.app")
     else:
         raw = str(st.secrets.get("STUDENT_REG_URL", "")).strip()
-        base = raw if "inscripcioncei.streamlit.app" in raw else "https://" + "inscripcioncei.streamlit.app"
+        base = raw if "inscripcioncei.streamlit.app" in raw else ("https://" + "inscripcioncei.streamlit.app")
 
     extra_params = []
     if ref_code:
@@ -6473,47 +6829,41 @@ def get_cei_qr_link(tipo_qr: str, ref_code: str = "", campus_id: str = "") -> st
     sep = "&" if "?" in base else "?"
     return f"{base}{sep}{'&'.join(extra_params)}"
 
-    extra_params = []
-    if ref_code:
-        extra_params.append(f"ref={urllib.parse.quote(str(ref_code).strip())}")
-    if campus_id:
-        extra_params.append(f"campus={urllib.parse.quote(str(campus_id).strip())}")
 
-    if not extra_params:
-        return base
-
-    sep = "&" if "?" in base else "?"
-    return f"{base}{sep}{'&'.join(extra_params)}"
-
-
-
-
-def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
-    """Muestra y permite proyectar/descargar el Código QR exclusivo para instalar la App Oficial CEI."""
-    raw_pub = str(st.secrets.get("PUBLIC_APP_URL", "")).strip().rstrip("/")
-    base_url = raw_pub if "myceigrammarly.streamlit.app" in raw_pub else ("https://" + "myceigrammarly.streamlit.app")
-
-    base_pages = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
-    raw_qr = str(st.secrets.get("APP_INSTALL_QR_URL", "")).strip()
-    if "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool" in raw_qr and not raw_qr.endswith(".apk"):
-        url_install_app = raw_qr
-    else:
-        url_install_app = f"{base_pages}?install=1&app={urllib.parse.quote(base_url + '/?v=cei', safe='')}"
-
-    url_apk_direct = f"{base_pages}CEI_App_Oficial.apk"
-
-    buf_qa = io.BytesIO()
-    qrcode.make(url_install_app).save(buf_qa, format="PNG")
-    qa_bytes = buf_qa.getvalue()
-    qa_b64 = base64.b64encode(qa_bytes).decode("utf-8")
+def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl", app_tipo_default: str = "app"):
+    """Muestra y permite proyectar/descargar el Código QR y .apk oficial para Estudiantes, Docentes o Socios."""
+    opciones_apps_qr = {
+        "🎓 App Estudiantes / General": ("app", "apk", "CEI_App_Oficial.apk", "QR_Instalar_App_CEI.png", "App Oficial CEI"),
+        "👩‍🏫 App Portal Docentes": ("app_docente", "apk_docente", "CEI_Docente_Oficial.apk", "QR_Instalar_App_Docentes_CEI.png", "App Portal Docentes CEI"),
+        "🤝 App Socios Afiliados": ("app_socio", "apk_socio", "CEI_Socios_Oficial.apk", "QR_Instalar_App_Socios_CEI.png", "App Portal Socios CEI"),
+    }
+    etiquetas_opts = list(opciones_apps_qr.keys())
+    idx_def = 1 if "doc" in str(app_tipo_default).lower() else (2 if "soc" in str(app_tipo_default).lower() else 0)
 
     with st.container(border=True):
+        st.markdown("##### 📲 QR Oficial de Descarga e Instalación de Apps Móviles CEI")
+        app_sel_lbl = st.radio(
+            "Selecciona la aplicación oficial CEI a compartir:",
+            etiquetas_opts,
+            index=idx_def,
+            horizontal=True,
+            key=f"rad_app_sel_{key_prefix}",
+        )
+        clave_page, clave_apk, apk_filename, png_filename, titulo_app_qr = opciones_apps_qr[app_sel_lbl]
+
+        url_install_app = get_cei_qr_link(clave_page)
+        url_apk_direct = get_cei_qr_link(clave_apk)
+
+        buf_qa = io.BytesIO()
+        qrcode.make(url_install_app).save(buf_qa, format="PNG")
+        qa_bytes = buf_qa.getvalue()
+        qa_b64 = base64.b64encode(qa_bytes).decode("utf-8")
+
         c_a1, c_a2 = st.columns([2.4, 1.1])
         with c_a1:
-            st.markdown("##### 📲 QR Oficial de Descarga e Instalación de la App CEI")
             st.caption(
-                "Comparte o proyecta este código QR para que estudiantes, docentes y socios afiliados instalen la App CEI "
-                "(Android .apk o iPhone/Mac/PC) con su escudo oficial preconfigurado."
+                f"Comparte o proyecta este código QR para instalar **{titulo_app_qr}** "
+                "(Android `.apk` de 3.45 MB o iPhone/Mac/PC) con su escudo institucional preconfigurado."
             )
             st.code(url_install_app, language="text")
             c_btn_q1, c_btn_q2, c_btn_q3 = st.columns(3)
@@ -6526,7 +6876,7 @@ def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
                 )
             with c_btn_q2:
                 st.link_button(
-                    "📥 CEI_App_Oficial.apk",
+                    f"📥 {apk_filename}",
                     url=url_apk_direct,
                     type="secondary",
                     width="stretch"
@@ -6535,16 +6885,16 @@ def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
                 st.download_button(
                     "⬇️ QR (PNG)",
                     data=qa_bytes,
-                    file_name="QR_Instalar_App_CEI.png",
+                    file_name=png_filename,
                     mime="image/png",
                     width="stretch",
-                    key=f"dl_{key_prefix}"
+                    key=f"dl_{key_prefix}_{clave_page}"
                 )
         with c_a2:
             components.html(
                 f"""
                 <div style="text-align:center; font-family:-apple-system, BlinkMacSystemFont, sans-serif;">
-                    <img id="img_{key_prefix}" src="data:image/png;base64,{qa_b64}"
+                    <img id="img_{key_prefix}_{clave_page}" src="data:image/png;base64,{qa_b64}"
                          title="Doble clic para proyectar en pantalla grande"
                          ondblclick="expandirQRBoxCEI_{key_prefix}()"
                          style="width:130px;height:130px;border-radius:10px;border:2px solid #0b2545;padding:4px;background:white;cursor:zoom-in;" />
@@ -6565,7 +6915,7 @@ def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
                     m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.95);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
                     m.innerHTML = `
                         <img src="data:image/png;base64,{qa_b64}" style="width:340px;height:340px;border-radius:16px;background:white;padding:14px;box-shadow:0 12px 36px rgba(0,0,0,0.45);" />
-                        <p style="color:white;font-size:19px;margin-top:14px;font-weight:700;">📲 Escanea para Instalar la App Oficial CEI</p>
+                        <p style="color:white;font-size:19px;margin-top:14px;font-weight:700;">📲 Escanea para Instalar {titulo_app_qr}</p>
                         <button style="margin-top:10px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">✖️ Cerrar Proyección</button>
                     `;
                     m.onclick = () => m.remove();
@@ -6576,8 +6926,9 @@ def _render_qr_descarga_app_box(key_prefix: str = "qr_app_dl"):
                 height=175
             )
 
+
 def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, rol_usuario: str, is_owner: bool = False):
-    """Renderiza el visor del usuario activo y un QR de descarga ocultable y expansible (doble clic o botón)."""
+    """Renderiza el visor del usuario activo y el selector de QR de descarga para las 3 Apps Oficiales CEI."""
     puede_ver_qr_hdr = is_owner or can("Mostrar_QR_App_Header")
     nom_mostrar = str(nombre_completo or usuario_login or "Usuario").strip()
     rol_mostrar = "Propietario / Owner" if is_owner else str(rol_usuario or "Usuario").strip()
@@ -6601,25 +6952,29 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
             with c_tog:
                 st.write("")
                 mostrar_qr_ahora = st.toggle(
-                    "📲 QR App",
+                    "📲 QR Apps",
                     value=False,
                     key="tgl_header_qr_app_visible",
-                    help="Muestra u oculta el código QR para instalar la App Oficial CEI"
+                    help="Muestra u oculta los códigos QR oficiales para instalar las Apps CEI"
                 )
 
         if puede_ver_qr_hdr and mostrar_qr_ahora:
             st.divider()
-            raw_pub = str(st.secrets.get("PUBLIC_APP_URL", "")).strip().rstrip("/")
-            base_url = raw_pub if "myceigrammarly.streamlit.app" in raw_pub else ("https://" + "myceigrammarly.streamlit.app")
+            opciones_hdr_apps = {
+                "🎓 App Estudiantes / General": ("app", "apk", "CEI_App_Oficial.apk", "QR_Instalar_App_CEI.png", "la App Oficial CEI"),
+                "👩‍🏫 App Portal Docentes": ("app_docente", "apk_docente", "CEI_Docente_Oficial.apk", "QR_Instalar_App_Docentes_CEI.png", "la App Portal Docentes CEI"),
+                "🤝 App Socios Afiliados": ("app_socio", "apk_socio", "CEI_Socios_Oficial.apk", "QR_Instalar_App_Socios_CEI.png", "la App Portal Socios CEI"),
+            }
+            app_hdr_sel = st.radio(
+                "Selecciona la App Oficial CEI a compartir:",
+                list(opciones_hdr_apps.keys()),
+                horizontal=True,
+                key="rad_hdr_identidad_app_sel",
+            )
+            clave_pg, clave_apk, apk_fname, png_fname, titulo_modal = opciones_hdr_apps[app_hdr_sel]
 
-            base_pages = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
-            raw_qr = str(st.secrets.get("APP_INSTALL_QR_URL", "")).strip()
-            if "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool" in raw_qr and not raw_qr.endswith(".apk"):
-                url_install_app = raw_qr
-            else:
-                url_install_app = f"{base_pages}?install=1&app={urllib.parse.quote(base_url + '/?v=cei', safe='')}"
-
-            url_apk_direct = f"{base_pages}CEI_App_Oficial.apk"
+            url_install_app = get_cei_qr_link(clave_pg)
+            url_apk_direct = get_cei_qr_link(clave_apk)
 
             buf_qh = io.BytesIO()
             qrcode.make(url_install_app).save(buf_qh, format="PNG")
@@ -6628,8 +6983,8 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
 
             c_q1, c_q2 = st.columns([2.4, 1.2])
             with c_q1:
-                st.markdown("##### 📲 QR Oficial de Descarga e Instalación de la App CEI")
-                st.caption("Escanea para instalar en Android (.apk), iPhone o Mac. Haz doble clic en el QR o pulsa Expandir para proyectar.")
+                st.markdown(f"##### 📲 QR Oficial de Descarga: {app_hdr_sel}")
+                st.caption("Escanea para instalar en Android (.apk de 3.45 MB), iPhone o Mac. Haz doble clic en el QR o pulsa Expandir para proyectar.")
                 st.code(url_install_app, language="text")
                 c_b1, c_b2, c_b3 = st.columns(3)
                 with c_b1:
@@ -6641,7 +6996,7 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
                     )
                 with c_b2:
                     st.link_button(
-                        "📥 CEI_App_Oficial.apk",
+                        f"📥 {apk_fname}",
                         url=url_apk_direct,
                         type="secondary",
                         width="stretch"
@@ -6650,10 +7005,10 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
                     st.download_button(
                         "⬇️ QR (PNG)",
                         data=qa_bytes,
-                        file_name="QR_Instalar_App_CEI.png",
+                        file_name=png_fname,
                         mime="image/png",
                         width="stretch",
-                        key="btn_dl_hdr_qr_app"
+                        key=f"btn_dl_hdr_qr_{clave_pg}"
                     )
             with c_q2:
                 components.html(
@@ -6680,7 +7035,7 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
                         m.style.cssText = 'position:fixed;inset:0;background:rgba(11,37,69,0.96);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
                         m.innerHTML = `
                             <img src="data:image/png;base64,{qh_b64}" style="width:350px;height:350px;border-radius:18px;background:white;padding:16px;box-shadow:0 12px 36px rgba(0,0,0,0.45);" />
-                            <p style="color:white;font-size:20px;margin-top:16px;font-weight:700;">📲 Escanea para Instalar la App Oficial CEI</p>
+                            <p style="color:white;font-size:20px;margin-top:16px;font-weight:700;">📲 Escanea para Instalar {titulo_modal}</p>
                             <button style="margin-top:10px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;">✖️ Cerrar Proyección</button>
                         `;
                         m.onclick = () => m.remove();
@@ -6690,7 +7045,6 @@ def render_header_identidad_y_qr_app(usuario_login: str, nombre_completo: str, r
                     """,
                     height=168
                 )
-
 
 
 
@@ -6704,6 +7058,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
         or can("Editar_Terminos_Afiliacion")
         or can("Gestionar_Comisiones_Afiliados")
         or can("Gestionar_Compliance_Legal")
+        or can("Gestionar_Control_Escolar_RVOE")
     )
     lbl_volver_edu = (
         "🔙 CERRAR Y VOLVER A LA LECCIÓN"
@@ -6712,7 +7067,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
     )
 
     if tiene_acceso_admin_portal or es_socio_afiliado:
-        if es_socio_afiliado:
+        if es_socio_afiliado and not tiene_acceso_admin_portal:
             opciones_p_adm = [
                 "🤝 Portal Socio Afiliado",
                 "📘 Guía, Plan y Categoría"
@@ -6721,6 +7076,7 @@ if st.session_state.get("active_stage_5") == "PORTAL":
             opciones_p_adm = [
                 "💳 Cobranza Mensual e IVA",
                 "📊 Estados Financieros",
+                "🏛️ Control Escolar RVOE (SEC Sonora / SEP)",
                 "🧑‍🏫 Plantilla y Portal Docente",
                 "🤝 Alta de Socios Afiliados",
                 "🤝 Portal Socio Afiliado",
@@ -6741,7 +7097,11 @@ if st.session_state.get("active_stage_5") == "PORTAL":
                 "🔄 Autoactualización de Librerías"
             ])
 
-        idx_def_adm = 3 if (not is_owner and not es_socio_afiliado and can("Editar_Terminos_Afiliacion")) else 0
+        idx_def_adm = (
+            opciones_p_adm.index("🤝 Alta de Socios Afiliados")
+            if (not is_owner and not es_socio_afiliado and can("Editar_Terminos_Afiliacion") and "🤝 Alta de Socios Afiliados" in opciones_p_adm)
+            else 0
+        )
         col_mod_sel, col_mod_back = st.columns([2.5, 1.3])
         with col_mod_sel:
             sel_adm = st.selectbox(
@@ -6767,6 +7127,15 @@ if st.session_state.get("active_stage_5") == "PORTAL":
             render_guia_plan_categoria_view(
                 usuario_actual=str(st.session_state.get("current_user") or usuario),
                 nivel_cefr_actual=str(st.session_state.get("selected_cefr") or "B1")
+            )
+            st.stop()
+
+        if st.session_state.get("active_admin_workspace") == "🏛️ Control Escolar RVOE (SEC Sonora / SEP)":
+            from control_escolar_rvoe import render_control_escolar_rvoe_cei
+            render_control_escolar_rvoe_cei(
+                usuario_actual=str(st.session_state.get("current_user") or usuario),
+                is_owner=is_owner,
+                institute_address=str(st.session_state.get("institute_address") or "Agua Prieta, Sonora, México"),
             )
             st.stop()
     else:
@@ -6800,32 +7169,40 @@ if st.session_state.get("active_stage_5") == "PORTAL":
             )
             st.stop()
 
-
 # TARJETA DE GAMIFICACIÓN: RACHA SEMANAL E INSIGNIAS DEL ESTUDIANTE
 if st.session_state.get("active_stage_5", "READING") == "READING" and not st.session_state.get("active_admin_workspace"):
+    u_gam_target = str(st.session_state.get("current_user") or usuario).strip()
     gam_curr = calcular_gamificacion_estudiante(
-        student_user=str(st.session_state.get("current_user") or usuario),
+        student_user=u_gam_target,
         nivel_cefr=str(st.session_state.get("selected_cefr") or "B1")
-    )
+    ) or {}
     with st.container(border=True):
         g1, g2, g3, g4 = st.columns([1.2, 1.3, 2.2, 1.3])
         with g1:
-            estado_fuego = "🔥 Activa esta semana" if gam_curr["activo_esta_semana"] else "⏳ Pendiente esta semana"
-            st.metric("🔥 Racha Semanal", f"{gam_curr['racha_semanas']} sem.", estado_fuego)
+            estado_fuego = "🔥 Activa esta semana" if gam_curr.get("activo_esta_semana") else "⏳ Pendiente esta semana"
+            st.metric("🔥 Racha Semanal", f"{int(gam_curr.get('racha_semanas') or 0)} sem.", estado_fuego)
         with g2:
-            st.metric("🏅 Categoría Actual", gam_curr["categoria_corto"], f"{gam_curr['total_folios']} Folios")
+            st.metric("🏅 Categoría Actual", str(gam_curr.get("categoria_corto") or "Bronce"), f"{int(gam_curr.get('total_folios') or 0)} Folios")
         with g3:
             st.markdown("**🎖️ Insignias Desbloqueadas:**")
-            if gam_curr["insignias"]:
-                st.caption("  •  ".join(gam_curr["insignias"]))
+            ins_list = gam_curr.get("insignias") or []
+            if ins_list:
+                st.caption("  •  ".join(ins_list))
             else:
                 st.caption("Completa tu primer Folio (Reading, Video, Speaking y Writing) para desbloquear tu primera medalla.")
         with g4:
             st.write("")
-            if has_faculty_access or is_owner:
+            # El botón de motivación es exclusivo de Docentes (académico) y Socios Afiliados (Oro + pagos), nunca Admin/Staff ni auto-motivación
+            puede_motivar_aqui = (
+                (es_docente_rol or can("Motivar_Estudiantes_WhatsApp") or es_socio_afiliado)
+                and not es_admin_o_staff
+                and str(u_login_hdr).strip().lower() != u_gam_target.lower()
+            )
+            if puede_motivar_aqui:
                 wa_mot_url = build_whatsapp_motivacion_racha(
-                    student_user=str(st.session_state.get("current_user") or usuario),
-                    gam_data=gam_curr
+                    student_user=u_gam_target,
+                    gam_data=gam_curr,
+                    rol_emisor="socio" if es_socio_afiliado else "docente",
                 )
                 st.link_button("📲 Motivar por WhatsApp", url=wa_mot_url, width="stretch")
             else:
@@ -6936,6 +7313,7 @@ if mostrar_barra_folios:
 
 
 
+
 # ==============================================================================
 # PARTE 13A2: RECUPERACIÓN DE FOLIOS DESDE SUPABASE (POR URL O BÚSQUEDA)
 # ==============================================================================
@@ -6961,9 +7339,10 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_target_load:
             if not row_f:
                 st.warning(f"⚠️ No se encontró ningún registro con el Folio `{folio_buscado}` en Supabase.")
             else:
-                st.session_state.generated_text = str(row_f.get("Text", ""))
-                st.session_state.selected_cefr = normalize_cefr(row_f.get("CEFR", "B1"))
-                st.session_state.selected_academic_grade = str(row_f.get("Grade", "Licenciatura / Universidad"))
+                st.session_state.generated_text = str(row_f.get("Text") or "")
+                st.session_state.current_topic = str(row_f.get("Tema") or row_f.get("Topic") or "Lección CEI").strip()
+                st.session_state.selected_cefr = normalize_cefr(row_f.get("CEFR") or "B1")
+                st.session_state.selected_academic_grade = str(row_f.get("Grade") or "Licenciatura / Universidad")
                 st.session_state.current_folio = folio_buscado
                 st.session_state.current_pdf_link = str(row_f.get("PDF_Link") or "")
                 st.session_state.current_creation_date = str(row_f.get("Created_At") or "")
@@ -6982,22 +7361,36 @@ if (buscar_folio_btn or auto_fetch_url_folio) and folio_target_load:
                 st.session_state["show_lesson_creator"] = False
 
                 v_url_f = str(row_f.get("Video_URL") or "").strip()
+                try:
+                    dur_sec_f = int(float(row_f.get("Video_Duration_Sec") or 240))
+                except Exception:
+                    dur_sec_f = 240
                 if v_url_f:
                     st.session_state["current_lesson_video"] = {
                         "url": v_url_f,
                         "title": str(row_f.get("Video_Title") or "Educational Video"),
                         "channel": str(row_f.get("Video_Channel") or "YouTube"),
-                        "duration_sec": int(row_f.get("Video_Duration_Sec") or 240),
-                        "duration_min": round(int(row_f.get("Video_Duration_Sec") or 240) / 60.0, 2)
+                        "duration_sec": dur_sec_f,
+                        "duration_min": round(dur_sec_f / 60.0, 2)
                     }
                 else:
                     st.session_state["current_lesson_video"] = None
 
-                st.session_state["video_watched_sec"] = int(row_f.get("Video_Watched_Sec") or 0)
-                st.session_state["video_score_100"] = float(row_f.get("Video_Score") or 0.0)
+                try:
+                    st.session_state["video_watched_sec"] = int(float(row_f.get("Video_Watched_Sec") or 0))
+                except Exception:
+                    st.session_state["video_watched_sec"] = 0
+                try:
+                    st.session_state["video_score_100"] = float(row_f.get("Video_Score") or 0.0)
+                except Exception:
+                    st.session_state["video_score_100"] = 0.0
+
                 st.session_state["video_summary_draft"] = str(row_f.get("Summary_Text") or "")
                 st.session_state["video_apa7_draft"] = str(row_f.get("APA7_Reference") or "")
-                st.session_state["summary_score_100"] = float(row_f.get("Summary_Score") or 0.0)
+                try:
+                    st.session_state["summary_score_100"] = float(row_f.get("Summary_Score") or 0.0)
+                except Exception:
+                    st.session_state["summary_score_100"] = 0.0
                 st.session_state["summary_eval_result"] = row_f.get("Summary_Eval")
 
                 qz_obj = row_f.get("Quiz")
@@ -7045,10 +7438,10 @@ if st.session_state.get("active_student_workspace"):
     with st.container(border=True):
         if vista_est_sel == "💳 Mis Pagos (9 Bloques)":
             st.subheader("💳 Mis Pagos Mensuales (9 Bloques de 4 Semanas) y Comprobantes")
-            est_sp = evaluar_estado_financiero_alumno(alumno_actual_ws)
+            est_sp = evaluar_estado_financiero_alumno(alumno_actual_ws) or {}
             mat_oficial_sp = str(est_sp.get("matricula") or "").strip()
             if not mat_oficial_sp:
-                for _rp in load_padron_records():
+                for _rp in (load_padron_records() or []):
                     if str(_rp.get("Usuario") or "").strip().lower() == alumno_actual_ws.lower():
                         mat_oficial_sp = str(_rp.get("Matricula") or "").strip()
                         break
@@ -7061,17 +7454,39 @@ if st.session_state.get("active_student_workspace"):
             )
 
             sp1, sp2, sp3, sp4 = st.columns(4)
-            sp1.metric("📝 Inscripción / Inicio", f"{est_sp['fecha_inicio']}", delta=f"Inscrito: {est_sp['fecha_inscripcion']}")
-            sp2.metric("📅 Bloque Nivel", f"Bloque {est_sp['bloque_en_nivel']}/9", delta=f"Semana {est_sp['semana_ciclo']}/4")
-            sp3.metric("🟡 4ta Sem. Pago", f"{est_sp['sem4_pago_inicio']}", delta=f"Hasta {est_sp['sem4_pago_fin']}")
+            sp1.metric(
+                "📝 Inscripción / Inicio",
+                str(est_sp.get("fecha_inicio") or "Vigente"),
+                delta=f"Inscrito: {est_sp.get('fecha_inscripcion') or 'Activo'}"
+            )
+            sp2.metric(
+                "📅 Bloque Nivel",
+                f"Bloque {est_sp.get('bloque_en_nivel', 1)}/9",
+                delta=f"Semana {est_sp.get('semana_ciclo', 1)}/4"
+            )
+            sp3.metric(
+                "🟡 4ta Sem. Pago",
+                str(est_sp.get("sem4_pago_inicio") or "—"),
+                delta=f"Hasta {est_sp.get('sem4_pago_fin') or '—'}"
+            )
+            desc_ok = bool(est_sp.get("descarga_permitida", True))
             sp4.metric(
                 "📄 Boletín Calificaciones",
-                "✅ Activo" if est_sp["descarga_permitida"] else "🔒 Pausado (Sem. 5+)",
-                delta=f"Recargo desde {est_sp['fecha_recargo']}"
+                "✅ Activo" if desc_ok else "🔒 Pausado (Sem. 5+)",
+                delta=f"Recargo desde {est_sp.get('fecha_recargo') or '—'}"
             )
 
+            if not desc_ok:
+                st.warning(
+                    "⏳ **Descarga de Boletín Pausada (Semana 5+):** Reporta tu comprobante de mensualidad con el botón **📤 Informar pago** "
+                    "para reactivar al instante la descarga de tu Boletín Oficial."
+                )
+
             if est_sp.get("en_vacaciones"):
-                st.warning(f"🏖️ **Período Vacacional Activo ({est_sp['nombre_vacaciones']}):** Las clases presenciales están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal.")
+                st.warning(
+                    f"🏖️ **Período Vacacional Activo ({est_sp.get('nombre_vacaciones') or 'Receso'}):** "
+                    "Las clases en vivo están en receso, pero tu plataforma IA sigue activa 24/7 y tu calendario de pago continúa normal."
+                )
 
             form_cerrado = bool(st.session_state.get("hide_payment_report_form", True))
             lbl_btn_reversible = "📤 Informar pago" if form_cerrado else "✖️ Cerrar informe de pago"
@@ -7088,6 +7503,7 @@ if st.session_state.get("active_student_workspace"):
 
             if st.session_state.get("payment_report_sent_msg"):
                 st.success(st.session_state["payment_report_sent_msg"])
+
 # ==============================================================================
 # PARTE 14E — SECCIÓN 1B: MÁQUINA DE ESTADOS DE INFORME DE PAGO Y WHATSAPP
 # ==============================================================================
@@ -7095,14 +7511,14 @@ if st.session_state.get("active_student_workspace"):
                 with st.container(border=True):
                     st.markdown("#### 📤 Informar Pago y Subir Comprobante Bancario")
                     bloques_pendientes = [
-                        b for b in est_sp.get("bloques_9", [])
+                        b for b in (est_sp.get("bloques_9") or [])
                         if "Pagado" not in str(b.get("estatus", ""))
                     ]
                     if not bloques_pendientes:
                         st.success("✅ ¡Felicidades! Todos los bloques de tu nivel están pagados. Tu Boletín de Calificaciones está **ACTIVO**.")
                     else:
                         opciones_bloques_pay = {
-                            f"Bloque {b['bloque_num']}/9 (Ciclo #{b['ciclo_global']}) — {b['estatus']} | Ventana 4ta Sem: {b['sem4_inicio']} al {b['sem4_fin']}": b
+                            f"Bloque {b.get('bloque_num', 1)}/9 (Ciclo #{b.get('ciclo_global', 1)}) — {b.get('estatus', '')} | Ventana 4ta Sem: {b.get('sem4_inicio', '')} al {b.get('sem4_fin', '')}": b
                             for b in bloques_pendientes
                         }
                         sel_bloque_lbl = st.selectbox(
@@ -7111,11 +7527,20 @@ if st.session_state.get("active_student_workspace"):
                             key="ws_est_sel_bloque_pago"
                         )
                         b_elegido = opciones_bloques_pay[sel_bloque_lbl]
-                        ciclo_elegido_num = int(b_elegido["ciclo_global"])
+                        ciclo_elegido_num = int(b_elegido.get("ciclo_global") or 1)
 
                         hoy_loc_ui = datetime.now(ZoneInfo("America/Hermosillo")).date()
-                        base_ui = float(est_sp["mensualidad_base"])
-                        es_venc_ui = hoy_loc_ui >= b_elegido["fecha_recargo"]
+                        base_ui = float(est_sp.get("mensualidad_base") or 0.0)
+                        f_rec_raw = b_elegido.get("fecha_recargo")
+                        if isinstance(f_rec_raw, str):
+                            try:
+                                f_rec_date = datetime.strptime(f_rec_raw[:10], "%Y-%m-%d").date()
+                            except Exception:
+                                f_rec_date = hoy_loc_ui + timedelta(days=7)
+                        else:
+                            f_rec_date = f_rec_raw or (hoy_loc_ui + timedelta(days=7))
+
+                        es_venc_ui = hoy_loc_ui >= f_rec_date
                         if es_venc_ui:
                             sub_ui = round(base_ui * 1.05, 2)
                         elif est_sp.get("reglas_incentivo_activas"):
@@ -7128,9 +7553,9 @@ if st.session_state.get("active_student_workspace"):
                         with col_up1:
                             st.markdown(
                                 f"- **Matrícula Oficial:** `{mat_oficial_sp}`\n"
-                                f"- **Bloque seleccionado:** **Bloque {b_elegido['bloque_num']}/9** (Ciclo `#{ciclo_elegido_num}`)\n"
-                                f"- **Ventana 4ta semana (sin recargo):** `{b_elegido['sem4_inicio']}` al `{b_elegido['sem4_fin']}`\n"
-                                f"- **Activación de recargo (Semana 5):** `{b_elegido['fecha_recargo']}`\n"
+                                f"- **Bloque seleccionado:** **Bloque {b_elegido.get('bloque_num', 1)}/9** (Ciclo `#{ciclo_elegido_num}`)\n"
+                                f"- **Ventana 4ta semana (sin recargo):** `{b_elegido.get('sem4_inicio', '')}` al `{b_elegido.get('sem4_fin', '')}`\n"
+                                f"- **Activación de recargo (Semana 5):** `{f_rec_date}`\n"
                                 f"- **Monto total transferido:** **`${monto_ui:,.2f} MXN`**"
                             )
                             metodo_p_est = st.selectbox(
@@ -7148,10 +7573,9 @@ if st.session_state.get("active_student_workspace"):
                             )
 
                             paso_actual = st.session_state.get("pay_report_step", "form")
-
                             if paso_actual == "form":
                                 if st.button(
-                                    f"📤 Informar pago y subir comprobante (Bloque {b_elegido['bloque_num']}/9)",
+                                    f"📤 Informar pago y subir comprobante (Bloque {b_elegido.get('bloque_num', 1)}/9)",
                                     type="primary",
                                     width="stretch",
                                     key="ws_est_btn_comp"
@@ -7176,31 +7600,31 @@ if st.session_state.get("active_student_workspace"):
                                             comprobante_b64=b64_comp,
                                             comprobante_mime=mime_comp,
                                             ciclo_seleccionado=ciclo_elegido_num
-                                        )
-                                        if res_rep["ok"]:
+                                        ) or {}
+                                        if res_rep.get("ok"):
                                             _, wa_owner_url = build_whatsapp_aviso_pago_owner(
                                                 nombre_alumno=f"{alumno_actual_ws} (Matrícula: {mat_oficial_sp})",
                                                 usuario_alumno=alumno_actual_ws,
                                                 nivel_cefr=res_rep.get("nivel_cefr", est_sp.get("nivel_cefr", "")),
-                                                folio_pago=res_rep["folio_pago"],
-                                                ciclo_num=res_rep["ciclo_num"],
-                                                monto_pagado=res_rep["monto"],
+                                                folio_pago=res_rep.get("folio_pago", ""),
+                                                ciclo_num=res_rep.get("ciclo_num", ciclo_elegido_num),
+                                                monto_pagado=res_rep.get("monto", monto_ui),
                                                 referencia=ref_p_est
                                             )
-                                            st.session_state["last_wa_owner_url"] = wa_owner_url
-                                            st.session_state["last_folio_reportado"] = res_rep["folio_pago"]
-                                            st.session_state["last_bloque_reportado"] = b_elegido["bloque_num"]
-                                            st.session_state["last_audit_msg"] = res_rep["msg"]
+                                            st.session_state["last_wa_owner_url"] = wa_owner_url or "https://wa.me"
+                                            st.session_state["last_folio_reportado"] = res_rep.get("folio_pago", "")
+                                            st.session_state["last_bloque_reportado"] = b_elegido.get("bloque_num", 1)
+                                            st.session_state["last_audit_msg"] = res_rep.get("msg", "✅ Comprobante guardado.")
                                             st.session_state["pay_report_step"] = "wa_pending"
                                             st.rerun()
                                         else:
-                                            st.error(res_rep["msg"])
+                                            st.error(res_rep.get("msg") or "No se pudo registrar el comprobante.")
 
                             elif paso_actual == "wa_pending":
                                 st.success(st.session_state.get("last_audit_msg", "✅ Comprobante guardado en base de datos."))
                                 st.link_button(
                                     f"📲 Enviar aviso por WhatsApp al Owner / Admin (Folio {st.session_state.get('last_folio_reportado', '')})",
-                                    url=st.session_state.get("last_wa_owner_url", "https://wa.me"),
+                                    url=st.session_state.get("last_wa_owner_url") or "https://wa.me",
                                     type="primary",
                                     width="stretch"
                                 )
@@ -7237,7 +7661,6 @@ if st.session_state.get("active_student_workspace"):
                                     st.session_state["pay_report_step"] = "form"
                                     st.session_state["last_wa_owner_url"] = ""
                                     st.rerun()
-
 # ==============================================================================
 # PARTE 14E — SECCIÓN 2 DE 3: TABLA 9 BLOQUES Y MIS CALIFICACIONES Y BOLETÍN
 # ==============================================================================
@@ -7245,78 +7668,86 @@ if st.session_state.get("active_student_workspace"):
                 st.markdown("#### 🗓️ Calendario Completo del Nivel (9 Bloques de 4 Semanas = 36 Semanas)")
                 df_sp9 = pd.DataFrame([
                     {
-                        "Bloque": f"Bloque {b['bloque_num']}/9",
-                        "Inicio Bloque": str(b["inicio_bloque"]),
-                        "Fin Bloque": str(b["fin_bloque"]),
-                        "4ta Semana (Pago Sin Recargo)": f"{b['sem4_inicio']} al {b['sem4_fin']}",
-                        "Recargo / Sig. Bloque": str(b["fecha_recargo"]),
-                        "Actividad / Vacaciones (IA 24/7)": b["vacaciones"],
-                        "Estatus": b["estatus"]
+                        "Bloque": f"Bloque {b.get('bloque_num', 1)}/9",
+                        "Inicio Bloque": str(b.get("inicio_bloque") or ""),
+                        "Fin Bloque": str(b.get("fin_bloque") or ""),
+                        "4ta Semana (Pago Sin Recargo)": f"{b.get('sem4_inicio', '')} al {b.get('sem4_fin', '')}",
+                        "Recargo / Sig. Bloque": str(b.get("fecha_recargo") or ""),
+                        "Actividad / Vacaciones (IA 24/7)": str(b.get("vacaciones") or "Activo 24/7"),
+                        "Estatus": str(b.get("estatus") or "Pendiente")
                     }
-                    for b in est_sp["bloques_9"]
+                    for b in (est_sp.get("bloques_9") or [])
                 ])
                 st.dataframe(df_sp9, width="stretch", hide_index=True)
 
         elif vista_est_sel == "📊 Mis Calificaciones y Boletín":
             st.subheader(f"📊 Mis Calificaciones y Boletín Oficial — {alumno_actual_ws}")
-            gb_data = fetch_student_gradebook_pg(alumno_actual_ws)
-            info_cat_bol = calcular_categoria_automatica_estudiante(alumno_actual_ws, gb_data.get("nivel_cefr", "B1"))
-            gb_data["categoria_estudiantil"] = info_cat_bol["categoria_label"]
-            gb_data["categoria_corto"] = info_cat_bol["categoria_corto"]
+            gb_data = fetch_student_gradebook_pg(alumno_actual_ws) or {}
+            niv_gb = str(gb_data.get("nivel_cefr") or "B1")
+            info_cat_bol = calcular_categoria_automatica_estudiante(alumno_actual_ws, niv_gb) or {}
+            cat_lbl_bol = str(info_cat_bol.get("categoria_label") or "🥉 Categoría Bronce")
+            cat_corto_bol = str(info_cat_bol.get("categoria_corto") or "Bronce")
+            gb_data["categoria_estudiantil"] = cat_lbl_bol
+            gb_data["categoria_corto"] = cat_corto_bol
 
             st.success(
-                f"🏅 **Categoría Estudiantil Oficial:** **{info_cat_bol['categoria_label']}**  |  "
-                f"📚 **Lecciones Completadas:** `{info_cat_bol['total_lecciones']}` "
-                f"(Promedio `{info_cat_bol['promedio_por_criterio']}` lecciones por criterio gramatical en nivel **{info_cat_bol['nivel']}**)"
+                f"🏅 **Categoría Estudiantil Oficial:** **{cat_lbl_bol}**  |  "
+                f"📚 **Lecciones Completadas:** `{int(info_cat_bol.get('total_lecciones') or 0)}` "
+                f"(Promedio `{info_cat_bol.get('promedio_por_criterio', 0.0)}` lecciones por criterio gramatical en nivel **{info_cat_bol.get('nivel', niv_gb)}**)"
             )
 
-            lista_topicos_disp = ["Vista General"] + [t["Grammar Topic"] for t in gb_data["topic_summary"]]
+            topic_summary_list = gb_data.get("topic_summary") or []
+            lista_topicos_disp = ["Vista General"] + [t.get("Grammar Topic", "General") for t in topic_summary_list if t.get("Grammar Topic")]
             col_f_top, col_f_pdf = st.columns([2.1, 1.4])
             with col_f_top:
                 topico_sel_ws = st.selectbox(
-                    f"🎯 Filtrar por Grammar Topic (Nivel CEFR {gb_data['nivel_cefr']}):",
+                    f"🎯 Filtrar por Grammar Topic (Nivel CEFR {niv_gb}):",
                     lista_topicos_disp,
                     key="ws_est_filtro_topico"
                 )
             with col_f_pdf:
                 st.write("")
-                fin_al = evaluar_estado_financiero_alumno(alumno_actual_ws)
-                d_ret = int(fin_al.get("dias_retraso", 0))
-                if fin_al["descarga_permitida"]:
+                fin_al = evaluar_estado_financiero_alumno(alumno_actual_ws) or {}
+                d_ret = int(fin_al.get("dias_retraso") or 0)
+                if fin_al.get("descarga_permitida", True):
                     pdf_bol_bytes, timbre_bol = create_official_gradebook_pdf(alumno_actual_ws, gb_data, topico_sel_ws)
+                    folio_bol_str = str((timbre_bol or {}).get("folio_boletin") or "BOL-CEI")
+                    mat_gb_str = str(gb_data.get("matricula") or "MAT-CEI")
                     st.download_button(
-                        label=f"📥 Descargar Boletín Timbrado ({timbre_bol['folio_boletin']})",
+                        label=f"📥 Descargar Boletín Timbrado ({folio_bol_str})",
                         data=pdf_bol_bytes,
-                        file_name=f"{timbre_bol['folio_boletin']}_{gb_data['matricula']}_{alumno_actual_ws.replace(' ', '_')}.pdf",
+                        file_name=f"{folio_bol_str}_{mat_gb_str}_{alumno_actual_ws.replace(' ', '_')}.pdf",
                         mime="application/pdf",
                         type="primary",
                         width="stretch",
                         key="ws_est_dl_bol"
                     )
-                    st.caption(f"🛡️ Timbrado: `{timbre_bol['folio_boletin']}` | {fin_al['mensaje_estado']}")
+                    st.caption(f"🛡️ Timbrado: `{folio_bol_str}` | {fin_al.get('mensaje_estado', 'Al corriente')}")
                 else:
-                    st.error(f"🔒 Descarga pausada por atraso de {d_ret} días en Bloque {fin_al['ciclo_a_cobrar']}.")
+                    st.error(f"🔒 Descarga pausada por atraso de {d_ret} días en Bloque {fin_al.get('ciclo_a_cobrar', 1)}.")
                     if st.button("💳 Ir a Subir Comprobante", type="primary", width="stretch", key="ws_est_go_pay"):
                         st.session_state["active_student_workspace"] = "💳 Mis Pagos (9 Bloques)"
                         st.rerun()
 
+            all_recs_gb = gb_data.get("records") or []
             if topico_sel_ws == "Vista General":
-                prom_v, recs_f, temas_f = gb_data["overall_avg"], gb_data["records"], gb_data["topic_summary"]
+                prom_v, recs_f, temas_f = gb_data.get("overall_avg", 0.0), all_recs_gb, topic_summary_list
             else:
-                t_inf = next((t for t in gb_data["topic_summary"] if t["Grammar Topic"] == topico_sel_ws), {})
+                t_inf = next((t for t in topic_summary_list if t.get("Grammar Topic") == topico_sel_ws), {})
                 prom_v = t_inf.get("Dominio (%)", 0.0)
-                recs_f = [r for r in gb_data["records"] if r["Grammar_Topic"] == topico_sel_ws]
+                recs_f = [r for r in all_recs_gb if r.get("Grammar_Topic") == topico_sel_ws]
                 temas_f = [t_inf] if t_inf else []
 
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("🏆 Promedio General", f"{gb_data['overall_avg']}%")
+            m1.metric("🏆 Promedio General", f"{gb_data.get('overall_avg', 0.0)}%")
             m2.metric("🎯 Promedio Vista", f"{prom_v}%")
-            m3.metric("📝 Escrito / 🎙️ Oral", f"{gb_data['quiz_avg']}% / {gb_data['oral_avg']}%")
-            m4.metric("🏅 Categoría / Lecciones", f"{info_cat_bol['categoria_corto']} ({len(recs_f)})")
+            m3.metric("📝 Escrito / 🎙️ Oral", f"{gb_data.get('quiz_avg', 0.0)}% / {gb_data.get('oral_avg', 0.0)}%")
+            m4.metric("🏅 Categoría / Lecciones", f"{cat_corto_bol} ({len(recs_f)})")
             if temas_f:
                 st.bar_chart(pd.DataFrame(temas_f).set_index("Grammar Topic")[["Dominio (%)"]], height=240)
             if recs_f:
                 st.dataframe(pd.DataFrame(recs_f), width="stretch", hide_index=True)
+
 
 # ==============================================================================
 # PARTE 14E — SECCIÓN 3 DE 3 (FINAL): MIS LECCIONES, AUDIOS Y CIERRE FOCUS MODE
@@ -7371,7 +7802,7 @@ if st.session_state.get("active_student_workspace"):
             ]
 
             if not mis_lecciones:
-                st.info("Aún no tienes lecciones guardadas. Presiona **✖️ CERRAR** arriba para generar tu primera lección con IA.")
+                st.info("Aún no tienes lecciones guardadas. Presiona **🔙 CERRAR Y VOLVER AL PANEL EDUCATIVO** arriba para generar tu primera lección con IA.")
             else:
                 for idx_l, row_l in enumerate(mis_lecciones):
                     fol_l = str(row_l.get("Folio") or "S/F").strip()
@@ -7391,36 +7822,61 @@ if st.session_state.get("active_student_workspace"):
                                 st.session_state.selected_academic_grade = str(row_l.get("Grado_Academico", "Licenciatura / Universidad"))
                                 st.session_state.study_mode_active = False
                                 st.session_state["active_student_workspace"] = None
+                                st.session_state["active_stage_5"] = "READING"
                                 st.rerun()
-
 
         elif vista_est_sel == "🎧 Mis Audios y Pronunciación":
             st.subheader(f"🎧 Mis Audios y Práctica de Pronunciación — {alumno_actual_ws}")
-            regs_all_a = load_lessons_history_pg()
+            ids_est_aud = {
+                str(x).strip().lower()
+                for x in [
+                    alumno_actual_ws,
+                    st.session_state.get("current_user"),
+                    st.session_state.get("current_user_fullname"),
+                    st.session_state.get("nombre_completo"),
+                ]
+                if str(x or "").strip()
+            }
+            regs_all_a = load_lessons_history_pg() or []
             mis_audios = [
                 r for r in regs_all_a
-                if str(r.get("Usuario") or "").strip().lower() == alumno_actual_ws.lower() and str(r.get("Texto") or "").strip()
+                if str(r.get("Usuario") or "").strip().lower() in ids_est_aud
+                and str(r.get("Texto") or "").strip()
             ]
             if not mis_audios:
-                st.info("Aún no tienes lecciones con audio generado. Presiona **✖️ CERRAR** arriba para crear una lección.")
+                st.info("Aún no tienes lecciones con audio generado. Presiona **🔙 CERRAR Y VOLVER AL PANEL EDUCATIVO** arriba para crear una lección.")
             else:
                 mapa_aud = {
                     f"{r.get('Folio', 'S/F')} — {r.get('Tema', 'Lección')} ({r.get('Nivel_CEFR', '')})": r
                     for r in mis_audios
                 }
-                sel_aud_lbl = st.selectbox("Selecciona una lección para escuchar su audio estadounidense (US):", list(mapa_aud.keys()), key="ws_est_sel_audio")
+                sel_aud_lbl = st.selectbox(
+                    "Selecciona una lección para escuchar su audio estadounidense (US):",
+                    list(mapa_aud.keys()),
+                    key="ws_est_sel_audio"
+                )
                 row_aud = mapa_aud[sel_aud_lbl]
                 texto_aud_raw = str(row_aud.get("Texto") or "")
-                clean_tts_aud = re.split(r"\bBibliography\b", texto_aud_raw.replace("*", "").replace("#", ""), maxsplit=1)
+                clean_tts_aud = re.split(
+                    r"\bBibliography\b",
+                    texto_aud_raw.replace("*", "").replace("#", ""),
+                    maxsplit=1
+                )[0].strip()
                 mp3_lesson_bytes = _synthesize_word_mp3(clean_tts_aud[:2800], slow_mode=False)
                 if mp3_lesson_bytes:
                     st.audio(mp3_lesson_bytes, format="audio/mp3")
-                if st.button("🧠 Abrir en Modo Estudio Interactivo (Pronunciación Palabra por Palabra)", type="primary", width="stretch", key="ws_est_go_study"):
+                if st.button(
+                    "🧠 Abrir en Modo Estudio Interactivo (Pronunciación Palabra por Palabra)",
+                    type="primary",
+                    width="stretch",
+                    key="ws_est_go_study"
+                ):
                     st.session_state.generated_text = texto_aud_raw
                     st.session_state.current_folio = str(row_aud.get("Folio") or "")
                     st.session_state.selected_cefr = normalize_cefr(row_aud.get("Nivel_CEFR", "B1"))
                     st.session_state.study_mode_active = True
                     st.session_state["active_student_workspace"] = None
+                    st.session_state["active_stage_5"] = "READING"
                     st.rerun()
 
     st.divider()
@@ -7443,14 +7899,18 @@ CAPACIDADES_DELEGABLES_OWNER = [
     "Motivar_Estudiantes_WhatsApp",
     "Asignar_Retroalimentacion_Docente",
     "Ver_Comisiones_Pagos_Docente",
+    "Ver_Portal_Socio_Afiliado",
+    "Gestionar_Comisiones_Afiliados",
+    "Ver_Racha_Referidos_WhatsApp",
+    "Descargar_App_Docente_APK",
+    "Descargar_App_Socio_APK",
+    "Gestionar_Control_Escolar_RVOE",
     "Gestionar_Compliance_Legal",
     "Ver_Panel_Admin",
     "Registrar_Usuarios",
     "Gestionar_Usuarios",
     "Editar_Permisos",
     "Editar_Terminos_Afiliacion",
-    "Gestionar_Comisiones_Afiliados",
-    "Ver_Racha_Referidos_WhatsApp",
     "Mostrar_QR_App_Header",
     "Emitir_Certificados",
     "Gestionar_IVA_Mensualidad",
@@ -7488,7 +7948,7 @@ def generar_tablero_franquicias_pg() -> dict:
         ]
         afiliados_sede = [
             r for r in padron_all
-            if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]
+            if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate", "socio"]
             and str(r.get("campus_id") or "CEI-AP-01").strip().upper() == cid
         ]
         usuarios_sede_set = {str(r.get("Usuario") or "").strip().lower() for r in alumnos_sede}
@@ -7507,7 +7967,7 @@ def generar_tablero_franquicias_pg() -> dict:
         ingresos_sede = 0.0
         for al in alumnos_sede:
             try:
-                est_fin_al = evaluar_estado_financiero_alumno(str(al.get("Usuario") or "").strip())
+                est_fin_al = evaluar_estado_financiero_alumno(str(al.get("Usuario") or "").strip()) or {}
                 if est_fin_al.get("ciclo_pagado"):
                     ingresos_sede += float(est_fin_al.get("monto_a_pagar") or 0.0)
             except Exception:
@@ -7545,7 +8005,7 @@ def generar_tablero_franquicias_pg() -> dict:
     }
 
 
-if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.get("active_admin_workspace"):
+if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_portal) and st.session_state.get("active_admin_workspace"):
     seccion_inst_sel = str(st.session_state["active_admin_workspace"]).strip()
 
     with st.container(border=True):
@@ -7556,7 +8016,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
- # 14.0A PLANTILLA DOCENTE (TÉRMINOS LEGALES, ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
+        # 14.0A PLANTILLA DOCENTE (TÉRMINOS LEGALES, ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
         if seccion_inst_sel == "🧑‍🏫 Plantilla y Portal Docente":
             puede_editar_terminos_leg = is_owner or can("Editar_Terminos_Afiliacion") or can("Gestionar_Compliance_Legal")
             if not (is_owner or can("Ver_Panel_Admin") or can("Registrar_Usuarios") or puede_editar_terminos_leg):
@@ -7615,131 +8075,83 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             )
 
 
-        # 14.1 PESTAÑA CERTIFICADOS
-        if seccion_inst_sel == "🏅 Certificados (Timbre y QR)":
-            if not (is_owner or can("Emitir_Certificados")):
-                st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
+
+ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_portal) and st.session_state.get("active_admin_workspace"):
+    seccion_inst_sel = str(st.session_state["active_admin_workspace"]).strip()
+
+    with st.container(border=True):
+        st.markdown(f"### {seccion_inst_sel}")
+        st.divider()
+
+        puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
+        puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
+        puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
+
+        # 14.0A PLANTILLA DOCENTE (TÉRMINOS LEGALES, ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
+        if seccion_inst_sel == "🧑‍🏫 Plantilla y Portal Docente":
+            puede_editar_terminos_leg = is_owner or can("Editar_Terminos_Afiliacion") or can("Gestionar_Compliance_Legal")
+            if not (is_owner or can("Ver_Panel_Admin") or can("Registrar_Usuarios") or puede_editar_terminos_leg):
+                st.warning("⛔ Tu perfil actual no tiene acceso a la gestión de Plantilla Docente.")
             else:
-                st.markdown("#### 🏅 Emisión Oficial de Certificados con Firma Criptográfica (HMAC-SHA256) y Sello QR")
-                try:
-                    regs_cert = load_padron_records()
-                    opciones_claves = {
-                        f"{str(r.get('Matricula', '')).strip()} — {str(r.get('Usuario', '')).strip()} ({str(r.get('Nivel', 'B1')).strip()})": r
-                        for r in regs_cert if str(r.get("Matricula", "")).strip()
-                    }
+                if puede_editar_terminos_leg:
+                    with st.expander("📜 Editar Términos, Condiciones y Código de Compliance Docente", expanded=False):
+                        from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
+                        t_doc_info = get_institutional_terms_pg("docente")
+                        if t_doc_info.get("updated_at"):
+                            st.caption(f"Última actualización: `{t_doc_info['updated_at']}` por **{t_doc_info['updated_by']}**")
+                        txt_terms_doc_ed = st.text_area(
+                            "Marco Legal, Fiscal y Compliance mostrado en registro_docentes.py:",
+                            value=t_doc_info["texto"],
+                            height=220,
+                            key="ta_edit_teacher_terms_admin"
+                        )
+                        if st.button("💾 Guardar y Publicar Términos Docentes", type="primary", key="btn_save_teacher_terms_admin"):
+                            if not txt_terms_doc_ed.strip():
+                                st.warning("⚠️ El texto legal docente no puede quedar vacío.")
+                            else:
+                                ok_td, msg_td = save_institutional_terms_pg("docente", txt_terms_doc_ed, str(st.session_state.current_user or "Owner"))
+                                st.success(msg_td) if ok_td else st.error(msg_td)
 
-                    if not opciones_claves:
-                        st.warning("No hay matrículas de estudiantes registradas en el padrón.")
-                    else:
-                        col_c1, col_c2 = st.columns([1.3, 1.7])
-                        with col_c1:
-                            sel_label = st.selectbox(
-                                "🎓 Seleccionar Matrícula Oficial:",
-                                list(opciones_claves.keys()),
-                                key="cert_select_clave"
-                            )
-                            datos_alumno = opciones_claves[sel_label]
-                            clave_sel = str(datos_alumno.get("Matricula", "")).strip()
-                            nombre_sel = str(datos_alumno.get("Usuario", "")).strip()
-                            nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
-                            grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
-                            cat_cert_info = calcular_categoria_automatica_estudiante(nombre_sel, nivel_sel)
-                            cat_cert_lbl = cat_cert_info["categoria_label"]
-                            cat_cert_corto = cat_cert_info["categoria_corto"]
+                tab_doc_reg, tab_doc_audit = st.tabs([
+                    "➕ Registrar / Actualizar Docente",
+                    "🔍 Auditar Portal y Bóveda Fiscal Docente"
+                ])
+                with tab_doc_reg:
+                    from registro_docentes import render_formulario_registro_docente
+                    render_formulario_registro_docente(
+                        registrado_por=u_login_hdr,
+                        key_prefix="admin_doc_reg",
+                        es_registro_externo=False
+                    )
+                with tab_doc_audit:
+                    from portal_docente import render_portal_docente_cei
+                    render_portal_docente_cei(
+                        usuario_actual=u_login_hdr,
+                        rol_actual="Propietario" if is_owner else curr_r_clean,
+                        puede_ver_estudiantes=True,
+                        puede_motivar_wa=True,
+                        puede_retroalimentar=True,
+                        puede_ver_comisiones=True,
+                        es_admin_o_owner=True,
+                        dia_corte_cfdi=25,
+                        institute_address=str(institute_address or "Agua Prieta, Sonora, México")
+                    )
 
-                            st.info(
-                                f"**Titular:** {nombre_sel}\n\n"
-                                f"**Matrícula:** `{clave_sel}` | **Nivel CEFR:** {nivel_sel}\n\n"
-                                f"**Grado:** {grado_sel}\n\n"
-                                f"**Insignia Académica:** **{cat_cert_lbl}** (`{cat_cert_info['total_lecciones']}` lecciones)"
-                            )
+        # 14.0B CENTRO DE COMPLIANCE, VIGILANCIA LEGAL SEMANAL Y RELOJ SLA
+        if seccion_inst_sel == "⚖️ Compliance y Vigilancia Legal":
+            from compliance_engine import render_panel_compliance_gerencial
+            render_panel_compliance_gerencial(
+                usuario_actual=u_login_hdr,
+                puede_gestionar=bool(is_owner or can("Gestionar_Compliance_Legal"))
+            )
 
-                        with col_c2:
-                            programa_cert = st.text_input(
-                                "📚 Programa / Curso Acreditado:",
-                                value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse — CATEGORÍA {cat_cert_corto}",
-                                key=f"cert_prog_input_{clave_sel}_{cat_cert_corto}"
-                            )
-                            calif_cert = st.text_input(
-                                "🏆 Calificación / Resultado Final:",
-                                value=f"98.0% — Passed with Academic Distinction ({cat_cert_lbl})",
-                                key=f"cert_grade_input_{clave_sel}_{cat_cert_corto}"
-                            )
-                            if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", width="stretch"):
-                                with st.spinner("Generando timbrado criptográfico HMAC-SHA256 y guardando en Supabase..."):
-                                    ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
-                                    folio_c = f"CERT-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
-                                    fecha_c = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
-
-                                    cadena_o, sello_h = generar_sello_digital(folio_c, clave_sel, nombre_sel, nivel_sel, fecha_c)
-
-                                    insert_certificate_pg(
-                                        folio_c=folio_c,
-                                        clave_sel=clave_sel,
-                                        nombre_sel=nombre_sel,
-                                        nivel_sel=nivel_sel,
-                                        grado_sel=grado_sel,
-                                        programa_c=programa_cert.strip(),
-                                        calif_c=calif_cert.strip(),
-                                        fecha_c=fecha_c,
-                                        sello_h=sello_h
-                                    )
-                                    pdf_cert_bytes = generar_pdf_certificado(
-                                        folio_c, clave_sel, nombre_sel, nivel_sel,
-                                        programa_cert.strip(), calif_cert.strip(), fecha_c,
-                                        cadena_o, sello_h, institute_address
-                                    )
-                                    st.session_state["last_cert_pdf"] = pdf_cert_bytes
-                                    st.session_state["last_cert_name"] = f"Certificado_{folio_c}_{nombre_sel.replace(' ', '_')}.pdf"
-                                    st.session_state["last_cert_folio"] = folio_c
-                                    st.success(f"✅ ¡Certificado timbrado ({cat_cert_lbl}) y guardado en Supabase! Folio: **{folio_c}**")
-
-                        if st.session_state.get("last_cert_pdf"):
-                            f_actual = st.session_state["last_cert_folio"]
-                            link_cert_directo = _build_cert_verify_url(f_actual)
-
-                            st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
-                            try:
-                                import pypdfium2 as pdfium
-                                pdf_doc = pdfium.PdfDocument(st.session_state["last_cert_pdf"])
-                                page = pdf_doc[0]
-                                bitmap = page.render(scale=2.0)
-                                pil_image = bitmap.to_pil()
-                                st.image(pil_image, caption=f"Certificado Oficial Tamaño Carta — {f_actual}", width="stretch")
-                            except Exception:
-                                st.info("📄 Documento PDF listo. Usa el botón inferior para descargarlo o abrirlo en tu visor.")
-
-                            col_b1, col_b2, col_b3 = st.columns([1.3, 1.4, 1.0])
-                            with col_b1:
-                                st.download_button(
-                                    label="📥 Descargar PDF",
-                                    data=st.session_state["last_cert_pdf"],
-                                    file_name=st.session_state["last_cert_name"],
-                                    mime="application/pdf",
-                                    type="primary",
-                                    width="stretch",
-                                    key="btn_dl_cert_preview"
-                                )
-                            with col_b2:
-                                if st.button("🔗 Guardar Link en Base de Datos", width="stretch", key="btn_save_link_cert"):
-                                    try:
-                                        update_certificate_link_pg(f_actual, link_cert_directo)
-                                        st.success(f"✅ Enlace guardado en Supabase: `{link_cert_directo}`")
-                                    except Exception as e_lk:
-                                        st.error(f"Error al guardar enlace: {e_lk}")
-                            with col_b3:
-                                if st.button("✖️ Cerrar Ventana", width="stretch", key="btn_close_cert_preview"):
-                                    st.session_state["last_cert_pdf"] = None
-                                    st.session_state["last_cert_folio"] = None
-                                    st.session_state["last_cert_name"] = None
-                                    st.rerun()
 
                     # ==========================================================
                     # PARTE 14A: HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
                     # ==========================================================
                     st.divider()
                     st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
-                    certs_hist = load_certificates_pg()
+                    certs_hist = load_certificates_pg() or []
 
                     if not certs_hist:
                         st.info("ℹ️ Aún no hay certificados guardados en la tabla `certificates` de Supabase.")
@@ -7755,8 +8167,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         c_imp1, c_imp2 = st.columns([2.2, 1.3])
                         with c_imp1:
                             opciones_reimp = {
-                                f"{row['Folio_Certificado']} — {row['Nombre_Estudiante']} ({row['Nivel_CEFR']}) [{row['Estatus']}]": row
+                                f"{row.get('Folio_Certificado', 'S/F')} — {row.get('Nombre_Estudiante', '')} ({row.get('Nivel_CEFR', '')}) [{row.get('Estatus', 'Vigente')}]": row
                                 for row in certs_hist
+                                if row.get("Folio_Certificado")
                             }
                             sel_reimp_label = st.selectbox(
                                 "Seleccionar Certificado del Historial:",
@@ -7768,15 +8181,15 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             if st.button("👁️ Cargar Vista Previa / Descargar", width="stretch", key="btn_prep_reimp"):
                                 c_obj = opciones_reimp[sel_reimp_label]
                                 f_rep = str(c_obj.get("Folio_Certificado", "")).strip()
-                                cl_rep = str(c_obj.get("Clave_Alumno", "")).strip()
+                                cl_rep = str(c_obj.get("Clave_Alumno") or c_obj.get("Matricula") or "").strip()
                                 nom_rep = str(c_obj.get("Nombre_Estudiante", "")).strip()
                                 niv_rep = str(c_obj.get("Nivel_CEFR", "")).strip()
                                 fec_rep = str(c_obj.get("Fecha_Emision", "")).strip()
-                                prog_rep = str(c_obj.get("Programa", "")).strip()
+                                prog_rep = str(c_obj.get("Programa") or c_obj.get("Programa_Curso") or "").strip()
                                 cal_rep = str(c_obj.get("Calificacion", "")).strip()
 
                                 cad_rep, sello_calc = generar_sello_digital(f_rep, cl_rep, nom_rep, niv_rep, fec_rep)
-                                sello_final = str(c_obj.get("Firma_HMAC", "")).strip() or sello_calc
+                                sello_final = str(c_obj.get("Firma_HMAC") or c_obj.get("Sello_Digital_SHA256") or "").strip() or sello_calc
 
                                 st.session_state["last_cert_pdf"] = generar_pdf_certificado(
                                     f_rep, cl_rep, nom_rep, niv_rep,
@@ -7807,6 +8220,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 except Exception as e:
                     st.error(f"Error en módulo de certificados: {e}")
 
+
 # ==============================================================================
 # PARTE 14B1: CENTRO DE MANDO SPA — INSCRIPCIÓN DE USUARIOS EN EL PADRÓN
 # ==============================================================================
@@ -7823,12 +8237,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 if puede_editar_terminos_est:
                     with st.expander("📜 Editar Términos, Condiciones y Compliance de Inscripción de Estudiantes (Inscripcion_alumnosCEI.py)", expanded=False):
                         from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
-                        st_terms_data = get_institutional_terms_pg("estudiante")
+                        st_terms_data = get_institutional_terms_pg("estudiante") or {}
                         if st_terms_data.get("updated_at"):
                             st.caption(f"Última actualización: `{st_terms_data['updated_at']}` por **{st_terms_data['updated_by']}**")
                         txt_st_terms_edit = st.text_area(
                             "Texto legal y reglamento académico vigente (Formato APA 7) mostrado en Inscripcion_alumnosCEI.py:",
-                            value=st_terms_data["texto"],
+                            value=str(st_terms_data.get("texto") or ""),
                             height=250,
                             key="ta_edit_student_terms_admin"
                         )
@@ -7846,12 +8260,16 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 else:
                                     st.error(msg_st)
 
+                        st.markdown("**👁️ Vista Previa Documento APA 7:**")
+                        render_affiliate_terms_apa7_doc(txt_st_terms_edit, max_height_px=280)
+
                 with st.expander("📲 Código QR Oficial de Auto-Inscripción de Alumnos (Zoom / WhatsApp)", expanded=False):
-                    padron_qr_st = load_padron_records()
+                    padron_qr_st = load_padron_records() or []
                     afiliados_qr_list = ["Inscripción Directa CEI (Sin Afiliado)"] + [
                         str(r.get("Usuario", "")).strip()
                         for r in padron_qr_st
-                        if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]
+                        if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate", "socio"]
+                        and str(r.get("Usuario", "")).strip()
                     ]
                     sel_ref_qr_admin = st.selectbox(
                         "Vincular QR a Socio Afiliado (para incrustar su ID oficial automáticamente):",
@@ -7872,12 +8290,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 col_form_reg, col_tabla_reg = st.columns([1.25, 2.0])
                 with col_form_reg:
                     st.markdown("#### ➕ Formulario de Inscripción")
-                    records_afiliadores = load_padron_records()
+                    records_afiliadores = load_padron_records() or []
                     opciones_afiliadores = {"Sin afiliador (Inscripción directa)": (None, "")}
                     for r_aff in records_afiliadores:
                         if r_aff.get("ID"):
-                            etiqueta_aff = f"ID #{r_aff['ID']} — {r_aff['Matricula']} ({r_aff['Usuario']})"
-                            opciones_afiliadores[etiqueta_aff] = (int(r_aff["ID"]), str(r_aff["Usuario"]).strip())
+                            etiqueta_aff = f"ID #{r_aff.get('ID')} — {r_aff.get('Matricula', '')} ({r_aff.get('Usuario', '')})"
+                            opciones_afiliadores[etiqueta_aff] = (int(r_aff["ID"]), str(r_aff.get("Usuario", "")).strip())
 
                     with st.form("form_registro_estudiante", clear_on_submit=True):
                         reg_usuario = st.text_input("👤 Nombre Completo / Usuario:", placeholder="Ej: Carlos Mendoza")
@@ -7917,7 +8335,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 try:
                                     existentes_u = [str(r.get("Usuario", "")).strip().lower() for r in records_afiliadores]
                                     existentes_c = [str(r.get("Clave", "")).strip().lower() for r in records_afiliadores]
-
                                     if reg_usuario.strip().lower() in existentes_u:
                                         st.error("⚠️ Ese nombre de usuario ya está registrado.")
                                     elif reg_clave.strip().lower() in existentes_c:
@@ -7949,6 +8366,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                                 student_user=reg_usuario.strip(),
                                                 registrado_por=str(st.session_state.get("current_user", "Admin"))
                                             )
+                                        st.cache_data.clear()
                                         st.success(
                                             f"✅ {reg_usuario.strip()} inscrito con Matrícula **{matricula_nueva}** "
                                             f"(Inscripción: {reg_fecha_inscripcion} | Inicio Clases: {reg_fecha_inicio})."
@@ -7966,7 +8384,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 with col_tabla_reg:
                     st.markdown("#### 📋 Tabla de Registros Activos")
                     try:
-                        records_p = load_padron_records()
+                        records_p = load_padron_records() or []
                         if records_p:
                             df_p = pd.DataFrame(records_p)
                             cols_mostrar = [
@@ -8009,8 +8427,10 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             with c_ed6:
                                 new_status = st.selectbox("Estatus:", estatus_opts, index=idx_stat, key="edit_st_sel")
 
-                            if st.button("🔄 Actualizar Registro", width="stretch"):
+                            if st.button("🔄 Actualizar Registro", width="stretch", key="btn_update_padron_user"):
                                 try:
+                                    aff_id_prev = fila_sel.get("Afiliador_ID") or fila_sel.get("afiliador_id")
+                                    aff_id_val = int(aff_id_prev) if str(aff_id_prev or "").strip().isdigit() else None
                                     upsert_user_padron_pg(
                                         usuario=str(user_to_edit),
                                         clave=str(fila_sel.get("Clave", "")),
@@ -8018,28 +8438,36 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         grado=new_grado_edit,
                                         nivel=new_lvl_edit,
                                         permisos=new_perm_edit,
-                                        estatus=new_status
+                                        estatus=new_status,
+                                        afiliador_id=aff_id_val
                                     )
+                                    st.cache_data.clear()
                                     st.success(f"✅ Registro de {user_to_edit} actualizado en Supabase.")
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Error al actualizar en Supabase: {e}")
 
+
                             st.divider()
                             st.markdown("##### 🤝 Asignar, Cambiar o Registrar Socio Afiliado")
                             c_af1, c_af2, c_af3 = st.columns([1.4, 1.6, 1.1])
                             with c_af1:
+                                est_opts_list = [
+                                    f"ID #{r.get('ID')} — {r.get('Usuario', '')}"
+                                    for r in records_p
+                                    if r.get("ID")
+                                ]
                                 est_af_label = st.selectbox(
                                     "Estudiante:",
-                                    [f"ID #{r['ID']} — {r['Usuario']}" for r in records_p if r.get("ID")],
+                                    est_opts_list,
                                     key="sel_est_afiliar"
                                 )
-                                est_af_id = int(est_af_label.split(" — ")[0].replace("ID #", ""))
+                                est_af_id = int(est_af_label.split(" — ").replace("ID #", "")) if est_af_label else 0
                             with c_af2:
                                 soc_opts = {"Sin afiliador (Ninguno)": None}
                                 for r_s in records_p:
                                     if r_s.get("ID") and int(r_s["ID"]) != est_af_id:
-                                        soc_opts[f"ID #{r_s['ID']} — {r_s['Matricula']} ({r_s['Usuario']})"] = int(r_s["ID"])
+                                        soc_opts[f"ID #{r_s.get('ID')} — {r_s.get('Matricula', '')} ({r_s.get('Usuario', '')})"] = int(r_s["ID"])
                                 soc_af_label = st.selectbox(
                                     "Socio Afiliado:",
                                     list(soc_opts.keys()),
@@ -8050,6 +8478,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 if st.button("🤝 Afiliar ID", type="primary", width="stretch", key="btn_save_afiliacion"):
                                     try:
                                         set_student_affiliate_pg(est_af_id, soc_opts[soc_af_label])
+                                        st.cache_data.clear()
                                         st.success(f"✅ Afiliación guardada en PostgreSQL para el estudiante ID #{est_af_id}.")
                                         st.rerun()
                                     except Exception as e_af:
@@ -8091,6 +8520,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                                         estatus="Activo",
                                                         afiliador_id=None
                                                     )
+                                                    st.cache_data.clear()
                                                     st.success(f"✅ Socio Afiliador **{nuevo_soc_nombre.strip()}** registrado con Matrícula **{mat_socio}**.")
                                                     st.rerun()
                                             except Exception as e_ns:
@@ -8099,6 +8529,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                             st.warning("⚠️ Completa el nombre y la clave del socio.")
                     except Exception as e:
                         st.error(f"Error al cargar padrón: {e}")
+
 # ==============================================================================
 # PARTE 14C — PARTE 1 DE 2: GESTIÓN DE PERMISOS POR TIPO DE USUARIO
 # ==============================================================================
@@ -8108,6 +8539,34 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 st.warning("⛔ Solo el Owner o un Administrador autorizado puede gestionar los permisos de usuario.")
             else:
                 st.markdown("#### 🔐 Gestión Integral de Permisos por Tipo de Usuario y Usuario Individual")
+
+                etiquetas_rbac_globales = {
+                    "Ver_Panel_Educativo": "🎓 Ver Panel Educativo (IA y Lecciones)",
+                    "Ver_Portal_Docente": "🧑‍🏫 Ver Mi Portal Docente CEI",
+                    "Ver_Mis_Estudiantes_Docente": "👥 Ver Mis Estudiantes Asignados (Docente)",
+                    "Motivar_Estudiantes_WhatsApp": "💬 Enviar Motivación WhatsApp a Alumnos",
+                    "Asignar_Retroalimentacion_Docente": "📝 Asignar Retroalimentación y Tareas",
+                    "Ver_Comisiones_Pagos_Docente": "💵 Ver Comisiones y Bóveda Fiscal Docente",
+                    "Ver_Portal_Socio_Afiliado": "🤝 Ver Portal de Socios Afiliados CEI",
+                    "Gestionar_Comisiones_Afiliados": "🤝 Gestionar Comisiones de Afiliados",
+                    "Ver_Racha_Referidos_WhatsApp": "🔥 Ver Racha de Referidos y WhatsApp (Socio)",
+                    "Descargar_App_Docente_APK": "📲 Descargar App Móvil Docentes (.apk)",
+                    "Descargar_App_Socio_APK": "📲 Descargar App Móvil Socios (.apk)",
+                    "Gestionar_Control_Escolar_RVOE": "🏛️ Gestionar Control Escolar RVOE (SEC / SEP)",
+                    "Gestionar_Compliance_Legal": "⚖️ Gestionar Compliance y Vigilancia Legal",
+                    "Ver_Panel_Admin": "🛡️ Ver Panel Administrativo",
+                    "Registrar_Usuarios": "➕ Registrar Usuarios en Padrón",
+                    "Gestionar_Usuarios": "🛠️ Gestionar / Editar Usuarios",
+                    "Editar_Permisos": "🔐 Editar Matriz de Permisos",
+                    "Editar_Terminos_Afiliacion": "📜 Editar Términos Legales (Doc/Soc/Est)",
+                    "Mostrar_QR_App_Header": "📲 Mostrar QR Apps en Cabecera",
+                    "Emitir_Certificados": "🏅 Emitir Certificados Oficiales",
+                    "Revocar_Certificados": "🚫 Revocar / Reactivar Certificados",
+                    "Gestionar_IVA_Mensualidad": "💳 Gestionar Cobranza Mensual e IVA",
+                    "Editar_Fecha_Inicio_Curso": "📅 Editar Fecha de Inicio de Curso",
+                    "Previsualizar_A1_C2": "🌐 Previsualizar Todos los Niveles (A1–C2)",
+                    "Reuso_Ilimitado_Folios": "♾️ Reúso Ilimitado de Folios",
+                }
 
                 with st.container(border=True):
                     st.markdown("##### 1️⃣ Configurar Permisos por Tipo de Usuario / Perfil")
@@ -8139,8 +8598,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     for i_c, cap_item in enumerate(todas_capacidades):
                         with cols_tipo[i_c % 3]:
                             val_def = True if clave_perfil_bd == "Total" else bool(caps_base_tipo.get(cap_item, False))
+                            lbl_item = etiquetas_rbac_globales.get(cap_item, cap_item.replace("_", " "))
                             nuevos_permisos_tipo[cap_item] = st.checkbox(
-                                cap_item.replace("_", " "),
+                                lbl_item,
                                 value=val_def,
                                 key=f"chk_tipo_{clave_perfil_bd}_{cap_item}",
                                 disabled=(clave_perfil_bd == "Total" and cap_item in ["Ver_Panel_Admin", "Editar_Permisos"])
@@ -8149,23 +8609,25 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     if st.button("💾 Guardar Permisos del Tipo de Usuario", type="primary", key="btn_save_tipo_usuario_perms"):
                         try:
                             upsert_permission_profile_pg(clave_perfil_bd, nuevos_permisos_tipo)
+                            st.cache_data.clear()
                             st.success(f"✅ Permisos del tipo **{tipo_sel_perm}** actualizados en Supabase.")
                             st.rerun()
                         except Exception as e_tp:
                             st.error(f"Error al guardar permisos por tipo de usuario: {e_tp}")
 
 
+
                 # ==============================================================================
                 # PARTE 14C — PARTE 2 DE 2: DELEGACIÓN POR USUARIO Y MATRIZ RBAC (DOCENTE / SOCIO)
                 # ==============================================================================
-                padron_perm_users = load_padron_records()
+                padron_perm_users = load_padron_records() or []
                 if is_owner and padron_perm_users:
                     with st.container(border=True):
                         st.markdown("##### 2️⃣ Delegación Individual de Capacidades por Usuario (Exclusivo Owner)")
                         st.caption(
                             "Activa o retira permisos granulares (como **Panel Educativo**, **Portal Docente**, "
-                            "**Portal Socios Afiliados**, **Compliance Legal** o **Editar Términos**) a un usuario específico "
-                            "sin alterar el perfil de los demás."
+                            "**Portal Socios Afiliados**, **Control Escolar RVOE**, **Compliance Legal** o **Editar Términos**) "
+                            "a un usuario específico sin alterar el perfil de los demás."
                         )
                         curr_owner_clean = str(st.session_state.get("current_user") or "").strip().lower()
                         lista_u_delegar = [
@@ -8203,13 +8665,14 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 "Ver_Racha_Referidos_WhatsApp": "🔥 Ver Racha de Referidos y WhatsApp (Socio)",
                                 "Descargar_App_Docente_APK": "📲 Descargar App Móvil Docentes (.apk)",
                                 "Descargar_App_Socio_APK": "📲 Descargar App Móvil Socios (.apk)",
+                                "Gestionar_Control_Escolar_RVOE": "🏛️ Gestionar Control Escolar RVOE (SEC / SEP)",
                                 "Gestionar_Compliance_Legal": "⚖️ Gestionar Compliance y Vigilancia Legal",
                                 "Ver_Panel_Admin": "🛡️ Ver Panel Administrativo",
                                 "Registrar_Usuarios": "➕ Registrar Usuarios en Padrón",
                                 "Gestionar_Usuarios": "🛠️ Gestionar / Editar Usuarios",
                                 "Editar_Permisos": "🔐 Editar Matriz de Permisos",
                                 "Editar_Terminos_Afiliacion": "📜 Editar Términos Legales (Doc/Soc/Est)",
-                                "Mostrar_QR_App_Header": "📲 Mostrar QR App en Cabecera",
+                                "Mostrar_QR_App_Header": "📲 Mostrar QR Apps en Cabecera",
                                 "Emitir_Certificados": "🏅 Emitir Certificados Oficiales",
                                 "Gestionar_IVA_Mensualidad": "💳 Gestionar Cobranza Mensual e IVA",
                                 "Editar_Fecha_Inicio_Curso": "📅 Editar Fecha de Inicio de Curso"
@@ -8220,11 +8683,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 "Ver_Portal_Socio_Afiliado",
                                 "Descargar_App_Docente_APK",
                                 "Descargar_App_Socio_APK",
+                                "Gestionar_Control_Escolar_RVOE",
                             ]:
                                 if extra_cap not in lista_caps_delegables:
                                     lista_caps_delegables.append(extra_cap)
 
-                            caps_actuales_u = get_user_delegated_caps_pg(u_del_sel)
+                            caps_actuales_u = get_user_delegated_caps_pg(u_del_sel) or {}
                             cols_del = st.columns(3)
                             nuevas_caps_u = {}
                             for idx_d, cap_nom in enumerate(lista_caps_delegables):
@@ -8235,6 +8699,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         value=bool(caps_actuales_u.get(cap_nom, False)),
                                         key=f"chk_del_{u_del_sel}_{cap_nom}"
                                     )
+
 
                             c_del_b1, c_del_b2 = st.columns([2.2, 1.0])
                             with c_del_b1:
@@ -8302,13 +8767,13 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 else:
                                     try:
                                         upsert_permission_profile_pg(perfil_limpio, checks_vals)
+                                        st.cache_data.clear()
                                         st.success(f"✅ Perfil '{perfil_limpio}' guardado correctamente en Supabase.")
                                         st.rerun()
                                     except Exception as e_perf:
                                         st.error(f"Error al guardar perfil: {e_perf}")
                             else:
                                 st.warning("⚠️ Escribe un nombre válido para el perfil.")
-
 
 
         # 14.4 PESTAÑA DATOS DEL INSTITUTO
@@ -8323,14 +8788,15 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         if nueva_direccion.strip():
                             try:
                                 def_b64, def_mime = get_default_logo_b64()
-                                b64_c = saved_cfg["Logo_Base64"] if (saved_cfg and saved_cfg.get("Logo_Base64")) else (def_b64 or "")
-                                mime_c = saved_cfg["Mime_Type"] if (saved_cfg and saved_cfg.get("Mime_Type")) else (def_mime or "image/png")
+                                b64_c = (saved_cfg.get("Logo_Base64") if isinstance(saved_cfg, dict) else None) or def_b64 or ""
+                                mime_c = (saved_cfg.get("Mime_Type") if isinstance(saved_cfg, dict) else None) or def_mime or "image/png"
                                 try:
-                                    w_c = int(saved_cfg["Width"]) if (saved_cfg and saved_cfg.get("Width")) else 115
+                                    w_c = int(saved_cfg.get("Width")) if (isinstance(saved_cfg, dict) and saved_cfg.get("Width")) else 115
                                 except (ValueError, TypeError):
                                     w_c = 115
-                                s_c = saved_cfg["Shape"] if (saved_cfg and saved_cfg.get("Shape")) else "Circular"
+                                s_c = (saved_cfg.get("Shape") if isinstance(saved_cfg, dict) else None) or "Circular"
                                 save_permanent_config(b64_c, mime_c, w_c, s_c, nueva_direccion.strip())
+                                st.cache_data.clear()
                                 st.success("✅ ¡Información institucional actualizada!")
                                 st.rerun()
                             except Exception as e:
@@ -8341,7 +8807,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             st.divider()
             _render_qr_descarga_app_box(key_prefix="admin_datos_inst_app_qr")
 
-                           
 
                                 
         # 14.4C PESTAÑA TORRE DE CONTROL UNIFICADA: RED DE FRANQUICIAS Y EXPANSIÓN MULTI-SEDE
@@ -8355,17 +8820,17 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     "da de alta nuevos planteles y genera su QR exclusivo de inscripción."
                 )
 
-                hub_data = generar_tablero_franquicias_pg()
+                hub_data = generar_tablero_franquicias_pg() or {}
 
                 k_f1, k_f2, k_f3, k_f4 = st.columns(4)
-                k_f1.metric("🏛️ Planteles Activos", f"{hub_data['total_sedes']} sedes", "Red CEI")
-                k_f2.metric("🎓 Matrícula Global", f"{hub_data['total_alumnos_red']} alumnos", "Todas las sedes")
-                k_f3.metric("📚 Producción Académica", f"{hub_data['total_folios_red']} Folios", f"{hub_data['total_certs_red']} Certificados")
-                k_f4.metric("💰 Recaudación Ciclo Red", f"${hub_data['total_ingresos_est_red']:,.2f}", "Consolidado")
+                k_f1.metric("🏛️ Planteles Activos", f"{int(hub_data.get('total_sedes') or 0)} sedes", "Red CEI")
+                k_f2.metric("🎓 Matrícula Global", f"{int(hub_data.get('total_alumnos_red') or 0)} alumnos", "Todas las sedes")
+                k_f3.metric("📚 Producción Académica", f"{int(hub_data.get('total_folios_red') or 0)} Folios", f"{int(hub_data.get('total_certs_red') or 0)} Certificados")
+                k_f4.metric("💰 Recaudación Ciclo Red", f"${float(hub_data.get('total_ingresos_est_red') or 0.0):,.2f}", "Consolidado")
 
                 st.divider()
                 st.markdown("##### 🏆 Ranking Comparativo de Planteles y Franquicias")
-                if hub_data["ranking_rows"]:
+                if hub_data.get("ranking_rows"):
                     st.dataframe(pd.DataFrame(hub_data["ranking_rows"]), width="stretch", hide_index=True)
 
                 with st.expander("➕ Registrar o Editar Plantel / Franquicia (campus_id)", expanded=False):
@@ -8396,6 +8861,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 estatus=in_cest
                             )
                             if ok_c:
+                                st.cache_data.clear()
                                 st.success(msg_c)
                                 st.rerun()
                             else:
@@ -8403,10 +8869,11 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
                 st.divider()
                 st.markdown("##### 📲 Kit de Expansión Instantánea: QR Oficial y Sello por Franquicia")
-                if hub_data["sedes"]:
+                if hub_data.get("sedes"):
                     mapa_hub_sedes = {
-                        f"{s['campus_id']} — {s['nombre_plantel']} ({s['ciudad_estado']})": s
+                        f"{s.get('campus_id', '')} — {s.get('nombre_plantel', '')} ({s.get('ciudad_estado', '')})": s
                         for s in hub_data["sedes"]
+                        if s.get("campus_id")
                     }
                     sel_hub_lbl = st.selectbox(
                         "Selecciona una franquicia para generar su QR oficial de inscripción y activar su sede:",
@@ -8414,31 +8881,26 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         key="sb_franchise_hub_qr_selector"
                     )
                     sede_hub_obj = mapa_hub_sedes[sel_hub_lbl]
-                    cid_hub = sede_hub_obj["campus_id"]
+                    cid_hub = str(sede_hub_obj.get("campus_id") or "CEI-AP-01").strip()
 
                     c_hq1, c_hq2 = st.columns([2.2, 1.2])
                     with c_hq1:
                         st.info(
-                            f"**Plantel:** {sede_hub_obj['nombre_plantel']}\n\n"
-                            f"**Código Oficial:** `{cid_hub}`  |  **Ciudad:** {sede_hub_obj['ciudad_estado']}\n\n"
-                            f"**Dirección en Certificados:** {sede_hub_obj['direccion_oficial']}\n\n"
-                            f"**Moneda / IVA:** `{sede_hub_obj['moneda']}` ({sede_hub_obj['iva_pct']}%)"
+                            f"**Plantel:** {sede_hub_obj.get('nombre_plantel', cid_hub)}\n\n"
+                            f"**Código Oficial:** `{cid_hub}`  |  **Ciudad:** {sede_hub_obj.get('ciudad_estado', '')}\n\n"
+                            f"**Dirección en Certificados:** {sede_hub_obj.get('direccion_oficial', '')}\n\n"
+                            f"**Moneda / IVA:** `{sede_hub_obj.get('moneda', 'MXN')}` ({sede_hub_obj.get('iva_pct', 16.0)}%)"
                         )
                         if st.button(f"🎯 Operar Sesión bajo Sede {cid_hub}", type="primary", key="btn_activate_hub_campus"):
                             st.session_state["active_campus_id"] = cid_hub
-                            st.session_state["active_campus_address"] = sede_hub_obj["direccion_oficial"]
+                            st.session_state["active_campus_address"] = sede_hub_obj.get("direccion_oficial", "")
+                            if sede_hub_obj.get("direccion_oficial"):
+                                st.session_state["institute_address"] = str(sede_hub_obj.get("direccion_oficial")).strip()
                             st.success(f"✅ Sesión vinculada al plantel **{cid_hub}**.")
 
                     with c_hq2:
-                        raw_reg_campus = str(st.secrets.get("STUDENT_REG_URL") or "").strip().rstrip("/")
-                        base_ins_campus = (
-                            raw_reg_campus
-                            if "inscripcioncei.streamlit.app" in raw_reg_campus
-                            else ("https://" + "inscripcioncei.streamlit.app")
-                        )
-                        sep_c = "&" if "?" in base_ins_campus else "?"
-                        url_qr_campus = f"{base_ins_campus}{sep_c}campus={urllib.parse.quote(cid_hub)}"
-                        url_apk_campus = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/CEI_App_Oficial.apk"
+                        url_qr_campus = get_cei_qr_link("estudiante", campus_id=cid_hub)
+                        url_apk_campus = get_cei_qr_link("apk")
 
                         buf_qc = io.BytesIO()
                         qrcode.make(url_qr_campus).save(buf_qc, format="PNG")
@@ -8492,6 +8954,16 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         if val is not None and str(val).strip():
                             return str(val).strip()
                     return ""
+
+                def _fmt_spk_aud(val_raw) -> str:
+                    try:
+                        s_clean = str(val_raw or "").replace("%", "").strip()
+                        if not s_clean:
+                            return "—"
+                        num_v = float(s_clean)
+                        return f"{num_v:.1f}%" if num_v >= 0 else "—"
+                    except Exception:
+                        return str(val_raw or "—")
 
                 c_bus1, c_bus2 = st.columns([2.2, 1.2])
                 with c_bus1:
@@ -8565,10 +9037,15 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 else:
                     u_obj_sel = next((u for u in usuarios_filtrados_aud if u["label"] == sel_usuario_aud_lbl), None)
                     if u_obj_sel:
-                        ids_match = {u_obj_sel["usuario"].lower(), u_obj_sel["nombre"].lower()}
+                        ids_match = {
+                            x.lower()
+                            for x in [u_obj_sel["usuario"], u_obj_sel["nombre"], u_obj_sel["matricula"]]
+                            if str(x or "").strip()
+                        }
                         folios_mostrados = [
                             f_item for f_item in folios_aud
                             if _get_ci(f_item, "Usuario").lower() in ids_match
+                            or _get_ci(f_item, "Matricula").lower() in ids_match
                         ]
 
                 st.divider()
@@ -8585,7 +9062,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             "Nivel CEFR": _get_ci(f, "Nivel_CEFR"),
                             "Grado": _get_ci(f, "Grado_Academico"),
                             "Quiz": _get_ci(f, "Mejor_Calificacion_PDF") or "—",
-                            "Speaking": f"{float(f.get('Speaking_Score') or 0):.1f}" if float(f.get("Speaking_Score") or -1) >= 0 else "—",
+                            "Speaking": _fmt_spk_aud(f.get("Speaking_Score")),
                             "Fecha": _get_ci(f, "Fecha_de_subida")
                         }
                         for f in folios_mostrados
@@ -8613,7 +9090,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             st.session_state["active_admin_workspace"] = None
                             st.session_state["active_stage_5"] = "READING"
                             st.rerun()
-
 
         # 14.4B PESTAÑA AUTOACTUALIZACIÓN DE LIBRERÍAS (SIN REVISAR CÓDIGO)
         if seccion_inst_sel == "🔄 Autoactualización de Librerías":
@@ -8717,7 +9193,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 # ==============================================================================
         # 14.5 PESTAÑA COBRANZA MENSUAL E IVA
         if seccion_inst_sel == "💳 Cobranza Mensual e IVA":
-            puede_cobranza_v2 = is_owner or can("Gestionar_Pagos_Cobranza")
+            puede_cobranza_v2 = is_owner or can("Gestionar_Pagos_Cobranza") or can("Gestionar_IVA_Mensualidad")
             if not (is_owner or puede_cobranza_v2 or puede_editar_inicio or puede_gestionar_afiliados or puede_gestionar_iva):
                 st.warning("⛔ Sin permisos financieros habilitados.")
             else:
@@ -8733,6 +9209,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     if c_sw2.button("💾 Guardar Cambio", type="primary", width="stretch", key="btn_glob_bill"):
                         ok_g, msg_g = set_billing_global_settings_pg(nuevo_glob, st.session_state.current_user)
                         if ok_g:
+                            st.cache_data.clear()
                             st.success(f"✅ {msg_g}")
                             st.rerun()
                         else:
@@ -8750,69 +9227,78 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
 
                 with tab_val:
                     if puede_cobranza_v2:
-                        pendientes_comp = listar_comprobantes_pendientes_pg()
+                        pendientes_comp = listar_comprobantes_pendientes_pg() or []
                         st.markdown(f"##### 🏦 Comprobantes Bancarios Pendientes de Confirmación ({len(pendientes_comp)})")
                         if not pendientes_comp:
                             st.caption("No hay comprobantes bancarios pendientes de revisión en este momento.")
                         else:
                             for idx_c, comp in enumerate(pendientes_comp):
+                                comp_id = comp.get("id", idx_c)
+                                st_usr = str(comp.get("student_user") or "").strip()
+                                nom_comp = str(comp.get("nombre_completo") or st_usr).strip()
+                                fol_comp = str(comp.get("folio_pago") or "S/F").strip()
+                                ciclo_c = int(comp.get("ciclo_numero") or 1)
                                 with st.container(border=True):
                                     cc1, cc2, cc3 = st.columns([2.2, 1.4, 1.4])
                                     with cc1:
                                         etq_ia = "🟢 Aprobado Express IA" if comp.get("estatus") == "Aprobado_IA" else "🟡 Pase Provisional 72h"
                                         st.markdown(
-                                            f"**{comp['nombre_completo']}** (`{comp['student_user']}`) — **Matrícula: `{comp.get('matricula_alumno', 'SIN-MAT')}`** | Nivel **{comp['nivel_cefr']}**\n\n"
-                                            f"Folio: `{comp['folio_pago']}` | **Bloque {comp['ciclo_numero']}** | Monto: **`${float(comp['monto_final']):,.2f} MXN`** | {etq_ia} ({int(comp.get('ai_score') or 0)}%)\n\n"
-                                            f"Método: {comp['metodo_pago']} | Ref: `{comp['referencia_comprobante']}` | Reportado: {comp['fecha_reporte']}"
+                                            f"**{nom_comp}** (`{st_usr}`) — **Matrícula: `{comp.get('matricula_alumno', 'SIN-MAT')}`** | Nivel **{comp.get('nivel_cefr', 'B1')}**\n\n"
+                                            f"Folio: `{fol_comp}` | **Bloque {ciclo_c}** | Monto: **`${float(comp.get('monto_final') or 0.0):,.2f} MXN`** | {etq_ia} ({int(comp.get('ai_score') or 0)}%)\n\n"
+                                            f"Método: {comp.get('metodo_pago', 'Transferencia')} | Ref: `{comp.get('referencia_comprobante', '—')}` | Reportado: {comp.get('fecha_reporte', '')}"
                                         )
                                     with cc2:
                                         b64_doc = str(comp.get("comprobante_b64") or "").strip()
                                         mime_doc = str(comp.get("comprobante_mime") or "image/jpeg").strip()
                                         if b64_doc:
-                                            raw_doc = base64.b64decode(b64_doc)
-                                            if "pdf" in mime_doc.lower():
-                                                st.download_button(
-                                                    "📄 Ver Comprobante PDF",
-                                                    data=raw_doc,
-                                                    file_name=f"{comp['folio_pago']}.pdf",
-                                                    mime="application/pdf",
-                                                    key=f"dl_comp_pdf_{comp['id']}_{idx_c}"
-                                                )
-                                            else:
-                                                st.image(raw_doc, caption="Comprobante adjunto", width=180)
+                                            try:
+                                                raw_doc = base64.b64decode(b64_doc)
+                                                if "pdf" in mime_doc.lower():
+                                                    st.download_button(
+                                                        "📄 Ver Comprobante PDF",
+                                                        data=raw_doc,
+                                                        file_name=f"{fol_comp}.pdf",
+                                                        mime="application/pdf",
+                                                        key=f"dl_comp_pdf_{comp_id}_{idx_c}"
+                                                    )
+                                                else:
+                                                    st.image(raw_doc, caption="Comprobante adjunto", width=180)
+                                            except Exception:
+                                                st.caption("⚠️ Vista previa no disponible.")
                                         else:
                                             st.caption("Sin archivo adjunto (solo referencia).")
                                     with cc3:
                                         nota_val = st.text_input(
                                             "Nota de cotejo bancario:",
-                                            key=f"nota_bco_{comp['id']}_{idx_c}",
+                                            key=f"nota_bco_{comp_id}_{idx_c}",
                                             placeholder="Ej: Transferencia verificada en estado de cuenta"
                                         )
-                                        if st.button("✅ Confirmar Pago y Activar Boletín", type="primary", width="stretch", key=f"btn_ok_bco_{comp['id']}_{idx_c}"):
+                                        if st.button("✅ Confirmar Pago y Activar Boletín", type="primary", width="stretch", key=f"btn_ok_bco_{comp_id}_{idx_c}"):
                                             res_conf = confirmar_pago_bancario_pg(
-                                                student_user=comp["student_user"],
-                                                ciclo_numero=int(comp["ciclo_numero"]),
+                                                student_user=st_usr,
+                                                ciclo_numero=ciclo_c,
                                                 validado_por=str(st.session_state.current_user),
                                                 notas_admin=nota_val
-                                            )
-                                            if res_conf["ok"]:
-                                                st.success(res_conf["msg"])
+                                            ) or {}
+                                            if res_conf.get("ok"):
+                                                st.cache_data.clear()
+                                                st.success(res_conf.get("msg", "✅ Pago confirmado."))
                                                 st.rerun()
                                             else:
-                                                st.error(res_conf["msg"])
+                                                st.error(res_conf.get("msg", "Error al confirmar pago."))
 
-                                        if st.button("❌ Rechazar Comprobante", width="stretch", key=f"btn_rej_bco_{comp['id']}_{idx_c}"):
+                                        if st.button("❌ Rechazar Comprobante", width="stretch", key=f"btn_rej_bco_{comp_id}_{idx_c}"):
                                             motivo_final = nota_val.strip() or "Comprobante no legible o movimiento no reflejado en banco."
                                             res_rej = rechazar_comprobante_bancario_pg(
-                                                student_user=comp["student_user"],
-                                                ciclo_numero=int(comp["ciclo_numero"]),
+                                                student_user=st_usr,
+                                                ciclo_numero=ciclo_c,
                                                 validado_por=str(st.session_state.current_user),
                                                 motivo=motivo_final
-                                            )
-                                            if res_rej["ok"]:
+                                            ) or {}
+                                            if res_rej.get("ok"):
                                                 msg_rej_wa = (
-                                                    f"Hola {comp['nombre_completo']}, te saludamos de Career English Institute 🎓. "
-                                                    f"Revisamos tu comprobante (Folio {comp['folio_pago']}) del Bloque {comp['ciclo_numero']}, "
+                                                    f"Hola {nom_comp}, te saludamos de Career English Institute 🎓. "
+                                                    f"Revisamos tu comprobante (Folio {fol_comp}) del Bloque {ciclo_c}, "
                                                     f"pero no pudimos validarlo por el siguiente motivo: {motivo_final}. "
                                                     f"Por favor ingresa a 'Mis Pagos' en la plataforma para subir nuevamente tu comprobante legible y mantener activo tu Boletín de Calificaciones."
                                                 )
@@ -8820,23 +9306,23 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                                 wa_rej_url = (
                                                     f"https://wa.me{tel_clean_r}?text={urllib.parse.quote(msg_rej_wa)}"
                                                     if tel_clean_r
-                                                    else f"https://wa.me?text={urllib.parse.quote(msg_rej_wa)}"
+                                                    else f"https://wa.me{urllib.parse.quote(msg_rej_wa)}"
                                                 )
-                                                st.session_state[f"wa_rej_url_{comp['id']}"] = wa_rej_url
-                                                st.warning(res_rej["msg"])
+                                                st.session_state[f"wa_rej_url_{comp_id}"] = wa_rej_url
+                                                st.warning(res_rej.get("msg", "Comprobante rechazado."))
                                                 st.rerun()
                                             else:
-                                                st.error(res_rej["msg"])
+                                                st.error(res_rej.get("msg", "Error al rechazar comprobante."))
 
                         st.divider()
                         st.markdown("##### 📲 Radar de Avisos WhatsApp (4ta Semana de Pago y 5ta Semana con Recargo)")
-                        padron_radar = load_padron_records()
+                        padron_radar = load_padron_records() or []
                         alumnos_radar = [r for r in padron_radar if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
                         avisos_encontrados = 0
                         for r_al in alumnos_radar:
                             u_al = str(r_al.get("Usuario") or "").strip()
                             nom_al = str(r_al.get("Nombre_Completo") or u_al).strip()
-                            est_r = evaluar_estado_financiero_alumno(u_al)
+                            est_r = evaluar_estado_financiero_alumno(u_al) or {}
                             es_sem4 = (int(est_r.get("semana_ciclo") or 1) == 4 and not est_r.get("ciclo_pagado"))
                             es_mora = (int(est_r.get("dias_retraso") or 0) > 0)
                             if es_sem4 or es_mora:
@@ -8852,23 +9338,24 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     with rw1:
                                         st.markdown(
                                             f"**{etq_badge}** — **{nom_al}** (`{u_al}`)  |  "
-                                            f"Bloque **{est_r['ciclo_a_cobrar']}**  |  Monto: **${est_r['monto_a_pagar']:,.2f} MXN**"
+                                            f"Bloque **{est_r.get('ciclo_a_cobrar', 1)}**  |  Monto: **${float(est_r.get('monto_a_pagar') or 0.0):,.2f} MXN**"
                                         )
                                         st.caption(
-                                            f"Ventana 4ta Sem: {est_r['sem4_pago_inicio']} al {est_r['sem4_pago_fin']}  •  "
-                                            f"Recargo desde: {est_r['fecha_recargo']}  •  "
-                                            f"Boletín: {'✅ Activo' if est_r['descarga_permitida'] else '🔒 Pausado'}"
+                                            f"Ventana 4ta Sem: {est_r.get('sem4_pago_inicio', '—')} al {est_r.get('sem4_pago_fin', '—')}  •  "
+                                            f"Recargo desde: {est_r.get('fecha_recargo', '—')}  •  "
+                                            f"Boletín: {'✅ Activo' if est_r.get('descarga_permitida', True) else '🔒 Pausado'}"
                                         )
                                     with rw2:
-                                        st.link_button("📲 Enviar Aviso WhatsApp", url=wa_link_est, width="stretch")
+                                        st.link_button("📲 Enviar Aviso WhatsApp", url=wa_link_est or "https://wa.me", width="stretch")
                         if avisos_encontrados == 0:
                             st.info("🟢 Todos los estudiantes se encuentran al corriente en semanas 1 a 3.")
                     else:
                         st.info("Tu perfil no tiene habilitado el permiso `Gestionar_Pagos_Cobranza`.")
+
                 with tab_vac:
                     st.markdown("##### 🏖️ Calendario de Vacaciones del Instituto")
                     st.info(
-                        "📚 **Política Académica y Tecnológica:** Durante los períodos vacacionales se suspenden las clases presenciales, "
+                        "📚 **Política Académica y Tecnológica:** Durante los períodos vacacionales se suspenden las clases en vivo, "
                         "**pero el sistema permanece 100 % activo las 24 horas** para que el estudiante siga generando lecciones y avanzando en su aprendizaje. "
                         "Por ello, los ciclos de pago de 4 semanas continúan de forma ininterrumpida."
                     )
@@ -8879,42 +9366,46 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     if cv4.button("➕ Agregar", type="primary", width="stretch", key="btn_add_vac"):
                         if v_nom.strip() and v_fin >= v_ini:
                             if guardar_vacaciones_instituto_pg(v_nom, v_ini, v_fin):
+                                st.cache_data.clear()
                                 st.success("✅ Período vacacional guardado.")
                                 st.rerun()
-                    lista_v = load_institute_holidays_pg()
+                    lista_v = load_institute_holidays_pg() or []
                     for hv in lista_v:
                         vc1, vc2 = st.columns([3.5, 0.8])
-                        vc1.markdown(f"🏖️ **{hv['nombre_periodo']}** — Del `{hv['fecha_inicio']}` al `{hv['fecha_fin']}`")
-                        if vc2.button("🗑️ Quitar", key=f"del_vac_{hv['id']}"):
-                            eliminar_vacaciones_instituto_pg(hv["id"])
+                        vc1.markdown(f"🏖️ **{hv.get('nombre_periodo', '')}** — Del `{hv.get('fecha_inicio', '')}` al `{hv.get('fecha_fin', '')}`")
+                        if vc2.button("🗑️ Quitar", key=f"del_vac_{hv.get('id')}"):
+                            eliminar_vacaciones_instituto_pg(hv.get("id"))
+                            st.cache_data.clear()
                             st.rerun()
 
                 with tab_ind:
-                    padron_fin = load_padron_records()
+                    padron_fin = load_padron_records() or []
                     estudiantes_fin = [r for r in padron_fin if str(r.get("Rol", "")).lower() in ["estudiante", "student", "alumno"]]
-                    afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]]
+                    afiliados_fin = [str(r.get("Usuario", "")).strip() for r in padron_fin if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate", "socio"]]
 
                     if estudiantes_fin:
                         mapa_est_fin = {f"{r.get('Matricula', '')} — {r.get('Usuario', '')}": str(r.get("Usuario", "")).strip() for r in estudiantes_fin}
                         sel_est_lbl = st.selectbox("Seleccionar Estudiante:", list(mapa_est_fin.keys()), key="sel_fin_student")
                         est_objetivo = mapa_est_fin[sel_est_lbl]
-                        estado_f = evaluar_estado_financiero_alumno(est_objetivo)
-
+                        estado_f = evaluar_estado_financiero_alumno(est_objetivo) or {}
                         metrics_placeholder = st.container()
                         col_cfg1, col_cfg2 = st.columns(2)
                         with col_cfg1:
                             st.markdown("##### ⚙️ Configuración de Inscripción, Inicio y Tarifa")
-                            nueva_fecha_ins = st.date_input("📝 Fecha de Inscripción:", value=estado_f["fecha_inscripcion"], disabled=not puede_editar_inicio, key="inp_f_ins")
-                            nueva_fecha_ini = st.date_input("🎓 Fecha de Inicio de Clases:", value=estado_f["fecha_inicio"], disabled=not puede_editar_inicio, key="inp_f_ini")
-                            nuevo_tel_wa = st.text_input("📱 WhatsApp del Estudiante:", value=estado_f["telefono_whatsapp"], key="inp_tel_wa")
-                            nueva_mensualidad = st.number_input("Mensualidad Base ($):", min_value=0.0, value=float(estado_f["mensualidad_base"]), step=100.0, disabled=not puede_editar_inicio, key="inp_m_base")
-                            nuevo_aplicar_iva = st.checkbox("Aplicar +16% de IVA sobre subtotal", value=bool(estado_f["aplicar_iva"]), disabled=not puede_gestionar_iva, key="chk_iva_al")
+                            nueva_fecha_ins = st.date_input("📝 Fecha de Inscripción:", value=estado_f.get("fecha_inscripcion"), disabled=not puede_editar_inicio, key="inp_f_ins")
+                            nueva_fecha_ini = st.date_input("🎓 Fecha de Inicio de Clases:", value=estado_f.get("fecha_inicio"), disabled=not puede_editar_inicio, key="inp_f_ini")
+                            nuevo_tel_wa = st.text_input("📱 WhatsApp del Estudiante:", value=str(estado_f.get("telefono_whatsapp") or ""), key="inp_tel_wa")
+                            nueva_mensualidad = st.number_input("Mensualidad Base ($):", min_value=0.0, value=float(estado_f.get("mensualidad_base") or 0.0), step=100.0, disabled=not puede_editar_inicio, key="inp_m_base")
+                            nuevo_aplicar_iva = st.checkbox("Aplicar +16% de IVA sobre subtotal", value=bool(estado_f.get("aplicar_iva")), disabled=not puede_gestionar_iva, key="chk_iva_al")
                             opciones_aff = ["Sin Afiliado"] + afiliados_fin
-                            idx_aff = opciones_aff.index(estado_f["afiliado_usuario"]) if estado_f["afiliado_usuario"] in opciones_aff else 0
+                            aff_curr = str(estado_f.get("afiliado_usuario") or "").strip()
+                            idx_aff = opciones_aff.index(aff_curr) if aff_curr in opciones_aff else 0
                             sel_aff_user = st.selectbox("Socio Afiliado:", opciones_aff, index=idx_aff, disabled=not puede_gestionar_afiliados, key="sel_aff_as")
-                            nuevo_pct_com = st.number_input("Comisión Afiliado (%):", min_value=0.0, max_value=100.0, value=float(estado_f["porcentaje_comision"]), step=1.0, disabled=not puede_gestionar_afiliados, key="inp_pct_af")
+                            nuevo_pct_com = st.number_input("Comisión Afiliado (%):", min_value=0.0, max_value=100.0, value=float(estado_f.get("porcentaje_comision") or 0.0), step=1.0, disabled=not puede_gestionar_afiliados, key="inp_pct_af")
 
-                            ajuste_vivo = 0.0 if not estado_f["reglas_incentivo_activas"] else (round(nueva_mensualidad * 0.05, 2) if "Recargo" in estado_f["ajuste_label"] else round(-nueva_mensualidad * 0.07, 2))
+                            reglas_inc_act = bool(estado_f.get("reglas_incentivo_activas"))
+                            ajuste_lbl_f = str(estado_f.get("ajuste_label") or "")
+                            ajuste_vivo = 0.0 if not reglas_inc_act else (round(nueva_mensualidad * 0.05, 2) if "Recargo" in ajuste_lbl_f else round(-nueva_mensualidad * 0.07, 2))
                             subtotal_vivo = round(nueva_mensualidad + ajuste_vivo, 2)
                             iva_vivo = round(subtotal_vivo * 0.16, 2) if nuevo_aplicar_iva else 0.0
                             total_vivo = round(subtotal_vivo + iva_vivo, 2)
@@ -8925,34 +9416,36 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva,
                                     aff_s, nuevo_pct_com, fecha_inscripcion_val=nueva_fecha_ins, telefono_whatsapp_val=nuevo_tel_wa
                                 ):
+                                    st.cache_data.clear()
                                     st.success(f"✅ Guardado. Total: ${total_vivo:,.2f} MXN")
                                     st.rerun()
 
                         with metrics_placeholder:
                             f1, f2, f3, f4 = st.columns(4)
-                            f1.metric("📅 Bloque Nivel", f"Bloque {estado_f['bloque_en_nivel']}/9", delta=f"Sem. {estado_f['semana_ciclo']}/4")
-                            f2.metric("🟡 4ta Sem. Pago", f"{estado_f['sem4_pago_inicio']}", delta=f"Hasta {estado_f['sem4_pago_fin']}")
-                            f3.metric("🧾 Total Ciclo", f"${total_vivo:,.2f}", delta=f"Recargo: {estado_f['fecha_recargo']}")
-                            d_ret_m = int(estado_f.get("dias_retraso", 0))
+                            f1.metric("📅 Bloque Nivel", f"Bloque {estado_f.get('bloque_en_nivel', 1)}/9", delta=f"Sem. {estado_f.get('semana_ciclo', 1)}/4")
+                            f2.metric("🟡 4ta Sem. Pago", f"{estado_f.get('sem4_pago_inicio', '—')}", delta=f"Hasta {estado_f.get('sem4_pago_fin', '—')}")
+                            f3.metric("🧾 Total Ciclo", f"${total_vivo:,.2f}", delta=f"Recargo: {estado_f.get('fecha_recargo', '—')}")
+                            d_ret_m = int(estado_f.get("dias_retraso") or 0)
+                            desc_ok_f = bool(estado_f.get("descarga_permitida", True))
                             f4.metric(
                                 "📄 Boletín",
-                                "✅ Activo" if estado_f["descarga_permitida"] else "🔒 Bloqueado",
-                                delta="Al corriente" if estado_f["descarga_permitida"] else f"{d_ret_m} días retraso"
+                                "✅ Activo" if desc_ok_f else "🔒 Bloqueado",
+                                delta="Al corriente" if desc_ok_f else f"{d_ret_m} días retraso"
                             )
 
                         with col_cfg2:
                             st.markdown("##### 🧾 Registro Oficial de Pago (Owner / Admin) y Aviso WhatsApp")
                             st.info(
                                 f"- **Inscripción:** `{nueva_fecha_ins}`  |  **Inicio Clases:** `{nueva_fecha_ini}`\n"
-                                f"- **Ventana 4ta Semana (Sin recargo):** `{estado_f['sem4_pago_inicio']}` al `{estado_f['sem4_pago_fin']}`\n"
-                                f"- **Inicio Siguiente Bloque / Recargo:** `{estado_f['fecha_recargo']}`\n"
+                                f"- **Ventana 4ta Semana (Sin recargo):** `{estado_f.get('sem4_pago_inicio', '—')}` al `{estado_f.get('sem4_pago_fin', '—')}`\n"
+                                f"- **Inicio Siguiente Bloque / Recargo:** `{estado_f.get('fecha_recargo', '—')}`\n"
                                 f"- **TOTAL A REGISTRAR:** **`${total_vivo:,.2f} MXN`**"
                             )
                             _, wa_est_url = build_whatsapp_recordatorio_estudiante(estado_f, est_objetivo, nuevo_tel_wa)
-                            st.link_button("📲 Enviar Recordatorio WhatsApp al Estudiante", url=wa_est_url, width="stretch")
+                            st.link_button("📲 Enviar Recordatorio WhatsApp al Estudiante", url=wa_est_url or "https://wa.me", width="stretch")
 
-                            if estado_f["ciclo_pagado"]:
-                                st.success(f"✅ Bloque {estado_f['ciclo_a_cobrar']} registrado como Pagado.")
+                            if estado_f.get("ciclo_pagado"):
+                                st.success(f"✅ Bloque {estado_f.get('ciclo_a_cobrar', 1)} registrado como Pagado.")
                             elif puede_cobranza_v2:
                                 if st.button(
                                     f"✅ Registrar Pago Oficial (${total_vivo:,.2f} MXN)",
@@ -8965,12 +9458,13 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                         est_objetivo, nueva_fecha_ini, nueva_mensualidad, nuevo_aplicar_iva,
                                         aff_s, nuevo_pct_com, fecha_inscripcion_val=nueva_fecha_ins, telefono_whatsapp_val=nuevo_tel_wa
                                     )
-                                    res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user)
-                                    if res_p["ok"]:
-                                        st.success(res_p["msg"])
+                                    res_p = registrar_pago_mensual_y_comision_pg(est_objetivo, st.session_state.current_user) or {}
+                                    if res_p.get("ok"):
+                                        st.cache_data.clear()
+                                        st.success(res_p.get("msg", "✅ Pago registrado."))
                                         st.rerun()
                                     else:
-                                        st.error(res_p["msg"])
+                                        st.error(res_p.get("msg", "Error al registrar pago."))
                             else:
                                 st.warning("🔒 Solo el Owner o un Administrador con permiso **Gestionar_Pagos_Cobranza** puede registrar pagos oficiales.")
 
@@ -8978,17 +9472,18 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             st.markdown("##### 🗓️ Plan de 9 Bloques de 4 Semanas del Nivel (36 Semanas)")
                             df_b9 = pd.DataFrame([
                                 {
-                                    "Bloque (4 Sem)": f"Bloque {b['bloque_num']}/9",
-                                    "Inicio Bloque": str(b["inicio_bloque"]),
-                                    "Fin Bloque": str(b["fin_bloque"]),
-                                    "4ta Semana Pago (Sin Recargo)": f"{b['sem4_inicio']} al {b['sem4_fin']}",
-                                    "Recargo / Sig. Bloque": str(b["fecha_recargo"]),
-                                    "Clases / Vacaciones (IA 24/7)": b["vacaciones"],
-                                    "Estatus": b["estatus"]
+                                    "Bloque (4 Sem)": f"Bloque {b.get('bloque_num', 1)}/9",
+                                    "Inicio Bloque": str(b.get("inicio_bloque") or ""),
+                                    "Fin Bloque": str(b.get("fin_bloque") or ""),
+                                    "4ta Semana Pago (Sin Recargo)": f"{b.get('sem4_inicio', '')} al {b.get('sem4_fin', '')}",
+                                    "Recargo / Sig. Bloque": str(b.get("fecha_recargo") or ""),
+                                    "Clases / Vacaciones (IA 24/7)": str(b.get("vacaciones") or "Activo 24/7"),
+                                    "Estatus": str(b.get("estatus") or "Pendiente")
                                 }
                                 for b in estado_f["bloques_9"]
                             ])
                             st.dataframe(df_b9, width="stretch", hide_index=True)
+
 
         # 14.5B PESTAÑA ESTADOS FINANCIEROS Y AUDITORÍA DE CARTERA
         if seccion_inst_sel == "📊 Estados Financieros":
@@ -8996,19 +9491,29 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 st.warning("⛔ Tu perfil actual no tiene acceso a los Estados Financieros institucionales.")
             else:
                 st.markdown("#### 📊 Estado Financiero Consolidado y Control de Cartera")
-                ef_data = generar_estado_financiero_global_pg()
+                ef_data = generar_estado_financiero_global_pg() or {}
 
                 k1, k2, k3, k4 = st.columns(4)
-                k1.metric("💰 Ingreso Bruto Recaudado", f"${ef_data['ingresos_cobrados_hist']:,.2f} MXN")
-                k2.metric("🤝 Provisión Comisiones Afiliados", f"-${ef_data['comisiones_generadas_hist']:,.2f} MXN")
-                k3.metric("🏦 Ingreso Neto Operativo", f"${ef_data['ingreso_neto_post_comision']:,.2f} MXN")
-                k4.metric("📈 Eficiencia de Cobranza (Ciclo)", f"{ef_data['tasa_cobranza_pct']}%", delta=f"Morosidad: {ef_data['indice_morosidad_pct']}%", delta_color="inverse")
+                k1.metric("💰 Ingreso Bruto Recaudado", f"${float(ef_data.get('ingresos_cobrados_hist') or 0.0):,.2f} MXN")
+                k2.metric("🤝 Provisión Comisiones Afiliados", f"-${float(ef_data.get('comisiones_generadas_hist') or 0.0):,.2f} MXN")
+                k3.metric("🏦 Ingreso Neto Operativo", f"${float(ef_data.get('ingreso_neto_post_comision') or 0.0):,.2f} MXN")
+                k4.metric(
+                    "📈 Eficiencia de Cobranza (Ciclo)",
+                    f"{ef_data.get('tasa_cobranza_pct', 0.0)}%",
+                    delta=f"Morosidad: {ef_data.get('indice_morosidad_pct', 0.0)}%",
+                    delta_color="inverse"
+                )
 
                 c1, c2, c3, c4 = st.columns(4)
-                c1.metric("🎓 Matrícula Activa Evaluada", f"{ef_data['total_alumnos']} alumnos")
-                c2.metric("🟡 Por Cobrar en Tiempo (Sem. 1-4)", f"${ef_data['cartera_por_cobrar_vigente']:,.2f} MXN")
-                c3.metric("🔴 Cartera Vencida (Moratorios)", f"${ef_data['cartera_vencida_moratoria']:,.2f} MXN", delta=f"{ef_data['conteo_moratorios']} en mora", delta_color="inverse")
-                c4.metric("🟢 Al Corriente / Pagados", f"{ef_data['conteo_al_corriente']} alumnos")
+                c1.metric("🎓 Matrícula Activa Evaluada", f"{int(ef_data.get('total_alumnos') or 0)} alumnos")
+                c2.metric("🟡 Por Cobrar en Tiempo (Sem. 1-4)", f"${float(ef_data.get('cartera_por_cobrar_vigente') or 0.0):,.2f} MXN")
+                c3.metric(
+                    "🔴 Cartera Vencida (Moratorios)",
+                    f"${float(ef_data.get('cartera_vencida_moratoria') or 0.0):,.2f} MXN",
+                    delta=f"{int(ef_data.get('conteo_moratorios') or 0)} en mora",
+                    delta_color="inverse"
+                )
+                c4.metric("🟢 Al Corriente / Pagados", f"{int(ef_data.get('conteo_al_corriente') or 0)} alumnos")
 
                 st.divider()
 
@@ -9026,28 +9531,29 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     key="rad_filter_ef_status"
                 )
 
-                df_ef = pd.DataFrame(ef_data["rows"])
+                df_ef = pd.DataFrame(ef_data.get("rows") or [])
                 if not df_ef.empty:
-                    if busqueda_id:
+                    if busqueda_id and "ID / Matrícula" in df_ef.columns and "Estudiante" in df_ef.columns:
                         mask_id = (
-                            df_ef["ID / Matrícula"].str.lower().str.contains(busqueda_id, regex=False, na=False)
-                            | df_ef["Estudiante"].str.lower().str.contains(busqueda_id, regex=False, na=False)
+                            df_ef["ID / Matrícula"].astype(str).str.lower().str.contains(busqueda_id, regex=False, na=False)
+                            | df_ef["Estudiante"].astype(str).str.lower().str.contains(busqueda_id, regex=False, na=False)
                         )
                         df_ef = df_ef[mask_id]
 
-                    if filtro_tipo_ef == "Moratorios":
-                        df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Moratorio", na=False)]
-                    elif filtro_tipo_ef == "Pagos realizados":
-                        df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pagado", na=False)]
-                    elif filtro_tipo_ef == "Pendientes en tiempo":
-                        df_ef = df_ef[df_ef["Estatus Financiero"].str.contains("Pendiente", na=False)]
+                    if "Estatus Financiero" in df_ef.columns:
+                        if filtro_tipo_ef == "Moratorios":
+                            df_ef = df_ef[df_ef["Estatus Financiero"].astype(str).str.contains("Moratorio", na=False)]
+                        elif filtro_tipo_ef == "Pagos realizados":
+                            df_ef = df_ef[df_ef["Estatus Financiero"].astype(str).str.contains("Pagado", na=False)]
+                        elif filtro_tipo_ef == "Pendientes en tiempo":
+                            df_ef = df_ef[df_ef["Estatus Financiero"].astype(str).str.contains("Pendiente", na=False)]
 
                     st.dataframe(df_ef, width="stretch", hide_index=True)
 
                     # Preparar datos ejecutivos para el PDF de Alta Gerencia (Board Pack NIF/IFRS)
-                    ing_bruto = float(ef_data.get("ingresos_cobrados_hist", 0.0))
-                    com_aff = float(ef_data.get("comisiones_generadas_hist", 0.0))
-                    util_neta = float(ef_data.get("ingreso_neto_post_comision", ing_bruto - com_aff))
+                    ing_bruto = float(ef_data.get("ingresos_cobrados_hist") or 0.0)
+                    com_aff = float(ef_data.get("comisiones_generadas_hist") or 0.0)
+                    util_neta = float(ef_data.get("ingreso_neto_post_comision") if ef_data.get("ingreso_neto_post_comision") is not None else (ing_bruto - com_aff))
                     iva_pct_sede = float(st.session_state.get("active_campus_iva", 8.0))
                     subtotal_sin_iva = round(ing_bruto / (1.0 + (iva_pct_sede / 100.0)), 2) if ing_bruto > 0 else 0.0
                     iva_trasladado = round(ing_bruto - subtotal_sin_iva, 2)
@@ -9074,21 +9580,21 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     detalle_rubros_pdf = [
                         {
                             "rubro": "Colegiaturas Cobradas (Alumnos Al Corriente)",
-                            "movimientos": int(ef_data.get("conteo_al_corriente", 0)),
+                            "movimientos": int(ef_data.get("conteo_al_corriente") or 0),
                             "subtotal": subtotal_sin_iva,
                             "total": ing_bruto,
                         },
                         {
                             "rubro": "Cartera Vigente por Cobrar (Semanas 1-4)",
-                            "movimientos": max(0, int(ef_data.get("total_alumnos", 0)) - int(ef_data.get("conteo_al_corriente", 0)) - int(ef_data.get("conteo_moratorios", 0))),
-                            "subtotal": round(float(ef_data.get("cartera_por_cobrar_vigente", 0.0)) / (1.0 + (iva_pct_sede / 100.0)), 2),
-                            "total": float(ef_data.get("cartera_por_cobrar_vigente", 0.0)),
+                            "movimientos": max(0, int(ef_data.get("total_alumnos") or 0) - int(ef_data.get("conteo_al_corriente") or 0) - int(ef_data.get("conteo_moratorios") or 0)),
+                            "subtotal": round(float(ef_data.get("cartera_por_cobrar_vigente") or 0.0) / (1.0 + (iva_pct_sede / 100.0)), 2),
+                            "total": float(ef_data.get("cartera_por_cobrar_vigente") or 0.0),
                         },
                         {
                             "rubro": "Cartera Vencida en Mora (Requiere Seguimiento)",
-                            "movimientos": int(ef_data.get("conteo_moratorios", 0)),
-                            "subtotal": round(float(ef_data.get("cartera_vencida_moratoria", 0.0)) / (1.0 + (iva_pct_sede / 100.0)), 2),
-                            "total": float(ef_data.get("cartera_vencida_moratoria", 0.0)),
+                            "movimientos": int(ef_data.get("conteo_moratorios") or 0),
+                            "subtotal": round(float(ef_data.get("cartera_vencida_moratoria") or 0.0) / (1.0 + (iva_pct_sede / 100.0)), 2),
+                            "total": float(ef_data.get("cartera_vencida_moratoria") or 0.0),
                         },
                     ]
 
@@ -9096,7 +9602,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     with col_exp1:
                         try:
                             from financial_report_pdf import generar_pdf_estado_financiero_gerencial
-                            periodo_hoy = datetime.now(ZoneInfo("America/Hermosillo")).strftime("%B %Y").upper()
+                            _meses_es = [
+                                "", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+                                "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
+                            ]
+                            _ahora_ef = datetime.now(ZoneInfo("America/Hermosillo"))
+                            periodo_hoy = f"{_meses_es[_ahora_ef.month]} {_ahora_ef.year}"
                             pdf_ef_bytes, folio_ef_pdf = generar_pdf_estado_financiero_gerencial(
                                 campus_info=campus_pdf_info,
                                 periodo_label=periodo_hoy,
@@ -9131,7 +9642,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                     st.info("No hay registros financieros de estudiantes para mostrar.")
 
 
- # 14.5C PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS, TÉRMINOS Y QR DE REGISTRO
+        # 14.5C PESTAÑA DEDICADA: ALTA DE SOCIOS AFILIADOS, TÉRMINOS Y QR DE REGISTRO
         if seccion_inst_sel == "🤝 Alta de Socios Afiliados":
             puede_editar_terminos_aff = is_owner or can("Editar_Terminos_Afiliacion") or can("Gestionar_Compliance_Legal")
             if not (is_owner or puede_gestionar_afiliados or puede_editar_terminos_aff):
@@ -9140,12 +9651,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                 if puede_editar_terminos_aff:
                     with st.expander("📜 Editar Términos, Condiciones y Compliance de Socios Afiliados", expanded=False):
                         from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
-                        terms_data = get_institutional_terms_pg("afiliado")
+                        terms_data = get_institutional_terms_pg("afiliado") or {}
                         if terms_data.get("updated_at"):
                             st.caption(f"Última actualización: `{terms_data['updated_at']}` por **{terms_data['updated_by']}**")
                         txt_terms_edit = st.text_area(
                             "Texto legal vigente mostrado en registro_afiliados.py:",
-                            value=terms_data["texto"],
+                            value=str(terms_data.get("texto") or ""),
                             height=240,
                             key="ta_edit_affiliate_terms_admin"
                         )
@@ -9154,7 +9665,14 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                 st.warning("⚠️ El texto de Términos y Condiciones no puede quedar vacío.")
                             else:
                                 ok_t, msg_t = save_institutional_terms_pg("afiliado", txt_terms_edit, str(st.session_state.current_user or "Owner"))
-                                st.success(msg_t) if ok_t else st.error(msg_t)
+                                if ok_t:
+                                    st.cache_data.clear()
+                                    st.success(msg_t)
+                                else:
+                                    st.error(msg_t)
+
+                        st.markdown("**👁️ Vista Previa Documento APA 7:**")
+                        render_affiliate_terms_apa7_doc(txt_terms_edit, max_height_px=280)
 
                 if is_owner or puede_gestionar_afiliados:
                     try:
@@ -9177,11 +9695,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
             aff_objetivo_portal = st.session_state.current_user
 
             if is_owner or puede_gestionar_afiliados:
-                padron_aff_view = load_padron_records()
+                padron_aff_view = load_padron_records() or []
                 lista_aff_view = [
                     str(r.get("Usuario", "")).strip()
                     for r in padron_aff_view
-                    if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate"]
+                    if str(r.get("Rol", "")).lower() in ["socio afiliado", "afiliado", "affiliate", "socio"]
+                    and str(r.get("Usuario", "")).strip()
                 ]
                 col_p_sel, col_p_qr = st.columns([2.6, 1.0])
                 with col_p_sel:
@@ -9203,37 +9722,38 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                         key="btn_dl_qrportal_main"
                     )
 
-
             if aff_objetivo_portal:
                 _render_qr_inscripcion_alumnos_box(
                     afiliado_ref=str(aff_objetivo_portal).strip(),
                     key_prefix=f"portal_aff_{str(aff_objetivo_portal).strip().replace(' ', '_')}"
                 )
                 _render_qr_descarga_app_box(
-                    key_prefix=f"portal_aff_app_{str(aff_objetivo_portal).strip().replace(' ', '_')}"
+                    key_prefix=f"portal_aff_app_{str(aff_objetivo_portal).strip().replace(' ', '_')}",
+                    app_tipo_default="socio"
                 )
 
                 conn_pf = _open_legal_pg_conn()
                 s_dat = None
                 if conn_pf:
                     try:
-                        with conn_pf.cursor() as cur:
-                            cur.execute("""
-                                ALTER TABLE affiliate_partners
-                                ADD COLUMN IF NOT EXISTS rfc TEXT DEFAULT '',
-                                ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
-                                ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE;
-                            """)
-                            cur.execute("""
-                                SELECT affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
-                                       COALESCE(rfc, ''), COALESCE(telefono, ''), COALESCE(email, ''),
-                                       COALESCE(domicilio, ''), COALESCE(estatus, 'Activo'),
-                                       COALESCE(porcentaje_default, 0.0), terminos_aceptados_at
-                                FROM affiliate_partners
-                                WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
-                                LIMIT 1;
-                            """, (aff_objetivo_portal,))
-                            s_dat = cur.fetchone()
+                        with conn_pf:
+                            with conn_pf.cursor() as cur:
+                                cur.execute("""
+                                    ALTER TABLE affiliate_partners
+                                    ADD COLUMN IF NOT EXISTS rfc TEXT DEFAULT '',
+                                    ADD COLUMN IF NOT EXISTS terminos_aceptados BOOLEAN DEFAULT TRUE,
+                                    ADD COLUMN IF NOT EXISTS terminos_aceptados_at TIMESTAMP WITH TIME ZONE;
+                                """)
+                                cur.execute("""
+                                    SELECT affiliate_id, usuario_login, nombre, apellido_paterno, apellido_materno,
+                                           COALESCE(rfc, ''), COALESCE(telefono, ''), COALESCE(email, ''),
+                                           COALESCE(domicilio, ''), COALESCE(estatus, 'Activo'),
+                                           COALESCE(porcentaje_default, 0.0), terminos_aceptados_at
+                                    FROM affiliate_partners
+                                    WHERE LOWER(TRIM(usuario_login)) = LOWER(TRIM(%s))
+                                    LIMIT 1;
+                                """, (aff_objetivo_portal,))
+                                s_dat = cur.fetchone()
                     except Exception:
                         pass
                     finally:
@@ -9241,6 +9761,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                             conn_pf.close()
                         except Exception:
                             pass
+
 
 
                 # 14.6B EDITOR DE EXPEDIENTE Y RADAR DE RACHAS SEMANALES + WHATSAPP (PARTE 2 DE 2 — MITAD 1)
@@ -9283,7 +9804,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado) and st.session_state.ge
                                     estados_aff = ["Activo", "Inactivo", "Baja"]
                                     idx_est = estados_aff.index(aff_est_v) if aff_est_v in estados_aff else 0
                                     ed_est = st.selectbox("Estado del Afiliado:", estados_aff, index=idx_est)
-
 
                                 if st.form_submit_button("💾 Guardar Cambios y Comisión", type="primary", width="stretch"):
                                     conn_sv = _open_legal_pg_conn()
