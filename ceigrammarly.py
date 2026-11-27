@@ -5417,7 +5417,7 @@ with col_logout:
         if mostrar_qr_hdr_now:
             base_pages = "https://" + "drzumaya.github.io/My-CEI-English-Reading-Improvement-Tool/"
             url_install_hdr = base_pages + "?install=1"
-            url_apk_hdr = "https://github.com"
+            url_apk_hdr = "https://github.com/drzumaya/My-CEI-English-Reading-Improvement-Tool/releases/download/v1.0.0/CEI_App_Oficial.apk"
 
             buf_qh = io.BytesIO()
             qrcode.make(url_install_hdr).save(buf_qh, format="PNG")
