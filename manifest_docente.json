@@ -1,0 +1,25 @@
+{
+  "id": "/My-CEI-English-Reading-Improvement-Tool/docente_app.html",
+  "name": "CEI Portal Docentes",
+  "short_name": "CEI Docentes",
+  "description": "Portal Académico Oficial para Docentes — Career English Institute (CEI)",
+  "start_url": "/My-CEI-English-Reading-Improvement-Tool/docente_app.html",
+  "scope": "/My-CEI-English-Reading-Improvement-Tool/",
+  "display": "standalone",
+  "background_color": "#0b2545",
+  "theme_color": "#0b2545",
+  "icons": [
+    {
+      "src": "./static/android-launchericon-192-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./static/android-launchericon-512-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
