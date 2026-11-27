@@ -10135,7 +10135,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
 
 # ==============================================================================
 # PARTE 16 — BLOQUE 2-B (FINAL): PANEL DERECHO DE WRITING SKILL (20%)
-# ============================================================================== 
+# ==============================================================================  
         if col_wrt_box is not None:
             with col_wrt_box:
                 with st.container(border=True):
@@ -10208,12 +10208,16 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         else:
                             with st.spinner(f"Evaluando síntesis de video ({crit_w['etiqueta']}) con la rúbrica oficial de 20 puntos..."):
                                 try:
+                                    import importlib
+                                    import video_rubric_evaluator as _vre_eval
+                                    importlib.reload(_vre_eval)
+
                                     contexto_video_ref = (
                                         f"Video Title: {vid_ref_c.get('title', '')}\n"
                                         f"Channel: {vid_ref_c.get('channel', '')}\n"
                                         f"Lesson Context: {st.session_state.generated_text[:1800]}"
                                     )
-                                    res_rub = evaluar_resumen_video_rubrica_ia(
+                                    res_rub = _vre_eval.evaluar_resumen_video_rubrica_ia(
                                         student_summary=res_central,
                                         lesson_reference=contexto_video_ref,
                                         cefr_code=st.session_state.selected_cefr,
@@ -10237,13 +10241,19 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                     st.error(f"No se pudo completar la evaluación por rúbrica: {e_rub}")
 
                     if st.session_state.get("video_rubric_result"):
-                        render_resultado_rubrica_video(st.session_state["video_rubric_result"], st.session_state.selected_cefr)
-
+                        import importlib
+                        import inspect
+                        import video_rubric_evaluator as _vre_res
+                        importlib.reload(_vre_res)
+                        if len(inspect.signature(_vre_res.render_resultado_rubrica_video).parameters) >= 2:
+                            _vre_res.render_resultado_rubrica_video(st.session_state["video_rubric_result"], st.session_state.selected_cefr)
+                        else:
+                            _vre_res.render_resultado_rubrica_video(st.session_state["video_rubric_result"])
 
 
 # ==============================================================================
-# PARTE 17 — BLOQUE 2A: CATÁLOGO DE VIDEOS (SOLO ACTIVO EN BOTÓN 2 VIEWING)
-# ==============================================================================
+# PARTE 17 — BLOQUE 2A: CATÁLOGO DE VIDEOS (SOLO ACTIVO EN BOTÓN 2 VIEWING) 
+# ============================================================================== 
 has_lesson_p17 = bool(str(st.session_state.get("generated_text") or "").strip())
 stage_5_p17 = st.session_state.get("active_stage_5", "READING")
 
