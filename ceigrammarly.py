@@ -9880,10 +9880,10 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                                     GROUP BY LOWER(TRIM(usuario_estudiante));
                                 """)
                                 for row_p in cur.fetchall():
-                                    pagos_por_alumno[str(row_p[0])] = {
-                                        "bloques_pagados": int(row_p[1] or 0),
-                                        "monto_pagado": float(row_p[2] or 0.0),
-                                        "ultimo_pago": str(row_p[3] or "")[:10]
+                                    pagos_por_alumno[str(row_p)] = {
+                                        "bloques_pagados": int(row_p or 0),
+                                        "monto_pagado": float(row_p or 0.0),
+                                        "ultimo_pago": str(row_p or "")[:10]
                                     }
                         except Exception:
                             pass
@@ -9903,7 +9903,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                     for r_tmp in referidos_lista:
                         u_tmp = str(r_tmp.get("Usuario") or "").strip()
                         n_tmp = str(r_tmp.get("Nivel") or "B1").strip()
-                        g_tmp = calcular_gamificacion_estudiante(u_tmp, n_tmp)
+                        g_tmp = calcular_gamificacion_estudiante(u_tmp, n_tmp) or {}
                         resumen_gam_cache[u_tmp] = g_tmp
                         if "oro" in str(g_tmp.get("categoria_label", "")).lower():
                             alumnos_oro_cnt += 1
@@ -9939,20 +9939,26 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                                 est_mat = str(r_est.get("Matricula") or r_est.get("ID") or "").strip()
                                 est_niv = str(r_est.get("Nivel") or "B1").strip()
                                 est_tel = str(r_est.get("Telefono") or r_est.get("Whatsapp") or "").strip()
-
-                                gam_est = resumen_gam_cache.get(est_u) or calcular_gamificacion_estudiante(est_u, est_niv)
-                                wa_mot_link = build_whatsapp_motivacion_racha(
-                                    student_user=est_nom,
-                                    gam_data=gam_est,
-                                    telefono_alumno=est_tel,
-                                    app_url=app_link_pub
-                                )
-
+                                if not est_tel:
+                                    try:
+                                        fin_tmp_ref = evaluar_estado_financiero_alumno(est_u) or {}
+                                        est_tel = str(fin_tmp_ref.get("telefono_whatsapp") or "").strip()
+                                    except Exception:
+                                        pass
 
                                 info_pago = pagos_por_alumno.get(est_u.lower(), {"bloques_pagados": 0, "monto_pagado": 0.0, "ultimo_pago": ""})
                                 bloq_pag = min(9, int(info_pago["bloques_pagados"]))
                                 monto_est = float(info_pago["monto_pagado"])
                                 com_est = round(monto_est * (pct_com_socio / 100.0), 2)
+
+                                gam_est = resumen_gam_cache.get(est_u) or calcular_gamificacion_estudiante(est_u, est_niv) or {}
+                                wa_mot_link = build_whatsapp_motivacion_racha(
+                                    student_user=est_nom,
+                                    gam_data=gam_est,
+                                    telefono_alumno=est_tel,
+                                    rol_emisor="socio",
+                                    pago_al_corriente=(bloq_pag >= 1),
+                                )
 
                                 if bloq_pag >= 9:
                                     semaforo_pago = "🏆 Liquidado (9/9)"
@@ -9965,9 +9971,9 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                                 if len(digits_tel) == 10:
                                     digits_tel = f"52{digits_tel}"
                                 msg_pago_wa = (
-                                    f"¡Hola {est_nom}! 👋 Te saluda tu asesor de *Career English Institute (CEI)*. "
-                                    f"Revisando tu avance vas en *{bloq_pag}/9 bloques* y categoría *{gam_est['categoria_label']}* 🏅. "
-                                    f"Recuerda mantener al corriente tu siguiente bloque para conservar tus beneficios y seguir sumando hacia *Categoría Oro*. "
+                                    f"¡Hola {est_nom}! 👋 Te saluda tu Socio Afiliado de *Career English Institute (CEI)*. "
+                                    f"Revisando tu avance vas en *{bloq_pag}/9 bloques* y categoría *{gam_est.get('categoria_label', '🥉 Categoría Bronce')}* 🏅. "
+                                    f"Recuerda mantener al corriente tu siguiente bloque para conservar tus beneficios y seguir sumando hacia *🥇 Categoría Oro*. "
                                     f"Ingresa aquí a tu plataforma: {app_link_pub}"
                                 )
                                 wa_pago_link = (
@@ -9975,32 +9981,33 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                                     if digits_tel else f"https://wa.me?text={urllib.parse.quote(msg_pago_wa)}"
                                 )
 
+
                                 with st.container(border=True):
                                     st.markdown(
                                         f"**🎓 {est_nom}** (`{est_u}`)"
                                         + (f" • 🆔 `{est_mat}`" if est_mat else "")
                                         + f" • Nivel **{est_niv}**"
                                     )
-                                    est_fuego = "🔥 Activa" if gam_est["activo_esta_semana"] else "⏳ Pendiente"
+                                    est_fuego = "🔥 Activa" if gam_est.get("activo_esta_semana") else "⏳ Pendiente"
                                     st.markdown(
-                                        f"🏅 **{gam_est['categoria_label']}** | "
-                                        f"🔥 Racha: **{gam_est['racha_semanas']} sem.** ({est_fuego}) | "
-                                        f"📚 Folios: **{gam_est['total_folios']}**\n\n"
+                                        f"🏅 **{gam_est.get('categoria_label', '🥉 Categoría Bronce')}** | "
+                                        f"🔥 Racha: **{int(gam_est.get('racha_semanas') or 0)} sem.** ({est_fuego}) | "
+                                        f"📚 Folios: **{int(gam_est.get('total_folios') or 0)}**\n\n"
                                         f"💳 **Pagos:** {semaforo_pago} | "
                                         f"💰 **Comisión generada:** **`${com_est:,.2f}`**"
-                                        + (f" *(Último pago: `{info_pago['ultimo_pago']}`)*" if info_pago["ultimo_pago"] else "")
+                                        + (f" *(Último pago: `{info_pago.get('ultimo_pago')}`)*" if info_pago.get("ultimo_pago") else "")
                                     )
                                     c_b1, c_b2 = st.columns(2)
                                     with c_b1:
                                         st.link_button(
                                             "🔥 Motivar Meta Oro (WhatsApp)",
-                                            url=wa_mot_link,
+                                            url=wa_mot_link or "https://wa.me",
                                             width="stretch"
                                         )
                                     with c_b2:
                                         st.link_button(
                                             "💳 Seguimiento Pago (WhatsApp)",
-                                            url=wa_pago_link,
+                                            url=wa_pago_link or "https://wa.me",
                                             width="stretch"
                                         )
 
