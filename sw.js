@@ -56,3 +56,9 @@ self.addEventListener("sync", (event) => {
     event.waitUntil(Promise.resolve());
   }
 });
+
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag === "cei-periodic-sync") {
+    event.waitUntil(Promise.resolve());
+  }
+});
