@@ -203,7 +203,7 @@ if is_owner_only:
         """,
         unsafe_allow_html=True,
     )
-
+ 
 
 # ==============================================================================
 # PANTALLA DE INSTALACIÓN INTELIGENTE POR DISPOSITIVO (QR DE DESCARGA APP CEI)
