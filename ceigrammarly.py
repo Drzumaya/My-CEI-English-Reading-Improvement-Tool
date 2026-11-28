@@ -10019,24 +10019,21 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
 if generar_btn:
     campos_faltantes = []
     if not str(locals().get("contexto", "")).strip():
-        campos_faltantes.append("Contexto / Escenario")
-    if not str(locals().get("personas", "")).strip():
-        campos_faltantes.append("Personajes / Participantes")
+        campos_faltantes.append("1️⃣ Contexto / Lugar / Tema")
     if not str(locals().get("asunto", "")).strip():
-        campos_faltantes.append("Tema / Asunto")
+        campos_faltantes.append("3️⃣ Asunto / Materia")
 
     gm_active = client or init_gemini_client()
     if gm_active is None:
-        st.sidebar.error("⚠️ GEMINI_API_KEY no configurada.")
-        st.error("⚠️ Error de configuración: falta GEMINI_API_KEY.")
+        st.error("⚠️ Error de configuración: falta `GEMINI_API_KEY` en los Secrets de Streamlit Cloud.")
     elif campos_faltantes:
         lista_faltantes = ", ".join(campos_faltantes)
         st.toast(f"Faltan datos por completar: {lista_faltantes}", icon="⚠️")
-        st.sidebar.warning(f"⚠️ Completa los siguientes campos antes de generar:\n\n**{lista_faltantes}**")
-        st.warning(f"⚠️ **Datos incompletos:** Por favor llena **{lista_faltantes}** en el panel izquierdo.")
+        st.warning(f"⚠️ **Datos incompletos:** Por favor completa **{lista_faltantes}** en el configurador de lección.")
     else:
         st.session_state.show_teacher_registry = False
         st.session_state["active_admin_workspace"] = None
+        st.session_state["current_topic"] = str(asunto).strip()
 
         stop_box = st.empty()
         with stop_box.container():
@@ -10051,16 +10048,28 @@ if generar_btn:
 
         with st.spinner(f"🧠 Normalizing inputs, translating & generating CEFR {cefr_level} ({academic_grade}) Lesson..."):
             try:
+                personas_clean_in = str(personas or "").strip() or "An instructor and a student / General academic narrator"
                 contexto_en, personas_en, asunto_apa = normalizar_entradas_apa(
-                    gm_active, contexto, personas, asunto
+                    gm_active, contexto, personas_clean_in, asunto
                 )
+
 
                 ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
                 nuevo_folio = f"CEI-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
                 fecha_creacion = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
 
-                base_url = str(st.secrets.get("APP_PUBLIC_URL") or st.secrets.get("APP_BASE_URL") or "").strip().rstrip("/")
-                pdf_url_directo = f"{base_url}/?folio={urllib.parse.quote(nuevo_folio)}" if base_url else f"/?folio={urllib.parse.quote(nuevo_folio)}"
+                raw_base_url = str(
+                    st.secrets.get("PUBLIC_APP_URL")
+                    or st.secrets.get("APP_PUBLIC_URL")
+                    or st.secrets.get("APP_BASE_URL")
+                    or ""
+                ).strip().rstrip("/")
+                base_url = (
+                    raw_base_url
+                    if "myceigrammarly.streamlit.app" in raw_base_url
+                    else ("https://" + "myceigrammarly.streamlit.app")
+                )
+                pdf_url_directo = f"{base_url}/?folio={urllib.parse.quote(nuevo_folio)}"
 
                 cefr_guidelines = {
                     "A1": "Use very basic everyday vocabulary, short simple sentences (5-8 words), present simple/continuous, and concrete familiar topics.",
@@ -10099,20 +10108,21 @@ if generar_btn:
                 - Academic Level: {academic_grade} | CEFR Level: {cefr_level}
                 - Context: {contexto_en} | Characters: {personas_en} | Subject: {asunto_apa}
                 - Target Grammar: {gramatica_b1} | Discourse Mode: {tipo_texto}
-  
-                STRICT RULES: 
+
+                STRICT RULES:
                 1. 100% English only. Calibrate vocabulary and grammar strictly to CEFR {cefr_level} and pedagogical tone to {academic_grade}. Highlight all {gramatica_b1} structures in **bold**.
                 2. APA Header & Byline: Include the academic title in bold, followed immediately by:
-                   **Folio:** {nuevo_folio} | **Creation Date:** {fecha_creacion}  
-                   **Author:** Jacob Zumaya Prianti | **Institution:** Career English Institute (2026)  
-                   **CEFR Level:** {cefr_level} | **Academic Level:** {academic_grade}  
+                   **Folio:** {nuevo_folio} | **Creation Date:** {fecha_creacion}
+                   **Author:** Jacob Zumaya Prianti | **Institution:** Career English Institute (2026)
+                   **CEFR Level:** {cefr_level} | **Academic Level:** {academic_grade}
                    **Campus & Contact:** {institute_address}
                 3. Bibliography / APA References Section: At the end of the lesson, include a formal section titled **Bibliography (Consulted Academic & Linguistic Sources)** formatted in strict APA 7th edition. List:
                    - Primary instructional module: Zumaya Prianti, J. (2026). *{asunto_apa}: CEFR {nivel_corto} ({academic_grade}) Applied Grammar & Discourse Module* (Folio {nuevo_folio}). Career English Institute.
                    - 3 to 4 real, authoritative linguistic, pedagogical, or subject-matter reference works directly relevant to "{asunto_apa}", "{gramatica_b1}", and {academic_grade} education, sorted alphabetically by author surname.
                 """
+
 # ==============================================================================
-# PARTE 15A: EJECUCIÓN PARALELA (QUIZ + VIDEO EDUCATIVO), AUDIO Y PERSISTENCIA  
+# PARTE 15A: EJECUCIÓN PARALELA (QUIZ + VIDEO EDUCATIVO), AUDIO Y PERSISTENCIA
 # ==============================================================================
                 texto_gen, mod_usado = generar_con_maxima_potencia(gm_active, prompt_texto, sys_prompt)
                 st.session_state.generated_text = texto_gen
@@ -10134,7 +10144,7 @@ if generar_btn:
                 st.session_state.speaking_eval_result = None
                 st.session_state["best_stored_score"] = ""
 
-                # Inicializar estados del Video Educativo (25%) y Resumen APA 7 (15%)
+                # Inicializar estados del Video Educativo (25%) y Resumen APA 7 (20%)
                 st.session_state["current_lesson_video"] = None
                 st.session_state["video_watched_sec"] = 0
                 st.session_state["video_score_100"] = 0.0
@@ -10180,7 +10190,11 @@ if generar_btn:
                         st.session_state["current_lesson_video"] = None
 
                 try:
-                    clean_tts = re.split(r"\bBibliography\b", texto_gen.replace("*", "").replace("#", ""), maxsplit=1)[0]
+                    clean_tts = re.split(
+                        r"\bBibliography\b",
+                        texto_gen.replace("*", "").replace("#", ""),
+                        maxsplit=1
+                    ).strip()
                     tts = gTTS(text=clean_tts, lang="en", slow=False)
                     audio_fp = io.BytesIO()
                     tts.write_to_fp(audio_fp)
@@ -10206,6 +10220,7 @@ if generar_btn:
                             folio_code=nuevo_folio,
                             video_info=st.session_state["current_lesson_video"]
                         )
+                    st.cache_data.clear()
                 except Exception as e_db:
                     st.warning(f"⚠️ Lección generada, pero hubo un aviso al guardar en Supabase: {e_db}")
 
@@ -10213,6 +10228,7 @@ if generar_btn:
                 st.rerun()
             except Exception as e:
                 st.error(f"⚠️ Error al generar lección: {e}")
+
 
 # ==============================================================================
 # PARTE 16 — BLOQUE 1-A: VENTANA MAESTRA 1 (READING 30% + TAMAÑO DE LETRA + QUIZ)
@@ -10230,6 +10246,86 @@ stage_5_now = st.session_state.get("active_stage_5") or "READING"
 if stage_5_now not in ["READING", "VIEWING", "PORTAL"]:
     stage_5_now = "READING"
     st.session_state["active_stage_5"] = "READING"
+
+
+def _ensure_spanish_study_dictionary(payload_est: dict) -> dict:
+    """Garantiza que cada palabra del diccionario emergente tenga traducción real al Español (nunca copia del Inglés)."""
+    if not isinstance(payload_est, dict):
+        return payload_est
+    dict_obj = payload_est.get("dictionary")
+    if not isinstance(dict_obj, dict) or not dict_obj:
+        return payload_est
+
+    cache_es = st.session_state.setdefault("_cei_en_es_word_cache", {})
+    pendientes_en = []
+    mapa_clave_texto = {}
+
+    for w_k, entry in dict_obj.items():
+        if not isinstance(entry, dict):
+            continue
+        en_def = str(entry.get("en") or entry.get("definition_en") or entry.get("meaning_en") or "").strip()
+        es_def = str(entry.get("es") or entry.get("definition_es") or entry.get("meaning_es") or entry.get("spanish") or "").strip()
+
+        necesita_traduccion = (
+            not es_def
+            or (en_def and es_def.lower() == en_def.lower())
+            or es_def.lower() == str(w_k).strip().lower()
+        )
+        if necesita_traduccion:
+            src_txt = en_def if en_def else str(w_k).strip()
+            if src_txt in cache_es and cache_es[src_txt]:
+                entry["es"] = cache_es[src_txt]
+                entry["definition_es"] = cache_es[src_txt]
+            else:
+                mapa_clave_texto[w_k] = src_txt
+                if src_txt not in pendientes_en:
+                    pendientes_en.append(src_txt)
+
+    if pendientes_en:
+        # 1. Intentar traducción en lote rápida con Gemini (0.1s por lote completo)
+        try:
+            gm_tr = init_gemini_client()
+            if gm_tr:
+                from google.genai import types as _gtypes
+                prompt_tr = (
+                    "Translate the following English words/definitions into clear, natural Mexican Spanish "
+                    "for an English-Spanish learner's dictionary. Return strictly a JSON object mapping each "
+                    "exact English input key to its Spanish translation string.\n\n"
+                    + json.dumps(pendientes_en, ensure_ascii=False)
+                )
+                resp_tr = gm_tr.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt_tr,
+                    config=_gtypes.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+                )
+                raw_tr = re.sub(r"^```(?:json)?|```$", "", str(getattr(resp_tr, "text", "") or "").strip(), flags=re.MULTILINE).strip()
+                tr_map = json.loads(raw_tr)
+                if isinstance(tr_map, dict):
+                    for k_en, v_es in tr_map.items():
+                        if str(v_es or "").strip():
+                            cache_es[str(k_en)] = str(v_es).strip()
+        except Exception:
+            pass
+
+        # 2. Respaldo automático con deep_translator para cualquier término faltante
+        for src_txt in pendientes_en:
+            if not cache_es.get(src_txt):
+                try:
+                    from deep_translator import GoogleTranslator
+                    tr_val = GoogleTranslator(source="en", target="es").translate(src_txt)
+                    if tr_val and str(tr_val).strip():
+                        cache_es[src_txt] = str(tr_val).strip()
+                except Exception:
+                    pass
+
+        for w_k, src_txt in mapa_clave_texto.items():
+            tr_final = cache_es.get(src_txt)
+            if tr_final and isinstance(dict_obj.get(w_k), dict):
+                dict_obj[w_k]["es"] = tr_final
+                dict_obj[w_k]["definition_es"] = tr_final
+
+    return payload_est
+
 
 if has_lesson_now and stage_5_now != "PORTAL":
     if stage_5_now == "READING":
@@ -10293,11 +10389,12 @@ if has_lesson_now and stage_5_now != "PORTAL":
             )
 
             if st.session_state.get("study_mode_active"):
-                with st.spinner("Analizando estructuras gramaticales, fonética y definiciones..."):
+                with st.spinner("Analizando estructuras gramaticales, fonética y definiciones en Inglés y Español..."):
                     payload_estudio = analyze_lesson_for_study_mode(
                         st.session_state.generated_text,
                         st.session_state.selected_cefr
                     )
+                    payload_estudio = _ensure_spanish_study_dictionary(payload_estudio)
                 st.markdown("<div class='cei-lesson-reader'>", unsafe_allow_html=True)
                 render_interactive_study_viewer(payload_estudio)
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -10309,7 +10406,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     )
 
             # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA — SINCRONIZADO CON TAMAÑO DE LETRA)
-            if st.session_state.quiz_data is None:
+            if not st.session_state.quiz_data:
                 cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
                 if st.button(
                     f"📝 Generar Quiz de Comprensión — 30% ({cefr_tag} - {st.session_state.selected_academic_grade})",
@@ -10325,7 +10422,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                 st.session_state.selected_academic_grade
                             )
                             st.session_state.quiz_data = q_gen
-                            if st.session_state.current_folio:
+                            if st.session_state.current_folio and q_gen:
                                 save_quiz_and_best_score_pg(st.session_state.current_folio, "", q_gen, {})
                             st.rerun()
                         except Exception as e:
@@ -10335,20 +10432,20 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     st.markdown("<div class='cei-quiz-box'>", unsafe_allow_html=True)
                     st.subheader(f"📝 Reading & Grammar Comprehension Quiz — 30% (Folio: {st.session_state.current_folio})")
                     for idx, item in enumerate(st.session_state.quiz_data):
-                        st.markdown(f"**{idx + 1}. {item['question']}**")
+                        st.markdown(f"**{idx + 1}. {item.get('question', '')}**")
                         choice = st.radio(
                             f"q_{idx}",
-                            item["options"],
+                            item.get("options") or [],
                             key=f"radio_quiz_{idx}",
                             label_visibility="collapsed",
                             index=None
                         )
                         st.session_state.quiz_user_answers[idx] = choice
                         if st.session_state.quiz_graded:
-                            if choice == item["answer"]:
-                                st.success(f"✅ Correct! ({item['answer']})")
+                            if choice == item.get("answer"):
+                                st.success(f"✅ Correct! ({item.get('answer', '')})")
                             else:
-                                st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item['answer']}")
+                                st.error(f"❌ Incorrect. Your answer: {choice or 'None'} | **Correct answer:** {item.get('answer', '')}")
                         st.write("")
                     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -10369,6 +10466,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                     st.session_state.quiz_data,
                                     st.session_state.quiz_user_answers
                                 )
+                                st.cache_data.clear()
                             st.rerun()
 
                     with c_qz2:
@@ -10386,7 +10484,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                     st.session_state.quiz_score = None
                                     st.session_state.quiz_user_answers = {}
                                     st.session_state.quiz_audio_bytes = None
-                                    if st.session_state.current_folio:
+                                    if st.session_state.current_folio and q_new:
                                         save_quiz_and_best_score_pg(st.session_state.current_folio, "", q_new, {})
                                     st.rerun()
                                 except Exception as e:
@@ -10394,6 +10492,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
 
                     if st.session_state.quiz_graded and st.session_state.quiz_score:
                         st.success(f"🏆 **Resultado del Quiz (30%):** `{st.session_state.quiz_score}` respuestas correctas.")
+
 
 
 # ==============================================================================
@@ -10433,13 +10532,14 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                         ev_oral = evaluar_pronunciacion_oral_ia(
                                             raw_aud, "audio/wav", st.session_state.generated_text,
                                             st.session_state.selected_cefr, gramatica_b1
-                                        )
+                                        ) or {}
                                         st.session_state["speaking_eval_result"] = ev_oral
                                         sc_pct = float(ev_oral.get("score_percent") or 0.0)
                                         pts_25 = round((sc_pct / 100.0) * 25.0, 2)
                                         f_code = st.session_state.current_folio or ""
                                         usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
                                         if f_code:
+                                            save_best_speaking_pg(f_code, int(round(sc_pct)))
                                             public_u = upload_student_media_to_storage(
                                                 raw_aud,
                                                 filename=f"{f_code}_speaking.wav",
@@ -10451,6 +10551,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                                 f_code, usr_now, "audio", public_u or "", gramatica_b1,
                                                 st.session_state.selected_cefr, eval_dict=ev_oral
                                             )
+                                            st.cache_data.clear()
                                         st.success(f"🏆 **Calificación Oral:** {sc_pct}% (`{pts_25} / 25.0 pts`)")
                                         st.write(f"**🔤 Fonética:** {ev_oral.get('phonetic_feedback', '')}")
                                         st.write(f"**🎵 Fluidez:** {ev_oral.get('fluency_prosody', '')}")
@@ -10495,6 +10596,20 @@ if has_lesson_now and stage_5_now != "PORTAL":
                           const btnDl = document.getElementById('btnDlVid');
                           const statusEl = document.getElementById('vidStatus');
 
+                          function pickSupportedMime() {
+                            const candidates = [
+                              'video/webm;codecs=vp8,opus',
+                              'video/webm',
+                              'video/mp4'
+                            ];
+                            if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
+                              for (const m of candidates) {
+                                if (MediaRecorder.isTypeSupported(m)) return m;
+                              }
+                            }
+                            return '';
+                          }
+
                           btnStart.onclick = async () => {
                             try {
                               recordedChunks = [];
@@ -10503,21 +10618,23 @@ if has_lesson_now and stage_5_now != "PORTAL":
                               preview.style.display = 'block';
                               activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                               preview.srcObject = activeStream;
-                              const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-                                ? 'video/webm;codecs=vp8,opus'
-                                : 'video/webm';
-                              mediaRecorder = new MediaRecorder(activeStream, { mimeType });
+                              const mimeType = pickSupportedMime();
+                              mediaRecorder = mimeType
+                                ? new MediaRecorder(activeStream, { mimeType })
+                                : new MediaRecorder(activeStream);
+                              const outMime = mimeType || mediaRecorder.mimeType || 'video/webm';
+                              const outExt = outMime.includes('mp4') ? 'mp4' : 'webm';
                               mediaRecorder.ondataavailable = (e) => {
                                 if (e.data && e.data.size > 0) recordedChunks.push(e.data);
                               };
                               mediaRecorder.onstop = () => {
-                                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                                const blob = new Blob(recordedChunks, { type: outMime });
                                 const url = URL.createObjectURL(blob);
                                 preview.style.display = 'none';
                                 playback.src = url;
                                 playback.style.display = 'block';
                                 btnDl.href = url;
-                                btnDl.download = 'CEI_Speaking_Video.webm';
+                                btnDl.download = 'CEI_Speaking_Video.' + outExt;
                                 btnDl.style.display = 'inline-block';
                                 statusEl.textContent = '✅ Grabación finalizada. Puedes reproducirla, descargarla o cargarla abajo para calificación con IA.';
                                 if (activeStream) activeStream.getTracks().forEach(t => t.stop());
@@ -10574,24 +10691,33 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                             ev_vid = evaluar_pronunciacion_oral_ia(
                                                 raw_vid, v_mime, st.session_state.generated_text,
                                                 st.session_state.selected_cefr, gramatica_b1
-                                            )
+                                            ) or {}
                                             st.session_state["speaking_eval_result"] = ev_vid
                                             sc_vpct = float(ev_vid.get("score_percent") or 0.0)
                                             pts_v25 = round((sc_vpct / 100.0) * 25.0, 2)
                                             f_code = st.session_state.current_folio or ""
-                                            usr_now = st.session_state.get("current_user") or "Estudiante"
+                                            usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
                                             if f_code:
-                                                public_v, _ = upload_student_media_to_storage(raw_vid, v_mime, v_ext, f_code, usr_now)
+                                                save_best_speaking_pg(f_code, int(round(sc_vpct)))
+                                                public_v = upload_student_media_to_storage(
+                                                    raw_vid,
+                                                    filename=f"{f_code}_speaking.{v_ext}",
+                                                    content_type=v_mime,
+                                                    student_user=usr_now,
+                                                    folder="pronunciation"
+                                                )
                                                 save_student_media_record_pg(
                                                     f_code, usr_now, "video", public_v or "", gramatica_b1,
                                                     st.session_state.selected_cefr, eval_dict=ev_vid
                                                 )
+                                                st.cache_data.clear()
                                             st.success(f"🏆 **Calificación Oral (Video):** {sc_vpct}% (`{pts_v25} / 25.0 pts`)")
                                             st.write(f"**🔤 Fonética:** {ev_vid.get('phonetic_feedback', '')}")
                                             st.write(f"**🎵 Fluidez:** {ev_vid.get('fluency_prosody', '')}")
                                             st.write(f"**📐 Gramática:** {ev_vid.get('grammar_accuracy', '')}")
                                         except Exception as e:
                                             st.error(f"Error al evaluar video: {e}")
+
 
 # ==============================================================================
 # PARTE 16 — BLOQUE 2-A: VENTANA MAESTRA 2 (VIDEO ACTIVO + CRONÓMETRO 25%)
@@ -10608,16 +10734,16 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     st.session_state.generated_text,
                     topic_context=str(st.session_state.get("current_topic") or "").strip(),
                     max_videos=12
-                )
+                ) or {}
                 st.session_state["current_lesson_video"] = vid_stage
                 if st.session_state.current_folio and vid_stage.get("url"):
                     save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_stage)
         v_url_st = str(vid_stage.get("url") or "").strip()
-        m_id_st = re.search(r"(?:v=|youtu\.be/|embed/|youtube\.com/?)([a-zA-Z0-9_-]{11})", v_url_st)
+        m_id_st = re.search(r"(?:v=|youtu\.be/|embed/|shorts/)([a-zA-Z0-9_-]{11})", v_url_st)
         vid_id_st = m_id_st.group(1) if m_id_st else "L9AWrJnhsRI"
         if vid_id_st.lower() == "o1_0gz4urko":
             vid_id_st = "L9AWrJnhsRI"
-        v_watch_url = "https://youtube.com" + "/watch?v=" + vid_id_st
+        v_watch_url = f"https://youtube.com{vid_id_st}"
 
         # RÚBRICA OFICIAL DE 20 PUNTOS (20%) DESPLEGABLE JUSTO ARRIBA DEL BOTÓN 4
         render_rubrica_video_plegable()
@@ -10641,9 +10767,9 @@ if has_lesson_now and stage_5_now != "PORTAL":
         with col_vid_box:
             with st.container(border=True):
                 titulo_st_safe = str(vid_stage.get("title") or "Educational Video").replace("[", "(").replace("]", ")")
-                dur_sec_st = max(60, int(vid_stage.get("duration_sec") or 300))
+                dur_sec_st = max(60, int(float(vid_stage.get("duration_sec") or 300)))
                 dur_min_st = round(dur_sec_st / 60.0, 2)
-                watched_st = int(st.session_state.get("video_watched_sec") or 0)
+                watched_st = int(float(st.session_state.get("video_watched_sec") or 0))
                 v_sc_st = float(st.session_state.get("video_score_100") or 0.0)
                 pts_v_st = round((v_sc_st / 100.0) * 25.0, 2)
                 folio_vid_key = str(st.session_state.current_folio or "DEFAULT")
@@ -10654,7 +10780,8 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     f"Acreditado en Boletín (25%): **`{pts_v_st} / 25.0 pts`** (`{round(v_sc_st, 1)}%`)"
                 )
 
-                v_watch_url = "https://youtube.com" + "/watch?v=" + vid_id_st
+                v_watch_url = f"https://youtube.com{vid_id_st}"
+
 
                 # REPRODUCTOR OFICIAL YOUTUBE API + REGLA VISUAL AUTOMÁTICA SINCRONIZADA
                 yt_ruler_html = f"""
@@ -10689,7 +10816,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                   </div>
                 </div>
 
-                <script src="https://youtube.com/iframe_api"></script>
+                <script src="https://www.youtube.com/iframe_api"></script>
                 <script>
                   (function() {{
                     const storageKey = "cei_vid_sec_{folio_vid_key}_{vid_id_st}";
@@ -10722,8 +10849,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         if (player && typeof player.getPlayerState === "function" && player.getPlayerState() === 1) {{
                           const realDur = player.getDuration();
                           if (realDur && realDur > 10) totalDuration = Math.floor(realDur);
-                          const currPos = Math.floor(player.getCurrentTime() || 0);
-                          watchedSeconds = Math.max(watchedSeconds + 1, currPos);
+                          watchedSeconds = Math.min(totalDuration, watchedSeconds + 1);
                           if (watchedSeconds >= totalDuration - 2) {{
                             watchedSeconds = totalDuration;
                           }}
@@ -10742,7 +10868,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     window.onYouTubeIframeAPIReady = function() {{
                       player = new YT.Player('ceiYtPlayer', {{
                         videoId: '{vid_id_st}',
-                        playerVars: {{ rel: 0, modestbranding: 1 }},
+                        playerVars: {{ rel: 0, modestbranding: 1, playsinline: 1 }},
                         events: {{
                           onReady: function(e) {{
                             const d = e.target.getDuration();
@@ -10771,7 +10897,6 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         }}
                       }});
                     }};
-
                     if (window.YT && window.YT.Player) {{
                       window.onYouTubeIframeAPIReady();
                     }}
@@ -10794,13 +10919,15 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         "tu calificación ya quedó asegurada y no requiere volver a computarse ni registrarse."
                     )
                 else:
+                    max_min_safe = max(0.25, float(dur_min_st))
+                    val_min_safe = min(max_min_safe, max(0.0, float(round(watched_st / 60.0, 2))))
                     c_sync1, c_sync2 = st.columns([1.4, 1.0])
                     with c_sync1:
                         min_leidos_manual = st.number_input(
                             "⏱️ Minutos marcados en la regla superior (para guardar en Boletín):",
                             min_value=0.0,
-                            max_value=float(dur_min_st),
-                            value=float(round(watched_st / 60.0, 2)),
+                            max_value=max_min_safe,
+                            value=val_min_safe,
                             step=0.25,
                             key="num_sync_video_minutes"
                         )
@@ -10814,15 +10941,18 @@ if has_lesson_now and stage_5_now != "PORTAL":
                             st.session_state["video_watched_sec"] = nuevo_w
                             st.session_state["video_score_100"] = nuevo_sc
                             if st.session_state.current_folio:
-                                save_video_and_summary_pg(folio_code=st.session_state.current_folio, watched_sec=nuevo_w, video_score_100=nuevo_sc)
+                                save_video_and_summary_pg(
+                                    folio_code=st.session_state.current_folio,
+                                    watched_sec=nuevo_w,
+                                    video_score_100=nuevo_sc
+                                )
+                                st.cache_data.clear()
                             st.success(f"✅ Acreditado en Boletín: {round(nuevo_w / 60.0, 2)} min ({nuevo_sc}%).")
                             st.rerun()
 
-
-
 # ==============================================================================
 # PARTE 16 — BLOQUE 2-B (FINAL): PANEL DERECHO DE WRITING SKILL (20%)
-# ==============================================================================  
+# ==============================================================================
         if col_wrt_box is not None:
             with col_wrt_box:
                 with st.container(border=True):
@@ -10876,7 +11006,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                     st.session_state["video_summary_draft"] = res_central
                     render_live_word_counter(res_central, min_w_c, max_w_c, crit_w["etiqueta"])
                     vid_ref_c = st.session_state.get("current_lesson_video") or {}
-                    url_vid_apa = str(vid_ref_c.get("url") or "https://youtube.com")
+                    url_vid_apa = str(vid_ref_c.get("url") or "https://www.youtube.com")
                     ej_apa_c = (
                         f"{vid_ref_c.get('channel', 'Author/Channel')}. ({str(vid_ref_c.get('published_date', '2026'))[:4]}). "
                         f"{vid_ref_c.get('title', 'Title of the video')} [Video]. YouTube. {url_vid_apa}"
@@ -10888,6 +11018,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         placeholder=f"Ejemplo APA 7:\n{ej_apa_c}",
                         key="txt_central_writing_apa7"
                     )
+                    st.session_state["video_apa7_draft"] = apa_central
 
                     if st.button("📝 Calificar Writing Skill con Rúbrica y APA 7 (20%)", type="primary", width="stretch", key="btn_central_eval_writing"):
                         if not res_central.strip():
@@ -10923,6 +11054,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                             summary_score_100=res_rub["score_100"],
                                             summary_eval_dict=res_rub
                                         )
+                                        st.cache_data.clear()
                                     st.rerun()
                                 except Exception as e_rub:
                                     st.error(f"No se pudo completar la evaluación por rúbrica: {e_rub}")
@@ -10937,66 +11069,132 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         else:
                             _vre_res.render_resultado_rubrica_video(st.session_state["video_rubric_result"])
 
-
 # ==============================================================================
-# PARTE 17 — BLOQUE 2A: CATÁLOGO DE VIDEOS (SOLO ACTIVO EN BOTÓN 2 VIEWING) 
-# ============================================================================== 
+# PARTE 17 — BLOQUE 2A: CATÁLOGO DE VIDEOS CONTEXTUALIZADO AL TÓPICO DE LA LECCIÓN
+# ==============================================================================
 has_lesson_p17 = bool(str(st.session_state.get("generated_text") or "").strip())
 stage_5_p17 = st.session_state.get("active_stage_5", "READING")
 
-if has_lesson_p17 and stage_5_p17 == "VIEWING":
-    st.markdown("### 📚 Catálogo Escrolable de Videos Relacionados")
 
-    topico_actual_leccion = str(st.session_state.get("current_topic") or "").strip()
+def _extraer_topico_contextual_leccion(texto_lec: str, topic_state: str, asunto_state: str) -> str:
+    """Extrae el asunto o tema real de la lección (activa o cargada por Folio) para inmersión de vocabulario."""
+    for cand in (topic_state, asunto_state):
+        c_clean = str(cand or "").strip()
+        if c_clean and c_clean.lower() not in ["lección cei", "lección activa", "general"]:
+            return c_clean
+
+    # Si se abrió una lección guardada por Folio, extraer el título limpio del encabezado APA
+    for line in str(texto_lec or "").splitlines():
+        ln = re.sub(r"[*#`]", "", line).strip()
+        if not ln:
+            continue
+        if any(ln.lower().startswith(pref) for pref in ["folio:", "author:", "cefr level:", "campus", "bibliography"]):
+            continue
+        if 4 <= len(ln) <= 110:
+            return ln
+    return ""
+
+
+if has_lesson_p17 and stage_5_p17 == "VIEWING":
+    st.markdown("### 📚 Catálogo Escrolable de Videos Contextualizados al Tópico")
+
+    topico_actual_leccion = _extraer_topico_contextual_leccion(
+        st.session_state.get("generated_text", ""),
+        st.session_state.get("current_topic", ""),
+        locals().get("asunto", "")
+    )
+    if topico_actual_leccion:
+        st.session_state["current_topic"] = topico_actual_leccion
+
     titulo_catalogo = (
-        f"{gramatica_b1} • {topico_actual_leccion}"
+        f"{topico_actual_leccion}  •  {gramatica_b1} ({st.session_state.selected_cefr})"
         if topico_actual_leccion
         else f"{gramatica_b1} ({st.session_state.selected_cefr})"
     )
     if "video_catalog_limit" not in st.session_state:
         st.session_state["video_catalog_limit"] = 12
 
-    vid_data = st.session_state.get("current_lesson_video")
-    if not vid_data or not vid_data.get("url"):
-        vid_data = buscar_video_relacionado_leccion(
-            gramatica_b1,
-            st.session_state.selected_cefr,
-            st.session_state.generated_text,
-            topic_context=topico_actual_leccion,
-            max_videos=st.session_state["video_catalog_limit"]
+    # Selector de inmersión temática para el estudiante
+    c_imm1, c_imm2 = st.columns([2.5, 1.1])
+    with c_imm1:
+        modo_inmersion_vid = st.radio(
+            "🎯 Enfoque de inmersión del catálogo:",
+            [
+                f"🎯 Tópico de la Lección ({topico_actual_leccion[:42]})" if topico_actual_leccion else "🎯 Tópico de la Lección",
+                f"📐 Gramática ({gramatica_b1[:38]})",
+                "🌐 Combinado (Tópico + Gramática)"
+            ],
+            horizontal=True,
+            key="rad_video_topic_immersion_mode"
         )
-        st.session_state["current_lesson_video"] = vid_data
-        if st.session_state.current_folio and vid_data.get("url"):
-            save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_data)
+    with c_imm2:
+        st.write("")
+        btn_refresh_topic_vids = st.button(
+            "🔄 Actualizar Videos del Tópico",
+            type="secondary",
+            width="stretch",
+            key="btn_refresh_contextual_videos_p17"
+        )
+
+    if modo_inmersion_vid.startswith("🎯") and topico_actual_leccion:
+        query_gramatica_ctx = f"{topico_actual_leccion} vocabulary real life English"
+        query_topico_ctx = topico_actual_leccion
+    elif modo_inmersion_vid.startswith("🌐") and topico_actual_leccion:
+        query_gramatica_ctx = f"{topico_actual_leccion} {gramatica_b1}"
+        query_topico_ctx = topico_actual_leccion
+    else:
+        query_gramatica_ctx = gramatica_b1
+        query_topico_ctx = topico_actual_leccion
+
+    prev_mode_vid = st.session_state.get("_last_vid_immersion_mode", "")
+    cambio_modo_vid = bool(prev_mode_vid and prev_mode_vid != modo_inmersion_vid)
+    st.session_state["_last_vid_immersion_mode"] = modo_inmersion_vid
+
+    vid_data = st.session_state.get("current_lesson_video")
+    if btn_refresh_topic_vids or cambio_modo_vid or not isinstance(vid_data, dict) or not vid_data.get("url"):
+        with st.spinner(f"Buscando videos reales inmersos en '{topico_actual_leccion or gramatica_b1}'..."):
+            vid_data = buscar_video_relacionado_leccion(
+                query_gramatica_ctx,
+                st.session_state.selected_cefr,
+                st.session_state.generated_text,
+                topic_context=query_topico_ctx,
+                max_videos=st.session_state["video_catalog_limit"]
+            ) or {}
+            st.session_state["current_lesson_video"] = vid_data
+            st.session_state["_vid_alts_fetched_once"] = True
+            if st.session_state.current_folio and vid_data.get("url"):
+                save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_data)
+            if btn_refresh_topic_vids or cambio_modo_vid:
+                st.rerun()
 
     alts_list = list(vid_data.get("alternatives") or []) if isinstance(vid_data, dict) else []
     if not alts_list and not st.session_state.get("_vid_alts_fetched_once"):
         st.session_state["_vid_alts_fetched_once"] = True
         _fresh_pack = buscar_video_relacionado_leccion(
-            gramatica_b1,
+            query_gramatica_ctx,
             st.session_state.selected_cefr,
             st.session_state.generated_text,
-            topic_context=topico_actual_leccion,
+            topic_context=query_topico_ctx,
             max_videos=st.session_state["video_catalog_limit"]
-        )
+        ) or {}
         curr_url_now = (vid_data or {}).get("url", "")
         existentes_urls = {curr_url_now}
         for cand_v in ([_fresh_pack] + list(_fresh_pack.get("alternatives") or [])):
-            if cand_v.get("url") and cand_v.get("url") not in existentes_urls:
+            if isinstance(cand_v, dict) and cand_v.get("url") and cand_v.get("url") not in existentes_urls:
                 alts_list.append(cand_v)
                 existentes_urls.add(cand_v.get("url"))
         if isinstance(vid_data, dict):
             vid_data["alternatives"] = alts_list
             st.session_state["current_lesson_video"] = vid_data
 
-    st.markdown(f"**Temática:** _{titulo_catalogo}_ (`{len(alts_list) + 1}` opciones)")
+    st.markdown(f"**Inmersión Activa:** _{titulo_catalogo}_ (`{len(alts_list) + 1}` videos contextualizados)")
     with st.container(height=280, border=True):
         if not alts_list:
-            st.caption("No hay videos alternativos cargados en este momento.")
+            st.caption("No hay videos alternativos cargados en este momento. Pulsa **🔄 Actualizar Videos del Tópico**.")
         else:
             video_ya_acreditado_p17 = float(st.session_state.get("video_score_100") or 0.0) >= 100.0
             for idx_alt, alt_v in enumerate(alts_list, start=1):
-                alt_title_safe = str(alt_v.get("title") or f"Video Relacionado {idx_alt}").replace("[", "(").replace("]", ")")
+                alt_title_safe = str(alt_v.get("title") or f"Video Contextual {idx_alt}").replace("[", "(").replace("]", ")")
                 alt_chan = str(alt_v.get("channel") or "YouTube ESL")
                 alt_min = alt_v.get("duration_min", 5.0)
                 alt_url = str(alt_v.get("url") or "")
@@ -11025,6 +11223,7 @@ if has_lesson_p17 and stage_5_p17 == "VIEWING":
                         st.rerun()
                 st.divider()
 
+
 # ==============================================================================
 # PARTE 17 — BLOQUE 2B (FINAL): MÁS OPCIONES DE VIDEO Y URL PROPIA (BOTÓN 2)
 # ==============================================================================
@@ -11032,19 +11231,19 @@ if has_lesson_p17 and stage_5_p17 == "VIEWING":
     with c_more1:
         if len(alts_list) < 19:
             if st.button("➕ Ver más opciones (hasta 20)", key="btn_load_more_videos", width="stretch"):
-                with st.spinner("Cargando más videos sobre el tema y tópico..."):
+                with st.spinner("Cargando más videos contextualizados sobre el tópico y tema..."):
                     st.session_state["video_catalog_limit"] = 20
                     mas_pack = buscar_video_relacionado_leccion(
-                        gramatica_b1,
+                        query_gramatica_ctx,
                         st.session_state.selected_cefr,
                         st.session_state.generated_text,
-                        topic_context=topico_actual_leccion,
+                        topic_context=query_topico_ctx,
                         max_videos=20
-                    )
+                    ) or {}
                     curr_u = (vid_data or {}).get("url", "")
-                    urls_ya = {curr_u} | {v.get("url") for v in alts_list}
+                    urls_ya = {curr_u} | {v.get("url") for v in alts_list if isinstance(v, dict)}
                     for nv in ([mas_pack] + list(mas_pack.get("alternatives") or [])):
-                        if nv.get("url") and nv.get("url") not in urls_ya and len(alts_list) < 19:
+                        if isinstance(nv, dict) and nv.get("url") and nv.get("url") not in urls_ya and len(alts_list) < 19:
                             alts_list.append(nv)
                             urls_ya.add(nv.get("url"))
                     if isinstance(vid_data, dict):
@@ -11064,12 +11263,13 @@ if has_lesson_p17 and stage_5_p17 == "VIEWING":
         if custom_yt_url.strip() and ("youtube.com" in custom_yt_url or "youtu.be" in custom_yt_url):
             if st.button("🔄 Reproducir URL Pegada Arriba", key="btn_refresh_lesson_video", width="stretch"):
                 video_ya_acreditado_2b = float(st.session_state.get("video_score_100") or 0.0) >= 100.0
-                m_id = re.search(r"(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
+                m_id = re.search(r"(?:v=|youtu\.be/|embed/|shorts/)([a-zA-Z0-9_-]{11})", custom_yt_url.strip())
                 vid_id_c = m_id.group(1) if m_id else ""
+                clean_yt_norm = f"https://youtube.com{vid_id_c}" if vid_id_c else custom_yt_url.strip()
                 meta_c = _validar_video_oembed(vid_id_c) or {}
                 vid_obj_new = {
                     "video_id": vid_id_c,
-                    "url": custom_yt_url.strip(),
+                    "url": clean_yt_norm,
                     "title": meta_c.get("title") or f"({titulo_catalogo}) Custom Video",
                     "channel": meta_c.get("channel") or "YouTube Academic Resource",
                     "published_date": "2026",
@@ -11086,6 +11286,7 @@ if has_lesson_p17 and stage_5_p17 == "VIEWING":
                 if st.session_state.current_folio:
                     save_video_and_summary_pg(folio_code=st.session_state.current_folio, video_info=vid_obj_new)
                 st.rerun()
+
 
 
 # ==============================================================================
@@ -11132,13 +11333,14 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                                 st.session_state.generated_text,
                                 st.session_state.selected_cefr,
                                 gramatica_b1
-                            )
+                            ) or {}
                             st.session_state["speaking_eval_result"] = ev_oral
                             sc_pct = float(ev_oral.get("score_percent") or 0.0)
                             pts_25 = round((sc_pct / 100.0) * 25.0, 2)
                             f_code = st.session_state.current_folio or ""
                             usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
                             if f_code:
+                                save_best_speaking_pg(f_code, int(round(sc_pct)))
                                 public_u = upload_student_media_to_storage(
                                     raw_aud,
                                     filename=f"{f_code}_speaking.wav",
@@ -11150,6 +11352,7 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                                     f_code, usr_now, "audio", public_u or "", gramatica_b1,
                                     st.session_state.selected_cefr, eval_dict=ev_oral
                                 )
+                                st.cache_data.clear()
                             st.success(f"🏆 **Calificación Oral:** {sc_pct}% (`{pts_25} / 25.0 pts`) — Nivel: **{ev_oral.get('cefr_performance', '')}**")
                             st.write(f"**🔤 Fonética y Articulación:** {ev_oral.get('phonetic_feedback', '')}")
                             st.write(f"**🎵 Fluidez y Prosodia:** {ev_oral.get('fluency_prosody', '')}")
@@ -11215,13 +11418,14 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                                 st.session_state.generated_text,
                                 st.session_state.selected_cefr,
                                 gramatica_b1
-                            )
+                            ) or {}
                             st.session_state["speaking_eval_result"] = ev_vid
                             sc_vpct = float(ev_vid.get("score_percent") or 0.0)
                             pts_v25 = round((sc_vpct / 100.0) * 25.0, 2)
                             f_code = st.session_state.current_folio or ""
                             usr_now = st.session_state.get("current_user") or usuario or "Estudiante"
                             if f_code:
+                                save_best_speaking_pg(f_code, int(round(sc_vpct)))
                                 public_v = upload_student_media_to_storage(
                                     raw_vid,
                                     filename=f"{f_code}_speaking.{v_ext}",
@@ -11233,6 +11437,7 @@ if has_lesson_now and stage_5_now == "SPEAKING":
                                     f_code, usr_now, "video", public_v or "", gramatica_b1,
                                     st.session_state.selected_cefr, eval_dict=ev_vid
                                 )
+                                st.cache_data.clear()
                             st.success(f"🏆 **Calificación Oral (Video):** {sc_vpct}% (`{pts_v25} / 25.0 pts`)")
                             st.write(f"**🔤 Fonética:** {ev_vid.get('phonetic_feedback', '')}")
                             st.write(f"**🎵 Fluidez:** {ev_vid.get('fluency_prosody', '')}")
@@ -11277,20 +11482,21 @@ if has_lesson_p18 and stage_5_p18 == "READING":
     if st.session_state.get("split_speaking_open"):
         aud_grabado = locals().get("student_audio")
         if aud_grabado is not None:
+            raw_grabado_bytes = aud_grabado.getvalue()
             safe_rec_name = f"CEI_Speaking_{st.session_state.current_folio or usuario.replace(' ', '_')}.mp3"
             try:
                 import static_ffmpeg
                 static_ffmpeg.add_paths()
                 from pydub import AudioSegment
 
-                wav_buf = io.BytesIO(aud_grabado.getvalue())
+                wav_buf = io.BytesIO(raw_grabado_bytes)
                 audio_seg = AudioSegment.from_file(wav_buf, format="wav")
                 mp3_buf = io.BytesIO()
                 audio_seg.export(mp3_buf, format="mp3", bitrate="128k")
                 mp3_data = mp3_buf.getvalue()
                 dl_mime = "audio/mp3"
             except Exception:
-                mp3_data = aud_grabado.getvalue()
+                mp3_data = raw_grabado_bytes
                 safe_rec_name = safe_rec_name.replace(".mp3", ".wav")
                 dl_mime = "audio/wav"
 
@@ -11332,7 +11538,6 @@ if has_lesson_p18 and stage_5_p18 == "READING":
                             st.session_state.pop(k_del, None)
                     st.session_state["pron_attempt_nonce"] = nonce_p18 + 1
                     st.rerun()
-
 
     # BOTONES DE AUDIO DEL QUIZ (DEBAJO DEL QUIZ Y ARRIBA DEL PDF OFICIAL)
     if st.session_state.quiz_data:
@@ -11398,7 +11603,7 @@ if has_lesson_p18 and stage_5_p18 == "READING":
     if st.button("🗑️ Borrar Todo", type="secondary", width="stretch", key="btn_clear_all_stage"):
         for k_reset in [
             "generated_text", "current_folio", "current_pdf_link", "current_creation_date",
-            "best_stored_score", "video_summary_draft", "video_apa7_draft"
+            "current_topic", "best_stored_score", "video_summary_draft", "video_apa7_draft"
         ]:
             st.session_state[k_reset] = ""
         for k_none in [
@@ -11409,7 +11614,7 @@ if has_lesson_p18 and stage_5_p18 == "READING":
             st.session_state[k_none] = None
         for k_false in [
             "study_mode_active", "show_saved_audios", "quiz_graded", "url_folio_checked",
-            "split_speaking_open", "split_writing_open", "show_lesson_creator"
+            "split_speaking_open", "split_writing_open", "show_lesson_creator", "_vid_alts_fetched_once"
         ]:
             st.session_state[k_false] = False
         st.session_state.quiz_user_answers = {}
@@ -11430,5 +11635,6 @@ footer_html = (
     "</div>"
 )
 st.markdown(footer_html, unsafe_allow_html=True)
+
 
 
