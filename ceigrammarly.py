@@ -8017,76 +8017,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
-        # 14.0A PLANTILLA DOCENTE (TÉRMINOS LEGALES, ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
-        if seccion_inst_sel == "🧑‍🏫 Plantilla y Portal Docente":
-            puede_editar_terminos_leg = is_owner or can("Editar_Terminos_Afiliacion") or can("Gestionar_Compliance_Legal")
-            if not (is_owner or can("Ver_Panel_Admin") or can("Registrar_Usuarios") or puede_editar_terminos_leg):
-                st.warning("⛔ Tu perfil actual no tiene acceso a la gestión de Plantilla Docente.")
-            else:
-                if puede_editar_terminos_leg:
-                    with st.expander("📜 Editar Términos, Condiciones y Código de Compliance Docente", expanded=False):
-                        from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
-                        t_doc_info = get_institutional_terms_pg("docente")
-                        if t_doc_info.get("updated_at"):
-                            st.caption(f"Última actualización: `{t_doc_info['updated_at']}` por **{t_doc_info['updated_by']}**")
-                        txt_terms_doc_ed = st.text_area(
-                            "Marco Legal, Fiscal y Compliance mostrado en registro_docentes.py:",
-                            value=t_doc_info["texto"],
-                            height=220,
-                            key="ta_edit_teacher_terms_admin"
-                        )
-                        if st.button("💾 Guardar y Publicar Términos Docentes", type="primary", key="btn_save_teacher_terms_admin"):
-                            if not txt_terms_doc_ed.strip():
-                                st.warning("⚠️ El texto legal docente no puede quedar vacío.")
-                            else:
-                                ok_td, msg_td = save_institutional_terms_pg("docente", txt_terms_doc_ed, str(st.session_state.current_user or "Owner"))
-                                st.success(msg_td) if ok_td else st.error(msg_td)
 
-                tab_doc_reg, tab_doc_audit = st.tabs([
-                    "➕ Registrar / Actualizar Docente",
-                    "🔍 Auditar Portal y Bóveda Fiscal Docente"
-                ])
-                with tab_doc_reg:
-                    from registro_docentes import render_formulario_registro_docente
-                    render_formulario_registro_docente(
-                        registrado_por=u_login_hdr,
-                        key_prefix="admin_doc_reg",
-                        es_registro_externo=False
-                    )
-                with tab_doc_audit:
-                    from portal_docente import render_portal_docente_cei
-                    render_portal_docente_cei(
-                        usuario_actual=u_login_hdr,
-                        rol_actual="Propietario" if is_owner else curr_r_clean,
-                        puede_ver_estudiantes=True,
-                        puede_motivar_wa=True,
-                        puede_retroalimentar=True,
-                        puede_ver_comisiones=True,
-                        es_admin_o_owner=True,
-                        dia_corte_cfdi=25,
-                        institute_address=str(institute_address or "Agua Prieta, Sonora, México")
-                    )
-
-        # 14.0B CENTRO DE COMPLIANCE, VIGILANCIA LEGAL SEMANAL Y RELOJ SLA
-        if seccion_inst_sel == "⚖️ Compliance y Vigilancia Legal":
-            from compliance_engine import render_panel_compliance_gerencial
-            render_panel_compliance_gerencial(
-                usuario_actual=u_login_hdr,
-                puede_gestionar=bool(is_owner or can("Gestionar_Compliance_Legal"))
-            )
-
-
-
- if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_portal) and st.session_state.get("active_admin_workspace"):
-    seccion_inst_sel = str(st.session_state["active_admin_workspace"]).strip()
-
-    with st.container(border=True):
-        st.markdown(f"### {seccion_inst_sel}")
-        st.divider()
-
-        puede_editar_inicio = is_owner or can("Editar_Fecha_Inicio_Curso")
-        puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
-        puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
         # 14.0A PLANTILLA DOCENTE (TÉRMINOS LEGALES, ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
         if seccion_inst_sel == "🧑‍🏫 Plantilla y Portal Docente":
