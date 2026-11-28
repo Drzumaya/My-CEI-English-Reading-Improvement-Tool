@@ -8028,12 +8028,12 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                 if puede_editar_terminos_leg:
                     with st.expander("📜 Editar Términos, Condiciones y Código de Compliance Docente", expanded=False):
                         from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
-                        t_doc_info = get_institutional_terms_pg("docente")
+                        t_doc_info = get_institutional_terms_pg("docente") or {}
                         if t_doc_info.get("updated_at"):
                             st.caption(f"Última actualización: `{t_doc_info['updated_at']}` por **{t_doc_info['updated_by']}**")
                         txt_terms_doc_ed = st.text_area(
                             "Marco Legal, Fiscal y Compliance mostrado en registro_docentes.py:",
-                            value=t_doc_info["texto"],
+                            value=str(t_doc_info.get("texto") or ""),
                             height=220,
                             key="ta_edit_teacher_terms_admin"
                         )
@@ -8042,7 +8042,14 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                                 st.warning("⚠️ El texto legal docente no puede quedar vacío.")
                             else:
                                 ok_td, msg_td = save_institutional_terms_pg("docente", txt_terms_doc_ed, str(st.session_state.current_user or "Owner"))
-                                st.success(msg_td) if ok_td else st.error(msg_td)
+                                if ok_td:
+                                    st.cache_data.clear()
+                                    st.success(msg_td)
+                                else:
+                                    st.error(msg_td)
+
+                        st.markdown("**👁️ Vista Previa Documento APA 7:**")
+                        render_affiliate_terms_apa7_doc(txt_terms_doc_ed, max_height_px=260)
 
                 tab_doc_reg, tab_doc_audit = st.tabs([
                     "➕ Registrar / Actualizar Docente",
@@ -8076,7 +8083,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                 usuario_actual=u_login_hdr,
                 puede_gestionar=bool(is_owner or can("Gestionar_Compliance_Legal"))
             )
-
 
                     # ==========================================================
                     # PARTE 14A: HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
@@ -8147,6 +8153,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                                 st.write("")
                                 if st.button("🔄 Aplicar Estatus", width="stretch", key="btn_apply_cert_stat"):
                                     update_certificate_status_pg(str(cert_to_mod), nuevo_est_cert)
+                                    st.cache_data.clear()
                                     st.success(f"✅ Certificado {cert_to_mod} actualizado a '{nuevo_est_cert}' en Supabase.")
                                     st.rerun()
                 except Exception as e:
