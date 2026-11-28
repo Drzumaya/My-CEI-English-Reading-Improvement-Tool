@@ -10413,7 +10413,7 @@ if has_lesson_now and stage_5_now != "PORTAL":
                         unsafe_allow_html=True
                     )
 
-            # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA — SINCRONIZADO CON TAMAÑO DE LETRA)
+            # QUIZ DE COMPRENSIÓN (30% DE LA RÚBRICA — SINCRONIZADO CON TAMAÑO DE LETRA) 
             if not st.session_state.quiz_data:
                 cefr_tag = next(iter(st.session_state.selected_cefr.split()), "CEFR") if st.session_state.selected_cefr else "CEFR"
                 if st.button(
@@ -10504,8 +10504,8 @@ if has_lesson_now and stage_5_now != "PORTAL":
 
 
 # ==============================================================================
-# PARTE 16 — BLOQUE 1-B: PANEL DERECHO DE SPEAKING (25%) EN VISTA DIVIDIDA
-# ==============================================================================
+# PARTE 16 — BLOQUE 1-B: PANEL DERECHO DE SPEAKING (25%) EN VISTA DIVIDIDA 
+# ============================================================================== 
         if col_spk_box is not None:
             with col_spk_box:
                 with st.container(border=True):
@@ -10555,10 +10555,11 @@ if has_lesson_now and stage_5_now != "PORTAL":
                                                 student_user=usr_now,
                                                 folder="pronunciation"
                                             )
-                                            save_student_media_record_pg(
-                                                f_code, usr_now, "audio", public_u or "", gramatica_b1,
-                                                st.session_state.selected_cefr, eval_dict=ev_oral
-                                            )
+                                            if "save_student_media_record_pg" in globals() and callable(save_student_media_record_pg):
+                                                save_student_media_record_pg(
+                                                    f_code, usr_now, "audio", public_u or "", gramatica_b1,
+                                                    st.session_state.selected_cefr, eval_dict=ev_oral
+                                                )
                                             st.cache_data.clear()
                                         st.success(f"🏆 **Calificación Oral:** {sc_pct}% (`{pts_25} / 25.0 pts`)")
                                         st.write(f"**🔤 Fonética:** {ev_oral.get('phonetic_feedback', '')}")
