@@ -2081,11 +2081,11 @@ def create_official_gradebook_pdf(student_name: str, gb_data: dict, topic_filter
                 break
 
 
-addr_doc = (
-    str(st.session_state.get("institute_address") or "").strip()
-    or globals().get("DEFAULT_ADDRESS")
-    or "Agua Prieta, Sonora, México"
-)
+    addr_doc = (
+        str(st.session_state.get("institute_address") or "").strip()
+        or globals().get("DEFAULT_ADDRESS")
+        or "Agua Prieta, Sonora, México"
+    )
 
     class GradebookPDF(FPDF):
         def header(self):
@@ -2101,6 +2101,7 @@ addr_doc = (
                     self.image(logo_src, x=15, y=13, w=22)
                 except Exception:
                     pass
+
 
             self.set_xy(38, 13)
             self.set_font("Times", "B", 13.5)
