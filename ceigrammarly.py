@@ -8087,7 +8087,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                     # ==========================================================
                     # PARTE 14A: HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
                     # ==========================================================
-                    st.divider()
+                  st.divider()
                     st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
                     certs_hist = load_certificates_pg() or []
 
