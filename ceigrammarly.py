@@ -8017,65 +8017,6 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
         puede_gestionar_afiliados = is_owner or can("Gestionar_Comisiones_Afiliados")
         puede_gestionar_iva = is_owner or can("Gestionar_IVA_Mensualidad")
 
-
-
-        # 14.0A PLANTILLA DOCENTE (TÉRMINOS LEGALES, ALTA Y AUDITORÍA DEL PORTAL DOCENTE CEI)
-        if seccion_inst_sel == "🧑‍🏫 Plantilla y Portal Docente":
-            puede_editar_terminos_leg = is_owner or can("Editar_Terminos_Afiliacion") or can("Gestionar_Compliance_Legal")
-            if not (is_owner or can("Ver_Panel_Admin") or can("Registrar_Usuarios") or puede_editar_terminos_leg):
-                st.warning("⛔ Tu perfil actual no tiene acceso a la gestión de Plantilla Docente.")
-            else:
-                if puede_editar_terminos_leg:
-                    with st.expander("📜 Editar Términos, Condiciones y Código de Compliance Docente", expanded=False):
-                        from legal_terms_manager import get_institutional_terms_pg, save_institutional_terms_pg
-                        t_doc_info = get_institutional_terms_pg("docente") or {}
-                        if t_doc_info.get("updated_at"):
-                            st.caption(f"Última actualización: `{t_doc_info['updated_at']}` por **{t_doc_info['updated_by']}**")
-                        txt_terms_doc_ed = st.text_area(
-                            "Marco Legal, Fiscal y Compliance mostrado en registro_docentes.py:",
-                            value=str(t_doc_info.get("texto") or ""),
-                            height=220,
-                            key="ta_edit_teacher_terms_admin"
-                        )
-                        if st.button("💾 Guardar y Publicar Términos Docentes", type="primary", key="btn_save_teacher_terms_admin"):
-                            if not txt_terms_doc_ed.strip():
-                                st.warning("⚠️ El texto legal docente no puede quedar vacío.")
-                            else:
-                                ok_td, msg_td = save_institutional_terms_pg("docente", txt_terms_doc_ed, str(st.session_state.current_user or "Owner"))
-                                if ok_td:
-                                    st.cache_data.clear()
-                                    st.success(msg_td)
-                                else:
-                                    st.error(msg_td)
-
-                        st.markdown("**👁️ Vista Previa Documento APA 7:**")
-                        render_affiliate_terms_apa7_doc(txt_terms_doc_ed, max_height_px=260)
-
-                tab_doc_reg, tab_doc_audit = st.tabs([
-                    "➕ Registrar / Actualizar Docente",
-                    "🔍 Auditar Portal y Bóveda Fiscal Docente"
-                ])
-                with tab_doc_reg:
-                    from registro_docentes import render_formulario_registro_docente
-                    render_formulario_registro_docente(
-                        registrado_por=u_login_hdr,
-                        key_prefix="admin_doc_reg",
-                        es_registro_externo=False
-                    )
-                with tab_doc_audit:
-                    from portal_docente import render_portal_docente_cei
-                    render_portal_docente_cei(
-                        usuario_actual=u_login_hdr,
-                        rol_actual="Propietario" if is_owner else curr_r_clean,
-                        puede_ver_estudiantes=True,
-                        puede_motivar_wa=True,
-                        puede_retroalimentar=True,
-                        puede_ver_comisiones=True,
-                        es_admin_o_owner=True,
-                        dia_corte_cfdi=25,
-                        institute_address=str(institute_address or "Agua Prieta, Sonora, México")
-                    )
-
         # 14.0B CENTRO DE COMPLIANCE, VIGILANCIA LEGAL SEMANAL Y RELOJ SLA
         if seccion_inst_sel == "⚖️ Compliance y Vigilancia Legal":
             from compliance_engine import render_panel_compliance_gerencial
@@ -8084,10 +8025,137 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                 puede_gestionar=bool(is_owner or can("Gestionar_Compliance_Legal"))
             )
 
+        # 14.1 PESTAÑA CERTIFICADOS
+        if seccion_inst_sel == "🏅 Certificados (Timbre y QR)":
+            if not (is_owner or can("Emitir_Certificados")):
+                st.warning("⛔ Tu perfil actual no tiene capacidad habilitada para emitir certificados.")
+            else:
+                st.markdown("#### 🏅 Emisión Oficial de Certificados con Firma Criptográfica (HMAC-SHA256) y Sello QR")
+                try:
+                    regs_cert = load_padron_records() or []
+                    opciones_claves = {
+                        f"{str(r.get('Matricula', '')).strip()} — {str(r.get('Nombre_Completo') or r.get('Usuario') or '').strip()} ({str(r.get('Nivel', 'B1')).strip()})": r
+                        for r in regs_cert
+                        if str(r.get("Matricula", "")).strip()
+                        and str(r.get("Rol", "Estudiante")).strip().lower() in ["estudiante", "student", "alumno", ""]
+                    }
+
+                    if not opciones_claves:
+                        st.warning("No hay matrículas de estudiantes registradas en el padrón.")
+                    else:
+                        col_c1, col_c2 = st.columns([1.3, 1.7])
+                        with col_c1:
+                            sel_label = st.selectbox(
+                                "🎓 Seleccionar Matrícula Oficial:",
+                                list(opciones_claves.keys()),
+                                key="cert_select_clave"
+                            )
+                            datos_alumno = opciones_claves[sel_label]
+                            clave_sel = str(datos_alumno.get("Matricula", "")).strip()
+                            usr_sel = str(datos_alumno.get("Usuario", "")).strip()
+                            nombre_sel = str(datos_alumno.get("Nombre_Completo") or usr_sel).strip()
+                            nivel_sel = normalize_cefr(datos_alumno.get("Nivel", "B1"))
+                            grado_sel = str(datos_alumno.get("Grado_Academico", "Licenciatura / Universidad")).strip()
+                            cat_cert_info = calcular_categoria_automatica_estudiante(usr_sel or nombre_sel, nivel_sel) or {}
+                            cat_cert_lbl = str(cat_cert_info.get("categoria_label") or "🥉 Categoría Bronce")
+                            cat_cert_corto = str(cat_cert_info.get("categoria_corto") or "Bronce")
+
+                            st.info(
+                                f"**Titular:** {nombre_sel} (`{usr_sel}`)\n\n"
+                                f"**Matrícula:** `{clave_sel}` | **Nivel CEFR:** {nivel_sel}\n\n"
+                                f"**Grado:** {grado_sel}\n\n"
+                                f"**Insignia Académica:** **{cat_cert_lbl}** (`{int(cat_cert_info.get('total_lecciones') or 0)}` lecciones)"
+                            )
+
+                        with col_c2:
+                            programa_cert = st.text_input(
+                                "📚 Programa / Curso Acreditado:",
+                                value=f"CEFR {nivel_sel} Academic English Grammar & Applied Discourse — CATEGORÍA {cat_cert_corto}",
+                                key=f"cert_prog_input_{clave_sel}_{cat_cert_corto}"
+                            )
+                            calif_cert = st.text_input(
+                                "🏆 Calificación / Resultado Final:",
+                                value=f"98.0% — Passed with Academic Distinction ({cat_cert_lbl})",
+                                key=f"cert_grade_input_{clave_sel}_{cat_cert_corto}"
+                            )
+                            if st.button("🔏 Timbrar y Generar Certificado Oficial (PDF + QR)", type="primary", width="stretch"):
+                                with st.spinner("Generando timbrado criptográfico HMAC-SHA256 y guardando en Supabase..."):
+                                    ahora_local = datetime.now(ZoneInfo("America/Hermosillo"))
+                                    folio_c = f"CERT-{ahora_local.strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+                                    fecha_c = ahora_local.strftime("%Y-%m-%d %H:%M:%S")
+
+                                    cadena_o, sello_h = generar_sello_digital(folio_c, clave_sel, nombre_sel, nivel_sel, fecha_c)
+
+                                    insert_certificate_pg(
+                                        folio_c=folio_c,
+                                        clave_sel=clave_sel,
+                                        nombre_sel=nombre_sel,
+                                        nivel_sel=nivel_sel,
+                                        grado_sel=grado_sel,
+                                        programa_c=programa_cert.strip(),
+                                        calif_c=calif_cert.strip(),
+                                        fecha_c=fecha_c,
+                                        sello_h=sello_h
+                                    )
+                                    try:
+                                        update_certificate_link_pg(folio_c, _build_cert_verify_url(folio_c))
+                                    except Exception:
+                                        pass
+
+                                    pdf_cert_bytes = generar_pdf_certificado(
+                                        folio_c, clave_sel, nombre_sel, nivel_sel,
+                                        programa_cert.strip(), calif_cert.strip(), fecha_c,
+                                        cadena_o, sello_h, institute_address
+                                    )
+                                    st.session_state["last_cert_pdf"] = pdf_cert_bytes
+                                    st.session_state["last_cert_name"] = f"Certificado_{folio_c}_{nombre_sel.replace(' ', '_')}.pdf"
+                                    st.session_state["last_cert_folio"] = folio_c
+                                    st.success(f"✅ ¡Certificado timbrado ({cat_cert_lbl}) y guardado en Supabase! Folio: **{folio_c}**")
+
+                        if st.session_state.get("last_cert_pdf"):
+                            f_actual = st.session_state["last_cert_folio"]
+                            link_cert_directo = _build_cert_verify_url(f_actual)
+
+                            st.markdown(f"##### 👁️ Vista Previa del Certificado Oficial (`{f_actual}`)")
+                            try:
+                                import pypdfium2 as pdfium
+                                pdf_doc = pdfium.PdfDocument(st.session_state["last_cert_pdf"])
+                                page = pdf_doc[0]
+                                bitmap = page.render(scale=2.0)
+                                pil_image = bitmap.to_pil()
+                                st.image(pil_image, caption=f"Certificado Oficial Tamaño Carta — {f_actual}", width="stretch")
+                            except Exception:
+                                st.info("📄 Documento PDF listo. Usa el botón inferior para descargarlo o abrirlo en tu visor.")
+
+                            col_b1, col_b2, col_b3 = st.columns([1.3, 1.4, 1.0])
+                            with col_b1:
+                                st.download_button(
+                                    label="📥 Descargar PDF",
+                                    data=st.session_state["last_cert_pdf"],
+                                    file_name=st.session_state["last_cert_name"],
+                                    mime="application/pdf",
+                                    type="primary",
+                                    width="stretch",
+                                    key="btn_dl_cert_preview"
+                                )
+                            with col_b2:
+                                if st.button("🔗 Guardar Link en Base de Datos", width="stretch", key="btn_save_link_cert"):
+                                    try:
+                                        update_certificate_link_pg(f_actual, link_cert_directo)
+                                        st.success(f"✅ Enlace guardado en Supabase: `{link_cert_directo}`")
+                                    except Exception as e_lk:
+                                        st.error(f"Error al guardar enlace: {e_lk}")
+                            with col_b3:
+                                if st.button("✖️ Cerrar Ventana", width="stretch", key="btn_close_cert_preview"):
+                                    st.session_state["last_cert_pdf"] = None
+                                    st.session_state["last_cert_folio"] = None
+                                    st.session_state["last_cert_name"] = None
+                                    st.rerun()
+
                     # ==========================================================
                     # PARTE 14A: HISTORIAL Y REVOCACIÓN DE CERTIFICADOS
                     # ==========================================================
-                  st.divider()
+                    st.divider()
                     st.markdown("#### 📜 Historial de Certificados Emitidos y Control de Vigencia")
                     certs_hist = load_certificates_pg() or []
 
@@ -8100,6 +8168,7 @@ if (is_owner or is_faculty_desktop or es_socio_afiliado or tiene_acceso_admin_po
                             if c in df_certs.columns
                         ]
                         st.dataframe(df_certs[cols_c_ver], height=160, width="stretch", hide_index=True)
+
 
                         st.markdown("##### 🖨️ Reimprimir o Descargar Certificado Emitido")
                         c_imp1, c_imp2 = st.columns([2.2, 1.3])
